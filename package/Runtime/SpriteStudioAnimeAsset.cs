@@ -19,6 +19,7 @@ namespace SpriteStudio.Runtime
         [Tooltip("マテリアル辞書: 描画に必要なベースマテリアル群への参照")]
         public List<Material> Materials = new List<Material>();
         
-        // TODO: アニメーション名からインデックスを引くための辞書情報など
+        [Tooltip("ファイル内に含まれるアニメーション名のリスト")]
+        public string[] AnimationNames;
     }
 }

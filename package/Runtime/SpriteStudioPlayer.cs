@@ -53,10 +53,100 @@ namespace SpriteStudio.Runtime
             }
         }
 
+        [Header("Playback Settings")]
+        [Tooltip("再生するアニメーション名 (パック名/アニメ名など)")]
+        [SerializeField] private string _animationName = "";
+        public string AnimationName
+        {
+            get => _animationName;
+            set => _animationName = value;
+        }
+
+        [Tooltip("起動時に自動で再生を開始するか")]
+        [SerializeField] private bool _autoPlay = true;
+        public bool AutoPlay
+        {
+            get => _autoPlay;
+            set => _autoPlay = value;
+        }
+
+        [Tooltip("ループ再生を有効にするか")]
+        [SerializeField] private bool _loop = true;
+        public bool Loop
+        {
+            get => _loop;
+            set
+            {
+                _loop = value;
+                if (_internalPlayer != null)
+                {
+                    _internalPlayer.SetLoop(_loop ? -1 : 1);
+                }
+            }
+        }
+
+        [Tooltip("アニメーションの再生速度スケール")]
+        [SerializeField] private float _speedScale = 1.0f;
+        public float SpeedScale
+        {
+            get => _speedScale;
+            set
+            {
+                _speedScale = value;
+                if (_internalPlayer != null)
+                {
+                    _internalPlayer.SetSpeed(_speedScale);
+                }
+            }
+        }
+
+        [Tooltip("サブフレーム描画（フレーム間の補間）を有効にするか")]
+        [SerializeField] private bool _subFrameEnabled = false;
+        public bool SubFrameEnabled
+        {
+            get => _internalPlayer != null ? _internalPlayer.SubFrameEnabled : _subFrameEnabled;
+            set
+            {
+                _subFrameEnabled = value;
+                if (_internalPlayer != null) _internalPlayer.SubFrameEnabled = value;
+            }
+        }
+
+        /// <summary>
+        /// 指定したアニメーションの再生を開始します。
+        /// </summary>
+        public void Play(string animName)
+        {
+            _animationName = animName;
+            if (_internalPlayer != null && !string.IsNullOrEmpty(_animationName))
+            {
+                if (_internalPlayer.SetupAnimation(_animationName))
+                {
+                    _internalPlayer.SetPlaybackStyle(1, 0); // Forward, Normal
+                    _internalPlayer.SetLoop(_loop ? -1 : 1); // -1 = Infinite loop, 1 = Play once
+                    _internalPlayer.SetSpeed(_speedScale);
+                    _internalPlayer.Play();
+                }
+                else
+                {
+                    Debug.LogWarning($"[SpriteStudioPlayer] Failed to setup animation: {_animationName}");
+                }
+            }
+        }
+
+        private void Start()
+        {
+            if (_autoPlay && !string.IsNullOrEmpty(_animationName))
+            {
+                Play(_animationName);
+            }
+        }
+
         private SpriteStudioInternalPlayer _internalPlayer;
         private MeshFilter _meshFilter;
         private MeshRenderer _meshRenderer;
         private Mesh _sharedMesh;
+        private MaterialPropertyBlock _mpb;
 
         private void OnEnable()
         {
@@ -76,9 +166,12 @@ namespace SpriteStudio.Runtime
             }
             _meshFilter.sharedMesh = _sharedMesh;
 
+            if (_mpb == null) _mpb = new MaterialPropertyBlock();
+
             if (_internalPlayer == null)
             {
                 _internalPlayer = new SpriteStudioInternalPlayer();
+                _internalPlayer.SubFrameEnabled = _subFrameEnabled;
                 if (_animeAsset != null && _animeAsset.SsabData != null)
                 {
                     _internalPlayer.LoadSsab(_animeAsset.SsabData);
@@ -93,7 +186,10 @@ namespace SpriteStudio.Runtime
                 _internalPlayer.Dispose();
                 _internalPlayer = null;
             }
+        }
 
+        private void OnDestroy()
+        {
             if (_sharedMesh != null)
             {
                 if (Application.isPlaying)
@@ -108,16 +204,26 @@ namespace SpriteStudio.Runtime
         {
             if (_internalPlayer == null) return;
 
-            // 1. ロジック更新 (Tick)
-            _internalPlayer.Tick(Time.deltaTime);
+            // 1. 更新
+            _internalPlayer.Tick(Time.deltaTime, SubFrameEnabled);
+            _internalPlayer.ScheduleMeshUpdate(Time.deltaTime);
 
-            // 2. メッシュ生成 Job スケジュール
-            _internalPlayer.ScheduleMeshUpdate();
-
-            // 3. メッシュ適用 (Job の待機と SetVertexBufferData)
+            // 2. メッシュ反映適用 (Job の待機と SetVertexBufferData)
             _internalPlayer.ApplyToMesh(_sharedMesh);
             
-            // TODO: マテリアルが切り替わった場合は _meshRenderer.sharedMaterials を更新する処理を追加
+            // 3. マテリアルの設定
+            if (_animeAsset != null && _meshRenderer != null)
+            {
+                var mats = _animeAsset.Materials;
+                if (mats != null && mats.Count > 0)
+                {
+                    var currentMats = _meshRenderer.sharedMaterials;
+                    if (currentMats == null || currentMats.Length != mats.Count || currentMats[0] != mats[0])
+                    {
+                        _meshRenderer.sharedMaterials = mats.ToArray();
+                    }
+                }
+            }
         }
 
         #region ITimeControl (Timeline 連携)

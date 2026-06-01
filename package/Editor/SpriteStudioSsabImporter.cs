@@ -44,8 +44,39 @@ namespace SpriteStudio.Editor
                         if (tex != null)
                         {
                             asset.Textures.Add(tex);
+                            
+                            // Shader.Find はインポート順によって null を返すことがあるため、パスから直接ロードする
+                            var shader = UnityEditor.AssetDatabase.LoadAssetAtPath<Shader>(
+                                "Packages/com.spritestudio.ssruntime/Runtime/Shaders/SpriteStudioDefault.shader"
+                            );
+                            
+                            if (shader == null) 
+                            {
+                                shader = Shader.Find("SpriteStudio/Default");
+                            }
+
+                            if (shader != null)
+                            {
+                                var mat = new Material(shader);
+                                mat.name = tex.name + "_Material";
+                                mat.mainTexture = tex;
+                                ctx.AddObjectToAsset("Mat_" + i, mat);
+                                asset.Materials.Add(mat);
+                            }
                         }
                     }
+                }
+            }
+
+            // 4. アニメーション名の抽出
+            int animLen = ssab.AnimationsLength;
+            asset.AnimationNames = new string[animLen];
+            for (int i = 0; i < animLen; i++)
+            {
+                var anim = ssab.Animations(i);
+                if (anim.HasValue)
+                {
+                    asset.AnimationNames[i] = anim.Value.Name;
                 }
             }
 
