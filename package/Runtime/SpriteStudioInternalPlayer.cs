@@ -133,7 +133,9 @@ namespace SpriteStudio.Runtime
             unsafe
             {
                 // Tick is executed strictly sequentially on the main thread (state mutability boundary)
-                NativeMethods.ss_runtime_update(_handle.ptr, deltaTime);
+                // ss_runtime_update は delta を「ミリ秒」で受け取る (update_interval = 1000/fps)。
+                // Unity の Time.deltaTime は秒なので 1000 倍する (Godot 実装も delta_seconds * 1000)。
+                NativeMethods.ss_runtime_update(_handle.ptr, deltaTime * 1000.0f);
             }
         }
 
@@ -256,7 +258,8 @@ namespace SpriteStudio.Runtime
                     int vc = b.VertexCount;
                     int ic = b.IndexCount;
 
-                    if ((int)b.Kind == 2 || (int)b.Kind == 4)
+                    // DrawBatchKind: Normal=0, Shape=1, Instance=2, Effect=3, Mesh=4, Text=5, Nines=6, Mask=7
+                    if ((int)b.Kind == 1 || (int)b.Kind == 4)
                     {
                         vc = 0;
                         ic = 0;
@@ -266,7 +269,7 @@ namespace SpriteStudio.Runtime
                             int p_idx = frameData.DrawOrder(rank);
                             if (p_idx < 0 || p_idx >= partsLength) continue;
 
-                            if ((int)b.Kind == 2)
+                            if ((int)b.Kind == 1) // Shape
                             {
                                 int svc = frame.ShapeVertexCounts[p_idx];
                                 if (svc >= 3)
@@ -275,7 +278,7 @@ namespace SpriteStudio.Runtime
                                     ic += (svc - 2) * 3;
                                 }
                             }
-                            else if ((int)b.Kind == 4)
+                            else if ((int)b.Kind == 4) // Mesh
                             {
                                 uint v0 = frame.MeshVertexOffsets[p_idx];
                                 uint v1 = frame.MeshVertexOffsets[p_idx + 1];
@@ -301,7 +304,9 @@ namespace SpriteStudio.Runtime
                 }
 
                 // デバッグ用: もし再生されていればVerticesが0より大きいはず
-                Debug.Log($"[SpriteStudioPlayer] FrameNo: {frame.FrameNo}, Vertices: {totalVertices}, Indices: {totalIndices}, Batches: {drawBatchesLength}");
+                byte firstKind = drawBatchesLength > 0 ? drawBatches[0].Kind : (byte)255;
+                int firstBlend = drawBatchesLength > 0 ? (int)frameData.DrawBatches(0).Value.BlendType : -1;
+                Debug.Log($"[SS-DIAG] FrameNo:{frame.FrameNo} V:{totalVertices} I:{totalIndices} Batches:{drawBatchesLength} Kind0:{firstKind} Blend0:{firstBlend} | bufLen WM:{frame.WorldMatricesLen} LV:{frame.LocalVerticesLen} LUV:{frame.LocalUvsLen} parts:{partsLength}");
 
                 for (int i = 0; i < drawOrderLength; i++)
                 {
@@ -435,11 +440,28 @@ namespace SpriteStudio.Runtime
             targetMesh.SetSubMesh(0, subMeshDescriptor, UnityEngine.Rendering.MeshUpdateFlags.Default);
             targetMesh.RecalculateBounds();
             
-            // バッファを解放する前にデバッグ
+            // バッファを解放する前にデバッグ: 全頂点をスキャンして「ゼロか実データか」を判定
             if (_meshVertices.Length > 0)
             {
-                var v0 = _meshVertices[0];
-                Debug.Log($"[SpriteStudioPlayer] Vertex 0: Pos={v0.Position}, Color={v0.Color}, UV={v0.TexCoord0}");
+                int nonZeroPos = 0, nonZeroAlpha = 0, nonZeroUv = 0, rateNonZero = 0;
+                int minR = 255, minG = 255, minB = 255, maxR = 0, maxG = 0, maxB = 0;
+                float minRate = float.MaxValue, maxRate = float.MinValue;
+                for (int vi = 0; vi < _meshVertices.Length; vi++)
+                {
+                    var v = _meshVertices[vi];
+                    if (v.Position.x != 0f || v.Position.y != 0f) nonZeroPos++;
+                    if (v.Color.a != 0) nonZeroAlpha++;
+                    if (v.TexCoord0.x != 0f || v.TexCoord0.y != 0f) nonZeroUv++;
+                    if (v.Color.r < minR) minR = v.Color.r; if (v.Color.r > maxR) maxR = v.Color.r;
+                    if (v.Color.g < minG) minG = v.Color.g; if (v.Color.g > maxG) maxG = v.Color.g;
+                    if (v.Color.b < minB) minB = v.Color.b; if (v.Color.b > maxB) maxB = v.Color.b;
+                    float rate = v.TexCoord1.x;
+                    if (rate != 0f) rateNonZero++;
+                    if (rate < minRate) minRate = rate; if (rate > maxRate) maxRate = rate;
+                }
+                var mid = _meshVertices[_meshVertices.Length / 2];
+                var b = targetMesh.bounds;
+                Debug.Log($"[SS-DIAG] applied verts:{_meshVertices.Length} nonZeroPos:{nonZeroPos} nonZeroAlpha:{nonZeroAlpha} nonZeroUv:{nonZeroUv} | colR[{minR}-{maxR}] G[{minG}-{maxG}] B[{minB}-{maxB}] rate[{minRate:F2}-{maxRate:F2}] rateNonZero:{rateNonZero} | bounds sz:{b.size} | midV col:{mid.Color} uv:{mid.TexCoord0} tc1:{mid.TexCoord1}");
             }
 
             // バッファを解放

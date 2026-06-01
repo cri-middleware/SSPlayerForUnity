@@ -87,11 +87,12 @@ namespace SpriteStudio.Runtime
                     int p_idx = DrawOrder[rank];
                     if (p_idx < 0 || p_idx >= PartStates.Length) continue;
 
-                    if (batch.Kind == 1) // Normal
+                    // DrawBatchKind: Normal=0, Shape=1, Instance=2, Effect=3, Mesh=4, Text=5, Nines=6, Mask=7
+                    if (batch.Kind == 0) // Normal
                     {
                         BuildNormal(p_idx, ref vbase, ref ibase);
                     }
-                    else if (batch.Kind == 2) // Shape
+                    else if (batch.Kind == 1) // Shape
                     {
                         BuildShape(p_idx, ref vbase, ref ibase);
                     }
@@ -110,8 +111,9 @@ namespace SpriteStudio.Runtime
             int vertCount = needsCenter ? 5 : 4;
 
             // Fetch pointers for this part
-            float* part_verts = LocalVertices + p_idx * 24; // 12 vertices * 2 floats
-            float* part_uvs = LocalUvs + p_idx * 24;
+            // LOCAL_VERTICES_STRIDE = 10 floats/part: [lt.x,lt.y, rt.x,rt.y, lb.x,lb.y, rb.x,rb.y, center.x,center.y]
+            float* part_verts = LocalVertices + p_idx * 10;
+            float* part_uvs = LocalUvs + p_idx * 10;
             float* draw_m = WorldMatrices + p_idx * 16;
 
             float* out_x = stackalloc float[5] { part_verts[0], part_verts[2], part_verts[4], part_verts[6], part_verts[8] };

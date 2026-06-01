@@ -6,6 +6,7 @@
         "Unity.Burst",
         "Unity.Mathematics",
         "Unity.Timeline",
+        "UnityEngine.UI",
         "SpriteStudio.Runtime.Bindings"
     ],
     "includePlatforms": [],
