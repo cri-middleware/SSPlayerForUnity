@@ -14,24 +14,40 @@ namespace SpriteStudio.Editor
     {
         public override void OnImportAsset(AssetImportContext ctx)
         {
-            var asset = ScriptableObject.CreateInstance<SpriteStudioProjectAsset>();
+            var asset = ScriptableObject.CreateInstance<SpriteStudioAnimeAsset>();
             
             // 1. .ssab バイナリの読み込みと保持 (メモリの供給元)
             asset.SsabData = File.ReadAllBytes(ctx.assetPath);
             
-            // 2. TODO: FlatBuffersで SsabData をパースし、関連テクスチャのパスを取得する
-            // var texturePaths = ...;
+            // 2. FlatBuffersで SsabData をパースし、関連テクスチャのパスを取得する
+            var bb = new Google.FlatBuffers.ByteBuffer(asset.SsabData);
+            var ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
+            
+            string baseDir = Path.GetDirectoryName(ctx.assetPath);
             
             // 3. テクスチャ等の依存関係を登録し、ロードして参照を保持 (ビルド落ち・Addressables対策)
-            /*
-            foreach (var texPath in texturePaths) {
-                // AssetDatabase への明示的な依存登録
-                ctx.DependsOnSourceAsset(texPath); 
-                
-                var tex = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(texPath);
-                if (tex != null) asset.Textures.Add(tex);
+            int len = ssab.ExternalTexturesLength;
+            for (int i = 0; i < len; i++)
+            {
+                var extTex = ssab.ExternalTextures(i);
+                if (extTex.HasValue)
+                {
+                    string texName = extTex.Value.Name;
+                    if (!string.IsNullOrEmpty(texName))
+                    {
+                        string texPath = Path.Combine(baseDir, texName).Replace("\\", "/");
+                        
+                        // AssetDatabase への明示的な依存登録
+                        ctx.DependsOnSourceAsset(texPath);
+                        
+                        var tex = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(texPath);
+                        if (tex != null)
+                        {
+                            asset.Textures.Add(tex);
+                        }
+                    }
+                }
             }
-            */
 
             // メインアセットとして登録
             ctx.AddObjectToAsset("MainAsset", asset);

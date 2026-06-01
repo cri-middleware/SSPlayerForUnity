@@ -12,6 +12,23 @@ namespace SpriteStudio.Runtime
     [ExecuteAlways]
     public class SpriteStudioPlayer : MonoBehaviour, ITimeControl
     {
+        [Header("SpriteStudio Asset")]
+        [Tooltip("描画対象となるコンバート済みの ssab アセット")]
+        [SerializeField] private SpriteStudioAnimeAsset _animeAsset;
+
+        public SpriteStudioAnimeAsset AnimeAsset
+        {
+            get => _animeAsset;
+            set
+            {
+                _animeAsset = value;
+                if (_internalPlayer != null && _animeAsset != null && _animeAsset.SsabData != null)
+                {
+                    _internalPlayer.LoadSsab(_animeAsset.SsabData);
+                }
+            }
+        }
+
         [Header("Sorting")]
         [SerializeField] private string _sortingLayerName = "Default";
         [SerializeField] private int _sortingOrder = 0;
@@ -62,6 +79,10 @@ namespace SpriteStudio.Runtime
             if (_internalPlayer == null)
             {
                 _internalPlayer = new SpriteStudioInternalPlayer();
+                if (_animeAsset != null && _animeAsset.SsabData != null)
+                {
+                    _internalPlayer.LoadSsab(_animeAsset.SsabData);
+                }
             }
         }
 

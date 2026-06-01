@@ -2,7 +2,7 @@ using System;
 using Unity.Collections;
 using Unity.Jobs;
 using UnityEngine;
-using SpriteStudio.Runtime.Bindings;
+using SpriteStudio.SsRuntime;
 
 namespace SpriteStudio.Runtime
 {
@@ -25,10 +25,38 @@ namespace SpriteStudio.Runtime
         // private NativeArray<Vertex> _vertices;
         // private NativeArray<ushort> _indices;
 
+        // SSAB データの固定用（Rust 側にメモリを Borrow させるため）
+        private System.Runtime.InteropServices.GCHandle _ssabPin;
+
         public SpriteStudioInternalPlayer()
         {
-            // TODO: FFI経由でネイティブ側のインスタンス（ポインタ）を生成して _handle に格納する
-            // _handle = new SsPlayerHandle { ptr = SSRuntimeMethods.ss_runtime_player_create(...) };
+            unsafe
+            {
+                _handle = new SsPlayerHandle { ptr = NativeMethods.ss_runtime_create() };
+            }
+        }
+
+        /// <summary>
+        /// SsabData (バイト配列) を読み込んでリソースをバインドする
+        /// </summary>
+        public void LoadSsab(byte[] ssabData)
+        {
+            if (!_handle.IsValid || ssabData == null || ssabData.Length == 0) return;
+
+            // 既存のピン留めがあれば解除
+            if (_ssabPin.IsAllocated)
+            {
+                _ssabPin.Free();
+            }
+
+            // バイト配列のメモリを固定して Rust 側へ Borrow させる（ゼロコピー）
+            _ssabPin = System.Runtime.InteropServices.GCHandle.Alloc(ssabData, System.Runtime.InteropServices.GCHandleType.Pinned);
+
+            unsafe
+            {
+                byte* ptr = (byte*)_ssabPin.AddrOfPinnedObject();
+                NativeMethods.ss_runtime_load_ssab_borrow(_handle.ptr, ptr, (nuint)ssabData.Length);
+            }
         }
 
         /// <summary>
@@ -42,8 +70,10 @@ namespace SpriteStudio.Runtime
 
             if (!_handle.IsValid) return;
 
-            // TODO: ネイティブ側の Tick() 呼び出し
-            // SSRuntimeMethods.ss_runtime_player_tick(_handle.ptr, deltaTime);
+            unsafe
+            {
+                NativeMethods.ss_runtime_update(_handle.ptr, deltaTime);
+            }
         }
 
         /// <summary>
@@ -86,10 +116,14 @@ namespace SpriteStudio.Runtime
             {
                 unsafe
                 {
-                    // TODO: FFI経由でポインタを解放する
-                    // SSRuntimeMethods.ss_runtime_player_destroy(_handle.ptr);
+                    NativeMethods.ss_runtime_destroy(_handle.ptr);
                     _handle.ptr = null;
                 }
+            }
+
+            if (_ssabPin.IsAllocated)
+            {
+                _ssabPin.Free();
             }
 
             // TODO: メッシュ生成用 NativeArray 群の解放

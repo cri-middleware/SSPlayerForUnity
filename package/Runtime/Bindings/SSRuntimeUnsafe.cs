@@ -1,6 +1,8 @@
+using System;
 using Unity.Collections.LowLevel.Unsafe;
+using SpriteStudio.SsRuntime;
 
-namespace SpriteStudio.Runtime.Bindings
+namespace SpriteStudio.Runtime
 {
     /// <summary>
     /// ECS (Entities) の IComponentData や Burst Job 内から安全に

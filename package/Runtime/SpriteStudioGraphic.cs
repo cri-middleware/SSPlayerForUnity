@@ -12,6 +12,23 @@ namespace SpriteStudio.Runtime
     [ExecuteAlways]
     public class SpriteStudioGraphic : Graphic
     {
+        [Header("SpriteStudio Asset")]
+        [Tooltip("描画対象となるコンバート済みの ssab アセット")]
+        [SerializeField] private SpriteStudioAnimeAsset _animeAsset;
+
+        public SpriteStudioAnimeAsset AnimeAsset
+        {
+            get => _animeAsset;
+            set
+            {
+                _animeAsset = value;
+                if (_internalPlayer != null && _animeAsset != null && _animeAsset.SsabData != null)
+                {
+                    _internalPlayer.LoadSsab(_animeAsset.SsabData);
+                }
+            }
+        }
+
         private SpriteStudioInternalPlayer _internalPlayer;
         private Mesh _sharedMesh;
 
@@ -29,6 +46,10 @@ namespace SpriteStudio.Runtime
             if (_internalPlayer == null)
             {
                 _internalPlayer = new SpriteStudioInternalPlayer();
+                if (_animeAsset != null && _animeAsset.SsabData != null)
+                {
+                    _internalPlayer.LoadSsab(_animeAsset.SsabData);
+                }
             }
         }
 
