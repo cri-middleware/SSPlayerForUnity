@@ -1,0 +1,20 @@
+{
+    "name": "SpriteStudio.Editor",
+    "rootNamespace": "SpriteStudio.Editor",
+    "references": [
+        "SpriteStudio.Runtime",
+        "SpriteStudio.Runtime.Bindings",
+        "SpriteStudio.Editor.Bindings"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

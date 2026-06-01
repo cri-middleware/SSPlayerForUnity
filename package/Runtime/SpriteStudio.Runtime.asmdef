@@ -1,0 +1,20 @@
+{
+    "name": "SpriteStudio.Runtime",
+    "rootNamespace": "SpriteStudio.Runtime",
+    "references": [
+        "Unity.Collections",
+        "Unity.Burst",
+        "Unity.Mathematics",
+        "Unity.Timeline",
+        "SpriteStudio.Runtime.Bindings"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

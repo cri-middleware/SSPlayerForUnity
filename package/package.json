@@ -1,0 +1,8 @@
+{
+  "name": "com.spritestudio.ssruntime",
+  "version": "7.0.0-alpha01",
+  "displayName": "SSPlayer For Unity",
+  "description": "SPriteStudio 7 Player Library",
+  "unity": "6000.3",
+  "dependencies": {}
+}
