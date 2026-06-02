@@ -19,7 +19,11 @@ Shader "SpriteStudio/Default"
         Cull Off
         Lighting Off
         ZWrite Off
-        Blend SrcAlpha OneMinusSrcAlpha // Mix blend mode
+        // Premultiplied-alpha 合成。1パスで Mix(通常) と Add(加算) を両立させる。
+        //   Mix : out=(rgb*a, a)  -> rgb*a + dst*(1-a)   (通常アルファ合成と等価)
+        //   Add : out=(rgb*a, 0)  -> rgb*a + dst*(1-0)   (加算合成)
+        // frag 側で rgb を a で premultiply し、加算パーティクルのみ a=0 を出力する。
+        Blend One OneMinusSrcAlpha
 
         Pass
         {
@@ -51,8 +55,10 @@ Shader "SpriteStudio/Default"
             {
                 v2f OUT;
                 OUT.vertex = UnityObjectToClipPos(IN.vertex);
-                // SDK outputs pixel coordinates, so multiply by TexelSize (1/width, 1/height) to normalize
-                OUT.texcoord = IN.texcoord * _MainTex_TexelSize.xy;
+                // Normal parts output pixel coordinates, Effect parts output normalized coordinates (IN.texcoord1.z = 1)
+                float isNormalized = IN.texcoord1.z;
+                float2 texelSizeMultiplier = lerp(_MainTex_TexelSize.xy, float2(1.0, 1.0), isNormalized);
+                OUT.texcoord = IN.texcoord * texelSizeMultiplier;
                 // SpriteStudio uses Top-Left UV origin, Unity uses Bottom-Left UV origin
                 OUT.texcoord.y = 1.0 - OUT.texcoord.y;
                 OUT.color = IN.color;
@@ -62,18 +68,39 @@ Shader "SpriteStudio/Default"
 
             fixed4 frag(v2f IN) : SV_Target
             {
-                // Basic implementation of PartColor Mix blend mode for now
-                // In a full implementation, we'd use IN.texcoord1.y (blend_idx) to switch behavior
                 fixed4 texColor = tex2D(_MainTex, IN.texcoord);
-                
-                // Color.a stores the overall part alpha
-                // Color.rgb stores the part color RGB
-                // rate stores the mix rate
+
+                // texcoord1 = [rate, blend_idx, isNormalized(=effect), reserved]
+                //   blend_idx は ss.format.BlendType: 0=Mix, 1=Mul, 2=Add, 3=Sub
                 float rate = IN.texcoord1.x;
-                
-                // Mix blend mode approximation
-                fixed3 finalRGB = lerp(texColor.rgb, IN.color.rgb, rate);
+                float blendIdx = IN.texcoord1.y;
+                float isNormalized = IN.texcoord1.z; // 1 = エフェクトパート, 0 = 通常パート
+
+                fixed3 finalRGB;
+                if (isNormalized > 0.5)
+                {
+                    // エフェクト: 頂点カラーで乗算 (tint)
+                    finalRGB = texColor.rgb * IN.color.rgb;
+                }
+                else
+                {
+                    // 通常パート: SpriteStudio の PartColor Mix ブレンド (近似)
+                    finalRGB = lerp(texColor.rgb, IN.color.rgb, rate);
+                }
+
                 fixed finalAlpha = texColor.a * IN.color.a;
+
+                // --- Premultiplied alpha ---
+                // Blend One OneMinusSrcAlpha と組み合わせ、通常パートは従来と等価な結果になる。
+                finalRGB *= finalAlpha;
+
+                // 加算合成: エフェクトパートで blend_idx == Add(2) のときのみ a=0 を出力し
+                // dst を素通し ( rgb*a + dst ) させる。通常パートには影響しない。
+                // TODO: 通常パートの Add/Mul/Sub は別パス/別マテリアルで対応予定。
+                if (isNormalized > 0.5 && abs(blendIdx - 2.0) < 0.5)
+                {
+                    finalAlpha = 0.0;
+                }
 
                 return fixed4(finalRGB, finalAlpha);
             }

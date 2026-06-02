@@ -20,7 +20,7 @@ namespace SpriteStudio.Runtime
             Internal = new SpriteStudioInternalPlayer { SubFrameEnabled = subFrameEnabled };
             if (asset != null && asset.SsabData != null)
             {
-                Internal.LoadSsab(asset.SsabData);
+                Internal.LoadSsab(asset.SsabData, asset.ResolveExternalSsab);
             }
         }
 
@@ -28,7 +28,7 @@ namespace SpriteStudio.Runtime
         {
             if (Internal != null && asset != null && asset.SsabData != null)
             {
-                Internal.LoadSsab(asset.SsabData);
+                Internal.LoadSsab(asset.SsabData, asset.ResolveExternalSsab);
             }
         }
 

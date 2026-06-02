@@ -71,6 +71,42 @@ namespace SpriteStudio.Editor
             return texPath;
         }
 
+        internal static string ResolveSsabPath(string baseDir, string animePackName, out SpriteStudioAnimeAsset asset, Action<string> onDependency)
+        {
+            asset = null;
+            if (string.IsNullOrEmpty(animePackName)) return null;
+
+            string filename = animePackName;
+            if (!filename.EndsWith(".ssab", StringComparison.OrdinalIgnoreCase))
+            {
+                if (filename.EndsWith(".ssae", StringComparison.OrdinalIgnoreCase))
+                {
+                    filename = Path.ChangeExtension(filename, ".ssab");
+                }
+                else
+                {
+                    filename += ".ssab";
+                }
+            }
+
+            string path = Path.Combine(baseDir, filename).Replace("\\", "/");
+            onDependency?.Invoke(path);
+            asset = AssetDatabase.LoadAssetAtPath<SpriteStudioAnimeAsset>(path);
+
+            if (asset == null)
+            {
+                string[] guids = AssetDatabase.FindAssets(Path.GetFileNameWithoutExtension(filename) + " t:SpriteStudioAnimeAsset");
+                if (guids.Length > 0)
+                {
+                    path = AssetDatabase.GUIDToAssetPath(guids[0]);
+                    onDependency?.Invoke(path);
+                    asset = AssetDatabase.LoadAssetAtPath<SpriteStudioAnimeAsset>(path);
+                }
+            }
+            
+            return path;
+        }
+
         /// <summary>
         /// .ssab が参照する全テクスチャ (cellmaps + external_textures) を、
         /// 解決済みパスで重複排除して列挙する。
@@ -134,6 +170,8 @@ namespace SpriteStudio.Editor
             var bb = new Google.FlatBuffers.ByteBuffer(asset.SsabData);
             var ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
             string baseDir = Path.GetDirectoryName(ctx.assetPath);
+            
+            asset.PackHash = ssab.NameHash;
 
             // 3. テクスチャ依存の登録とマテリアル割り当て (ビルド落ち・Addressables対策)
             var shader = ResolveShader(importer.OverrideShader);
@@ -220,7 +258,26 @@ namespace SpriteStudio.Editor
                 if (anim.HasValue) asset.AnimationNames[i] = anim.Value.Name;
             }
 
-            Debug.Log($"[SS-IMPORT] {ctx.assetPath} -> textures:{asset.Textures.Count} materials:{asset.Materials.Count} hashes:{(asset.TextureHashKeys != null ? asset.TextureHashKeys.Length : 0)}");
+            // 6. 外部アニメーション (Instance) への依存解決
+            int extInstLen = ssab.ExternalInstancesLength;
+            if (extInstLen > 0)
+            {
+                var extSeen = new HashSet<SpriteStudioAnimeAsset>();
+                for (int i = 0; i < extInstLen; i++)
+                {
+                    var extInst = ssab.ExternalInstances(i);
+                    if (!extInst.HasValue) continue;
+                    string extName = extInst.Value.AnimePackName;
+                    
+                    ResolveSsabPath(baseDir, extName, out var extAsset, ctx.DependsOnSourceAsset);
+                    if (extAsset != null && extSeen.Add(extAsset))
+                    {
+                        asset.ExternalReferences.Add(extAsset);
+                    }
+                }
+            }
+
+            Debug.Log($"[SS-IMPORT] {ctx.assetPath} -> textures:{asset.Textures.Count} materials:{asset.Materials.Count} extRefs:{asset.ExternalReferences.Count}");
 
             ctx.AddObjectToAsset("MainAsset", asset);
             ctx.SetMainObject(asset);

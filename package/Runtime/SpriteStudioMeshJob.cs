@@ -11,9 +11,40 @@ namespace SpriteStudio.Runtime
     {
         public ushort StartRank;
         public ushort Count;
-        public ushort VertexCount;
-        public ushort IndexCount;
+        public int VertexCount;
+        public int IndexCount;
         public byte Kind;
+        public byte EffectBlend;
+        public uint EffectParticleOffset;
+        public uint EffectQuadCount;
+        public int EffectPartIndex;
+    }
+
+    // エフェクト draw command (1 エミッタ/セルマップ分の描画範囲)。
+    // 生成アクセサ ss.runtime.EffectDrawCommand から値をコピーして埋める。
+    public struct EffectDrawCommandData
+    {
+        public uint CellmapHash;
+        public uint QuadCount;
+        public uint ParticleOffset; // スロット内ローカルの quad オフセット
+        public byte Blend;          // 0=Mix, 1=Add
+    }
+
+    // 1 エフェクトパート分の draw plan を、結合バッファ (_effectVerts 等) 上の
+    // 位置情報として保持する。ジオメトリ実体は結合 NativeArray 側へコピー済み。
+    public struct EffectDrawPlanData
+    {
+        public int CommandStart;  // _effectCommands 内の開始 index
+        public int CommandCount;  // command 数 (0 なら描画なし)
+        public int QuadBase;      // 結合ジオメトリ内のグローバル quad オフセット
+    }
+
+    public unsafe struct InstanceMeshPointer
+    {
+        public SsVertex* Vertices;
+        public uint* Indices;
+        public int VertexCount;
+        public int IndexCount;
     }
 
     public struct PartStateData
@@ -68,9 +99,15 @@ namespace SpriteStudio.Runtime
         [ReadOnly] public NativeArray<ushort> DrawOrder;
         [ReadOnly] public NativeArray<PartStateData> PartStates;
         [ReadOnly] public NativeArray<PartColorData> PartColors;
+        // エフェクトの結合ジオメトリ (全エフェクトパート分を連結。off はグローバル quad オフセット)。
+        [ReadOnly] public NativeArray<float> EffectVerts;
+        [ReadOnly] public NativeArray<float> EffectUvs;
+        [ReadOnly] public NativeArray<float> EffectColors;
+        [ReadOnly] public NativeArray<int> EffectIndices;
+        [ReadOnly] public NativeArray<InstanceMeshPointer> InstanceMeshes;
 
         public NativeArray<SsVertex> Vertices;
-        public NativeArray<ushort> Indices;
+        public NativeArray<uint> Indices;
 
         // 入力バッファは grow-only で過剰確保されうるため、走査は論理件数で行う
         public int BatchCount;
@@ -85,6 +122,17 @@ namespace SpriteStudio.Runtime
             for (int i = 0; i < BatchCount; i++)
             {
                 var batch = DrawBatches[i];
+                if (batch.Kind == 3) // Effect
+                {
+                    BuildEffect(ref batch, ref vbase, ref ibase);
+                    continue;
+                }
+                else if (batch.Kind == 2) // Instance
+                {
+                    BuildInstance(ref batch, ref vbase, ref ibase);
+                    continue;
+                }
+
                 for (int k = 0; k < batch.Count; k++)
                 {
                     int rank = batch.StartRank + k;
@@ -106,6 +154,106 @@ namespace SpriteStudio.Runtime
                     }
                 }
             }
+        }
+
+        private void BuildEffect(ref DrawBatchData batch, ref int vbase, ref int ibase)
+        {
+            int p_idx = batch.EffectPartIndex;
+            uint qc = batch.EffectQuadCount;
+            if (qc == 0 || EffectIndices.Length == 0) return;
+
+            var part = PartStates[p_idx];
+            byte alphaByte = (byte)(math.clamp(part.Alpha, 0f, 1f) * 255f);
+
+            float* draw_m = WorldMatrices + p_idx * 16;
+
+            uint off = batch.EffectParticleOffset; // 結合ジオメトリ内のグローバル quad オフセット
+            int vertStart = (int)off * 4;
+            int indStart = (int)off * 6;
+
+            // ss.format.BlendType: Mix=0, Add=2 (シェーダ texcoord1.y)
+            int blend_idx = batch.EffectBlend == 1 ? 2 : 0;
+
+            for (int q = 0; q < qc; q++)
+            {
+                int qVertBase = vertStart + q * 4;
+                for (int v = 0; v < 4; v++)
+                {
+                    int vi = qVertBase + v;
+
+                    // エフェクト頂点は stride 3 (X, Y, Z)。Z は未使用。
+                    float lx = EffectVerts[vi * 3 + 0];
+                    float ly = EffectVerts[vi * 3 + 1];
+
+                    float ux = EffectUvs[vi * 2 + 0];
+                    float uy = EffectUvs[vi * 2 + 1];
+
+                    byte r = (byte)(math.clamp(EffectColors[vi * 4 + 0], 0f, 1f) * 255f);
+                    byte g = (byte)(math.clamp(EffectColors[vi * 4 + 1], 0f, 1f) * 255f);
+                    byte b = (byte)(math.clamp(EffectColors[vi * 4 + 2], 0f, 1f) * 255f);
+                    byte a = (byte)(math.clamp(EffectColors[vi * 4 + 3], 0f, 1f) * 255f);
+                    a = (byte)((a * alphaByte) / 255);
+
+                    Vertices[vbase + q * 4 + v] = new SsVertex
+                    {
+                        Position = new Vector3(
+                            draw_m[0] * lx + draw_m[4] * ly + draw_m[12],
+                            draw_m[1] * lx + draw_m[5] * ly + draw_m[13],
+                            0f),
+                        Color = new Color32(r, g, b, a),
+                        TexCoord0 = new Vector2(ux, uy),
+                        TexCoord1 = new Vector4(0f, blend_idx, 1f, 0f) // x=rate(0=tex), y=blend_idx, z=1(normalized)
+                    };
+                }
+
+                int qIndBase = indStart + q * 6;
+                for (int i = 0; i < 6; i++)
+                {
+                    int planIdx = EffectIndices[qIndBase + i];
+                    Indices[ibase + q * 6 + i] = (uint)(vbase + planIdx);
+                }
+            }
+            vbase += (int)qc * 4;
+            ibase += (int)qc * 6;
+        }
+
+        private unsafe void BuildInstance(ref DrawBatchData batch, ref int vbase, ref int ibase)
+        {
+            int p_idx = batch.EffectPartIndex;
+            var meshPtr = InstanceMeshes[p_idx];
+            if (meshPtr.Vertices == null) return;
+            
+            var part = PartStates[p_idx];
+            float partAlpha = part.Alpha;
+            byte alphaByte = (byte)(math.clamp(partAlpha, 0f, 1f) * 255f);
+            
+            float* draw_m = WorldMatrices + p_idx * 16;
+            
+            int vc = meshPtr.VertexCount;
+            int ic = meshPtr.IndexCount;
+            
+            for (int v = 0; v < vc; v++)
+            {
+                var vert = meshPtr.Vertices[v];
+                
+                float lx = vert.Position.x;
+                float ly = vert.Position.y;
+                vert.Position.x = draw_m[0] * lx + draw_m[4] * ly + draw_m[12];
+                vert.Position.y = draw_m[1] * lx + draw_m[5] * ly + draw_m[13];
+                
+                byte a = vert.Color.a;
+                vert.Color.a = (byte)((a * alphaByte) / 255);
+                
+                Vertices[vbase + v] = vert;
+            }
+            
+            for (int i = 0; i < ic; i++)
+            {
+                Indices[ibase + i] = (uint)(meshPtr.Indices[i] + (uint)vbase);
+            }
+            
+            vbase += vc;
+            ibase += ic;
         }
 
         private void BuildNormal(int p_idx, ref int vbase, ref int ibase)
@@ -178,14 +326,14 @@ namespace SpriteStudio.Runtime
 
                 // Pentagon indices: 0,1,4, 1,3,4, 3,2,4, 2,0,4
                 ushort* p = stackalloc ushort[12] { 0, 1, 4, 1, 3, 4, 3, 2, 4, 2, 0, 4 };
-                for (int j = 0; j < 12; j++) Indices[ibase + j] = (ushort)(vbase + p[j]);
+                for (int j = 0; j < 12; j++) Indices[ibase + j] = (uint)(vbase + p[j]);
                 ibase += 12;
             }
             else
             {
                 // Quad indices: 0,1,2, 1,3,2
                 ushort* q = stackalloc ushort[6] { 0, 1, 2, 1, 3, 2 };
-                for (int j = 0; j < 6; j++) Indices[ibase + j] = (ushort)(vbase + q[j]);
+                for (int j = 0; j < 6; j++) Indices[ibase + j] = (uint)(vbase + q[j]);
                 ibase += 6;
             }
 
@@ -262,9 +410,9 @@ namespace SpriteStudio.Runtime
             int tri_count = part_shape_count - 2;
             for (int i = 0; i < tri_count; i++)
             {
-                Indices[ibase + i * 3 + 0] = (ushort)(vbase + 0);
-                Indices[ibase + i * 3 + 1] = (ushort)(vbase + i + 1);
-                Indices[ibase + i * 3 + 2] = (ushort)(vbase + i + 2);
+                Indices[ibase + i * 3 + 0] = (uint)(vbase + 0);
+                Indices[ibase + i * 3 + 1] = (uint)(vbase + i + 1);
+                Indices[ibase + i * 3 + 2] = (uint)(vbase + i + 2);
             }
 
             vbase += part_shape_count;
@@ -316,7 +464,7 @@ namespace SpriteStudio.Runtime
             for (int j = 0; j < indexCount; j++)
             {
                 int srcIdx = (int)(i0 + j);
-                Indices[ibase + j] = (ushort)(vbase + MeshIndices[srcIdx]);
+                Indices[ibase + j] = (uint)(vbase + MeshIndices[srcIdx]);
             }
 
             vbase += vertCount;
