@@ -32,6 +32,21 @@ namespace SpriteStudio.Runtime
 
         private NativeArray<EffectDrawPlanData> _effectPlans;
 
+        // エフェクト draw_plan を frame-data と同じ流儀で読む (ネイティブ→byte[]→ByteBuffer→生成アクセサ)。
+        // 全エフェクトパートのジオメトリを連結した結合バッファ。Burst Job はこれを読む。
+        private byte[] _planBytes;
+        private Google.FlatBuffers.ByteBuffer _planByteBuffer;
+        private NativeArray<EffectDrawCommandData> _effectCommands;
+        private NativeArray<float> _effectVerts;
+        private NativeArray<float> _effectUvs;
+        private NativeArray<float> _effectColors;
+        private NativeArray<int> _effectIndices;
+        private int _effectCommandCount;
+        private int _effectVertFloatCount;
+        private int _effectUvFloatCount;
+        private int _effectColorFloatCount;
+        private int _effectIndexCount;
+
         public delegate byte[] AssetResolver(uint packHash, uint nameHash);
         private AssetResolver _assetResolver;
 
@@ -308,7 +323,9 @@ namespace SpriteStudio.Runtime
         // ゼロアロケーションのため、Job 入出力バッファは永続確保し grow-only で再利用する。
         // NativeArray.Length は確保容量、論理件数は別途 *_Count で保持する。
         private NativeArray<SsVertex> _meshVertices;
-        private NativeArray<ushort> _meshIndices;
+        // インデックスは 32bit。エフェクトの大量パーティクルや mesh/instance 合算で
+        // 頂点数が 65535 を超えても破綻しないようにする (ApplyToMesh は IndexFormat.UInt32)。
+        private NativeArray<uint> _meshIndices;
         private NativeArray<DrawBatchData> _drawBatches;
         private NativeArray<ushort> _drawOrder;
         private NativeArray<PartStateData> _partStates;
@@ -333,7 +350,7 @@ namespace SpriteStudio.Runtime
         public SubmeshInfo[] Submeshes => _submeshes;
         public NativeArray<DrawBatchData> DrawBatches => _drawBatches;
         public NativeArray<SsVertex> MeshVertices => _meshVertices;
-        public NativeArray<ushort> MeshIndices => _meshIndices;
+        public NativeArray<uint> MeshIndices => _meshIndices;
 
         /// <summary>直近の ScheduleMeshUpdate で生成された描画バッチ (= SubMesh) の数。</summary>
         // public int SubmeshCount => _submeshCount;
@@ -347,6 +364,20 @@ namespace SpriteStudio.Runtime
             if (arr.IsCreated && arr.Length >= needed) return;
             if (arr.IsCreated) arr.Dispose();
             arr = new NativeArray<T>(needed < 1 ? 1 : needed, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+        }
+
+        // grow 時に既存内容を保持する版 (エフェクト結合バッファを slot ごとに追記するため)。
+        private static void EnsureCapacityPreserve<T>(ref NativeArray<T> arr, int needed) where T : struct
+        {
+            if (arr.IsCreated && arr.Length >= needed) return;
+            int newLen = UnityEngine.Mathf.Max(needed, arr.IsCreated ? arr.Length * 2 : 256);
+            var newArr = new NativeArray<T>(newLen, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            if (arr.IsCreated)
+            {
+                NativeArray<T>.Copy(arr, newArr, arr.Length);
+                arr.Dispose();
+            }
+            arr = newArr;
         }
 
         /// <summary>
@@ -423,6 +454,13 @@ namespace SpriteStudio.Runtime
                 NativeArray<JobHandle> childHandles = new NativeArray<JobHandle>(partsLength, Allocator.Temp);
                 int childHandleCount = 0;
 
+                // エフェクト結合バッファを毎フレーム先頭から詰め直す。
+                _effectCommandCount = 0;
+                _effectVertFloatCount = 0;
+                _effectUvFloatCount = 0;
+                _effectColorFloatCount = 0;
+                _effectIndexCount = 0;
+
                 for (int i = 0; i < partsLength; i++)
                 {
                     if (_effectSlots != null && i < _effectSlots.Length && _effectSlots[i].EffectSlot != System.IntPtr.Zero)
@@ -432,16 +470,7 @@ namespace SpriteStudio.Runtime
                         
                         if (step.visible && step.draw_plan_len > 0)
                         {
-                            byte* fb = step.draw_plan_buf;
-                            EffectDrawPlanData data = new EffectDrawPlanData();
-                            data.Commands = (EffectDrawCommandData*)GetFbVector(fb, 4);
-                            data.CommandsCount = GetFbVectorLength(fb, 4);
-                            data.Verts = (float*)GetFbVector(fb, 8);
-                            data.Uvs = (float*)GetFbVector(fb, 10);
-                            data.Colors = (float*)GetFbVector(fb, 12);
-                            data.Indices = (int*)GetFbVector(fb, 14);
-                            data.IndicesCount = GetFbVectorLength(fb, 14);
-                            _effectPlans[i] = data;
+                            _effectPlans[i] = AppendEffectDrawPlan(step.draw_plan_buf, (int)step.draw_plan_len);
                         }
                         else
                         {
@@ -477,7 +506,7 @@ namespace SpriteStudio.Runtime
                                 
                                 _instanceMeshes[i] = new InstanceMeshPointer {
                                     Vertices = (SsVertex*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(childPlayer.MeshVertices),
-                                    Indices = (ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(childPlayer.MeshIndices),
+                                    Indices = (uint*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(childPlayer.MeshIndices),
                                     VertexCount = childPlayer.VertexCount,
                                     IndexCount = childPlayer.IndexCount
                                 };
@@ -497,9 +526,9 @@ namespace SpriteStudio.Runtime
                 int maxBatches = drawBatchesLength;
                 for (int i = 0; i < partsLength; i++)
                 {
-                    if (_effectPlans[i].Commands != null)
-                        maxBatches += _effectPlans[i].CommandsCount;
-                        
+                    if (_effectPlans[i].CommandCount > 0)
+                        maxBatches += _effectPlans[i].CommandCount;
+
                     if (_instanceMeshes[i].Vertices != null)
                     {
                         var child = _instanceChildren[i].Player;
@@ -586,16 +615,16 @@ namespace SpriteStudio.Runtime
                             if (p_idx < 0 || p_idx >= partsLength) continue;
                             
                             var plan = _effectPlans[p_idx];
-                            if (plan.Commands == null) continue;
-                            
-                            for (int c = 0; c < plan.CommandsCount; c++)
+                            if (plan.CommandCount == 0) continue;
+
+                            for (int c = 0; c < plan.CommandCount; c++)
                             {
-                                var cmd = plan.Commands[c];
+                                var cmd = _effectCommands[plan.CommandStart + c];
                                 if (cmd.QuadCount > 0)
                                 {
                                     int cmdVc = (int)cmd.QuadCount * 4;
                                     int cmdIc = (int)cmd.QuadCount * 6;
-                                    
+
                                     _drawBatches[_drawBatchCount++] = new DrawBatchData
                                     {
                                         StartRank = 0,
@@ -604,7 +633,8 @@ namespace SpriteStudio.Runtime
                                         IndexCount = cmdIc,
                                         Kind = 3,
                                         EffectBlend = cmd.Blend,
-                                        EffectParticleOffset = cmd.ParticleOffset,
+                                        // 結合ジオメトリ内のグローバル quad オフセット (= スロットベース + コマンド内オフセット)。
+                                        EffectParticleOffset = (uint)plan.QuadBase + cmd.ParticleOffset,
                                         EffectQuadCount = cmd.QuadCount,
                                         EffectPartIndex = p_idx
                                     };
@@ -725,6 +755,12 @@ namespace SpriteStudio.Runtime
                 _vertexCount = totalVertices;
                 _indexCount = totalIndices;
 
+                // エフェクトが無くても Job が参照するため、結合配列は最低 1 要素を確保しておく。
+                EnsureCapacityPreserve(ref _effectVerts, 1);
+                EnsureCapacityPreserve(ref _effectUvs, 1);
+                EnsureCapacityPreserve(ref _effectColors, 1);
+                EnsureCapacityPreserve(ref _effectIndices, 1);
+
                 JobHandle deps = default;
                 if (childHandleCount > 0)
                 {
@@ -755,7 +791,10 @@ namespace SpriteStudio.Runtime
                     DrawOrder = _drawOrder,
                     PartStates = _partStates,
                     PartColors = _partColors,
-                    EffectPlans = _effectPlans,
+                    EffectVerts = _effectVerts,
+                    EffectUvs = _effectUvs,
+                    EffectColors = _effectColors,
+                    EffectIndices = _effectIndices,
                     InstanceMeshes = _instanceMeshes,
 
                     Vertices = _meshVertices,
@@ -794,7 +833,7 @@ namespace SpriteStudio.Runtime
                 new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.TexCoord0, UnityEngine.Rendering.VertexAttributeFormat.Float32, 2),
                 new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.TexCoord1, UnityEngine.Rendering.VertexAttributeFormat.Float32, 4)
             );
-            targetMesh.SetIndexBufferParams(_indexCount, UnityEngine.Rendering.IndexFormat.UInt16);
+            targetMesh.SetIndexBufferParams(_indexCount, UnityEngine.Rendering.IndexFormat.UInt32);
 
             targetMesh.SetVertexBufferData(_meshVertices, 0, 0, _vertexCount, 0, updateFlags);
             targetMesh.SetIndexBufferData(_meshIndices, 0, 0, _indexCount, updateFlags);
@@ -881,6 +920,11 @@ namespace SpriteStudio.Runtime
             }
             
             if (_effectPlans.IsCreated) _effectPlans.Dispose();
+            if (_effectCommands.IsCreated) _effectCommands.Dispose();
+            if (_effectVerts.IsCreated) _effectVerts.Dispose();
+            if (_effectUvs.IsCreated) _effectUvs.Dispose();
+            if (_effectColors.IsCreated) _effectColors.Dispose();
+            if (_effectIndices.IsCreated) _effectIndices.Dispose();
             if (_instanceMeshes.IsCreated) _instanceMeshes.Dispose();
             if (_meshVertices.IsCreated) _meshVertices.Dispose();
             if (_meshIndices.IsCreated) _meshIndices.Dispose();
@@ -890,46 +934,74 @@ namespace SpriteStudio.Runtime
             if (_partColors.IsCreated) _partColors.Dispose();
         }
 
-        private unsafe byte* GetFbVector(byte* fb, int vtableOffset)
+        // エフェクト draw_plan (FlatBuffers, ネイティブ) を frame-data と同じ流儀で読み、
+        // ジオメトリを結合バッファへ追記する。戻り値は結合バッファ上の位置情報。
+        // 手書き vtable walk は廃し、生成アクセサ ss.runtime.EffectDrawPlan を使う。
+        private unsafe EffectDrawPlanData AppendEffectDrawPlan(byte* fb, int len)
         {
-            if (fb == null) return null;
-            int root = *(int*)fb;
-            byte* table = fb + root;
-            int vtable = *(int*)table;
-            byte* vtablePtr = table - vtable;
-            short vtableSize = *(short*)vtablePtr;
-            if (vtableOffset < vtableSize)
-            {
-                short fieldOffset = *(short*)(vtablePtr + vtableOffset);
-                if (fieldOffset != 0)
-                {
-                    byte* fieldPtr = table + fieldOffset;
-                    int offset = *(int*)fieldPtr;
-                    return fieldPtr + offset + 4; // skip length
-                }
-            }
-            return null;
-        }
+            if (fb == null || len <= 0) return default;
 
-        private unsafe int GetFbVectorLength(byte* fb, int vtableOffset)
-        {
-            if (fb == null) return 0;
-            int root = *(int*)fb;
-            byte* table = fb + root;
-            int vtable = *(int*)table;
-            byte* vtablePtr = table - vtable;
-            short vtableSize = *(short*)vtablePtr;
-            if (vtableOffset < vtableSize)
+            // ネイティブ → 再利用 byte[] へコピーして ByteBuffer に包む (frame-data と同じ手順)。
+            if (_planBytes == null || _planBytes.Length < len)
             {
-                short fieldOffset = *(short*)(vtablePtr + vtableOffset);
-                if (fieldOffset != 0)
-                {
-                    byte* fieldPtr = table + fieldOffset;
-                    int offset = *(int*)fieldPtr;
-                    return *(int*)(fieldPtr + offset);
-                }
+                _planBytes = new byte[UnityEngine.Mathf.Max(len, 4096)];
+                _planByteBuffer = new Google.FlatBuffers.ByteBuffer(_planBytes);
             }
-            return 0;
+            System.Runtime.InteropServices.Marshal.Copy((System.IntPtr)fb, _planBytes, 0, len);
+            _planByteBuffer.Position = 0;
+
+            var plan = ss.runtime.EffectDrawPlan.GetRootAsEffectDrawPlan(_planByteBuffer);
+
+            int vLen = plan.VertsLength;
+            int uLen = plan.UvsLength;
+            int cLen = plan.ColorsLength;
+            int iLen = plan.IndicesLength;
+            int cmdLen = plan.CommandsLength;
+
+            // このスロットのグローバル quad ベース (= これまでに詰めた quad 数 = indices/6)。
+            int quadBase = _effectIndexCount / 6;
+
+            // ジオメトリを結合バッファへ追記 (grow は内容保持)。indices 値は command-local のまま保持する。
+            EnsureCapacityPreserve(ref _effectVerts, _effectVertFloatCount + vLen);
+            for (int j = 0; j < vLen; j++) _effectVerts[_effectVertFloatCount + j] = plan.Verts(j);
+            _effectVertFloatCount += vLen;
+
+            EnsureCapacityPreserve(ref _effectUvs, _effectUvFloatCount + uLen);
+            for (int j = 0; j < uLen; j++) _effectUvs[_effectUvFloatCount + j] = plan.Uvs(j);
+            _effectUvFloatCount += uLen;
+
+            EnsureCapacityPreserve(ref _effectColors, _effectColorFloatCount + cLen);
+            for (int j = 0; j < cLen; j++) _effectColors[_effectColorFloatCount + j] = plan.Colors(j);
+            _effectColorFloatCount += cLen;
+
+            EnsureCapacityPreserve(ref _effectIndices, _effectIndexCount + iLen);
+            for (int j = 0; j < iLen; j++) _effectIndices[_effectIndexCount + j] = plan.Indices(j);
+            _effectIndexCount += iLen;
+
+            // commands を抽出 (描画順ループでテクスチャ/ブレンド/範囲を参照する)。
+            EnsureCapacityPreserve(ref _effectCommands, _effectCommandCount + cmdLen);
+            int cmdStart = _effectCommandCount;
+            for (int c = 0; c < cmdLen; c++)
+            {
+                var cc = plan.Commands(c);
+                if (!cc.HasValue) continue;
+                var cmd = cc.Value;
+                _effectCommands[cmdStart + c] = new EffectDrawCommandData
+                {
+                    CellmapHash = cmd.CellmapHash,
+                    QuadCount = cmd.QuadCount,
+                    ParticleOffset = cmd.ParticleOffset,
+                    Blend = cmd.Blend
+                };
+            }
+            _effectCommandCount += cmdLen;
+
+            return new EffectDrawPlanData
+            {
+                CommandStart = cmdStart,
+                CommandCount = cmdLen,
+                QuadBase = quadBase
+            };
         }
     }
 }
