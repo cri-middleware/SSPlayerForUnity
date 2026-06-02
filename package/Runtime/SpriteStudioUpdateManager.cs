@@ -51,7 +51,7 @@ namespace SpriteStudio.Runtime
             _runner = go.AddComponent<SpriteStudioUpdateRunner>();
         }
 
-        internal static void Tick(float deltaTime)
+        internal static void Schedule(float deltaTime)
         {
             int count = _renderables.Count;
             if (count == 0) return;
@@ -61,9 +61,16 @@ namespace SpriteStudio.Runtime
             _renderables.CopyTo(0, _tickBuffer, 0, count);
 
             // Phase 1: 全インスタンスの Tick + Job スケジュール (ワーカースレッドへ投入)
+            // この後 LateUpdate までの間、メインスレッドと並行してワーカースレッドで Job が実行されます。
             for (int i = 0; i < count; i++) _tickBuffer[i].TickAndSchedule(deltaTime);
+        }
 
-            // Phase 2: 全インスタンスの Job 完了待ち + メッシュ反映 (この間に各 Job が並列実行される)
+        internal static void Apply()
+        {
+            int count = _renderables.Count;
+            if (count == 0) return;
+
+            // Phase 2: 全インスタンスの Job 完了待ち + メッシュ反映
             for (int i = 0; i < count; i++) _tickBuffer[i].ApplyAndRender();
 
             // スナップショットの参照を残さない
@@ -75,9 +82,14 @@ namespace SpriteStudio.Runtime
     [AddComponentMenu("")]
     internal sealed class SpriteStudioUpdateRunner : MonoBehaviour
     {
+        private void Update()
+        {
+            SpriteStudioUpdateManager.Schedule(Time.deltaTime);
+        }
+
         private void LateUpdate()
         {
-            SpriteStudioUpdateManager.Tick(Time.deltaTime);
+            SpriteStudioUpdateManager.Apply();
         }
     }
 }

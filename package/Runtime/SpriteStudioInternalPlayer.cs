@@ -194,11 +194,6 @@ namespace SpriteStudio.Runtime
         private int _partCount;
         private int _partColorCount;
 
-        // SetVertexBufferParams/SetIndexBufferParams はバッファを再確保するため、
-        // 件数が変化したときだけ呼ぶ (毎フレームの再確保を防ぐ)。-1 = 未適用。
-        private int _lastAppliedVertexCount = -1;
-        private int _lastAppliedIndexCount = -1;
-
         // バッチ単位の SubMesh 情報 (MeshRenderer 経路のマルチマテリアル用)。
         // Job では使わず main thread でのみ参照するため managed 配列で保持する。
         private struct SubmeshInfo { public int IndexStart; public int IndexCount; public uint TextureHash; }
@@ -458,53 +453,51 @@ namespace SpriteStudio.Runtime
             if (_vertexCount == 0 || _indexCount == 0 || !_meshVertices.IsCreated || !_meshIndices.IsCreated)
             {
                 targetMesh.Clear();
-                // Clear でバッファ仕様がリセットされるため、次回は再指定が必要
-                _lastAppliedVertexCount = -1;
-                _lastAppliedIndexCount = -1;
                 return;
             }
 
-            // ゼロアロケーションでの Mesh 更新 (バッファは過剰確保されうるので論理件数で渡す)。
-            // SetVertexBufferParams は件数が変わったときのみ呼び、毎フレームの再確保を避ける。
-            if (_vertexCount != _lastAppliedVertexCount)
-            {
-                targetMesh.SetVertexBufferParams(_vertexCount,
-                    new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.Position, UnityEngine.Rendering.VertexAttributeFormat.Float32, 3),
-                    new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.Color, UnityEngine.Rendering.VertexAttributeFormat.UNorm8, 4),
-                    new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.TexCoord0, UnityEngine.Rendering.VertexAttributeFormat.Float32, 2),
-                    new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.TexCoord1, UnityEngine.Rendering.VertexAttributeFormat.Float32, 4)
-                );
-                _lastAppliedVertexCount = _vertexCount;
-            }
-            targetMesh.SetVertexBufferData(_meshVertices, 0, 0, _vertexCount, 0, UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds);
+            // Unity の厳格なバリデーション (Overlapや領域外参照) を回避するためのフラグ
+            // DontValidateIndices = 8 (Unity 2021以降)
+            var updateFlags = UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds | (UnityEngine.Rendering.MeshUpdateFlags)8;
 
-            if (_indexCount != _lastAppliedIndexCount)
-            {
-                targetMesh.SetIndexBufferParams(_indexCount, UnityEngine.Rendering.IndexFormat.UInt16);
-                _lastAppliedIndexCount = _indexCount;
-            }
-            targetMesh.SetIndexBufferData(_meshIndices, 0, 0, _indexCount, UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds);
+            // キャッシュによる状態不整合（Meshの共有、クリア、エディタのリロード等）を完全に防ぐため、
+            // 毎フレーム必ず現在の要求サイズでバッファパラメータを適用する。
+            // (Unity内部でサイズが同じ場合は自動でスキップされるためパフォーマンス影響は極小)
+            targetMesh.SetSubMesh(0, new UnityEngine.Rendering.SubMeshDescriptor(0, 0), updateFlags);
+            targetMesh.subMeshCount = 1;
+
+            targetMesh.SetVertexBufferParams(_vertexCount,
+                new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.Position, UnityEngine.Rendering.VertexAttributeFormat.Float32, 3),
+                new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.Color, UnityEngine.Rendering.VertexAttributeFormat.UNorm8, 4),
+                new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.TexCoord0, UnityEngine.Rendering.VertexAttributeFormat.Float32, 2),
+                new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.TexCoord1, UnityEngine.Rendering.VertexAttributeFormat.Float32, 4)
+            );
+            targetMesh.SetIndexBufferParams(_indexCount, UnityEngine.Rendering.IndexFormat.UInt16);
+
+            targetMesh.SetVertexBufferData(_meshVertices, 0, 0, _vertexCount, 0, updateFlags);
+            targetMesh.SetIndexBufferData(_meshIndices, 0, 0, _indexCount, updateFlags);
 
             if (perBatchSubmesh && _submeshCount > 0)
             {
-                // MeshRenderer 経路: バッチ単位に SubMesh を分割し、テクスチャごとに別マテリアルを適用できるようにする
-                targetMesh.subMeshCount = _submeshCount;
+                // Allocator.Temp を用いてゼロアロケーションで NativeArray を作成し、SetSubMeshes で一括設定する。
+                // これにより逐次設定時の Overlap 警告を完全に回避できる。
+                var descArray = new Unity.Collections.NativeArray<UnityEngine.Rendering.SubMeshDescriptor>(_submeshCount, Unity.Collections.Allocator.Temp);
                 for (int s = 0; s < _submeshCount; s++)
                 {
                     var info = _submeshes[s];
-                    var desc = new UnityEngine.Rendering.SubMeshDescriptor(info.IndexStart, info.IndexCount, UnityEngine.MeshTopology.Triangles);
-                    targetMesh.SetSubMesh(s, desc, UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds);
+                    descArray[s] = new UnityEngine.Rendering.SubMeshDescriptor(info.IndexStart, info.IndexCount, UnityEngine.MeshTopology.Triangles);
                 }
+                targetMesh.SetSubMeshes(descArray, 0, _submeshCount, updateFlags);
+                descArray.Dispose();
             }
             else
             {
-                // uGUI 経路など: 単一 SubMesh にまとめる (CanvasRenderer は 1 マテリアルのみ)
                 targetMesh.subMeshCount = 1;
                 var subMeshDescriptor = new UnityEngine.Rendering.SubMeshDescriptor(0, _indexCount, UnityEngine.MeshTopology.Triangles);
-                targetMesh.SetSubMesh(0, subMeshDescriptor, UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds);
+                targetMesh.SetSubMesh(0, subMeshDescriptor, updateFlags);
             }
             targetMesh.RecalculateBounds();
-
+            
             // バッファは破棄せず再利用する (Dispose() でのみ解放)
         }
 

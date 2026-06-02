@@ -46,7 +46,7 @@ namespace SpriteStudio.Runtime
         public Vector4 TexCoord1; // [rate, blend_idx, pma_flag, reserved]
     }
 
-    [BurstCompile(CompileSynchronously = true)]
+    [BurstCompile(CompileSynchronously = false)]
     public unsafe struct UpdateMeshJob : IJob
     {
         [NativeDisableUnsafePtrRestriction] public float* WorldMatrices;
