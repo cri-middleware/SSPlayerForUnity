@@ -1,7 +1,7 @@
 {
   "dependencies": {
     "com.spritestudio.ssruntime": {
-      "version": "file:../../package",
+      "version": "file:../../../package",
       "depth": 0,
       "source": "local",
       "dependencies": {
