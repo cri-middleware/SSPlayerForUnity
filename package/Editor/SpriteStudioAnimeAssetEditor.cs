@@ -12,7 +12,8 @@ namespace SpriteStudio.Editor
         private Mesh _previewMesh;
         private double _lastTime;
         private int _currentAnimationIndex = 0;
-        private bool _isPlaying = true;
+        private bool _isPlaying = false;
+        private bool _isFirstFrame = true;
 
         private void OnEnable()
         {
@@ -146,11 +147,12 @@ namespace SpriteStudio.Editor
             float dt = (float)(currentTime - _lastTime);
             _lastTime = currentTime;
 
-            if (_isPlaying)
+            if (_isPlaying || _isFirstFrame)
             {
-                _internalPlayer.Tick(dt, false);
-                _internalPlayer.ScheduleMeshUpdate(dt);
+                _internalPlayer.Tick(_isPlaying ? dt : 0f, false);
+                _internalPlayer.ScheduleMeshUpdate(_isPlaying ? dt : 0f);
                 _internalPlayer.ApplyToMesh(_previewMesh);
+                _isFirstFrame = false;
             }
 
             _previewRenderUtility.BeginPreview(r, background);

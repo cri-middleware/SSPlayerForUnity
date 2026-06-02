@@ -259,7 +259,7 @@ namespace SpriteStudio.Runtime
                     int ic = b.IndexCount;
 
                     // DrawBatchKind: Normal=0, Shape=1, Instance=2, Effect=3, Mesh=4, Text=5, Nines=6, Mask=7
-                    if ((int)b.Kind == 1 || (int)b.Kind == 4)
+                    if ((int)b.Kind == 0 || (int)b.Kind == 1 || (int)b.Kind == 4)
                     {
                         vc = 0;
                         ic = 0;
@@ -269,7 +269,14 @@ namespace SpriteStudio.Runtime
                             int p_idx = frameData.DrawOrder(rank);
                             if (p_idx < 0 || p_idx >= partsLength) continue;
 
-                            if ((int)b.Kind == 1) // Shape
+                            if ((int)b.Kind == 0) // Normal
+                            {
+                                var p = frameData.Parts(p_idx).Value;
+                                bool needsCenter = ((ulong)p.UpdateFlag & (0x10UL | 0x200UL)) != 0; // AttributeVertex | AttributePartColor
+                                vc += needsCenter ? 5 : 4;
+                                ic += needsCenter ? 12 : 6;
+                            }
+                            else if ((int)b.Kind == 1) // Shape
                             {
                                 int svc = frame.ShapeVertexCounts[p_idx];
                                 if (svc >= 3)
