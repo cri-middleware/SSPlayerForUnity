@@ -15,9 +15,10 @@ This plugin leverages Unity's Job System (Burst Compiler) and zero-allocation me
 
 ## Quick Start
 1. Place the `package/` folder into your Unity project's `Packages/` directory, or install via Unity Package Manager using the local folder.
-2. Drag and drop your `.sspj` file into the Unity Editor. It will automatically be converted to a `SpriteStudioProjectAsset` (ScriptableObject).
-3. Attach `SpriteStudioPlayer` to a GameObject, or `SpriteStudioGraphic` to a Canvas UI element.
-4. Assign the imported asset and play!
+2. Open **SpriteStudio > Importer** from the Unity menu to set your preferred Output Folder.
+3. Drag and drop your `.sspj` file into the Unity Editor. It will automatically be converted to FlatBuffers (`.ssab`) and imported as a `SpriteStudioAnimeAsset` (ScriptableObject).
+4. Attach `SpriteStudioPlayer` to a GameObject, or `SpriteStudioGraphic` to a Canvas UI element.
+5. Assign the imported asset and play!
 
 ## Building the Runtime
 If you are developing the plugin itself, you need to compile the Rust SDK:

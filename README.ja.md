@@ -15,9 +15,10 @@ Unity の Job System (Burst Compiler) とゼロアロケーションメッシュ
 
 ## クイックスタート
 1. `package/` フォルダを Unity プロジェクトの `Packages/` に配置するか、Package Manager からローカルインストールします。
-2. Unity エディタ上に `.sspj` をドラッグ＆ドロップします。自動的に `SpriteStudioProjectAsset` (ScriptableObject) へ変換されます。
-3. GameObject に `SpriteStudioPlayer` を（または Canvas 下に `SpriteStudioGraphic` を）アタッチします。
-4. インポートされたアセットをセットして再生します！
+2. Unity メニューから **SpriteStudio > Importer** を開き、出力先(Output Folder)を設定します。
+3. Unity エディタ上に `.sspj` をドラッグ＆ドロップします。自動的に FlatBuffers (`.ssab`) に変換され、`SpriteStudioAnimeAsset` (ScriptableObject) としてインポートされます。
+4. GameObject に `SpriteStudioPlayer` を（または Canvas 下に `SpriteStudioGraphic` を）アタッチします。
+5. インポートされたアセットをセットして再生します！
 
 ## ランタイムのビルド（開発者向け）
 プラグイン自体の開発を行う場合は、Rust SDK をコンパイルして Unity 側にデプロイする必要があります。

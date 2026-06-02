@@ -19,7 +19,7 @@ A Unity Engine integration for SpriteStudio 7, designed for extreme performance.
 |---|---|
 | `package/Runtime/` | C# source: Player components (`SpriteStudioPlayer`, `SpriteStudioGraphic`), Internal logic (`SpriteStudioInternalPlayer`), and FFI bindings. |
 | `package/Runtime/Plugins/` | Binary artifacts (`libssruntime`) per platform. |
-| `package/Editor/` | C# source: Asset importers (`SpriteStudioSspjImporter`, `SpriteStudioSsabImporter`). |
+| `package/Editor/` | C# source: Asset importers (`SpriteStudioSsabImporter`, `SpriteStudioAssetPostprocessor`), Importer Window UI, and Source Map. |
 | `package/Editor/Plugins/` | Binary artifacts (`libssconverter`) used only in Editor. |
 | `SpriteStudio7-SDK/` | Submodule for core Rust runtime/converter. |
 | `scripts/` | Build wrappers (`build-runtime.sh`, `download-flatbuffers.sh`) to bridge Rust/Unity. |
