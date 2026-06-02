@@ -96,71 +96,40 @@ namespace SpriteStudio.Editor
             }
         }
 
+        /// <summary>
+        /// .ssab が参照するテクスチャに対応する共有マテリアル(.mat)を、隣接位置に1つだけ自動生成する。
+        /// 生成したものがあれば true を返す (= 呼び出し側が .ssab を再インポートして参照させる)。
+        /// テクスチャ解決は <see cref="SpriteStudioAnimeAssetBuilder.EnumerateTextures"/> と共有する。
+        /// </summary>
         private static bool EnsureExternalMaterials(string ssabPath)
         {
-            bool createdAny = false;
+            var importer = AssetImporter.GetAtPath(ssabPath) as SpriteStudioSsabImporter;
+            if (importer != null && !importer.GenerateMaterials) return false;
+
             var ssabData = File.ReadAllBytes(ssabPath);
-            var bb = new Google.FlatBuffers.ByteBuffer(ssabData);
-            var ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
             string baseDir = Path.GetDirectoryName(ssabPath);
+            var textures = SpriteStudioAnimeAssetBuilder.EnumerateTextures(ssabData, baseDir);
 
-            var seenTexPaths = new System.Collections.Generic.HashSet<string>();
+            Shader shader = null;
+            bool createdAny = false;
 
-            int cellmapLen = ssab.CellmapsLength;
-            for (int i = 0; i < cellmapLen; i++)
+            foreach (var t in textures)
             {
-                var cm = ssab.Cellmaps(i);
-                if (cm.HasValue)
-                {
-                    createdAny |= CreateMaterialIfMissing(baseDir, cm.Value.ImagePath, seenTexPaths);
-                }
-            }
+                if (t.Texture == null) continue;
+                if (AssetDatabase.LoadAssetAtPath<Material>(t.MatPath) != null) continue;
 
-            int extLen = ssab.ExternalTexturesLength;
-            for (int i = 0; i < extLen; i++)
-            {
-                var extTex = ssab.ExternalTextures(i);
-                if (extTex.HasValue)
-                {
-                    createdAny |= CreateMaterialIfMissing(baseDir, extTex.Value.Name, seenTexPaths);
-                }
-            }
-            return createdAny;
-        }
-
-        private static bool CreateMaterialIfMissing(string baseDir, string texName, System.Collections.Generic.HashSet<string> seen)
-        {
-            if (string.IsNullOrEmpty(texName)) return false;
-
-            string texPath = Path.Combine(baseDir, texName).Replace("\\", "/");
-
-            var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(texPath);
-            if (tex == null)
-            {
-                string altPath = Path.Combine(baseDir, Path.GetFileName(texName)).Replace("\\", "/");
-                tex = AssetDatabase.LoadAssetAtPath<Texture2D>(altPath);
-                if (tex != null) texPath = altPath;
-            }
-
-            if (tex == null) return false;
-            if (!seen.Add(texPath)) return false;
-
-            string matPath = Path.ChangeExtension(texPath, ".mat");
-            var existingMat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
-            if (existingMat == null)
-            {
-                var shader = AssetDatabase.LoadAssetAtPath<Shader>("Packages/com.spritestudio.ssruntime/Runtime/Shaders/SpriteStudioDefault.shader");
                 if (shader == null)
                 {
-                    shader = Shader.Find("SpriteStudio/Default");
+                    shader = SpriteStudioAnimeAssetBuilder.ResolveShader(importer != null ? importer.OverrideShader : null);
                 }
-                var mat = new Material(shader);
-                mat.name = tex.name + "_Material";
-                mat.mainTexture = tex;
-                AssetDatabase.CreateAsset(mat, matPath);
-                return true;
+                if (shader == null) continue;
+
+                var mat = new Material(shader) { name = t.Texture.name + "_Material", mainTexture = t.Texture };
+                AssetDatabase.CreateAsset(mat, t.MatPath);
+                createdAny = true;
             }
-            return false;
+
+            return createdAny;
         }
 
         private static bool ConvertSspj(string sspjPath)

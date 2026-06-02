@@ -310,11 +310,6 @@ namespace SpriteStudio.Runtime
                     totalIndices += ic;
                 }
 
-                // デバッグ用: もし再生されていればVerticesが0より大きいはず
-                byte firstKind = drawBatchesLength > 0 ? drawBatches[0].Kind : (byte)255;
-                int firstBlend = drawBatchesLength > 0 ? (int)frameData.DrawBatches(0).Value.BlendType : -1;
-                Debug.Log($"[SS-DIAG] FrameNo:{frame.FrameNo} V:{totalVertices} I:{totalIndices} Batches:{drawBatchesLength} Kind0:{firstKind} Blend0:{firstBlend} | bufLen WM:{frame.WorldMatricesLen} LV:{frame.LocalVerticesLen} LUV:{frame.LocalUvsLen} parts:{partsLength}");
-
                 for (int i = 0; i < drawOrderLength; i++)
                 {
                     drawOrder[i] = frameData.DrawOrder(i);
@@ -447,30 +442,6 @@ namespace SpriteStudio.Runtime
             targetMesh.SetSubMesh(0, subMeshDescriptor, UnityEngine.Rendering.MeshUpdateFlags.Default);
             targetMesh.RecalculateBounds();
             
-            // バッファを解放する前にデバッグ: 全頂点をスキャンして「ゼロか実データか」を判定
-            if (_meshVertices.Length > 0)
-            {
-                int nonZeroPos = 0, nonZeroAlpha = 0, nonZeroUv = 0, rateNonZero = 0;
-                int minR = 255, minG = 255, minB = 255, maxR = 0, maxG = 0, maxB = 0;
-                float minRate = float.MaxValue, maxRate = float.MinValue;
-                for (int vi = 0; vi < _meshVertices.Length; vi++)
-                {
-                    var v = _meshVertices[vi];
-                    if (v.Position.x != 0f || v.Position.y != 0f) nonZeroPos++;
-                    if (v.Color.a != 0) nonZeroAlpha++;
-                    if (v.TexCoord0.x != 0f || v.TexCoord0.y != 0f) nonZeroUv++;
-                    if (v.Color.r < minR) minR = v.Color.r; if (v.Color.r > maxR) maxR = v.Color.r;
-                    if (v.Color.g < minG) minG = v.Color.g; if (v.Color.g > maxG) maxG = v.Color.g;
-                    if (v.Color.b < minB) minB = v.Color.b; if (v.Color.b > maxB) maxB = v.Color.b;
-                    float rate = v.TexCoord1.x;
-                    if (rate != 0f) rateNonZero++;
-                    if (rate < minRate) minRate = rate; if (rate > maxRate) maxRate = rate;
-                }
-                var mid = _meshVertices[_meshVertices.Length / 2];
-                var b = targetMesh.bounds;
-                Debug.Log($"[SS-DIAG] applied verts:{_meshVertices.Length} nonZeroPos:{nonZeroPos} nonZeroAlpha:{nonZeroAlpha} nonZeroUv:{nonZeroUv} | colR[{minR}-{maxR}] G[{minG}-{maxG}] B[{minB}-{maxB}] rate[{minRate:F2}-{maxRate:F2}] rateNonZero:{rateNonZero} | bounds sz:{b.size} | midV col:{mid.Color} uv:{mid.TexCoord0} tc1:{mid.TexCoord1}");
-            }
-
             // バッファを解放
             _meshVertices.Dispose();
             _meshIndices.Dispose();

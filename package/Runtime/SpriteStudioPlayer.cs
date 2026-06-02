@@ -224,15 +224,6 @@ namespace SpriteStudio.Runtime
                         _meshRenderer.sharedMaterials = mats.ToArray();
                     }
                 }
-
-                // DIAG: マテリアル/テクスチャ/レンダラー状態
-                int matCount = mats != null ? mats.Count : -1;
-                var sm = _meshRenderer.sharedMaterial;
-                Debug.Log($"[SS-DIAG] anim:'{_animationName}' asset.Materials:{matCount} textures:{(_animeAsset.Textures != null ? _animeAsset.Textures.Count : -1)} | renderer.sharedMaterial:{(sm != null ? sm.name : "<null>")} shader:{(sm != null && sm.shader != null ? sm.shader.name : "<null>")} mainTex:{(sm != null && sm.mainTexture != null ? sm.mainTexture.name : "<null>")} enabled:{_meshRenderer.enabled} visible:{_meshRenderer.isVisible}");
-            }
-            else
-            {
-                Debug.Log($"[SS-DIAG] anime:{(_animeAsset != null)} renderer:{(_meshRenderer != null)}");
             }
         }
 
