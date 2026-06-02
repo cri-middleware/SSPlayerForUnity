@@ -125,7 +125,15 @@ namespace SpriteStudio.Editor
 
             asset.Textures.Add(tex);
 
-            if (shader != null)
+            string matPath = Path.ChangeExtension(texPath, ".mat");
+            ctx.DependsOnSourceAsset(matPath);
+            var externalMat = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(matPath);
+
+            if (externalMat != null)
+            {
+                asset.Materials.Add(externalMat);
+            }
+            else if (shader != null)
             {
                 var mat = new Material(shader);
                 mat.name = tex.name + "_Material";
