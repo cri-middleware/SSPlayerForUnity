@@ -16,11 +16,36 @@ namespace SpriteStudio.Runtime
         [Tooltip("テクスチャのビルドストリッピング防止用ハードリファレンス")]
         public List<Texture2D> Textures = new List<Texture2D>();
 
+        [Tooltip("外部アニメーション参照（Instance パーツ用）")]
+        public List<SpriteStudioAnimeAsset> ExternalReferences = new List<SpriteStudioAnimeAsset>();
+
         [Tooltip("マテリアル辞書: 描画に必要なベースマテリアル群への参照")]
         public List<Material> Materials = new List<Material>();
         
         [Tooltip("ファイル内に含まれるアニメーション名のリスト")]
         public string[] AnimationNames;
+        
+        [HideInInspector]
+        public uint PackHash;
+
+        /// <summary>
+        /// Instance パーツ等で要求された外部アニメーションのバイナリを返すリゾルバ
+        /// </summary>
+        public byte[] ResolveExternalSsab(uint packHash, uint nameHash)
+        {
+            if (ExternalReferences != null)
+            {
+                for (int i = 0; i < ExternalReferences.Count; i++)
+                {
+                    var ext = ExternalReferences[i];
+                    if (ext != null && ext.PackHash == packHash)
+                    {
+                        return ext.SsabData;
+                    }
+                }
+            }
+            return null;
+        }
 
         // DrawBatch.TextureHash → Materials のインデックス対応表 (並列配列で直列化)。
         // 1つのテクスチャに複数の候補ハッシュ (cellmap の NameHash/ImagePathHash, external の NameHash) が

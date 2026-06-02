@@ -22,6 +22,29 @@ namespace SpriteStudio.Runtime
 
         // SSAB データの固定用（Rust 側にメモリを Borrow させるため）
         private System.Runtime.InteropServices.GCHandle _ssabPin;
+        private unsafe void* _resourceHandle;
+
+        private struct EffectSlotState
+        {
+            public System.IntPtr EffectSlot;
+        }
+        private EffectSlotState[] _effectSlots;
+
+        private NativeArray<EffectDrawPlanData> _effectPlans;
+
+        public delegate byte[] AssetResolver(uint packHash, uint nameHash);
+        private AssetResolver _assetResolver;
+
+        private struct InstanceChildState
+        {
+            public System.IntPtr InstanceSlot;
+            public SpriteStudioInternalPlayer Player;
+            public float PreviousFrame;
+        }
+        private InstanceChildState[] _instanceChildren;
+        private NativeArray<InstanceMeshPointer> _instanceMeshes;
+        
+        public JobHandle CurrentUpdateJobHandle => _updateJobHandle;
 
         public SpriteStudioInternalPlayer()
         {
@@ -34,8 +57,9 @@ namespace SpriteStudio.Runtime
         /// <summary>
         /// SsabData (バイト配列) を読み込んでリソースをバインドする
         /// </summary>
-        public void LoadSsab(byte[] ssabData)
+        public void LoadSsab(byte[] ssabData, AssetResolver resolver = null)
         {
+            _assetResolver = resolver;
             if (!_handle.IsValid || ssabData == null || ssabData.Length == 0) return;
 
             // 既存のピン留めがあれば解除
@@ -49,8 +73,110 @@ namespace SpriteStudio.Runtime
 
             unsafe
             {
+                if (_resourceHandle != null)
+                {
+                    NativeMethods.ss_resource_destroy(_resourceHandle);
+                    _resourceHandle = null;
+                }
                 byte* ptr = (byte*)_ssabPin.AddrOfPinnedObject();
+                _resourceHandle = NativeMethods.ss_resource_create_borrow(ptr, (nuint)ssabData.Length);
                 NativeMethods.ss_runtime_load_ssab_borrow(_handle.ptr, ptr, (nuint)ssabData.Length);
+            }
+            
+            var bb = new Google.FlatBuffers.ByteBuffer(ssabData);
+            var ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
+            SetupSlots(ssab);
+        }
+
+        private void SetupSlots(ss.format.SsAnimeBinary binary)
+        {
+            unsafe
+            {
+                if (_effectSlots != null)
+                {
+                    for (int i = 0; i < _effectSlots.Length; i++)
+                    {
+                        if (_effectSlots[i].EffectSlot != System.IntPtr.Zero)
+                        {
+                            NativeMethods.ss_effect_slot_destroy((void*)_effectSlots[i].EffectSlot);
+                        }
+                    }
+                    _effectSlots = null;
+                }
+                
+                if (_instanceChildren != null)
+                {
+                    for (int i = 0; i < _instanceChildren.Length; i++)
+                    {
+                        if (_instanceChildren[i].InstanceSlot != System.IntPtr.Zero)
+                        {
+                            NativeMethods.ss_instance_slot_destroy((void*)_instanceChildren[i].InstanceSlot);
+                        }
+                        if (_instanceChildren[i].Player != null)
+                        {
+                            _instanceChildren[i].Player.Dispose();
+                        }
+                    }
+                    _instanceChildren = null;
+                }
+
+                if (_resourceHandle == null) return;
+                
+                int partsLength = binary.PartsLength;
+                if (partsLength == 0) return;
+
+                _effectSlots = new EffectSlotState[partsLength];
+                _instanceChildren = new InstanceChildState[partsLength];
+                
+                for (int i = 0; i < partsLength; i++)
+                {
+                    var pObj = binary.Parts(i);
+                    if (!pObj.HasValue) continue;
+                    var p = pObj.Value;
+                    
+                    if (p.PartTypeType == ss.format.PartType.PartTypeEffect)
+                    {
+                        var pt = p.PartTypeAsPartTypeEffect();
+                        uint refHash = pt.RefEffectNameHash;
+                        uint seed = (uint)i ^ refHash;
+                        void* slot = NativeMethods.ss_effect_slot_create(_resourceHandle, refHash, seed);
+                        _effectSlots[i].EffectSlot = (System.IntPtr)slot;
+                    }
+                    else if (p.PartTypeType == ss.format.PartType.PartTypeInstance)
+                    {
+                        var pt = p.PartTypeAsPartTypeInstance();
+                        uint packHash = pt.RefAnimePackHash;
+                        uint nameHash = pt.RefAnimeNameHash;
+                        
+                        byte[] childSsab = _assetResolver?.Invoke(packHash, nameHash);
+                        if (childSsab != null)
+                        {
+                            var childPlayer = new SpriteStudioInternalPlayer();
+                            childPlayer.LoadSsab(childSsab, _assetResolver);
+                            
+                            void* slot = NativeMethods.ss_instance_slot_create();
+                            _instanceChildren[i] = new InstanceChildState
+                            {
+                                InstanceSlot = (System.IntPtr)slot,
+                                Player = childPlayer,
+                                PreviousFrame = 0f
+                            };
+                            
+                            childPlayer.SetupAnimationByHash(nameHash);
+                            childPlayer.Stop(); // Ensure it starts stopped
+                            // Visibility will be handled by step
+                        }
+                    }
+                }
+            }
+        }
+
+        public bool SetupAnimationByHash(uint animationNameHash)
+        {
+            if (!_handle.IsValid) return false;
+            unsafe
+            {
+                return NativeMethods.ss_runtime_setup_animation_by_hash(_handle.ptr, animationNameHash);
             }
         }
 
@@ -196,12 +322,21 @@ namespace SpriteStudio.Runtime
 
         // バッチ単位の SubMesh 情報 (MeshRenderer 経路のマルチマテリアル用)。
         // Job では使わず main thread でのみ参照するため managed 配列で保持する。
-        private struct SubmeshInfo { public int IndexStart; public int IndexCount; public uint TextureHash; }
+        public struct SubmeshInfo { public int IndexStart; public int IndexCount; public uint TextureHash; }
         private SubmeshInfo[] _submeshes;
         private int _submeshCount;
 
-        /// <summary>直近の ScheduleMeshUpdate で生成された描画バッチ (= SubMesh) の数。</summary>
+        public int VertexCount => _vertexCount;
+        public int IndexCount => _indexCount;
+        public int DrawBatchCount => _drawBatchCount;
         public int SubmeshCount => _submeshCount;
+        public SubmeshInfo[] Submeshes => _submeshes;
+        public NativeArray<DrawBatchData> DrawBatches => _drawBatches;
+        public NativeArray<SsVertex> MeshVertices => _meshVertices;
+        public NativeArray<ushort> MeshIndices => _meshIndices;
+
+        /// <summary>直近の ScheduleMeshUpdate で生成された描画バッチ (= SubMesh) の数。</summary>
+        // public int SubmeshCount => _submeshCount;
 
         /// <summary>指定 SubMesh のテクスチャハッシュ (DrawBatch.TextureHash)。</summary>
         public uint GetSubmeshTextureHash(int index) => _submeshes[index].TextureHash;
@@ -278,32 +413,216 @@ namespace SpriteStudio.Runtime
                 int partsLength = frameData.PartsLength;
                 int partsColorLength = frameData.PartsColorLength;
 
+                EnsureCapacity(ref _effectPlans, partsLength);
+                EnsureCapacity(ref _instanceMeshes, partsLength);
+
+                bool parentLooped = NativeMethods.ss_runtime_is_looped(_handle.ptr);
+                float fps = GetFrameRate();
+                if (fps <= 0f) fps = 60f;
+
+                NativeArray<JobHandle> childHandles = new NativeArray<JobHandle>(partsLength, Allocator.Temp);
+                int childHandleCount = 0;
+
+                for (int i = 0; i < partsLength; i++)
+                {
+                    if (_effectSlots != null && i < _effectSlots.Length && _effectSlots[i].EffectSlot != System.IntPtr.Zero)
+                    {
+                        var ev = NativeMethods.ss_runtime_get_active_effect_event(_handle.ptr, (uint)i);
+                        var step = NativeMethods.ss_effect_slot_step((void*)_effectSlots[i].EffectSlot, ev, drawFrameNo, deltaTime, fps, parentLooped, false, 3);
+                        
+                        if (step.visible && step.draw_plan_len > 0)
+                        {
+                            byte* fb = step.draw_plan_buf;
+                            EffectDrawPlanData data = new EffectDrawPlanData();
+                            data.Commands = (EffectDrawCommandData*)GetFbVector(fb, 4);
+                            data.CommandsCount = GetFbVectorLength(fb, 4);
+                            data.Verts = (float*)GetFbVector(fb, 8);
+                            data.Uvs = (float*)GetFbVector(fb, 10);
+                            data.Colors = (float*)GetFbVector(fb, 12);
+                            data.Indices = (int*)GetFbVector(fb, 14);
+                            data.IndicesCount = GetFbVectorLength(fb, 14);
+                            _effectPlans[i] = data;
+                        }
+                        else
+                        {
+                            _effectPlans[i] = default;
+                        }
+                    }
+                    else
+                    {
+                        _effectPlans[i] = default;
+                    }
+                    
+                    if (_instanceChildren != null && i < _instanceChildren.Length && _instanceChildren[i].InstanceSlot != System.IntPtr.Zero)
+                    {
+                        var childPlayer = _instanceChildren[i].Player;
+                        if (childPlayer != null)
+                        {
+                            var ev = NativeMethods.ss_runtime_get_active_event_instance(_handle.ptr, (uint)i);
+                            var step = NativeMethods.ss_instance_slot_step((void*)_instanceChildren[i].InstanceSlot, ev, childPlayer._handle.ptr, _instanceChildren[i].PreviousFrame, drawFrameNo, deltaTime, parentLooped);
+                            
+                            if (step.transitioned)
+                            {
+                                childPlayer.Play(); // Trigger side effects (UnityEvents) if needed
+                            }
+                            
+                            if (step.visible)
+                            {
+                                float childDrawFrame = childPlayer.SubFrameEnabled ? step.child_frame_no : UnityEngine.Mathf.Floor(step.child_frame_no);
+                                _instanceChildren[i].PreviousFrame = childDrawFrame;
+                                childPlayer.SetFrame(step.child_frame_no);
+                                childPlayer.ScheduleMeshUpdate(deltaTime);
+                                
+                                childHandles[childHandleCount++] = childPlayer.CurrentUpdateJobHandle;
+                                
+                                _instanceMeshes[i] = new InstanceMeshPointer {
+                                    Vertices = (SsVertex*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(childPlayer.MeshVertices),
+                                    Indices = (ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(childPlayer.MeshIndices),
+                                    VertexCount = childPlayer.VertexCount,
+                                    IndexCount = childPlayer.IndexCount
+                                };
+                            }
+                            else
+                            {
+                                _instanceMeshes[i] = default;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        _instanceMeshes[i] = default;
+                    }
+                }
+
+                int maxBatches = drawBatchesLength;
+                for (int i = 0; i < partsLength; i++)
+                {
+                    if (_effectPlans[i].Commands != null)
+                        maxBatches += _effectPlans[i].CommandsCount;
+                        
+                    if (_instanceMeshes[i].Vertices != null)
+                    {
+                        var child = _instanceChildren[i].Player;
+                        maxBatches += child.DrawBatchCount;
+                    }
+                }
+
                 // 永続バッファを grow-only で確保 (毎フレーム new しない)
-                EnsureCapacity(ref _drawBatches, drawBatchesLength);
+                EnsureCapacity(ref _drawBatches, maxBatches);
                 EnsureCapacity(ref _drawOrder, drawOrderLength);
                 EnsureCapacity(ref _partStates, partsLength);
                 EnsureCapacity(ref _partColors, partsColorLength);
 
-                _drawBatchCount = drawBatchesLength;
+                _drawBatchCount = 0; // Will be incremented dynamically
                 _partCount = partsLength;
                 _partColorCount = partsColorLength;
 
                 int totalVertices = 0;
                 int totalIndices = 0;
                 _submeshCount = 0;
-                if (_submeshes == null || _submeshes.Length < drawBatchesLength)
+                if (_submeshes == null || _submeshes.Length < maxBatches)
                 {
-                    _submeshes = new SubmeshInfo[drawBatchesLength < 1 ? 1 : drawBatchesLength];
+                    _submeshes = new SubmeshInfo[maxBatches < 1 ? 1 : maxBatches];
                 }
                 for (int i = 0; i < drawBatchesLength; i++)
                 {
                     var b = frameData.DrawBatches(i).Value;
 
-                    // 描画対象は Normal(0)/Shape(1)/Mesh(4) のみ。ジョブが書き込まない種別は
-                    // 0 件にして未書き込み領域 (= 不正な三角形) を生まないようにする。
+                    // 描画対象は Normal(0)/Shape(1)/Instance(2)/Effect(3)/Mesh(4) のみ。
                     int vc = 0;
                     int ic = 0;
-                    if ((int)b.Kind == 0 || (int)b.Kind == 1 || (int)b.Kind == 4)
+                    
+                    if ((int)b.Kind == 2) // Instance
+                    {
+                        for (int k = 0; k < b.Count; k++)
+                        {
+                            int rank = b.StartRank + k;
+                            int p_idx = frameData.DrawOrder(rank);
+                            if (p_idx < 0 || p_idx >= partsLength) continue;
+                            
+                            var meshPtr = _instanceMeshes[p_idx];
+                            if (meshPtr.Vertices != null && meshPtr.VertexCount > 0)
+                            {
+                                var childPlayer = _instanceChildren[p_idx].Player;
+                                int cvc = childPlayer.VertexCount;
+                                int cic = childPlayer.IndexCount;
+                                
+                                for (int cb = 0; cb < childPlayer.DrawBatchCount; cb++)
+                                {
+                                    var childBatch = childPlayer.DrawBatches[cb];
+                                    _drawBatches[_drawBatchCount++] = new DrawBatchData
+                                    {
+                                        StartRank = childBatch.StartRank,
+                                        Count = childBatch.Count,
+                                        VertexCount = childBatch.VertexCount,
+                                        IndexCount = childBatch.IndexCount,
+                                        Kind = 2,
+                                        EffectPartIndex = p_idx
+                                    };
+                                }
+                                
+                                for (int sm = 0; sm < childPlayer.SubmeshCount; sm++)
+                                {
+                                    var childSubmesh = childPlayer.Submeshes[sm];
+                                    _submeshes[_submeshCount++] = new SubmeshInfo
+                                    {
+                                        IndexStart = totalIndices + childSubmesh.IndexStart,
+                                        IndexCount = childSubmesh.IndexCount,
+                                        TextureHash = childSubmesh.TextureHash
+                                    };
+                                }
+                                
+                                totalVertices += cvc;
+                                totalIndices += cic;
+                            }
+                        }
+                    }
+                    else if ((int)b.Kind == 3) // Effect
+                    {
+                        for (int k = 0; k < b.Count; k++)
+                        {
+                            int rank = b.StartRank + k;
+                            int p_idx = frameData.DrawOrder(rank);
+                            if (p_idx < 0 || p_idx >= partsLength) continue;
+                            
+                            var plan = _effectPlans[p_idx];
+                            if (plan.Commands == null) continue;
+                            
+                            for (int c = 0; c < plan.CommandsCount; c++)
+                            {
+                                var cmd = plan.Commands[c];
+                                if (cmd.QuadCount > 0)
+                                {
+                                    int cmdVc = (int)cmd.QuadCount * 4;
+                                    int cmdIc = (int)cmd.QuadCount * 6;
+                                    
+                                    _drawBatches[_drawBatchCount++] = new DrawBatchData
+                                    {
+                                        StartRank = 0,
+                                        Count = 0,
+                                        VertexCount = cmdVc,
+                                        IndexCount = cmdIc,
+                                        Kind = 3,
+                                        EffectBlend = cmd.Blend,
+                                        EffectParticleOffset = cmd.ParticleOffset,
+                                        EffectQuadCount = cmd.QuadCount,
+                                        EffectPartIndex = p_idx
+                                    };
+                                    
+                                    _submeshes[_submeshCount++] = new SubmeshInfo
+                                    {
+                                        IndexStart = totalIndices,
+                                        IndexCount = cmdIc,
+                                        TextureHash = cmd.CellmapHash
+                                    };
+                                    
+                                    totalVertices += cmdVc;
+                                    totalIndices += cmdIc;
+                                }
+                            }
+                        }
+                    }
+                    else if ((int)b.Kind == 0 || (int)b.Kind == 1 || (int)b.Kind == 4)
                     {
                         for (int k = 0; k < b.Count; k++)
                         {
@@ -329,7 +648,6 @@ namespace SpriteStudio.Runtime
                             }
                             else if ((int)b.Kind == 4) // Mesh
                             {
-                                // ジョブ側 BuildMesh のガードと完全に一致させる (全条件成立時のみ加算)
                                 uint v0 = frame.MeshVertexOffsets[p_idx];
                                 uint v1 = frame.MeshVertexOffsets[p_idx + 1];
                                 uint i0 = frame.MeshIndexOffsets[p_idx];
@@ -341,30 +659,29 @@ namespace SpriteStudio.Runtime
                                 }
                             }
                         }
-                    }
 
-                    _drawBatches[i] = new DrawBatchData
-                    {
-                        StartRank = (ushort)b.StartRank,
-                        Count = (ushort)b.Count,
-                        VertexCount = (ushort)vc,
-                        IndexCount = (ushort)ic,
-                        Kind = (byte)b.Kind
-                    };
-
-                    // 描画されるバッチごとに SubMesh 範囲を記録する (インデックスは batch 順に連続するため描画順を保持)
-                    if (ic > 0)
-                    {
-                        _submeshes[_submeshCount++] = new SubmeshInfo
+                        if (vc > 0 && ic > 0)
                         {
-                            IndexStart = totalIndices,
-                            IndexCount = ic,
-                            TextureHash = b.TextureHash
-                        };
-                    }
+                            _drawBatches[_drawBatchCount++] = new DrawBatchData
+                            {
+                                StartRank = (ushort)b.StartRank,
+                                Count = (ushort)b.Count,
+                                VertexCount = vc,
+                                IndexCount = ic,
+                                Kind = (byte)b.Kind
+                            };
 
-                    totalVertices += vc;
-                    totalIndices += ic;
+                            _submeshes[_submeshCount++] = new SubmeshInfo
+                            {
+                                IndexStart = totalIndices,
+                                IndexCount = ic,
+                                TextureHash = b.TextureHash
+                            };
+
+                            totalVertices += vc;
+                            totalIndices += ic;
+                        }
+                    }
                 }
 
                 for (int i = 0; i < drawOrderLength; i++)
@@ -408,12 +725,18 @@ namespace SpriteStudio.Runtime
                 _vertexCount = totalVertices;
                 _indexCount = totalIndices;
 
-                var job = new UpdateMeshJob
+                JobHandle deps = default;
+                if (childHandleCount > 0)
+                {
+                    deps = JobHandle.CombineDependencies(childHandles.GetSubArray(0, childHandleCount));
+                }
+                childHandles.Dispose();
+
+                _updateJobHandle = new UpdateMeshJob
                 {
                     WorldMatrices = frame.WorldMatrices,
                     LocalUvs = frame.LocalUvs,
                     LocalVertices = frame.LocalVertices,
-
                     ShapeVertices = frame.ShapeVertices,
                     ShapeBoxCoords = frame.ShapeBoxCoords,
                     ShapeVertexCounts = frame.ShapeVertexCounts,
@@ -425,20 +748,19 @@ namespace SpriteStudio.Runtime
                     MeshIndices = frame.MeshIndices,
                     MeshIndexOffsets = frame.MeshIndexOffsets,
 
+                    BatchCount = _drawBatchCount,
+                    PartCount = _partCount,
+
                     DrawBatches = _drawBatches,
                     DrawOrder = _drawOrder,
                     PartStates = _partStates,
                     PartColors = _partColors,
-
-                    BatchCount = _drawBatchCount,
-                    PartCount = _partCount,
-                    PartColorCount = _partColorCount,
+                    EffectPlans = _effectPlans,
+                    InstanceMeshes = _instanceMeshes,
 
                     Vertices = _meshVertices,
                     Indices = _meshIndices
-                };
-
-                _updateJobHandle = job.Schedule();
+                }.Schedule(deps);
             }
         }
 
@@ -515,18 +837,99 @@ namespace SpriteStudio.Runtime
                     _handle.ptr = null;
                 }
             }
-
             if (_ssabPin.IsAllocated)
             {
                 _ssabPin.Free();
             }
-
+            _updateJobHandle.Complete();
+            
+            unsafe
+            {
+                if (_effectSlots != null)
+                {
+                    for (int i = 0; i < _effectSlots.Length; i++)
+                    {
+                        if (_effectSlots[i].EffectSlot != System.IntPtr.Zero)
+                        {
+                            NativeMethods.ss_effect_slot_destroy((void*)_effectSlots[i].EffectSlot);
+                        }
+                    }
+                    _effectSlots = null;
+                }
+                
+                if (_instanceChildren != null)
+                {
+                    for (int i = 0; i < _instanceChildren.Length; i++)
+                    {
+                        if (_instanceChildren[i].InstanceSlot != System.IntPtr.Zero)
+                        {
+                            NativeMethods.ss_instance_slot_destroy((void*)_instanceChildren[i].InstanceSlot);
+                        }
+                        if (_instanceChildren[i].Player != null)
+                        {
+                            _instanceChildren[i].Player.Dispose();
+                        }
+                    }
+                    _instanceChildren = null;
+                }
+                
+                if (_resourceHandle != null)
+                {
+                    NativeMethods.ss_resource_destroy(_resourceHandle);
+                    _resourceHandle = null;
+                }
+            }
+            
+            if (_effectPlans.IsCreated) _effectPlans.Dispose();
+            if (_instanceMeshes.IsCreated) _instanceMeshes.Dispose();
             if (_meshVertices.IsCreated) _meshVertices.Dispose();
             if (_meshIndices.IsCreated) _meshIndices.Dispose();
             if (_drawBatches.IsCreated) _drawBatches.Dispose();
             if (_drawOrder.IsCreated) _drawOrder.Dispose();
             if (_partStates.IsCreated) _partStates.Dispose();
             if (_partColors.IsCreated) _partColors.Dispose();
+        }
+
+        private unsafe byte* GetFbVector(byte* fb, int vtableOffset)
+        {
+            if (fb == null) return null;
+            int root = *(int*)fb;
+            byte* table = fb + root;
+            int vtable = *(int*)table;
+            byte* vtablePtr = table - vtable;
+            short vtableSize = *(short*)vtablePtr;
+            if (vtableOffset < vtableSize)
+            {
+                short fieldOffset = *(short*)(vtablePtr + vtableOffset);
+                if (fieldOffset != 0)
+                {
+                    byte* fieldPtr = table + fieldOffset;
+                    int offset = *(int*)fieldPtr;
+                    return fieldPtr + offset + 4; // skip length
+                }
+            }
+            return null;
+        }
+
+        private unsafe int GetFbVectorLength(byte* fb, int vtableOffset)
+        {
+            if (fb == null) return 0;
+            int root = *(int*)fb;
+            byte* table = fb + root;
+            int vtable = *(int*)table;
+            byte* vtablePtr = table - vtable;
+            short vtableSize = *(short*)vtablePtr;
+            if (vtableOffset < vtableSize)
+            {
+                short fieldOffset = *(short*)(vtablePtr + vtableOffset);
+                if (fieldOffset != 0)
+                {
+                    byte* fieldPtr = table + fieldOffset;
+                    int offset = *(int*)fieldPtr;
+                    return *(int*)(fieldPtr + offset);
+                }
+            }
+            return 0;
         }
     }
 }

@@ -227,8 +227,13 @@ namespace SpriteStudio.Runtime
             }
             for (int s = 0; s < subCount; s++)
             {
-                int mi = _animeAsset.GetMaterialIndexForHash(_core.Internal.GetSubmeshTextureHash(s));
-                if (mi < 0 || mi >= mats.Count) mi = 0; // 対応不明なら先頭にフォールバック (退行なし)
+                uint hash = _core.Internal.GetSubmeshTextureHash(s);
+                int mi = _animeAsset.GetMaterialIndexForHash(hash);
+                if (mi < 0 || mi >= mats.Count) 
+                {
+                    Debug.LogError($"[SpriteStudioPlayer] TextureHash {hash} not found in AnimeAsset (Submesh {s}). Falling back to material 0.");
+                    mi = 0; // 対応不明なら先頭にフォールバック (退行なし)
+                }
                 _submeshMaterials[s] = mats[mi];
             }
             _meshRenderer.sharedMaterials = _submeshMaterials;

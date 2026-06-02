@@ -51,8 +51,10 @@ Shader "SpriteStudio/Default"
             {
                 v2f OUT;
                 OUT.vertex = UnityObjectToClipPos(IN.vertex);
-                // SDK outputs pixel coordinates, so multiply by TexelSize (1/width, 1/height) to normalize
-                OUT.texcoord = IN.texcoord * _MainTex_TexelSize.xy;
+                // Normal parts output pixel coordinates, Effect parts output normalized coordinates (IN.texcoord1.z = 1)
+                float isNormalized = IN.texcoord1.z;
+                float2 texelSizeMultiplier = lerp(_MainTex_TexelSize.xy, float2(1.0, 1.0), isNormalized);
+                OUT.texcoord = IN.texcoord * texelSizeMultiplier;
                 // SpriteStudio uses Top-Left UV origin, Unity uses Bottom-Left UV origin
                 OUT.texcoord.y = 1.0 - OUT.texcoord.y;
                 OUT.color = IN.color;
@@ -70,9 +72,21 @@ Shader "SpriteStudio/Default"
                 // Color.rgb stores the part color RGB
                 // rate stores the mix rate
                 float rate = IN.texcoord1.x;
+                float isNormalized = IN.texcoord1.z;
                 
-                // Mix blend mode approximation
-                fixed3 finalRGB = lerp(texColor.rgb, IN.color.rgb, rate);
+                fixed3 finalRGB;
+                if (isNormalized > 0.5) 
+                {
+                    // Effect parts use vertex color multiplication (tinting)
+                    finalRGB = texColor.rgb * IN.color.rgb;
+                }
+                else
+                {
+                    // Normal parts use SpriteStudio's PartColor blending (Mix approximation)
+                    // In a full implementation, we'd use IN.texcoord1.y (blend_idx) to switch behavior
+                    finalRGB = lerp(texColor.rgb, IN.color.rgb, rate);
+                }
+                
                 fixed finalAlpha = texColor.a * IN.color.a;
 
                 return fixed4(finalRGB, finalAlpha);

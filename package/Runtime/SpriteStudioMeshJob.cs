@@ -11,9 +11,41 @@ namespace SpriteStudio.Runtime
     {
         public ushort StartRank;
         public ushort Count;
-        public ushort VertexCount;
-        public ushort IndexCount;
+        public int VertexCount;
+        public int IndexCount;
         public byte Kind;
+        public byte EffectBlend;
+        public uint EffectParticleOffset;
+        public uint EffectQuadCount;
+        public int EffectPartIndex;
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Explicit, Size = 16)]
+    public struct EffectDrawCommandData
+    {
+        [System.Runtime.InteropServices.FieldOffset(0)] public uint CellmapHash;
+        [System.Runtime.InteropServices.FieldOffset(4)] public uint QuadCount;
+        [System.Runtime.InteropServices.FieldOffset(8)] public uint ParticleOffset;
+        [System.Runtime.InteropServices.FieldOffset(12)] public byte Blend;
+    }
+
+    public unsafe struct EffectDrawPlanData
+    {
+        public EffectDrawCommandData* Commands;
+        public int CommandsCount;
+        public float* Verts;
+        public float* Uvs;
+        public float* Colors;
+        public int* Indices;
+        public int IndicesCount;
+    }
+
+    public unsafe struct InstanceMeshPointer
+    {
+        public SsVertex* Vertices;
+        public ushort* Indices;
+        public int VertexCount;
+        public int IndexCount;
     }
 
     public struct PartStateData
@@ -68,6 +100,8 @@ namespace SpriteStudio.Runtime
         [ReadOnly] public NativeArray<ushort> DrawOrder;
         [ReadOnly] public NativeArray<PartStateData> PartStates;
         [ReadOnly] public NativeArray<PartColorData> PartColors;
+        [ReadOnly] public NativeArray<EffectDrawPlanData> EffectPlans;
+        [ReadOnly] public NativeArray<InstanceMeshPointer> InstanceMeshes;
 
         public NativeArray<SsVertex> Vertices;
         public NativeArray<ushort> Indices;
@@ -85,6 +119,17 @@ namespace SpriteStudio.Runtime
             for (int i = 0; i < BatchCount; i++)
             {
                 var batch = DrawBatches[i];
+                if (batch.Kind == 3) // Effect
+                {
+                    BuildEffect(ref batch, ref vbase, ref ibase);
+                    continue;
+                }
+                else if (batch.Kind == 2) // Instance
+                {
+                    BuildInstance(ref batch, ref vbase, ref ibase);
+                    continue;
+                }
+
                 for (int k = 0; k < batch.Count; k++)
                 {
                     int rank = batch.StartRank + k;
@@ -106,6 +151,115 @@ namespace SpriteStudio.Runtime
                     }
                 }
             }
+        }
+
+        private void BuildEffect(ref DrawBatchData batch, ref int vbase, ref int ibase)
+        {
+            int p_idx = batch.EffectPartIndex;
+            var plan = EffectPlans[p_idx];
+            if (plan.Verts == null) return;
+            
+            var part = PartStates[p_idx];
+            float partAlpha = part.Alpha;
+            byte alphaByte = (byte)(math.clamp(partAlpha, 0f, 1f) * 255f);
+            
+            float* draw_m = WorldMatrices + p_idx * 16;
+            
+            uint off = batch.EffectParticleOffset;
+            uint qc = batch.EffectQuadCount;
+            
+            int vertStart = (int)off * 4;
+            int indStart = (int)off * 6;
+            
+            for(int q = 0; q < qc; q++)
+            {
+                int qVertBase = vertStart + q * 4;
+                for(int v = 0; v < 4; v++)
+                {
+                    int vi = qVertBase + v;
+                    
+                    // Effect vertex stride is 3 (X, Y, Z)
+                    float lx = plan.Verts[vi * 3 + 0];
+                    float ly = plan.Verts[vi * 3 + 1];
+                    
+                    float ux = plan.Uvs[vi * 2 + 0];
+                    float uy = plan.Uvs[vi * 2 + 1];
+                    
+                    float cr = plan.Colors[vi * 4 + 0];
+                    float cg = plan.Colors[vi * 4 + 1];
+                    float cb = plan.Colors[vi * 4 + 2];
+                    float ca = plan.Colors[vi * 4 + 3];
+                    
+                    byte r = (byte)(math.clamp(cr, 0f, 1f) * 255f);
+                    byte g = (byte)(math.clamp(cg, 0f, 1f) * 255f);
+                    byte b = (byte)(math.clamp(cb, 0f, 1f) * 255f);
+                    byte a = (byte)(math.clamp(ca, 0f, 1f) * 255f);
+                    
+                    a = (byte)((a * alphaByte) / 255);
+                    
+                    // ss.format.BlendType Mix=0, Add=2
+                    int blend_idx = batch.EffectBlend == 1 ? 2 : 0;
+                    
+                    Vertices[vbase + q * 4 + v] = new SsVertex
+                    {
+                        Position = new Vector3(
+                            draw_m[0] * lx + draw_m[4] * ly + draw_m[12],
+                            draw_m[1] * lx + draw_m[5] * ly + draw_m[13],
+                            0f),
+                        Color = new Color32(r, g, b, a),
+                        TexCoord0 = new Vector2(ux, uy),
+                        TexCoord1 = new Vector4(0f, blend_idx, 1f, 0f) // x=rate(0=tex), y=blend_idx, z=1(normalized)
+                    };
+                }
+                
+                int qIndBase = indStart + q * 6;
+                for(int i = 0; i < 6; i++)
+                {
+                    int planIdx = plan.Indices[qIndBase + i];
+                    Indices[ibase + q * 6 + i] = (ushort)(vbase + planIdx);
+                }
+            }
+            vbase += (int)qc * 4;
+            ibase += (int)qc * 6;
+        }
+
+        private unsafe void BuildInstance(ref DrawBatchData batch, ref int vbase, ref int ibase)
+        {
+            int p_idx = batch.EffectPartIndex;
+            var meshPtr = InstanceMeshes[p_idx];
+            if (meshPtr.Vertices == null) return;
+            
+            var part = PartStates[p_idx];
+            float partAlpha = part.Alpha;
+            byte alphaByte = (byte)(math.clamp(partAlpha, 0f, 1f) * 255f);
+            
+            float* draw_m = WorldMatrices + p_idx * 16;
+            
+            int vc = meshPtr.VertexCount;
+            int ic = meshPtr.IndexCount;
+            
+            for (int v = 0; v < vc; v++)
+            {
+                var vert = meshPtr.Vertices[v];
+                
+                float lx = vert.Position.x;
+                float ly = vert.Position.y;
+                vert.Position.x = draw_m[0] * lx + draw_m[4] * ly + draw_m[12];
+                vert.Position.y = draw_m[1] * lx + draw_m[5] * ly + draw_m[13];
+                
+                byte a = vert.Color.a;
+                vert.Color.a = (byte)((a * alphaByte) / 255);
+                
+                Vertices[vbase + v] = vert;
+            }
+            
+            for (int i = 0; i < ic; i++)
+            {
+                Indices[ibase + i] = (ushort)(meshPtr.Indices[i] + vbase);
+            }
+            
+            vbase += vc;
+            ibase += ic;
         }
 
         private void BuildNormal(int p_idx, ref int vbase, ref int ibase)
