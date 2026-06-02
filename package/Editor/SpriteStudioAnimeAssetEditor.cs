@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEditor;
 using SpriteStudio.Runtime;
+using System.IO;
 
 namespace SpriteStudio.Editor
 {
@@ -57,13 +58,51 @@ namespace SpriteStudio.Editor
 
         public override void OnInspectorGUI()
         {
-            base.OnInspectorGUI();
+            // Unity disables GUI.enabled for imported assets. We need to re-enable it for our custom buttons.
+            bool wasEnabled = GUI.enabled;
+            GUI.enabled = true;
+
+            string sspjPath = SpriteStudioSourceMap.GetSspjForSsab(AssetDatabase.GetAssetPath(target));
+            bool hasSspj = !string.IsNullOrEmpty(sspjPath) && File.Exists(sspjPath);
+
+            GUILayout.BeginVertical(EditorStyles.helpBox);
+            GUILayout.Label("Source SSPJ", EditorStyles.boldLabel);
+            
+            if (hasSspj)
+            {
+                GUILayout.Label(sspjPath, EditorStyles.wordWrappedMiniLabel);
+                
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button("Open SSPJ"))
+                {
+                    Application.OpenURL("file://" + sspjPath);
+                }
+                
+                if (GUILayout.Button("Reconvert"))
+                {
+                    SpriteStudioImporterWindow.RunConvertDirect(sspjPath);
+                }
+                GUILayout.EndHorizontal();
+            }
+            else
+            {
+                GUIStyle warningStyle = new GUIStyle(EditorStyles.wordWrappedMiniLabel);
+                warningStyle.normal.textColor = Color.yellow;
+                GUILayout.Label("Source SSPJ not found in map or doesn't exist.", warningStyle);
+            }
+            GUILayout.EndVertical();
 
             EditorGUILayout.Space();
+
             if (GUILayout.Button("Instantiate in Scene", GUILayout.Height(30)))
             {
                 InstantiatePlayer((SpriteStudioAnimeAsset)target, _currentAnimationIndex);
             }
+
+            GUI.enabled = wasEnabled;
+
+            EditorGUILayout.Space();
+            base.OnInspectorGUI();
         }
 
         [MenuItem("Assets/SpriteStudio/Instantiate Player", false, 10)]

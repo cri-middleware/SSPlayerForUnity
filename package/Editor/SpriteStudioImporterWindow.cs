@@ -234,7 +234,7 @@ namespace SpriteStudio.Editor
             }
         }
 
-        private void RunConvert(string sspjPath)
+        public static void RunConvertDirect(string sspjPath)
         {
             if (!File.Exists(sspjPath))
             {
@@ -242,16 +242,14 @@ namespace SpriteStudio.Editor
                 return;
             }
 
-            if (outputFolder == null)
+            string savedPath = EditorPrefs.GetString(OUTPUT_FOLDER_PREF_KEY, DEFAULT_OUTPUT_PATH);
+            if (!AssetDatabase.IsValidFolder(savedPath))
             {
-                Debug.LogError("[SSPlayer] Please specify an Output Folder.");
+                Debug.LogError($"[SSPlayer] Invalid output folder: {savedPath}. Please check Importer Window settings.");
                 return;
             }
 
-            AddToRecentFiles(sspjPath);
-
-            string assetPath = AssetDatabase.GetAssetPath(outputFolder);
-            string absoluteOutputDir = Path.GetFullPath(assetPath);
+            string absoluteOutputDir = Path.GetFullPath(savedPath);
             string sspjName = Path.GetFileNameWithoutExtension(sspjPath);
             string finalOutputDir = Path.Combine(absoluteOutputDir, sspjName);
 
@@ -299,12 +297,36 @@ namespace SpriteStudio.Editor
                 else
                 {
                     Debug.Log($"[SSPlayer] Convert Success!");
+                    
+                    var generatedSsabs = Directory.GetFiles(finalOutputDir, "*.ssab", SearchOption.AllDirectories);
+                    foreach (var ssab in generatedSsabs)
+                    {
+                        SpriteStudioSourceMap.Register(ssab, sspjPath);
+                    }
                 }
 
                 SpriteStudio.SsConverter.NativeMethods.ss_converter_destroy(context);
             }
 
             AssetDatabase.Refresh();
+        }
+
+        private void RunConvert(string sspjPath)
+        {
+            if (!File.Exists(sspjPath))
+            {
+                Debug.LogError($"[SSPlayer] SSPJ file not found: {sspjPath}");
+                return;
+            }
+
+            if (outputFolder == null)
+            {
+                Debug.LogError("[SSPlayer] Please specify an Output Folder.");
+                return;
+            }
+
+            AddToRecentFiles(sspjPath);
+            RunConvertDirect(sspjPath);
         }
 
         [Serializable]
