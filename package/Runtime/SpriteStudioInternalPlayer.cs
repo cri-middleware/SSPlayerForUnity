@@ -16,14 +16,9 @@ namespace SpriteStudio.Runtime
     {
         // ネイティブポインタを安全に扱うための ECS ラッパー
         private SsPlayerHandle _handle;
-        
+
         // 実行中の Burst Job のハンドル（破棄時や次フレーム更新時の同期に必須）
         private JobHandle _updateJobHandle;
-
-        // メッシュバッファ (Job からの書き込み用)
-        // ※実際には Vertex 構造体などを別途定義して利用します
-        // private NativeArray<Vertex> _vertices;
-        // private NativeArray<ushort> _indices;
 
         // SSAB データの固定用（Rust 側にメモリを Borrow させるため）
         private System.Runtime.InteropServices.GCHandle _ssabPin;
@@ -73,13 +68,13 @@ namespace SpriteStudio.Runtime
         public bool IsPausing() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_is_pausing(_handle.ptr); } }
         public void Pause() { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_pause(_handle.ptr); } }
         public void Stop() { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_stop(_handle.ptr); } }
-        
+
         public void SetSpeed(float speed) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_animation_speed(_handle.ptr, speed); } }
 
         public void SetFrame(float frame) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_frame_no(_handle.ptr, frame); } }
         public float GetFrame() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_frame_no(_handle.ptr) : 0.0f; } }
         public int GetTotalFrames() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_end_frame(_handle.ptr) + 1 : 0; } }
-        
+
         public void SetFrameRate(int fps) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_frame_rate(_handle.ptr, fps); } }
         public int GetFrameRate() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_fps(_handle.ptr) : 0; } }
 
@@ -96,7 +91,7 @@ namespace SpriteStudio.Runtime
 
         public void SetSkipFrames(bool skip) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_skip_frames(_handle.ptr, skip); } }
         public bool IsSkipFrames() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_get_skip_frames(_handle.ptr); } }
-        
+
         public bool SubFrameEnabled { get; set; } = false;
         #endregion
 
@@ -187,12 +182,50 @@ namespace SpriteStudio.Runtime
         private byte[] _frameDataArray;
         private Google.FlatBuffers.ByteBuffer _frameDataByteBuffer;
 
+        // ゼロアロケーションのため、Job 入出力バッファは永続確保し grow-only で再利用する。
+        // NativeArray.Length は確保容量、論理件数は別途 *_Count で保持する。
+        private NativeArray<SsVertex> _meshVertices;
+        private NativeArray<ushort> _meshIndices;
+        private NativeArray<DrawBatchData> _drawBatches;
+        private NativeArray<ushort> _drawOrder;
+        private NativeArray<PartStateData> _partStates;
+        private NativeArray<PartColorData> _partColors;
+
+        private int _vertexCount;
+        private int _indexCount;
+        private int _drawBatchCount;
+        private int _partCount;
+        private int _partColorCount;
+
+        // バッチ単位の SubMesh 情報 (MeshRenderer 経路のマルチマテリアル用)。
+        // Job では使わず main thread でのみ参照するため managed 配列で保持する。
+        private struct SubmeshInfo { public int IndexStart; public int IndexCount; public uint TextureHash; }
+        private SubmeshInfo[] _submeshes;
+        private int _submeshCount;
+
+        /// <summary>直近の ScheduleMeshUpdate で生成された描画バッチ (= SubMesh) の数。</summary>
+        public int SubmeshCount => _submeshCount;
+
+        /// <summary>指定 SubMesh のテクスチャハッシュ (DrawBatch.TextureHash)。</summary>
+        public uint GetSubmeshTextureHash(int index) => _submeshes[index].TextureHash;
+
+        /// <summary>必要件数を満たすまで grow-only で確保する。容量が足りていれば再利用する。</summary>
+        private static void EnsureCapacity<T>(ref NativeArray<T> arr, int needed) where T : struct
+        {
+            if (arr.IsCreated && arr.Length >= needed) return;
+            if (arr.IsCreated) arr.Dispose();
+            arr = new NativeArray<T>(needed < 1 ? 1 : needed, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+        }
+
         /// <summary>
         /// Update実行後、FFIからSoA配列のポインタを取得してメッシュ構築ジョブを発行する
         /// </summary>
         public void ScheduleMeshUpdate(float deltaTime)
         {
             if (!_handle.IsValid) return;
+
+            // 永続バッファを書き換える前に、前フレームのジョブ完了を保証する
+            _updateJobHandle.Complete();
 
             float drawFrameNo = SubFrameEnabled ? GetFrame() : UnityEngine.Mathf.Floor(GetFrame());
 
@@ -202,7 +235,12 @@ namespace SpriteStudio.Runtime
                 nuint frameDataLen = 0;
                 NativeMethods.ss_runtime_get_frame_data(_handle.ptr, drawFrameNo, &frameDataPtr, &frameDataLen);
 
-                if (frameDataPtr == null || frameDataLen == 0) return;
+                if (frameDataPtr == null || frameDataLen == 0)
+                {
+                    _vertexCount = 0;
+                    _indexCount = 0;
+                    return;
+                }
 
                 int len = (int)frameDataLen;
                 if (_frameDataArray == null || _frameDataArray.Length < len)
@@ -227,7 +265,7 @@ namespace SpriteStudio.Runtime
                 NativeMethods.ss_runtime_get_local_uvs(_handle.ptr, &frame.LocalUvs, &frame.LocalUvsLen);
                 NativeMethods.ss_runtime_get_cell_meta(_handle.ptr, &frame.CellMeta, &frame.CellMetaLen);
                 NativeMethods.ss_runtime_get_local_vertices(_handle.ptr, &frame.LocalVertices, &frame.LocalVerticesLen);
-                
+
                 NativeMethods.ss_runtime_get_shape_vertices(_handle.ptr, &frame.ShapeVertices, &frame.ShapeVerticesLen);
                 NativeMethods.ss_runtime_get_shape_vertex_box_coords(_handle.ptr, &frame.ShapeBoxCoords, &frame.ShapeBoxCoordsLen);
                 NativeMethods.ss_runtime_get_shape_vertex_counts(_handle.ptr, &frame.ShapeVertexCounts, &frame.ShapeVertexCountsLen);
@@ -239,30 +277,38 @@ namespace SpriteStudio.Runtime
                 NativeMethods.ss_runtime_get_mesh_indices(_handle.ptr, &frame.MeshIndices, &frame.MeshIndicesLen);
                 NativeMethods.ss_runtime_get_mesh_index_offsets(_handle.ptr, &frame.MeshIndexOffsets, &frame.MeshIndexOffsetsLen);
 
-                // Job System に渡すバッファの確保とジョブのスケジュール
                 int drawBatchesLength = frameData.DrawBatchesLength;
                 int drawOrderLength = frameData.DrawOrderLength;
                 int partsLength = frameData.PartsLength;
                 int partsColorLength = frameData.PartsColorLength;
 
-                var drawBatches = new Unity.Collections.NativeArray<DrawBatchData>(drawBatchesLength, Unity.Collections.Allocator.TempJob);
-                var drawOrder = new Unity.Collections.NativeArray<ushort>(drawOrderLength, Unity.Collections.Allocator.TempJob);
-                var partStates = new Unity.Collections.NativeArray<PartStateData>(partsLength, Unity.Collections.Allocator.TempJob);
-                var partColors = new Unity.Collections.NativeArray<PartColorData>(partsColorLength, Unity.Collections.Allocator.TempJob);
+                // 永続バッファを grow-only で確保 (毎フレーム new しない)
+                EnsureCapacity(ref _drawBatches, drawBatchesLength);
+                EnsureCapacity(ref _drawOrder, drawOrderLength);
+                EnsureCapacity(ref _partStates, partsLength);
+                EnsureCapacity(ref _partColors, partsColorLength);
+
+                _drawBatchCount = drawBatchesLength;
+                _partCount = partsLength;
+                _partColorCount = partsColorLength;
 
                 int totalVertices = 0;
                 int totalIndices = 0;
+                _submeshCount = 0;
+                if (_submeshes == null || _submeshes.Length < drawBatchesLength)
+                {
+                    _submeshes = new SubmeshInfo[drawBatchesLength < 1 ? 1 : drawBatchesLength];
+                }
                 for (int i = 0; i < drawBatchesLength; i++)
                 {
                     var b = frameData.DrawBatches(i).Value;
-                    int vc = b.VertexCount;
-                    int ic = b.IndexCount;
 
-                    // DrawBatchKind: Normal=0, Shape=1, Instance=2, Effect=3, Mesh=4, Text=5, Nines=6, Mask=7
+                    // 描画対象は Normal(0)/Shape(1)/Mesh(4) のみ。ジョブが書き込まない種別は
+                    // 0 件にして未書き込み領域 (= 不正な三角形) を生まないようにする。
+                    int vc = 0;
+                    int ic = 0;
                     if ((int)b.Kind == 0 || (int)b.Kind == 1 || (int)b.Kind == 4)
                     {
-                        vc = 0;
-                        ic = 0;
                         for (int k = 0; k < b.Count; k++)
                         {
                             int rank = b.StartRank + k;
@@ -287,18 +333,21 @@ namespace SpriteStudio.Runtime
                             }
                             else if ((int)b.Kind == 4) // Mesh
                             {
+                                // ジョブ側 BuildMesh のガードと完全に一致させる (全条件成立時のみ加算)
                                 uint v0 = frame.MeshVertexOffsets[p_idx];
                                 uint v1 = frame.MeshVertexOffsets[p_idx + 1];
-                                if (v1 > v0) vc += (int)(v1 - v0);
-
                                 uint i0 = frame.MeshIndexOffsets[p_idx];
                                 uint i1 = frame.MeshIndexOffsets[p_idx + 1];
-                                if (i1 > i0) ic += (int)(i1 - i0);
+                                if (v1 > v0 && i1 > i0 && (i1 - i0) % 3 == 0)
+                                {
+                                    vc += (int)(v1 - v0);
+                                    ic += (int)(i1 - i0);
+                                }
                             }
                         }
                     }
 
-                    drawBatches[i] = new DrawBatchData
+                    _drawBatches[i] = new DrawBatchData
                     {
                         StartRank = (ushort)b.StartRank,
                         Count = (ushort)b.Count,
@@ -306,19 +355,31 @@ namespace SpriteStudio.Runtime
                         IndexCount = (ushort)ic,
                         Kind = (byte)b.Kind
                     };
+
+                    // 描画されるバッチごとに SubMesh 範囲を記録する (インデックスは batch 順に連続するため描画順を保持)
+                    if (ic > 0)
+                    {
+                        _submeshes[_submeshCount++] = new SubmeshInfo
+                        {
+                            IndexStart = totalIndices,
+                            IndexCount = ic,
+                            TextureHash = b.TextureHash
+                        };
+                    }
+
                     totalVertices += vc;
                     totalIndices += ic;
                 }
 
                 for (int i = 0; i < drawOrderLength; i++)
                 {
-                    drawOrder[i] = frameData.DrawOrder(i);
+                    _drawOrder[i] = frameData.DrawOrder(i);
                 }
 
                 for (int i = 0; i < partsLength; i++)
                 {
                     var p = frameData.Parts(i).Value;
-                    partStates[i] = new PartStateData
+                    _partStates[i] = new PartStateData
                     {
                         UpdateFlag = (ulong)p.UpdateFlag,
                         Alpha = p.Alpha,
@@ -329,7 +390,7 @@ namespace SpriteStudio.Runtime
                 for (int i = 0; i < partsColorLength; i++)
                 {
                     var pc = frameData.PartsColor(i).Value;
-                    partColors[i] = new PartColorData
+                    _partColors[i] = new PartColorData
                     {
                         BlendType = (byte)pc.BlendType,
                         Lt = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Lt.Rgba.R, pc.Lt.Rgba.G, pc.Lt.Rgba.B, pc.Lt.Rgba.A), Rate = pc.Lt.Rate },
@@ -339,38 +400,17 @@ namespace SpriteStudio.Runtime
                     };
                 }
 
-                // 以前のバッファが未解放なら待機して解放
-                _updateJobHandle.Complete();
-                if (_meshVertices.IsCreated) _meshVertices.Dispose();
-                if (_meshIndices.IsCreated) _meshIndices.Dispose();
-                if (_drawBatches.IsCreated) _drawBatches.Dispose();
-                if (_drawOrder.IsCreated) _drawOrder.Dispose();
-                if (_partStates.IsCreated) _partStates.Dispose();
-                if (_partColors.IsCreated) _partColors.Dispose();
-
                 if (totalVertices == 0 || totalIndices == 0)
                 {
-                    _meshVertices = default;
-                    _meshIndices = default;
-                    _drawBatches = default;
-                    _drawOrder = default;
-                    _partStates = default;
-                    _partColors = default;
-
-                    // 未使用の TempJob バッファは即座に解放
-                    drawBatches.Dispose();
-                    drawOrder.Dispose();
-                    partStates.Dispose();
-                    partColors.Dispose();
+                    _vertexCount = 0;
+                    _indexCount = 0;
                     return;
                 }
 
-                _meshVertices = new Unity.Collections.NativeArray<SsVertex>(totalVertices, Unity.Collections.Allocator.TempJob);
-                _meshIndices = new Unity.Collections.NativeArray<ushort>(totalIndices, Unity.Collections.Allocator.TempJob);
-                _drawBatches = drawBatches;
-                _drawOrder = drawOrder;
-                _partStates = partStates;
-                _partColors = partColors;
+                EnsureCapacity(ref _meshVertices, totalVertices);
+                EnsureCapacity(ref _meshIndices, totalIndices);
+                _vertexCount = totalVertices;
+                _indexCount = totalIndices;
 
                 var job = new UpdateMeshJob
                 {
@@ -395,6 +435,10 @@ namespace SpriteStudio.Runtime
                     PartStates = _partStates,
                     PartColors = _partColors,
 
+                    BatchCount = _drawBatchCount,
+                    PartCount = _partCount,
+                    PartColorCount = _partColorCount,
+
                     Vertices = _meshVertices,
                     Indices = _meshIndices
                 };
@@ -403,52 +447,53 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        private Unity.Collections.NativeArray<SsVertex> _meshVertices;
-        private Unity.Collections.NativeArray<ushort> _meshIndices;
-        private Unity.Collections.NativeArray<DrawBatchData> _drawBatches;
-        private Unity.Collections.NativeArray<ushort> _drawOrder;
-        private Unity.Collections.NativeArray<PartStateData> _partStates;
-        private Unity.Collections.NativeArray<PartColorData> _partColors;
-
         /// <summary>
         /// 発行済みのメッシュ構築ジョブの完了を待ち、UnityのMeshへ反映する
         /// </summary>
-        public void ApplyToMesh(UnityEngine.Mesh targetMesh)
+        public void ApplyToMesh(UnityEngine.Mesh targetMesh, bool perBatchSubmesh = false)
         {
             // Meshに適用する前に Job の完了を待機
             _updateJobHandle.Complete();
 
-            if (!_meshVertices.IsCreated || !_meshIndices.IsCreated)
+            if (_vertexCount == 0 || _indexCount == 0 || !_meshVertices.IsCreated || !_meshIndices.IsCreated)
             {
                 targetMesh.Clear();
                 return;
             }
 
-            // ゼロアロケーションでの Mesh 更新
-            targetMesh.SetVertexBufferParams(_meshVertices.Length,
+            // ゼロアロケーションでの Mesh 更新 (バッファは過剰確保されうるので論理件数で渡す)
+            targetMesh.SetVertexBufferParams(_vertexCount,
                 new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.Position, UnityEngine.Rendering.VertexAttributeFormat.Float32, 3),
                 new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.Color, UnityEngine.Rendering.VertexAttributeFormat.UNorm8, 4),
                 new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.TexCoord0, UnityEngine.Rendering.VertexAttributeFormat.Float32, 2),
                 new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.TexCoord1, UnityEngine.Rendering.VertexAttributeFormat.Float32, 4)
             );
-            targetMesh.SetVertexBufferData(_meshVertices, 0, 0, _meshVertices.Length, 0, UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds);
+            targetMesh.SetVertexBufferData(_meshVertices, 0, 0, _vertexCount, 0, UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds);
 
-            targetMesh.SetIndexBufferParams(_meshIndices.Length, UnityEngine.Rendering.IndexFormat.UInt16);
-            targetMesh.SetIndexBufferData(_meshIndices, 0, 0, _meshIndices.Length, UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds);
+            targetMesh.SetIndexBufferParams(_indexCount, UnityEngine.Rendering.IndexFormat.UInt16);
+            targetMesh.SetIndexBufferData(_meshIndices, 0, 0, _indexCount, UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds);
 
-            // サブメッシュは 1 つの前提（あるいはDrawBatchごとにSubMeshを切る場合は変更が必要）
-            // Memo: uGUI では単一 SubMesh しか描画できないため 1 つにまとめる
-            var subMeshDescriptor = new UnityEngine.Rendering.SubMeshDescriptor(0, _meshIndices.Length, UnityEngine.MeshTopology.Triangles);
-            targetMesh.SetSubMesh(0, subMeshDescriptor, UnityEngine.Rendering.MeshUpdateFlags.Default);
+            if (perBatchSubmesh && _submeshCount > 0)
+            {
+                // MeshRenderer 経路: バッチ単位に SubMesh を分割し、テクスチャごとに別マテリアルを適用できるようにする
+                targetMesh.subMeshCount = _submeshCount;
+                for (int s = 0; s < _submeshCount; s++)
+                {
+                    var info = _submeshes[s];
+                    var desc = new UnityEngine.Rendering.SubMeshDescriptor(info.IndexStart, info.IndexCount, UnityEngine.MeshTopology.Triangles);
+                    targetMesh.SetSubMesh(s, desc, UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds);
+                }
+            }
+            else
+            {
+                // uGUI 経路など: 単一 SubMesh にまとめる (CanvasRenderer は 1 マテリアルのみ)
+                targetMesh.subMeshCount = 1;
+                var subMeshDescriptor = new UnityEngine.Rendering.SubMeshDescriptor(0, _indexCount, UnityEngine.MeshTopology.Triangles);
+                targetMesh.SetSubMesh(0, subMeshDescriptor, UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds);
+            }
             targetMesh.RecalculateBounds();
-            
-            // バッファを解放
-            _meshVertices.Dispose();
-            _meshIndices.Dispose();
-            _drawBatches.Dispose();
-            _drawOrder.Dispose();
-            _partStates.Dispose();
-            _partColors.Dispose();
+
+            // バッファは破棄せず再利用する (Dispose() でのみ解放)
         }
 
         public void Dispose()

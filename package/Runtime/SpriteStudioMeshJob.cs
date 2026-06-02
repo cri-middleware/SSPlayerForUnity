@@ -73,19 +73,24 @@ namespace SpriteStudio.Runtime
         public NativeArray<SsVertex> Vertices;
         public NativeArray<ushort> Indices;
 
+        // 入力バッファは grow-only で過剰確保されうるため、走査は論理件数で行う
+        public int BatchCount;
+        public int PartCount;
+        public int PartColorCount;
+
         public void Execute()
         {
             int vbase = 0;
             int ibase = 0;
 
-            for (int i = 0; i < DrawBatches.Length; i++)
+            for (int i = 0; i < BatchCount; i++)
             {
                 var batch = DrawBatches[i];
                 for (int k = 0; k < batch.Count; k++)
                 {
                     int rank = batch.StartRank + k;
                     int p_idx = DrawOrder[rank];
-                    if (p_idx < 0 || p_idx >= PartStates.Length) continue;
+                    if (p_idx < 0 || p_idx >= PartCount) continue;
 
                     // DrawBatchKind: Normal=0, Shape=1, Instance=2, Effect=3, Mesh=4, Text=5, Nines=6, Mask=7
                     if (batch.Kind == 0) // Normal
@@ -123,7 +128,7 @@ namespace SpriteStudio.Runtime
             float* corner_rates = stackalloc float[4] { 0f, 0f, 0f, 0f };
             int blend_idx = 0;
 
-            if ((part.UpdateFlag & 0x200) != 0 && part.PartColorIndex >= 0 && part.PartColorIndex < PartColors.Length)
+            if ((part.UpdateFlag & 0x200) != 0 && part.PartColorIndex >= 0 && part.PartColorIndex < PartColorCount)
             {
                 var pc = PartColors[part.PartColorIndex];
                 corner_colors[0] = pc.Lt.Rgba; corner_rates[0] = pc.Lt.Rate;
@@ -210,7 +215,7 @@ namespace SpriteStudio.Runtime
             float* corner_rates = stackalloc float[4] { 1f, 1f, 1f, 1f };
             int blend_idx = 0;
 
-            if ((part.UpdateFlag & 0x200) != 0 && part.PartColorIndex >= 0 && part.PartColorIndex < PartColors.Length)
+            if ((part.UpdateFlag & 0x200) != 0 && part.PartColorIndex >= 0 && part.PartColorIndex < PartColorCount)
             {
                 var pc = PartColors[part.PartColorIndex];
                 corner_colors[0] = pc.Lt.Rgba;
@@ -287,7 +292,7 @@ namespace SpriteStudio.Runtime
             float meshRate = 0f;
             int blendIdx = 0;
 
-            if ((part.UpdateFlag & 0x200) != 0 && part.PartColorIndex >= 0 && part.PartColorIndex < PartColors.Length)
+            if ((part.UpdateFlag & 0x200) != 0 && part.PartColorIndex >= 0 && part.PartColorIndex < PartColorCount)
             {
                 var pc = PartColors[part.PartColorIndex];
                 meshColor = pc.Lt.Rgba;

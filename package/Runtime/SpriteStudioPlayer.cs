@@ -209,22 +209,53 @@ namespace SpriteStudio.Runtime
             _internalPlayer.Tick(Time.deltaTime, SubFrameEnabled);
             _internalPlayer.ScheduleMeshUpdate(Time.deltaTime);
 
-            // 2. メッシュ反映適用 (Job の待機と SetVertexBufferData)
-            _internalPlayer.ApplyToMesh(_sharedMesh);
-            
-            // 3. マテリアルの設定
-            if (_animeAsset != null && _meshRenderer != null)
+            // 2. メッシュ反映適用 (Job の待機と SetVertexBufferData)。バッチ単位に SubMesh を分割する
+            _internalPlayer.ApplyToMesh(_sharedMesh, true);
+
+            // 3. サブメッシュ単位のマテリアル設定
+            UpdateSubmeshMaterials();
+        }
+
+        private Material[] _submeshMaterials;
+        private uint _lastMaterialSignature;
+
+        /// <summary>
+        /// SubMesh (= 描画バッチ) ごとに、テクスチャハッシュへ対応するマテリアルを割り当てる。
+        /// バッチ構成が前フレームと同じなら再割り当てしない (毎フレームのアロケーションを避ける)。
+        /// </summary>
+        private void UpdateSubmeshMaterials()
+        {
+            if (_animeAsset == null || _meshRenderer == null) return;
+
+            var mats = _animeAsset.Materials;
+            if (mats == null || mats.Count == 0) return;
+
+            int subCount = _internalPlayer.SubmeshCount;
+            if (subCount <= 0) return;
+
+            // 構成 (SubMesh 数 + 各テクスチャハッシュ) のシグネチャが不変なら再割り当てしない
+            uint signature = (uint)subCount;
+            for (int s = 0; s < subCount; s++)
             {
-                var mats = _animeAsset.Materials;
-                if (mats != null && mats.Count > 0)
-                {
-                    var currentMats = _meshRenderer.sharedMaterials;
-                    if (currentMats == null || currentMats.Length != mats.Count || currentMats[0] != mats[0])
-                    {
-                        _meshRenderer.sharedMaterials = mats.ToArray();
-                    }
-                }
+                signature = signature * 31u + _internalPlayer.GetSubmeshTextureHash(s);
             }
+            if (signature == _lastMaterialSignature && _submeshMaterials != null && _submeshMaterials.Length == subCount)
+            {
+                return;
+            }
+            _lastMaterialSignature = signature;
+
+            if (_submeshMaterials == null || _submeshMaterials.Length != subCount)
+            {
+                _submeshMaterials = new Material[subCount];
+            }
+            for (int s = 0; s < subCount; s++)
+            {
+                int mi = _animeAsset.GetMaterialIndexForHash(_internalPlayer.GetSubmeshTextureHash(s));
+                if (mi < 0 || mi >= mats.Count) mi = 0; // 対応不明なら先頭にフォールバック (退行なし)
+                _submeshMaterials[s] = mats[mi];
+            }
+            _meshRenderer.sharedMaterials = _submeshMaterials;
         }
 
         #region ITimeControl (Timeline 連携)

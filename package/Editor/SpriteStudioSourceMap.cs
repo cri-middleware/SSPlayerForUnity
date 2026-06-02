@@ -86,23 +86,9 @@ namespace SpriteStudio.Editor
             string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
             absolutePath = Path.GetFullPath(absolutePath);
 
-            Uri projectUri = new Uri(projectRoot + Path.DirectorySeparatorChar);
-            Uri fileUri = new Uri(absolutePath);
-
-            if (projectUri.IsBaseOf(fileUri))
-            {
-                return Uri.UnescapeDataString(projectUri.MakeRelativeUri(fileUri).ToString());
-            }
-
-            // If it's on a different drive, we can't make it relative, so we keep absolute
-            try
-            {
-                return Uri.UnescapeDataString(projectUri.MakeRelativeUri(fileUri).ToString());
-            }
-            catch
-            {
-                return absolutePath;
-            }
+            // Path.GetRelativePath は別ドライブ等で相対化できない場合は絶対パスをそのまま返す
+            // (旧 Uri.MakeRelativeUri 実装のフォールバックと同等)。区切り文字は '/' に正規化する。
+            return Path.GetRelativePath(projectRoot, absolutePath).Replace('\\', '/');
         }
 
         public static string GetAbsolutePath(string relativePath)
