@@ -170,7 +170,17 @@ namespace SpriteStudio.Runtime
 
         public void TickAndSchedule(float deltaTime)
         {
-            _core.TickAndSchedule(deltaTime, SubFrameEnabled);
+            if (_core.Internal == null) return;
+
+            if (_timelineControlled)
+            {
+                // Timeline がフレームを制御するため自動進行はしない (SetTime で設定済みのフレームを描画する)
+                _core.Internal.ScheduleMeshUpdate(0f);
+            }
+            else
+            {
+                _core.TickAndSchedule(deltaTime, SubFrameEnabled);
+            }
         }
 
         public void ApplyAndRender()
@@ -226,14 +236,31 @@ namespace SpriteStudio.Runtime
 
         #region ITimeControl (Timeline 連携)
 
-        public void SetTime(double time)
+        private bool _timelineControlled;
+
+        public void OnControlTimeStart()
         {
-            // Timeline 経由でのシーク再生時に呼び出される
-            // TODO: _core.Internal に対して特定時間のアニメーションポーズ計算を要求する
+            _timelineControlled = true;
+            // クリップ制御の開始時にアニメーションをセットアップしておく
+            if (_core.Internal != null && !string.IsNullOrEmpty(_animationName))
+            {
+                _core.Internal.SetupAnimation(_animationName);
+            }
         }
 
-        public void OnControlTimeStart() { }
-        public void OnControlTimeStop() { }
+        public void SetTime(double time)
+        {
+            // Timeline 経由のシーク: クリップ内ローカル時間 (秒) をフレーム番号へ変換して設定する
+            if (_core.Internal == null) return;
+            int fps = _core.Internal.GetFrameRate();
+            if (fps <= 0) fps = 60;
+            _core.Internal.SetFrame((float)(time * fps));
+        }
+
+        public void OnControlTimeStop()
+        {
+            _timelineControlled = false;
+        }
 
         #endregion
     }

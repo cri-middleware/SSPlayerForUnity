@@ -273,42 +273,10 @@ namespace SpriteStudio.Editor
                     SpriteStudio.SsConverter.NativeMethods.ss_converter_convert(context, sspjPtr, outDirPtr, null);
                 }
 
-                while (!SpriteStudio.SsConverter.NativeMethods.ss_converter_is_finished(context))
-                {
-                    System.Threading.Thread.Sleep(10);
-                }
-
-                var result = SpriteStudio.SsConverter.NativeMethods.ss_converter_get_result(context);
-                if (result != SpriteStudio.SsConverter.CConverterError.Success)
-                {
-                    byte* errData;
-                    nuint errLen;
-                    SpriteStudio.SsConverter.NativeMethods.ss_converter_get_error(context, &errData, &errLen);
-                    if (errData != null && errLen > 0)
-                    {
-                        var errStr = System.Text.Encoding.UTF8.GetString(errData, (int)errLen);
-                        Debug.LogError($"[SSPlayer] Converter Error: {errStr}");
-                    }
-                    else
-                    {
-                        Debug.LogError($"[SSPlayer] Converter Error: {result}");
-                    }
-                }
-                else
-                {
-                    Debug.Log($"[SSPlayer] Convert Success!");
-                    
-                    var generatedSsabs = Directory.GetFiles(finalOutputDir, "*.ssab", SearchOption.AllDirectories);
-                    foreach (var ssab in generatedSsabs)
-                    {
-                        SpriteStudioSourceMap.Register(ssab, sspjPath);
-                    }
-                }
-
-                SpriteStudio.SsConverter.NativeMethods.ss_converter_destroy(context);
+                // 非ブロッキング化: EditorApplication.update でポーリングし、完了時に結果処理 + Refresh する。
+                // (従来は Thread.Sleep でメインスレッドをブロックしており、変換中はエディタが固まっていた)
+                SpriteStudioConversionRunner.Track((System.IntPtr)context, sspjPath, finalOutputDir);
             }
-
-            AssetDatabase.Refresh();
         }
 
         private void RunConvert(string sspjPath)

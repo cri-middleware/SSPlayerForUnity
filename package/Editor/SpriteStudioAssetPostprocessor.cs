@@ -37,13 +37,12 @@ namespace SpriteStudio.Editor
 
         static void OnPostprocessAllAssets(string[] importedAssets, string[] deletedAssets, string[] movedAssets, string[] movedFromAssetPaths)
         {
-            bool hasConversion = false;
-
             foreach (string str in importedAssets)
             {
                 if (str.EndsWith(".sspj"))
                 {
-                    hasConversion |= ConvertSspj(str);
+                    // 非同期変換を開始する (完了時に SpriteStudioConversionRunner が Refresh する)
+                    ConvertSspj(str);
                 }
                 else if (str.EndsWith(".ssab"))
                 {
@@ -61,12 +60,6 @@ namespace SpriteStudio.Editor
                         }
                     }
                 }
-            }
-
-            if (hasConversion)
-            {
-                // 新しく書き出された .ssab やテクスチャを Unity に認識させる
-                AssetDatabase.Refresh();
             }
 
             if (delayedSsabChecks.Count > 0 && !isDelayCallRegistered)

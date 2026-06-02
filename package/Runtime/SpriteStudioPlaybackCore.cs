@@ -48,7 +48,8 @@ namespace SpriteStudio.Runtime
 
             if (Internal.SetupAnimation(animationName))
             {
-                Internal.SetPlaybackStyle(1, 0); // Forward, Normal
+                // FFI 契約: direction 0=Forward / 非0=Backward, style 0=Normal / 非0=PingPong
+                Internal.SetPlaybackStyle(0, 0); // Forward, Normal
                 Internal.SetLoop(loop ? -1 : 1);  // -1 = 無限ループ, 1 = 1回
                 Internal.SetSpeed(speedScale);
                 Internal.Play();
