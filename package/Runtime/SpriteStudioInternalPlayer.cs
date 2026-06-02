@@ -145,9 +145,6 @@ namespace SpriteStudio.Runtime
             public float* LocalUvs;
             public nuint LocalUvsLen;
 
-            public float* CellMeta;
-            public nuint CellMetaLen;
-
             public float* LocalVertices;
             public nuint LocalVerticesLen;
 
@@ -196,6 +193,11 @@ namespace SpriteStudio.Runtime
         private int _drawBatchCount;
         private int _partCount;
         private int _partColorCount;
+
+        // SetVertexBufferParams/SetIndexBufferParams はバッファを再確保するため、
+        // 件数が変化したときだけ呼ぶ (毎フレームの再確保を防ぐ)。-1 = 未適用。
+        private int _lastAppliedVertexCount = -1;
+        private int _lastAppliedIndexCount = -1;
 
         // バッチ単位の SubMesh 情報 (MeshRenderer 経路のマルチマテリアル用)。
         // Job では使わず main thread でのみ参照するため managed 配列で保持する。
@@ -263,7 +265,6 @@ namespace SpriteStudio.Runtime
 
                 NativeMethods.ss_runtime_get_world_matrices(_handle.ptr, &frame.WorldMatrices, &frame.WorldMatricesLen);
                 NativeMethods.ss_runtime_get_local_uvs(_handle.ptr, &frame.LocalUvs, &frame.LocalUvsLen);
-                NativeMethods.ss_runtime_get_cell_meta(_handle.ptr, &frame.CellMeta, &frame.CellMetaLen);
                 NativeMethods.ss_runtime_get_local_vertices(_handle.ptr, &frame.LocalVertices, &frame.LocalVerticesLen);
 
                 NativeMethods.ss_runtime_get_shape_vertices(_handle.ptr, &frame.ShapeVertices, &frame.ShapeVerticesLen);
@@ -417,7 +418,6 @@ namespace SpriteStudio.Runtime
                     WorldMatrices = frame.WorldMatrices,
                     LocalUvs = frame.LocalUvs,
                     LocalVertices = frame.LocalVertices,
-                    CellMeta = frame.CellMeta,
 
                     ShapeVertices = frame.ShapeVertices,
                     ShapeBoxCoords = frame.ShapeBoxCoords,
@@ -458,19 +458,31 @@ namespace SpriteStudio.Runtime
             if (_vertexCount == 0 || _indexCount == 0 || !_meshVertices.IsCreated || !_meshIndices.IsCreated)
             {
                 targetMesh.Clear();
+                // Clear でバッファ仕様がリセットされるため、次回は再指定が必要
+                _lastAppliedVertexCount = -1;
+                _lastAppliedIndexCount = -1;
                 return;
             }
 
-            // ゼロアロケーションでの Mesh 更新 (バッファは過剰確保されうるので論理件数で渡す)
-            targetMesh.SetVertexBufferParams(_vertexCount,
-                new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.Position, UnityEngine.Rendering.VertexAttributeFormat.Float32, 3),
-                new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.Color, UnityEngine.Rendering.VertexAttributeFormat.UNorm8, 4),
-                new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.TexCoord0, UnityEngine.Rendering.VertexAttributeFormat.Float32, 2),
-                new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.TexCoord1, UnityEngine.Rendering.VertexAttributeFormat.Float32, 4)
-            );
+            // ゼロアロケーションでの Mesh 更新 (バッファは過剰確保されうるので論理件数で渡す)。
+            // SetVertexBufferParams は件数が変わったときのみ呼び、毎フレームの再確保を避ける。
+            if (_vertexCount != _lastAppliedVertexCount)
+            {
+                targetMesh.SetVertexBufferParams(_vertexCount,
+                    new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.Position, UnityEngine.Rendering.VertexAttributeFormat.Float32, 3),
+                    new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.Color, UnityEngine.Rendering.VertexAttributeFormat.UNorm8, 4),
+                    new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.TexCoord0, UnityEngine.Rendering.VertexAttributeFormat.Float32, 2),
+                    new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.TexCoord1, UnityEngine.Rendering.VertexAttributeFormat.Float32, 4)
+                );
+                _lastAppliedVertexCount = _vertexCount;
+            }
             targetMesh.SetVertexBufferData(_meshVertices, 0, 0, _vertexCount, 0, UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds);
 
-            targetMesh.SetIndexBufferParams(_indexCount, UnityEngine.Rendering.IndexFormat.UInt16);
+            if (_indexCount != _lastAppliedIndexCount)
+            {
+                targetMesh.SetIndexBufferParams(_indexCount, UnityEngine.Rendering.IndexFormat.UInt16);
+                _lastAppliedIndexCount = _indexCount;
+            }
             targetMesh.SetIndexBufferData(_meshIndices, 0, 0, _indexCount, UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds);
 
             if (perBatchSubmesh && _submeshCount > 0)

@@ -6,12 +6,12 @@ namespace SpriteStudio.Runtime
     /// <summary>
     /// Layer 3: ワールド座標用プレイヤーコンポーネント (3D空間/2Dシーン用)
     /// Unity の Transform および MeshRenderer を利用して描画を行います。
-    /// 内部で Layer 2 の InternalPlayer を保持し、処理を委譲します。
+    /// 再生ロジックは共有コア (SpriteStudioPlaybackCore) に委譲し、毎フレームの駆動は
+    /// SpriteStudioUpdateManager が「全 Schedule → 全 Apply」でまとめて行います (Job 並列化)。
     /// </summary>
     [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
-    // NOTE: [ExecuteAlways] を一旦無効化。Play モードでのみ再生・描画する。
-    // 編集モードでのプレビューが必要になったら再付与し、LateUpdate を Application.isPlaying でガードする。
-    public class SpriteStudioPlayer : MonoBehaviour, ITimeControl
+    // NOTE: [ExecuteAlways] は無効。Play モードでのみ再生・描画する (編集モードは静止)。
+    public class SpriteStudioPlayer : MonoBehaviour, ITimeControl, ISpriteStudioRenderable
     {
         [Header("SpriteStudio Asset")]
         [Tooltip("描画対象となるコンバート済みの ssab アセット")]
@@ -23,10 +23,7 @@ namespace SpriteStudio.Runtime
             set
             {
                 _animeAsset = value;
-                if (_internalPlayer != null && _animeAsset != null && _animeAsset.SsabData != null)
-                {
-                    _internalPlayer.LoadSsab(_animeAsset.SsabData);
-                }
+                _core.ReloadAsset(_animeAsset);
             }
         }
 
@@ -79,10 +76,7 @@ namespace SpriteStudio.Runtime
             set
             {
                 _loop = value;
-                if (_internalPlayer != null)
-                {
-                    _internalPlayer.SetLoop(_loop ? -1 : 1);
-                }
+                _core.Internal?.SetLoop(_loop ? -1 : 1);
             }
         }
 
@@ -94,10 +88,7 @@ namespace SpriteStudio.Runtime
             set
             {
                 _speedScale = value;
-                if (_internalPlayer != null)
-                {
-                    _internalPlayer.SetSpeed(_speedScale);
-                }
+                _core.Internal?.SetSpeed(_speedScale);
             }
         }
 
@@ -105,11 +96,11 @@ namespace SpriteStudio.Runtime
         [SerializeField] private bool _subFrameEnabled = false;
         public bool SubFrameEnabled
         {
-            get => _internalPlayer != null ? _internalPlayer.SubFrameEnabled : _subFrameEnabled;
+            get => _core.Internal != null ? _core.Internal.SubFrameEnabled : _subFrameEnabled;
             set
             {
                 _subFrameEnabled = value;
-                if (_internalPlayer != null) _internalPlayer.SubFrameEnabled = value;
+                if (_core.Internal != null) _core.Internal.SubFrameEnabled = value;
             }
         }
 
@@ -119,20 +110,7 @@ namespace SpriteStudio.Runtime
         public void Play(string animName)
         {
             _animationName = animName;
-            if (_internalPlayer != null && !string.IsNullOrEmpty(_animationName))
-            {
-                if (_internalPlayer.SetupAnimation(_animationName))
-                {
-                    _internalPlayer.SetPlaybackStyle(1, 0); // Forward, Normal
-                    _internalPlayer.SetLoop(_loop ? -1 : 1); // -1 = Infinite loop, 1 = Play once
-                    _internalPlayer.SetSpeed(_speedScale);
-                    _internalPlayer.Play();
-                }
-                else
-                {
-                    Debug.LogWarning($"[SpriteStudioPlayer] Failed to setup animation: {_animationName}");
-                }
-            }
+            _core.Play(_animationName, _loop, _speedScale, "SpriteStudioPlayer");
         }
 
         private void Start()
@@ -143,11 +121,10 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        private SpriteStudioInternalPlayer _internalPlayer;
+        private readonly SpriteStudioPlaybackCore _core = new SpriteStudioPlaybackCore();
         private MeshFilter _meshFilter;
         private MeshRenderer _meshRenderer;
         private Mesh _sharedMesh;
-        private MaterialPropertyBlock _mpb;
 
         private void OnEnable()
         {
@@ -167,26 +144,14 @@ namespace SpriteStudio.Runtime
             }
             _meshFilter.sharedMesh = _sharedMesh;
 
-            if (_mpb == null) _mpb = new MaterialPropertyBlock();
-
-            if (_internalPlayer == null)
-            {
-                _internalPlayer = new SpriteStudioInternalPlayer();
-                _internalPlayer.SubFrameEnabled = _subFrameEnabled;
-                if (_animeAsset != null && _animeAsset.SsabData != null)
-                {
-                    _internalPlayer.LoadSsab(_animeAsset.SsabData);
-                }
-            }
+            _core.EnsureCreated(_animeAsset, _subFrameEnabled);
+            SpriteStudioUpdateManager.Register(this);
         }
 
         private void OnDisable()
         {
-            if (_internalPlayer != null)
-            {
-                _internalPlayer.Dispose();
-                _internalPlayer = null;
-            }
+            SpriteStudioUpdateManager.Unregister(this);
+            _core.Dispose();
         }
 
         private void OnDestroy()
@@ -201,18 +166,19 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        private void LateUpdate()
+        // --- ISpriteStudioRenderable (SpriteStudioUpdateManager から駆動される) ---
+
+        public void TickAndSchedule(float deltaTime)
         {
-            if (_internalPlayer == null) return;
+            _core.TickAndSchedule(deltaTime, SubFrameEnabled);
+        }
 
-            // 1. 更新
-            _internalPlayer.Tick(Time.deltaTime, SubFrameEnabled);
-            _internalPlayer.ScheduleMeshUpdate(Time.deltaTime);
+        public void ApplyAndRender()
+        {
+            if (_core.Internal == null) return;
 
-            // 2. メッシュ反映適用 (Job の待機と SetVertexBufferData)。バッチ単位に SubMesh を分割する
-            _internalPlayer.ApplyToMesh(_sharedMesh, true);
-
-            // 3. サブメッシュ単位のマテリアル設定
+            // バッチ単位に SubMesh を分割し、テクスチャごとに別マテリアルを適用する
+            _core.Internal.ApplyToMesh(_sharedMesh, true);
             UpdateSubmeshMaterials();
         }
 
@@ -225,19 +191,19 @@ namespace SpriteStudio.Runtime
         /// </summary>
         private void UpdateSubmeshMaterials()
         {
-            if (_animeAsset == null || _meshRenderer == null) return;
+            if (_animeAsset == null || _meshRenderer == null || _core.Internal == null) return;
 
             var mats = _animeAsset.Materials;
             if (mats == null || mats.Count == 0) return;
 
-            int subCount = _internalPlayer.SubmeshCount;
+            int subCount = _core.Internal.SubmeshCount;
             if (subCount <= 0) return;
 
             // 構成 (SubMesh 数 + 各テクスチャハッシュ) のシグネチャが不変なら再割り当てしない
             uint signature = (uint)subCount;
             for (int s = 0; s < subCount; s++)
             {
-                signature = signature * 31u + _internalPlayer.GetSubmeshTextureHash(s);
+                signature = signature * 31u + _core.Internal.GetSubmeshTextureHash(s);
             }
             if (signature == _lastMaterialSignature && _submeshMaterials != null && _submeshMaterials.Length == subCount)
             {
@@ -251,7 +217,7 @@ namespace SpriteStudio.Runtime
             }
             for (int s = 0; s < subCount; s++)
             {
-                int mi = _animeAsset.GetMaterialIndexForHash(_internalPlayer.GetSubmeshTextureHash(s));
+                int mi = _animeAsset.GetMaterialIndexForHash(_core.Internal.GetSubmeshTextureHash(s));
                 if (mi < 0 || mi >= mats.Count) mi = 0; // 対応不明なら先頭にフォールバック (退行なし)
                 _submeshMaterials[s] = mats[mi];
             }
@@ -263,7 +229,7 @@ namespace SpriteStudio.Runtime
         public void SetTime(double time)
         {
             // Timeline 経由でのシーク再生時に呼び出される
-            // TODO: _internalPlayer に対して特定時間のアニメーションポーズ計算を要求する
+            // TODO: _core.Internal に対して特定時間のアニメーションポーズ計算を要求する
         }
 
         public void OnControlTimeStart() { }

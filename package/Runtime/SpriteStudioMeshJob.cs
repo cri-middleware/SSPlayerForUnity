@@ -52,7 +52,6 @@ namespace SpriteStudio.Runtime
         [NativeDisableUnsafePtrRestriction] public float* WorldMatrices;
         [NativeDisableUnsafePtrRestriction] public float* LocalUvs;
         [NativeDisableUnsafePtrRestriction] public float* LocalVertices;
-        [NativeDisableUnsafePtrRestriction] public float* CellMeta;
 
         [NativeDisableUnsafePtrRestriction] public float* ShapeVertices;
         [NativeDisableUnsafePtrRestriction] public float* ShapeBoxCoords;
