@@ -34,8 +34,13 @@ namespace SpriteStudio.Runtime
 
         // エフェクト draw_plan を frame-data と同じ流儀で読む (ネイティブ→byte[]→ByteBuffer→生成アクセサ)。
         // 全エフェクトパートのジオメトリを連結した結合バッファ。Burst Job はこれを読む。
-        private byte[] _planBytes;
         private Google.FlatBuffers.ByteBuffer _planByteBuffer;
+#if ENABLE_SPAN_T && UNSAFE_BYTEBUFFER
+        // ゼロコピー: ネイティブ draw_plan ポインタを直接 ByteBuffer に載せる読み取り専用アロケータ。
+        private NativeByteBufferAllocator _planAllocator;
+#else
+        private byte[] _planBytes;
+#endif
         private NativeArray<EffectDrawCommandData> _effectCommands;
         private NativeArray<float> _effectVerts;
         private NativeArray<float> _effectUvs;
@@ -360,8 +365,13 @@ namespace SpriteStudio.Runtime
             public nuint MeshIndexOffsetsLen;
         }
 
-        private byte[] _frameDataArray;
         private Google.FlatBuffers.ByteBuffer _frameDataByteBuffer;
+#if ENABLE_SPAN_T && UNSAFE_BYTEBUFFER
+        // ゼロコピー: per-context の frame_data ネイティブバッファを直接 ByteBuffer に載せる。
+        private NativeByteBufferAllocator _frameDataAllocator;
+#else
+        private byte[] _frameDataArray;
+#endif
 
         // ゼロアロケーションのため、Job 入出力バッファは永続確保し grow-only で再利用する。
         // NativeArray.Length は確保容量、論理件数は別途 *_Count で保持する。
@@ -379,6 +389,16 @@ namespace SpriteStudio.Runtime
         private int _drawBatchCount;
         private int _partCount;
         private int _partColorCount;
+
+        // index アップロードのキャッシュ用。トポロジ (バッチ構造) が不変なら ApplyToMesh で
+        // index/submesh の再アップロードを省き、頂点のみ更新する。
+        private ulong _topologySignature;
+        private bool _meshUploaded;
+        private int _lastMeshId;
+        private ulong _uploadedTopologySignature;
+        private int _uploadedVertexCount;
+        private int _uploadedIndexCount;
+        private bool _uploadedPerBatchSubmesh;
 
         // バッチ単位の SubMesh 情報 (MeshRenderer 経路のマルチマテリアル用)。
         // Job では使わず main thread でのみ参照するため managed 配列で保持する。
@@ -449,15 +469,27 @@ namespace SpriteStudio.Runtime
                 }
 
                 int len = (int)frameDataLen;
+#if ENABLE_SPAN_T && UNSAFE_BYTEBUFFER
+                // ゼロコピー: per-context の frame_data ネイティブバッファを直接 ByteBuffer に載せる。
+                // 読み取りは本メソッド内 (同期) で完結する。子の get_frame_data は別 context の別バッファに
+                // 書くので親バッファを汚さない (SDK: get_frame_data は &mut self 借用 = context 毎)。
+                if (_frameDataAllocator == null)
+                {
+                    _frameDataAllocator = new NativeByteBufferAllocator();
+                    _frameDataByteBuffer = new Google.FlatBuffers.ByteBuffer(_frameDataAllocator, 0);
+                }
+                _frameDataAllocator.Reset(frameDataPtr, len);
+                _frameDataByteBuffer.Position = 0;
+#else
                 if (_frameDataArray == null || _frameDataArray.Length < len)
                 {
                     _frameDataArray = new byte[UnityEngine.Mathf.Max(len, 4096)];
                     _frameDataByteBuffer = new Google.FlatBuffers.ByteBuffer(_frameDataArray);
                 }
-
-                // ゼロGC: 既存のbyte[]にポインタからメモリコピー
+                // ゼロGC: 既存のbyte[]にポインタからメモリコピー (フォールバック)
                 System.Runtime.InteropServices.Marshal.Copy((System.IntPtr)frameDataPtr, _frameDataArray, 0, len);
                 _frameDataByteBuffer.Position = 0; // Reset ByteBuffer offset
+#endif
 
                 var frameData = ss.runtime.FrameData.GetRootAsFrameData(_frameDataByteBuffer);
 
@@ -800,6 +832,33 @@ namespace SpriteStudio.Runtime
                 _vertexCount = totalVertices;
                 _indexCount = totalIndices;
 
+                // index アップロードキャッシュ用のトポロジシグネチャ。バッチ構造は生成される index 値と
+                // submesh 範囲を一意に決めるため、これが前フレームと同一なら index/submesh は再送不要。
+                // (Effect は QuadCount/Offset が毎フレーム変わるので自然に不一致 = キャッシュされない)
+                {
+                    ulong sig = 14695981039346656037UL;
+                    const ulong prime = 1099511628211UL;
+                    sig = (sig ^ (ulong)(uint)_drawBatchCount) * prime;
+                    for (int i = 0; i < _drawBatchCount; i++)
+                    {
+                        var b = _drawBatches[i];
+                        sig = (sig ^ ((ulong)b.Kind | ((ulong)b.Count << 8) | ((ulong)b.StartRank << 24))) * prime;
+                        sig = (sig ^ (ulong)(uint)b.VertexCount) * prime;
+                        sig = (sig ^ (ulong)(uint)b.IndexCount) * prime;
+                        sig = (sig ^ (ulong)(uint)b.EffectPartIndex) * prime;
+                        sig = (sig ^ ((ulong)b.EffectQuadCount | ((ulong)b.EffectParticleOffset << 32))) * prime;
+                    }
+                    sig = (sig ^ (ulong)(uint)_submeshCount) * prime;
+                    for (int i = 0; i < _submeshCount; i++)
+                    {
+                        var s = _submeshes[i];
+                        sig = (sig ^ ((ulong)(uint)s.IndexStart | ((ulong)(uint)s.IndexCount << 32))) * prime;
+                    }
+                    sig = (sig ^ (ulong)(uint)_indexCount) * prime;
+                    sig = (sig ^ (ulong)(uint)_vertexCount) * prime;
+                    _topologySignature = sig;
+                }
+
                 // エフェクトが無くても Job が参照するため、結合配列は最低 1 要素を確保しておく。
                 EnsureCapacityPreserve(ref _effectVerts, 1);
                 EnsureCapacityPreserve(ref _effectUvs, 1);
@@ -860,6 +919,7 @@ namespace SpriteStudio.Runtime
             if (_vertexCount == 0 || _indexCount == 0 || !_meshVertices.IsCreated || !_meshIndices.IsCreated)
             {
                 targetMesh.Clear();
+                _meshUploaded = false; // 次回はフルアップロード (キャッシュ無効化)
                 return;
             }
 
@@ -867,9 +927,26 @@ namespace SpriteStudio.Runtime
             // DontValidateIndices = 8 (Unity 2021以降)
             var updateFlags = UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds | (UnityEngine.Rendering.MeshUpdateFlags)8;
 
-            // キャッシュによる状態不整合（Meshの共有、クリア、エディタのリロード等）を完全に防ぐため、
-            // 毎フレーム必ず現在の要求サイズでバッファパラメータを適用する。
-            // (Unity内部でサイズが同じ場合は自動でスキップされるためパフォーマンス影響は極小)
+            // トポロジ (index/submesh 構造) が前回アップロードと完全一致するなら、毎フレーム動く頂点だけ
+            // 更新し、index/submesh の再アップロードを省く (考察の「index キャッシュ」)。Mesh インスタンスが
+            // 変わった場合 (共有/プレビュー等) は安全側でフルアップロードに倒す。
+            int meshId = targetMesh.GetInstanceID();
+            bool topoUnchanged = _meshUploaded
+                && meshId == _lastMeshId
+                && _topologySignature == _uploadedTopologySignature
+                && _vertexCount == _uploadedVertexCount
+                && _indexCount == _uploadedIndexCount
+                && perBatchSubmesh == _uploadedPerBatchSubmesh;
+
+            if (topoUnchanged)
+            {
+                targetMesh.SetVertexBufferData(_meshVertices, 0, 0, _vertexCount, 0, updateFlags);
+                targetMesh.RecalculateBounds();
+                return;
+            }
+
+            // --- フルアップロード (初回 or トポロジ変化) ---
+            // バッファ再宣言時の領域外参照を避けるため一旦 submesh を空にする。
             targetMesh.SetSubMesh(0, new UnityEngine.Rendering.SubMeshDescriptor(0, 0), updateFlags);
             targetMesh.subMeshCount = 1;
 
@@ -904,7 +981,15 @@ namespace SpriteStudio.Runtime
                 targetMesh.SetSubMesh(0, subMeshDescriptor, updateFlags);
             }
             targetMesh.RecalculateBounds();
-            
+
+            // アップロード済みトポロジを記録 (次フレーム以降の index 再送スキップ判定に使う)。
+            _meshUploaded = true;
+            _lastMeshId = meshId;
+            _uploadedTopologySignature = _topologySignature;
+            _uploadedVertexCount = _vertexCount;
+            _uploadedIndexCount = _indexCount;
+            _uploadedPerBatchSubmesh = perBatchSubmesh;
+
             // バッファは破棄せず再利用する (Dispose() でのみ解放)
         }
 
@@ -987,7 +1072,18 @@ namespace SpriteStudio.Runtime
         {
             if (fb == null || len <= 0) return default;
 
-            // ネイティブ → 再利用 byte[] へコピーして ByteBuffer に包む (frame-data と同じ手順)。
+#if ENABLE_SPAN_T && UNSAFE_BYTEBUFFER
+            // ゼロコピー: ネイティブポインタを直接 ByteBuffer に載せる (allocator/ByteBuffer は使い回し)。
+            // draw_plan は本メソッド内で全ジオメトリを結合 NativeArray へコピーし切るため寿命が完結し安全。
+            if (_planAllocator == null)
+            {
+                _planAllocator = new NativeByteBufferAllocator();
+                _planByteBuffer = new Google.FlatBuffers.ByteBuffer(_planAllocator, 0);
+            }
+            _planAllocator.Reset(fb, len);
+            _planByteBuffer.Position = 0;
+#else
+            // ネイティブ → 再利用 byte[] へコピーして ByteBuffer に包む (フォールバック)。
             if (_planBytes == null || _planBytes.Length < len)
             {
                 _planBytes = new byte[UnityEngine.Mathf.Max(len, 4096)];
@@ -995,6 +1091,7 @@ namespace SpriteStudio.Runtime
             }
             System.Runtime.InteropServices.Marshal.Copy((System.IntPtr)fb, _planBytes, 0, len);
             _planByteBuffer.Position = 0;
+#endif
 
             var plan = ss.runtime.EffectDrawPlan.GetRootAsEffectDrawPlan(_planByteBuffer);
 
