@@ -104,6 +104,26 @@ namespace SpriteStudio.Runtime
             }
         }
 
+        [Tooltip("1 Unity ワールド単位あたりのピクセル数。SS のピクセル座標をワールド単位へ換算する。既定 1=ピクセル等倍 (従来通り)。Unity スプライト慣習に合わせるなら 100 等を設定する。")]
+        [SerializeField] private float _pixelsPerUnit = 1f;
+        public float PixelsPerUnit
+        {
+            get => _pixelsPerUnit;
+            set
+            {
+                _pixelsPerUnit = value;
+                ApplyPixelsPerUnit();
+            }
+        }
+
+        // PPU を内部プレイヤーの頂点スケール (= 1/PPU) へ反映する。トップレベルのみ設定し、
+        // Instance 子は VertexScale=1 のまま据え置く (親側で一括スケールされるため二重スケールを避ける)。
+        private void ApplyPixelsPerUnit()
+        {
+            if (_core.Internal != null)
+                _core.Internal.VertexScale = 1f / Mathf.Max(_pixelsPerUnit, 0.0001f);
+        }
+
         /// <summary>
         /// 指定したアニメーションの再生を開始します。
         /// </summary>
@@ -145,6 +165,7 @@ namespace SpriteStudio.Runtime
             _meshFilter.sharedMesh = _sharedMesh;
 
             _core.EnsureCreated(_animeAsset, _subFrameEnabled);
+            ApplyPixelsPerUnit();
             SpriteStudioUpdateManager.Register(this);
         }
 
@@ -203,9 +224,6 @@ namespace SpriteStudio.Runtime
         {
             if (_animeAsset == null || _meshRenderer == null || _core.Internal == null) return;
 
-            var mats = _animeAsset.Materials;
-            if (mats == null || mats.Count == 0) return;
-
             int subCount = _core.Internal.SubmeshCount;
             if (subCount <= 0) return;
 
@@ -225,16 +243,22 @@ namespace SpriteStudio.Runtime
             {
                 _submeshMaterials = new Material[subCount];
             }
+            // 対応不明時のフォールバック先。自身の Materials が空でも外部参照で解決できる場合があるため、
+            // ここでは early-return せず submesh ごとに解決する。
+            var mats = _animeAsset.Materials;
+            Material fallback = (mats != null && mats.Count > 0) ? mats[0] : null;
+
             for (int s = 0; s < subCount; s++)
             {
                 uint hash = _core.Internal.GetSubmeshTextureHash(s);
-                int mi = _animeAsset.GetMaterialIndexForHash(hash);
-                if (mi < 0 || mi >= mats.Count) 
+                // 自身 → Instance 参照先 (外部 .ssab) の順でマテリアルを解決する。
+                var mat = _animeAsset.ResolveMaterialForHash(hash);
+                if (mat == null)
                 {
-                    Debug.LogError($"[SpriteStudioPlayer] TextureHash {hash} not found in AnimeAsset (Submesh {s}). Falling back to material 0.");
-                    mi = 0; // 対応不明なら先頭にフォールバック (退行なし)
+                    Debug.LogError($"[SpriteStudioPlayer] TextureHash {hash} not found in AnimeAsset or its external references (Submesh {s}). Falling back to material 0.");
+                    mat = fallback;
                 }
-                _submeshMaterials[s] = mats[mi];
+                _submeshMaterials[s] = mat;
             }
             _meshRenderer.sharedMaterials = _submeshMaterials;
         }

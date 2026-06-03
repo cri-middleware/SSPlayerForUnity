@@ -84,8 +84,20 @@ Shader "SpriteStudio/Default"
                 }
                 else
                 {
-                    // 通常パート: SpriteStudio の PartColor Mix ブレンド (近似)
-                    finalRGB = lerp(texColor.rgb, IN.color.rgb, rate);
+                    // 通常パート: SpriteStudio の PartColor BlendType に対応
+                    if (blendIdx < 0.5) {
+                        // 0: Mix
+                        finalRGB = texColor.rgb * (1.0 - rate) + IN.color.rgb * rate;
+                    } else if (blendIdx < 1.5) {
+                        // 1: Mul
+                        finalRGB = texColor.rgb * (1.0 - rate) + (texColor.rgb * IN.color.rgb) * rate;
+                    } else if (blendIdx < 2.5) {
+                        // 2: Add
+                        finalRGB = saturate(texColor.rgb + IN.color.rgb * rate);
+                    } else {
+                        // 3: Sub
+                        finalRGB = saturate(texColor.rgb - IN.color.rgb * rate);
+                    }
                 }
 
                 fixed finalAlpha = texColor.a * IN.color.a;
@@ -96,7 +108,6 @@ Shader "SpriteStudio/Default"
 
                 // 加算合成: エフェクトパートで blend_idx == Add(2) のときのみ a=0 を出力し
                 // dst を素通し ( rgb*a + dst ) させる。通常パートには影響しない。
-                // TODO: 通常パートの Add/Mul/Sub は別パス/別マテリアルで対応予定。
                 if (isNormalized > 0.5 && abs(blendIdx - 2.0) < 0.5)
                 {
                     finalAlpha = 0.0;

@@ -258,23 +258,14 @@ namespace SpriteStudio.Editor
                 if (anim.HasValue) asset.AnimationNames[i] = anim.Value.Name;
             }
 
-            // 6. 外部アニメーション (Instance) への依存解決
-            int extInstLen = ssab.ExternalInstancesLength;
-            if (extInstLen > 0)
+            // 6. 外部アニメーション (Instance) への依存解決。
+            //    external_instances ベクタはコンバータが省略しうる (実際 Ringo_tyu で空だった) ため、
+            //    parts の PartTypeInstance を直接走査して別パック参照を集める (権威ある参照元)。
+            //    外部アセットが更に参照する別パックも辿る (transitive)。
             {
-                var extSeen = new HashSet<SpriteStudioAnimeAsset>();
-                for (int i = 0; i < extInstLen; i++)
-                {
-                    var extInst = ssab.ExternalInstances(i);
-                    if (!extInst.HasValue) continue;
-                    string extName = extInst.Value.AnimePackName;
-                    
-                    ResolveSsabPath(baseDir, extName, out var extAsset, ctx.DependsOnSourceAsset);
-                    if (extAsset != null && extSeen.Add(extAsset))
-                    {
-                        asset.ExternalReferences.Add(extAsset);
-                    }
-                }
+                var seenAssets = new HashSet<SpriteStudioAnimeAsset>();
+                var seenPacks = new HashSet<string>();
+                CollectExternalReferences(asset.SsabData, baseDir, asset.PackHash, ctx, asset.ExternalReferences, seenAssets, seenPacks);
             }
 
             Debug.Log($"[SS-IMPORT] {ctx.assetPath} -> textures:{asset.Textures.Count} materials:{asset.Materials.Count} extRefs:{asset.ExternalReferences.Count}");
@@ -290,6 +281,56 @@ namespace SpriteStudio.Editor
             if (!seen.Add(hash)) return;
             keys.Add(hash);
             indices.Add(materialIndex);
+        }
+
+        /// <summary>
+        /// ssab が参照する別パック (Instance) を再帰的に集めて outRefs へ追加する。
+        /// external_instances ベクタ (あれば) と parts の PartTypeInstance の両方から参照パック名を集め、
+        /// ResolveSsabPath でプロジェクト内アセットへ解決する。external_instances はコンバータが
+        /// 省略しうるため parts 走査が主経路。外部アセットが更に参照する別パックも辿る (transitive)。
+        /// seenAssets / seenPacks で重複・循環を排除する。
+        /// </summary>
+        private static void CollectExternalReferences(byte[] ssabData, string baseDir, uint ownPackHash,
+            AssetImportContext ctx, List<SpriteStudioAnimeAsset> outRefs,
+            HashSet<SpriteStudioAnimeAsset> seenAssets, HashSet<string> seenPacks)
+        {
+            if (ssabData == null || ssabData.Length == 0) return;
+
+            var bb = new Google.FlatBuffers.ByteBuffer(ssabData);
+            var ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
+
+            var packNames = new List<string>();
+
+            int extLen = ssab.ExternalInstancesLength;
+            for (int i = 0; i < extLen; i++)
+            {
+                var e = ssab.ExternalInstances(i);
+                if (e.HasValue && !string.IsNullOrEmpty(e.Value.AnimePackName))
+                    packNames.Add(e.Value.AnimePackName);
+            }
+
+            int partsLen = ssab.PartsLength;
+            for (int i = 0; i < partsLen; i++)
+            {
+                var p = ssab.Parts(i);
+                if (!p.HasValue || p.Value.PartTypeType != ss.format.PartType.PartTypeInstance) continue;
+                var pt = p.Value.PartTypeAsPartTypeInstance();
+                // 同一パック参照 (self) は実行時に self 解決するので外部参照に積まない。
+                if (pt.RefAnimePackHash == ownPackHash) continue;
+                if (!string.IsNullOrEmpty(pt.RefAnimePack)) packNames.Add(pt.RefAnimePack);
+            }
+
+            foreach (var packName in packNames)
+            {
+                if (string.IsNullOrEmpty(packName) || !seenPacks.Add(packName)) continue;
+                ResolveSsabPath(baseDir, packName, out var extAsset, ctx.DependsOnSourceAsset);
+                if (extAsset == null || !seenAssets.Add(extAsset)) continue;
+                outRefs.Add(extAsset);
+
+                // transitive: 外部アセットが更に参照する別パックも辿る (外部の baseDir で再帰)。
+                string extDir = Path.GetDirectoryName(AssetDatabase.GetAssetPath(extAsset));
+                CollectExternalReferences(extAsset.SsabData, extDir, extAsset.PackHash, ctx, outRefs, seenAssets, seenPacks);
+            }
         }
     }
 }

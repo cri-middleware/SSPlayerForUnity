@@ -22,7 +22,8 @@ namespace SpriteStudio.Editor
             if (asset != null && asset.SsabData != null && asset.SsabData.Length > 0)
             {
                 _internalPlayer = new SpriteStudioInternalPlayer();
-                _internalPlayer.LoadSsab(asset.SsabData);
+                // Instance パーツの子アニメを解決できるよう resolver を渡す (プレビューでも instance を表示)。
+                _internalPlayer.LoadSsab(asset.SsabData, asset.ResolveExternalSsab);
                 
                 if (asset.AnimationNames != null && asset.AnimationNames.Length > 0)
                 {
@@ -190,7 +191,8 @@ namespace SpriteStudio.Editor
             {
                 _internalPlayer.Tick(_isPlaying ? dt : 0f, false);
                 _internalPlayer.ScheduleMeshUpdate(_isPlaying ? dt : 0f);
-                _internalPlayer.ApplyToMesh(_previewMesh);
+                // テクスチャ単位にサブメッシュ分割し、下のループで hash からマテリアルを解決する。
+                _internalPlayer.ApplyToMesh(_previewMesh, true);
                 _isFirstFrame = false;
             }
 
@@ -212,9 +214,12 @@ namespace SpriteStudio.Editor
             var asset = (SpriteStudioAnimeAsset)target;
             if (asset.Materials != null && asset.Materials.Count > 0)
             {
+                Material fallback = asset.Materials[0];
                 for (int i = 0; i < _previewMesh.subMeshCount; i++)
                 {
-                    var m = i < asset.Materials.Count ? asset.Materials[i] : asset.Materials[0];
+                    // サブメッシュのテクスチャハッシュから (外部参照も含めて) マテリアルを解決する。
+                    uint hash = i < _internalPlayer.SubmeshCount ? _internalPlayer.GetSubmeshTextureHash(i) : 0u;
+                    var m = asset.ResolveMaterialForHash(hash) ?? fallback;
                     if (m != null)
                     {
                         _previewRenderUtility.DrawMesh(_previewMesh, Matrix4x4.identity, m, i);

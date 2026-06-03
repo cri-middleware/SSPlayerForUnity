@@ -61,20 +61,47 @@ namespace SpriteStudio.Runtime
         
         public JobHandle CurrentUpdateJobHandle => _updateJobHandle;
 
+        /// <summary>
+        /// 頂点位置に掛ける一様スケール (= 1 / PixelsPerUnit)。既定 1 (= ピクセル等倍)。
+        /// トップレベルプレイヤーのみ設定し、Instance 子は 1 のまま据え置く
+        /// (子は親に px のまま取り込まれ、親側で一括スケールされるため。二重スケール防止)。
+        /// </summary>
+        public float VertexScale { get; set; } = 1f;
+
         public SpriteStudioInternalPlayer()
         {
             unsafe
             {
                 _handle = new SsPlayerHandle { ptr = NativeMethods.ss_runtime_create() };
+                // 既定値 (YUp / Direct) に依存せず明示設定し、SDK 既定が将来変わっても巻き込まれないようにする。
+                //  coordinate_system=0(YUp): Unity ワールドは Y-up。get_local_vertices は flip 適用済みで
+                //    返るためワールド行列側で Y を再反転しない (二重反転防止)。
+                //  render_mode=0(Direct): SoA ゲッター経路 (本実装が前提とする経路) を使う。
+                if (_handle.IsValid)
+                {
+                    NativeMethods.ss_context_set_coordinate_system(_handle.ptr, 0);
+                    NativeMethods.ss_runtime_set_render_mode(_handle.ptr, (byte)0);
+                }
             }
         }
 
         /// <summary>
         /// SsabData (バイト配列) を読み込んでリソースをバインドする
         /// </summary>
+        // Instance パーツの入れ子上限。万一データに循環参照があっても無限再帰でハングしないための保険。
+        private const int MaxInstanceDepth = 16;
+        private int _instanceDepth;
+
         public void LoadSsab(byte[] ssabData, AssetResolver resolver = null)
         {
+            LoadSsabInternal(ssabData, resolver, 0);
+        }
+
+        /// <summary>LoadSsab の実体。depth は Instance 入れ子の深さ (循環参照ガード用)。</summary>
+        private void LoadSsabInternal(byte[] ssabData, AssetResolver resolver, int depth)
+        {
             _assetResolver = resolver;
+            _instanceDepth = depth;
             if (!_handle.IsValid || ssabData == null || ssabData.Length == 0) return;
 
             // 既存のピン留めがあれば解除
@@ -159,28 +186,44 @@ namespace SpriteStudio.Runtime
                     }
                     else if (p.PartTypeType == ss.format.PartType.PartTypeInstance)
                     {
+                        if (_instanceDepth + 1 >= MaxInstanceDepth)
+                        {
+                            UnityEngine.Debug.LogWarning($"[SpriteStudioInternalPlayer] Instance nesting exceeded {MaxInstanceDepth} levels at part {i}; skipping to avoid cyclic references.");
+                            continue;
+                        }
+
                         var pt = p.PartTypeAsPartTypeInstance();
                         uint packHash = pt.RefAnimePackHash;
                         uint nameHash = pt.RefAnimeNameHash;
-                        
+
+                        // 子アニメの SSAB を解決する。同一パック内なら自分自身の SSAB、別パックなら
+                        // 外部参照の SSAB が返る (SpriteStudioAnimeAsset.ResolveExternalSsab 参照)。
+                        // 実行時はファイルを読まず、インポート時に確定したハードリファレンスを辿るだけ。
                         byte[] childSsab = _assetResolver?.Invoke(packHash, nameHash);
-                        if (childSsab != null)
+                        if (childSsab == null)
                         {
-                            var childPlayer = new SpriteStudioInternalPlayer();
-                            childPlayer.LoadSsab(childSsab, _assetResolver);
-                            
-                            void* slot = NativeMethods.ss_instance_slot_create();
-                            _instanceChildren[i] = new InstanceChildState
-                            {
-                                InstanceSlot = (System.IntPtr)slot,
-                                Player = childPlayer,
-                                PreviousFrame = 0f
-                            };
-                            
-                            childPlayer.SetupAnimationByHash(nameHash);
-                            childPlayer.Stop(); // Ensure it starts stopped
-                            // Visibility will be handled by step
+                            UnityEngine.Debug.LogWarning($"[SpriteStudioInternalPlayer] Instance part {i}: referenced animation (pack=0x{packHash:X8}, name=0x{nameHash:X8}) could not be resolved. Check the AnimeAsset's external references / pack hash.");
+                            continue;
                         }
+
+                        var childPlayer = new SpriteStudioInternalPlayer { SubFrameEnabled = SubFrameEnabled };
+                        childPlayer.LoadSsabInternal(childSsab, _assetResolver, _instanceDepth + 1);
+
+                        if (!childPlayer.SetupAnimationByHash(nameHash))
+                        {
+                            UnityEngine.Debug.LogWarning($"[SpriteStudioInternalPlayer] Instance part {i}: animation hash 0x{nameHash:X8} not found in the resolved SSAB.");
+                            childPlayer.Dispose();
+                            continue;
+                        }
+                        childPlayer.Stop(); // 親に駆動されるまで停止状態で待機 (可視性は step が制御)
+
+                        void* slot = NativeMethods.ss_instance_slot_create();
+                        _instanceChildren[i] = new InstanceChildState
+                        {
+                            InstanceSlot = (System.IntPtr)slot,
+                            Player = childPlayer,
+                            PreviousFrame = 0f
+                        };
                     }
                 }
             }
@@ -531,8 +574,11 @@ namespace SpriteStudio.Runtime
 
                     if (_instanceMeshes[i].Vertices != null)
                     {
+                        // Instance は子メッシュ全体を 1 draw batch として取り込むが、テクスチャ単位の
+                        // SubMesh は子の submesh 数ぶん発生する。maxBatches は _drawBatches と _submeshes の
+                        // 両方をサイズ確保するため、submesh 数 + 1 (draw batch ぶん) を見込む。
                         var child = _instanceChildren[i].Player;
-                        maxBatches += child.DrawBatchCount;
+                        maxBatches += child.SubmeshCount + 1;
                     }
                 }
 
@@ -561,35 +607,34 @@ namespace SpriteStudio.Runtime
                     int vc = 0;
                     int ic = 0;
                     
-                    if ((int)b.Kind == 2) // Instance
+                    if (b.Kind == ss.runtime.DrawBatchKind.Instance)
                     {
                         for (int k = 0; k < b.Count; k++)
                         {
                             int rank = b.StartRank + k;
                             int p_idx = frameData.DrawOrder(rank);
                             if (p_idx < 0 || p_idx >= partsLength) continue;
-                            
+
                             var meshPtr = _instanceMeshes[p_idx];
                             if (meshPtr.Vertices != null && meshPtr.VertexCount > 0)
                             {
                                 var childPlayer = _instanceChildren[p_idx].Player;
                                 int cvc = childPlayer.VertexCount;
                                 int cic = childPlayer.IndexCount;
-                                
-                                for (int cb = 0; cb < childPlayer.DrawBatchCount; cb++)
+
+                                // 子メッシュは頂点/インデックスが子バッファ上で連続しているため、1 つの
+                                // Instance バッチとして丸ごと取り込む (Job の BuildInstance が meshPtr 全体を
+                                // 1 回でコピーする)。子が複数バッチ (複数テクスチャ) でも、ここで複数の
+                                // DrawBatchData を積むと BuildInstance が子メッシュをバッチ数ぶん重複コピーして
+                                // バッファ溢れ・描画破綻を起こすため不可。テクスチャ単位の分割は下の SubmeshInfo が担う。
+                                _drawBatches[_drawBatchCount++] = new DrawBatchData
                                 {
-                                    var childBatch = childPlayer.DrawBatches[cb];
-                                    _drawBatches[_drawBatchCount++] = new DrawBatchData
-                                    {
-                                        StartRank = childBatch.StartRank,
-                                        Count = childBatch.Count,
-                                        VertexCount = childBatch.VertexCount,
-                                        IndexCount = childBatch.IndexCount,
-                                        Kind = 2,
-                                        EffectPartIndex = p_idx
-                                    };
-                                }
-                                
+                                    Kind = SsDrawBatchKind.Instance,
+                                    EffectPartIndex = p_idx,
+                                    VertexCount = cvc,
+                                    IndexCount = cic
+                                };
+
                                 for (int sm = 0; sm < childPlayer.SubmeshCount; sm++)
                                 {
                                     var childSubmesh = childPlayer.Submeshes[sm];
@@ -600,13 +645,13 @@ namespace SpriteStudio.Runtime
                                         TextureHash = childSubmesh.TextureHash
                                     };
                                 }
-                                
+
                                 totalVertices += cvc;
                                 totalIndices += cic;
                             }
                         }
                     }
-                    else if ((int)b.Kind == 3) // Effect
+                    else if (b.Kind == ss.runtime.DrawBatchKind.Effect)
                     {
                         for (int k = 0; k < b.Count; k++)
                         {
@@ -631,7 +676,7 @@ namespace SpriteStudio.Runtime
                                         Count = 0,
                                         VertexCount = cmdVc,
                                         IndexCount = cmdIc,
-                                        Kind = 3,
+                                        Kind = SsDrawBatchKind.Effect,
                                         EffectBlend = cmd.Blend,
                                         // 結合ジオメトリ内のグローバル quad オフセット (= スロットベース + コマンド内オフセット)。
                                         EffectParticleOffset = (uint)plan.QuadBase + cmd.ParticleOffset,
@@ -652,7 +697,7 @@ namespace SpriteStudio.Runtime
                             }
                         }
                     }
-                    else if ((int)b.Kind == 0 || (int)b.Kind == 1 || (int)b.Kind == 4)
+                    else if (b.Kind == ss.runtime.DrawBatchKind.Normal || b.Kind == ss.runtime.DrawBatchKind.Shape || b.Kind == ss.runtime.DrawBatchKind.Mesh)
                     {
                         for (int k = 0; k < b.Count; k++)
                         {
@@ -660,14 +705,14 @@ namespace SpriteStudio.Runtime
                             int p_idx = frameData.DrawOrder(rank);
                             if (p_idx < 0 || p_idx >= partsLength) continue;
 
-                            if ((int)b.Kind == 0) // Normal
+                            if (b.Kind == ss.runtime.DrawBatchKind.Normal)
                             {
                                 var p = frameData.Parts(p_idx).Value;
-                                bool needsCenter = ((ulong)p.UpdateFlag & (0x10UL | 0x200UL)) != 0; // AttributeVertex | AttributePartColor
+                                bool needsCenter = ((ulong)p.UpdateFlag & SsUpdateFlag.NeedsCenterMask) != 0;
                                 vc += needsCenter ? 5 : 4;
                                 ic += needsCenter ? 12 : 6;
                             }
-                            else if ((int)b.Kind == 1) // Shape
+                            else if (b.Kind == ss.runtime.DrawBatchKind.Shape)
                             {
                                 int svc = frame.ShapeVertexCounts[p_idx];
                                 if (svc >= 3)
@@ -676,7 +721,7 @@ namespace SpriteStudio.Runtime
                                     ic += (svc - 2) * 3;
                                 }
                             }
-                            else if ((int)b.Kind == 4) // Mesh
+                            else if (b.Kind == ss.runtime.DrawBatchKind.Mesh)
                             {
                                 uint v0 = frame.MeshVertexOffsets[p_idx];
                                 uint v1 = frame.MeshVertexOffsets[p_idx + 1];
@@ -786,6 +831,7 @@ namespace SpriteStudio.Runtime
 
                     BatchCount = _drawBatchCount,
                     PartCount = _partCount,
+                    InvScale = VertexScale,
 
                     DrawBatches = _drawBatches,
                     DrawOrder = _drawOrder,
