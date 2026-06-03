@@ -13,7 +13,7 @@ namespace SpriteStudio.Editor
         private Mesh _previewMesh;
         private double _lastTime;
         private int _currentAnimationIndex = 0;
-        private bool _isPlaying = false;
+        private bool _isPlaying = false; // 既定は一時停止 (フレーム0表示)。再生は Play ボタン。エフェクトはフレーム0で空になる点に注意
         private bool _isFirstFrame = true;
 
         private void OnEnable()
@@ -212,18 +212,21 @@ namespace SpriteStudio.Editor
             }
 
             var asset = (SpriteStudioAnimeAsset)target;
-            if (asset.Materials != null && asset.Materials.Count > 0)
+            // Materials が空でも Instance の子は外部参照側のマテリアルを使うため、guard で全スキップせず
+            // submesh ごとに ResolveMaterialForHash (自身→外部参照) で解決する (シーンの UpdateSubmeshMaterials と同じ)。
+            Material fallback = (asset.Materials != null && asset.Materials.Count > 0) ? asset.Materials[0] : null;
+            for (int i = 0; i < _previewMesh.subMeshCount; i++)
             {
-                Material fallback = asset.Materials[0];
-                for (int i = 0; i < _previewMesh.subMeshCount; i++)
+                // サブメッシュのテクスチャハッシュから (外部参照も含めて) マテリアルを解決する。
+                uint hash = i < _internalPlayer.SubmeshCount ? _internalPlayer.GetSubmeshTextureHash(i) : 0u;
+                var m = asset.ResolveMaterialForHash(hash) ?? fallback;
+                if (m != null)
                 {
-                    // サブメッシュのテクスチャハッシュから (外部参照も含めて) マテリアルを解決する。
-                    uint hash = i < _internalPlayer.SubmeshCount ? _internalPlayer.GetSubmeshTextureHash(i) : 0u;
-                    var m = asset.ResolveMaterialForHash(hash) ?? fallback;
-                    if (m != null)
-                    {
-                        _previewRenderUtility.DrawMesh(_previewMesh, Matrix4x4.identity, m, i);
-                    }
+                    // submesh ごとに別 DrawMesh だと半透明の距離ソートで描画順が入れ替わる。
+                    // submesh index 順 (= draw_order) に微小 Z オフセットを与え、奥→手前で正しく重ねる。
+                    // (ortho なので Z は画面位置に影響せず、半透明ソートの距離だけを決める)
+                    var xf = Matrix4x4.Translate(new Vector3(0f, 0f, -i * 0.1f));
+                    _previewRenderUtility.DrawMesh(_previewMesh, xf, m, i);
                 }
             }
 
