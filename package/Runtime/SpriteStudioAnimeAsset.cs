@@ -160,5 +160,75 @@ namespace SpriteStudio.Runtime
             }
             return null;
         }
+
+        // Runtime cache of per-(texture, blend) material variants. Asset-level so that multiple
+        // players sharing this asset reuse the same variants. Variants are clones flagged
+        // HideAndDontSave and destroyed in OnDisable; never serialized.
+        [System.NonSerialized] private Dictionary<SpriteStudioMaterialKey, Material> _materialVariants;
+        [System.NonSerialized] private Material _whiteBaseMaterial;
+
+        // Base material for cell-less submeshes (TextureHash 0, e.g. Shape parts). It has no texture,
+        // so the shader's _MainTex "white" default makes the sampler return white and the part shows
+        // its vertex / part color. Cloned per blend like any other base material.
+        private Material GetWhiteBaseMaterial()
+        {
+            if (_whiteBaseMaterial != null) return _whiteBaseMaterial;
+            Shader shader = null;
+            if (Materials != null)
+            {
+                for (int i = 0; i < Materials.Count; i++)
+                {
+                    if (Materials[i] != null) { shader = Materials[i].shader; break; }
+                }
+            }
+            if (shader == null) shader = Shader.Find("SpriteStudio/Default");
+            if (shader == null) return null;
+            _whiteBaseMaterial = new Material(shader) { hideFlags = HideFlags.HideAndDontSave, name = "SpriteStudio_WhiteBase" };
+            return _whiteBaseMaterial;
+        }
+
+        /// <summary>
+        /// Resolve the material for a (textureHash, blendType) pair. Mix (0) returns the base
+        /// material directly (it is authored as Mix + PMA); other blend types return a cached clone
+        /// with the blend state applied (see SpriteStudioMaterial / project_blend_mapping_truth).
+        /// TextureHash 0 (cell-less, e.g. Shape) resolves to a white-textured base. Returns null
+        /// only when even that cannot be created.
+        /// </summary>
+        public Material ResolveMaterial(uint textureHash, byte blendType)
+        {
+            var baseMat = (textureHash == 0) ? GetWhiteBaseMaterial() : ResolveMaterialForHash(textureHash);
+            if (baseMat == null) return null;
+            if (blendType == SpriteStudioMaterial.BlendMix) return baseMat;
+
+            var key = new SpriteStudioMaterialKey(textureHash, blendType);
+            if (_materialVariants != null && _materialVariants.TryGetValue(key, out var cached) && cached != null)
+            {
+                return cached;
+            }
+
+            if (_materialVariants == null) _materialVariants = new Dictionary<SpriteStudioMaterialKey, Material>();
+            var variant = SpriteStudioMaterial.CreateVariant(baseMat, blendType);
+            _materialVariants[key] = variant;
+            return variant;
+        }
+
+        // Destroy runtime-created materials (blend variants and the white base; clones only). The
+        // serialized base materials must not be touched here.
+        private void OnDisable()
+        {
+            if (_whiteBaseMaterial != null)
+            {
+                if (Application.isPlaying) Destroy(_whiteBaseMaterial); else DestroyImmediate(_whiteBaseMaterial);
+                _whiteBaseMaterial = null;
+            }
+            if (_materialVariants == null) return;
+            foreach (var kv in _materialVariants)
+            {
+                var m = kv.Value;
+                if (m == null) continue;
+                if (Application.isPlaying) Destroy(m); else DestroyImmediate(m);
+            }
+            _materialVariants.Clear();
+        }
     }
 }

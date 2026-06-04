@@ -14,17 +14,20 @@
 #ifndef SPRITESTUDIO_CORE_INCLUDED
 #define SPRITESTUDIO_CORE_INCLUDED
 
-// [input mediation point] Sample the texture and, if needed, un-premultiply to straight color.
-//  inputPMA > 0.5: texture is supplied as premultiplied-alpha, so rgb /= a.
-//  Equivalent to the PMA part of SS6PU's PixelSolveColorspaceInput (macro -> function).
-//  Color-space (linear/gamma) conversion can be added here later as an extension point.
+// [input mediation point] Sample the texture and, in Linear color space, un-premultiply for the
+//  blends that request it. Mirrors SS6PU's PixelSolveColorspaceInput, which is gated on color space:
+//  in Gamma color space it is a no-op, so we must NOT touch the input there either (otherwise the
+//  InputPMA modes - Mix/Mul/Mulalpha/Invert - brighten and shift at antialiased edges).
+//  TODO(linear): also port SS6PU's pow(1/2.2) input / pow(2.2) output adjust when validating Linear.
 float4 ss_input_texture(sampler2D tex, float2 uv, float inputPMA)
 {
     float4 c = tex2D(tex, uv);
+#if !defined(UNITY_COLORSPACE_GAMMA)
     if (inputPMA > 0.5 && c.a > (1.0 / 255.0))
     {
         c.rgb /= c.a;
     }
+#endif
     return c;
 }
 

@@ -232,6 +232,7 @@ namespace SpriteStudio.Runtime
             for (int s = 0; s < subCount; s++)
             {
                 signature = signature * 31u + _core.Internal.GetSubmeshTextureHash(s);
+                signature = signature * 31u + _core.Internal.GetSubmeshBlendType(s);
             }
             if (signature == _lastMaterialSignature && _submeshMaterials != null && _submeshMaterials.Length == subCount)
             {
@@ -251,8 +252,9 @@ namespace SpriteStudio.Runtime
             for (int s = 0; s < subCount; s++)
             {
                 uint hash = _core.Internal.GetSubmeshTextureHash(s);
-                // 自身 → Instance 参照先 (外部 .ssab) の順でマテリアルを解決する。
-                var mat = _animeAsset.ResolveMaterialForHash(hash);
+                byte blend = _core.Internal.GetSubmeshBlendType(s);
+                // Resolve self -> Instance external reference, then apply the per-blend material variant.
+                var mat = _animeAsset.ResolveMaterial(hash, blend);
                 if (mat == null)
                 {
                     Debug.LogError($"[SpriteStudioPlayer] TextureHash {hash} not found in AnimeAsset or its external references (Submesh {s}). Falling back to material 0.");
