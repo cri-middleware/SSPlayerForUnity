@@ -890,6 +890,7 @@ namespace SpriteStudio.Runtime
 
                     BatchCount = _drawBatchCount,
                     PartCount = _partCount,
+                    PartColorCount = _partColorCount,
                     InvScale = VertexScale,
 
                     DrawBatches = _drawBatches,
@@ -1127,7 +1128,10 @@ namespace SpriteStudio.Runtime
             for (int c = 0; c < cmdLen; c++)
             {
                 var cc = plan.Commands(c);
-                if (!cc.HasValue) continue;
+                // Zero-fill a missing command (QuadCount=0 makes the draw loop skip it reliably).
+                // Skipping the fill with `continue` would leave last frame's stale value here,
+                // causing the wrong quad range to be read.
+                if (!cc.HasValue) { _effectCommands[cmdStart + c] = default; continue; }
                 var cmd = cc.Value;
                 _effectCommands[cmdStart + c] = new EffectDrawCommandData
                 {
