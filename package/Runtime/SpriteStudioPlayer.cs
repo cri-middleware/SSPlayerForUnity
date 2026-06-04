@@ -213,7 +213,7 @@ namespace SpriteStudio.Runtime
             UpdateSubmeshMaterials();
         }
 
-        private Material[] _submeshMaterials;
+        private readonly System.Collections.Generic.List<Material> _submeshMaterials = new System.Collections.Generic.List<Material>();
         private uint _lastMaterialSignature;
 
         /// <summary>
@@ -233,16 +233,18 @@ namespace SpriteStudio.Runtime
             {
                 signature = signature * 31u + _core.Internal.GetSubmeshTextureHash(s);
             }
-            if (signature == _lastMaterialSignature && _submeshMaterials != null && _submeshMaterials.Length == subCount)
+            if (signature == _lastMaterialSignature && _submeshMaterials.Count == subCount)
             {
                 return;
             }
             _lastMaterialSignature = signature;
 
-            if (_submeshMaterials == null || _submeshMaterials.Length != subCount)
+            _submeshMaterials.Clear();
+            if (_submeshMaterials.Capacity < subCount)
             {
-                _submeshMaterials = new Material[subCount];
+                _submeshMaterials.Capacity = subCount;
             }
+
             // 対応不明時のフォールバック先。自身の Materials が空でも外部参照で解決できる場合があるため、
             // ここでは early-return せず submesh ごとに解決する。
             var mats = _animeAsset.Materials;
@@ -258,9 +260,9 @@ namespace SpriteStudio.Runtime
                     Debug.LogError($"[SpriteStudioPlayer] TextureHash {hash} not found in AnimeAsset or its external references (Submesh {s}). Falling back to material 0.");
                     mat = fallback;
                 }
-                _submeshMaterials[s] = mat;
+                _submeshMaterials.Add(mat);
             }
-            _meshRenderer.sharedMaterials = _submeshMaterials;
+            _meshRenderer.SetSharedMaterials(_submeshMaterials);
         }
 
         #region ITimeControl (Timeline 連携)

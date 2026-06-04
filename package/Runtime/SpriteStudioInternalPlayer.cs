@@ -63,7 +63,15 @@ namespace SpriteStudio.Runtime
         }
         private InstanceChildState[] _instanceChildren;
         private NativeArray<InstanceMeshPointer> _instanceMeshes;
-        
+        // この SSAB に Instance パートが 1 つでもあるか。
+        private bool _hasInstanceParts;
+        // この SSAB に Effect パートが 1 つでもあるか (フレーム重複スキップの可否判定に使う)。
+        private bool _hasEffectParts;
+        // 前回ビルドした整数フレーム (subFrame 無効時のフレーム重複スキップ判定用、未ビルドは NaN)。
+        private float _lastBuiltDrawFrameNo = float.NaN;
+        // 直近の ScheduleMeshUpdate が再構築を省いたか。ApplyToMesh が再アップロード可否に使う。
+        private bool _frameSkipped;
+
         public JobHandle CurrentUpdateJobHandle => _updateJobHandle;
 
         /// <summary>
@@ -137,6 +145,9 @@ namespace SpriteStudio.Runtime
 
         private void SetupSlots(ss.format.SsAnimeBinary binary)
         {
+            _hasInstanceParts = false;
+            _hasEffectParts = false;
+            _lastBuiltDrawFrameNo = float.NaN; // 再ロード時は必ず再構築する
             unsafe
             {
                 if (_effectSlots != null)
@@ -188,6 +199,7 @@ namespace SpriteStudio.Runtime
                         uint seed = (uint)i ^ refHash;
                         void* slot = NativeMethods.ss_effect_slot_create(_resourceHandle, refHash, seed);
                         _effectSlots[i].EffectSlot = (System.IntPtr)slot;
+                        _hasEffectParts = true;
                     }
                     else if (p.PartTypeType == ss.format.PartType.PartTypeInstance)
                     {
@@ -229,6 +241,7 @@ namespace SpriteStudio.Runtime
                             Player = childPlayer,
                             PreviousFrame = 0f
                         };
+                        _hasInstanceParts = true;
                     }
                 }
             }
@@ -405,6 +418,19 @@ namespace SpriteStudio.Runtime
         public struct SubmeshInfo { public int IndexStart; public int IndexCount; public uint TextureHash; }
         private SubmeshInfo[] _submeshes;
         private int _submeshCount;
+        // SetSubMeshes 用の永続バッファ (grow-only で使い回す)。
+        private NativeArray<UnityEngine.Rendering.SubMeshDescriptor> _submeshDescriptors;
+        // メッシュ境界 (要素 0=min, 1=max)。UpdateMeshJob が書き込み、ApplyToMesh が Mesh.bounds へ適用する。
+        private NativeArray<Vector3> _meshBounds;
+
+        // 頂点レイアウト (Position / Color / TexCoord0 / TexCoord1)。SetVertexBufferParams へ使い回す。
+        private static readonly UnityEngine.Rendering.VertexAttributeDescriptor[] s_vertexLayout =
+        {
+            new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.Position, UnityEngine.Rendering.VertexAttributeFormat.Float32, 3),
+            new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.Color, UnityEngine.Rendering.VertexAttributeFormat.UNorm8, 4),
+            new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.TexCoord0, UnityEngine.Rendering.VertexAttributeFormat.Float32, 2),
+            new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.TexCoord1, UnityEngine.Rendering.VertexAttributeFormat.Float32, 4),
+        };
 
         public int VertexCount => _vertexCount;
         public int IndexCount => _indexCount;
@@ -454,6 +480,17 @@ namespace SpriteStudio.Runtime
             _updateJobHandle.Complete();
 
             float drawFrameNo = SubFrameEnabled ? GetFrame() : UnityEngine.Mathf.Floor(GetFrame());
+
+            // subFrame 無効・エフェクト/インスタンス無しで整数フレームが前回ビルドと同一なら、SoA 出力は
+            // 完全に同一になる。FFI・集計・Job を省いて前フレームのジオメトリをそのまま再利用する。
+            // エフェクトは粒子が毎フレーム進み、インスタンスは子アニメが独立に進むため除外する。
+            _frameSkipped = false;
+            if (!SubFrameEnabled && !_hasEffectParts && !_hasInstanceParts
+                && _vertexCount > 0 && drawFrameNo == _lastBuiltDrawFrameNo)
+            {
+                _frameSkipped = true;
+                return;
+            }
 
             unsafe
             {
@@ -526,8 +563,12 @@ namespace SpriteStudio.Runtime
                 float fps = GetFrameRate();
                 if (fps <= 0f) fps = 60f;
 
-                NativeArray<JobHandle> childHandles = new NativeArray<JobHandle>(partsLength, Allocator.Temp);
+                // childHandles への書き込みは InstanceSlot != Zero のブランチ内だけで、
+                // それは _hasInstanceParts が真のときしか成立しないため、無ければ未確保のままで安全。
+                NativeArray<JobHandle> childHandles = default;
                 int childHandleCount = 0;
+                if (_hasInstanceParts)
+                    childHandles = new NativeArray<JobHandle>(partsLength, Allocator.Temp);
 
                 // エフェクト結合バッファを毎フレーム先頭から詰め直す。
                 _effectCommandCount = 0;
@@ -624,6 +665,25 @@ namespace SpriteStudio.Runtime
                 _partCount = partsLength;
                 _partColorCount = partsColorLength;
 
+                // PartState を先に充填し、下のバッチ集計 (Normal の needsCenter 判定) が
+                // UpdateFlag を FlatBuffer から再デコードせず _partStates から読めるようにする。
+                for (int i = 0; i < partsLength; i++)
+                {
+                    var p = frameData.Parts(i).Value;
+                    _partStates[i] = new PartStateData
+                    {
+                        UpdateFlag = (ulong)p.UpdateFlag,
+                        Alpha = p.Alpha,
+                        PartColorIndex = p.PartColor
+                    };
+                }
+
+                // DrawOrder も先に充填し、バッチ集計ループは _drawOrder から読む。
+                for (int i = 0; i < drawOrderLength; i++)
+                {
+                    _drawOrder[i] = frameData.DrawOrder(i);
+                }
+
                 int totalVertices = 0;
                 int totalIndices = 0;
                 _submeshCount = 0;
@@ -644,7 +704,7 @@ namespace SpriteStudio.Runtime
                         for (int k = 0; k < b.Count; k++)
                         {
                             int rank = b.StartRank + k;
-                            int p_idx = frameData.DrawOrder(rank);
+                            int p_idx = _drawOrder[rank];
                             if (p_idx < 0 || p_idx >= partsLength) continue;
 
                             var meshPtr = _instanceMeshes[p_idx];
@@ -688,7 +748,7 @@ namespace SpriteStudio.Runtime
                         for (int k = 0; k < b.Count; k++)
                         {
                             int rank = b.StartRank + k;
-                            int p_idx = frameData.DrawOrder(rank);
+                            int p_idx = _drawOrder[rank];
                             if (p_idx < 0 || p_idx >= partsLength) continue;
                             
                             var plan = _effectPlans[p_idx];
@@ -734,13 +794,12 @@ namespace SpriteStudio.Runtime
                         for (int k = 0; k < b.Count; k++)
                         {
                             int rank = b.StartRank + k;
-                            int p_idx = frameData.DrawOrder(rank);
+                            int p_idx = _drawOrder[rank];
                             if (p_idx < 0 || p_idx >= partsLength) continue;
 
                             if (b.Kind == ss.runtime.DrawBatchKind.Normal)
                             {
-                                var p = frameData.Parts(p_idx).Value;
-                                bool needsCenter = ((ulong)p.UpdateFlag & SsUpdateFlag.NeedsCenterMask) != 0;
+                                bool needsCenter = (_partStates[p_idx].UpdateFlag & SsUpdateFlag.NeedsCenterMask) != 0;
                                 vc += needsCenter ? 5 : 4;
                                 ic += needsCenter ? 12 : 6;
                             }
@@ -791,22 +850,6 @@ namespace SpriteStudio.Runtime
                     }
                 }
 
-                for (int i = 0; i < drawOrderLength; i++)
-                {
-                    _drawOrder[i] = frameData.DrawOrder(i);
-                }
-
-                for (int i = 0; i < partsLength; i++)
-                {
-                    var p = frameData.Parts(i).Value;
-                    _partStates[i] = new PartStateData
-                    {
-                        UpdateFlag = (ulong)p.UpdateFlag,
-                        Alpha = p.Alpha,
-                        PartColorIndex = p.PartColor
-                    };
-                }
-
                 for (int i = 0; i < partsColorLength; i++)
                 {
                     var pc = frameData.PartsColor(i).Value;
@@ -829,6 +872,7 @@ namespace SpriteStudio.Runtime
 
                 EnsureCapacity(ref _meshVertices, totalVertices);
                 EnsureCapacity(ref _meshIndices, totalIndices);
+                EnsureCapacity(ref _meshBounds, 2); // Job が min/max を書き込む
                 _vertexCount = totalVertices;
                 _indexCount = totalIndices;
 
@@ -870,7 +914,7 @@ namespace SpriteStudio.Runtime
                 {
                     deps = JobHandle.CombineDependencies(childHandles.GetSubArray(0, childHandleCount));
                 }
-                childHandles.Dispose();
+                if (childHandles.IsCreated) childHandles.Dispose();
 
                 _updateJobHandle = new UpdateMeshJob
                 {
@@ -903,8 +947,12 @@ namespace SpriteStudio.Runtime
                     InstanceMeshes = _instanceMeshes,
 
                     Vertices = _meshVertices,
-                    Indices = _meshIndices
+                    Indices = _meshIndices,
+                    Bounds = _meshBounds
                 }.Schedule(deps);
+
+                // 次フレームこの整数フレームと一致すれば再構築を省く基準。
+                _lastBuiltDrawFrameNo = drawFrameNo;
             }
         }
 
@@ -915,6 +963,9 @@ namespace SpriteStudio.Runtime
         {
             // Meshに適用する前に Job の完了を待機
             _updateJobHandle.Complete();
+
+            // ScheduleMeshUpdate が再構築を省いたフレームは Mesh が前回のまま正しいので、再アップロードも省く。
+            if (_frameSkipped) return;
 
             if (_vertexCount == 0 || _indexCount == 0 || !_meshVertices.IsCreated || !_meshIndices.IsCreated)
             {
@@ -941,7 +992,7 @@ namespace SpriteStudio.Runtime
             if (topoUnchanged)
             {
                 targetMesh.SetVertexBufferData(_meshVertices, 0, 0, _vertexCount, 0, updateFlags);
-                targetMesh.RecalculateBounds();
+                ApplyJobComputedBounds(targetMesh);
                 return;
             }
 
@@ -950,12 +1001,7 @@ namespace SpriteStudio.Runtime
             targetMesh.SetSubMesh(0, new UnityEngine.Rendering.SubMeshDescriptor(0, 0), updateFlags);
             targetMesh.subMeshCount = 1;
 
-            targetMesh.SetVertexBufferParams(_vertexCount,
-                new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.Position, UnityEngine.Rendering.VertexAttributeFormat.Float32, 3),
-                new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.Color, UnityEngine.Rendering.VertexAttributeFormat.UNorm8, 4),
-                new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.TexCoord0, UnityEngine.Rendering.VertexAttributeFormat.Float32, 2),
-                new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.TexCoord1, UnityEngine.Rendering.VertexAttributeFormat.Float32, 4)
-            );
+            targetMesh.SetVertexBufferParams(_vertexCount, s_vertexLayout);
             targetMesh.SetIndexBufferParams(_indexCount, UnityEngine.Rendering.IndexFormat.UInt32);
 
             targetMesh.SetVertexBufferData(_meshVertices, 0, 0, _vertexCount, 0, updateFlags);
@@ -963,16 +1009,14 @@ namespace SpriteStudio.Runtime
 
             if (perBatchSubmesh && _submeshCount > 0)
             {
-                // Allocator.Temp を用いてゼロアロケーションで NativeArray を作成し、SetSubMeshes で一括設定する。
-                // これにより逐次設定時の Overlap 警告を完全に回避できる。
-                var descArray = new Unity.Collections.NativeArray<UnityEngine.Rendering.SubMeshDescriptor>(_submeshCount, Unity.Collections.Allocator.Temp);
+                // SetSubMeshes で一括設定する (逐次設定時の Overlap 警告を回避)。
+                EnsureCapacity(ref _submeshDescriptors, _submeshCount);
                 for (int s = 0; s < _submeshCount; s++)
                 {
                     var info = _submeshes[s];
-                    descArray[s] = new UnityEngine.Rendering.SubMeshDescriptor(info.IndexStart, info.IndexCount, UnityEngine.MeshTopology.Triangles);
+                    _submeshDescriptors[s] = new UnityEngine.Rendering.SubMeshDescriptor(info.IndexStart, info.IndexCount, UnityEngine.MeshTopology.Triangles);
                 }
-                targetMesh.SetSubMeshes(descArray, 0, _submeshCount, updateFlags);
-                descArray.Dispose();
+                targetMesh.SetSubMeshes(_submeshDescriptors, 0, _submeshCount, updateFlags);
             }
             else
             {
@@ -980,7 +1024,7 @@ namespace SpriteStudio.Runtime
                 var subMeshDescriptor = new UnityEngine.Rendering.SubMeshDescriptor(0, _indexCount, UnityEngine.MeshTopology.Triangles);
                 targetMesh.SetSubMesh(0, subMeshDescriptor, updateFlags);
             }
-            targetMesh.RecalculateBounds();
+            ApplyJobComputedBounds(targetMesh);
 
             // アップロード済みトポロジを記録 (次フレーム以降の index 再送スキップ判定に使う)。
             _meshUploaded = true;
@@ -991,6 +1035,22 @@ namespace SpriteStudio.Runtime
             _uploadedPerBatchSubmesh = perBatchSubmesh;
 
             // バッファは破棄せず再利用する (Dispose() でのみ解放)
+        }
+
+        /// <summary>
+        /// UpdateMeshJob が算出した min/max を Mesh.bounds へ適用する。
+        /// 未算出時は Mesh.RecalculateBounds() にフォールバックする。
+        /// </summary>
+        private void ApplyJobComputedBounds(UnityEngine.Mesh targetMesh)
+        {
+            if (!_meshBounds.IsCreated || _meshBounds.Length < 2)
+            {
+                targetMesh.RecalculateBounds();
+                return;
+            }
+            Vector3 mn = _meshBounds[0];
+            Vector3 mx = _meshBounds[1];
+            targetMesh.bounds = new Bounds((mn + mx) * 0.5f, mx - mn);
         }
 
         public void Dispose()
@@ -1063,6 +1123,8 @@ namespace SpriteStudio.Runtime
             if (_drawOrder.IsCreated) _drawOrder.Dispose();
             if (_partStates.IsCreated) _partStates.Dispose();
             if (_partColors.IsCreated) _partColors.Dispose();
+            if (_submeshDescriptors.IsCreated) _submeshDescriptors.Dispose();
+            if (_meshBounds.IsCreated) _meshBounds.Dispose();
         }
 
         // エフェクト draw_plan (FlatBuffers, ネイティブ) を frame-data と同じ流儀で読み、
