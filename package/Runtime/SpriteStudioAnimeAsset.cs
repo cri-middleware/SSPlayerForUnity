@@ -7,6 +7,7 @@ namespace SpriteStudio.Runtime
     /// インポート処理の最終成果物となる ScriptableObject。
     /// .ssab バイト配列の保持や、テクスチャ等のハードリファレンス管理を行います。
     /// </summary>
+    [UnityEngine.Icon("Packages/com.spritestudio.ssruntime/Editor/Icons/ssab_icon.png")]
     public class SpriteStudioAnimeAsset : ScriptableObject
     {
         [Tooltip("コンバート済みの .ssab バイナリデータ")]

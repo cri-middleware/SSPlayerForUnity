@@ -16,6 +16,7 @@ namespace SpriteStudio.Editor
     /// データとして認識・参照できる状態を作るところまでを担う。
     /// </summary>
     [ScriptedImporter(1, "ssqb")]
+    [UnityEngine.Icon("Packages/com.spritestudio.ssruntime/Editor/Icons/ssqb_icon.png")]
     public class SpriteStudioSsqbImporter : ScriptedImporter
     {
         public override void OnImportAsset(AssetImportContext ctx)

@@ -11,6 +11,7 @@ namespace SpriteStudio.Runtime
     /// ランタイムでのシーケンス再生 (アニメの自動連結・繰り返し) はここでは実装しない。
     /// 本アセットは「Unity が .ssqb をデータとして認識・参照できる」ところまでを担う。
     /// </summary>
+    [UnityEngine.Icon("Packages/com.spritestudio.ssruntime/Editor/Icons/ssqb_icon.png")]
     public class SpriteStudioSequenceAsset : ScriptableObject
     {
         [Tooltip("コンバート済みの .ssqb バイナリデータ")]
