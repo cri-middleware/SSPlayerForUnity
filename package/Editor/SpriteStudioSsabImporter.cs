@@ -8,7 +8,7 @@ namespace SpriteStudio.Editor
     /// コンバート処理をスキップし、直接 ScriptableObject (SpriteStudioAnimeAsset) を生成します。
     /// 構築処理は <see cref="SpriteStudioAnimeAssetBuilder"/> に委譲します。
     /// </summary>
-    [ScriptedImporter(3, "ssab")]
+    [ScriptedImporter(4, "ssab")]
     public class SpriteStudioSsabImporter : ScriptedImporter
     {
         [Tooltip("テクスチャ単位の共有マテリアル(.mat)を使用します。OFF の場合はマテリアルを割り当てません。")]

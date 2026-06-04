@@ -20,6 +20,27 @@ namespace SpriteStudio.Editor
     /// </summary>
     internal static class SpriteStudioAnimeAssetBuilder
     {
+        // インポート時の詳細ログ (`[SS-IMPORT]`)。既定は静か。ssab / ssqb 双方の importer が参照する。
+        // Window/SpriteStudio/Verbose Import Log でトグル (EditorPrefs 永続)。
+        private const string VerboseLogPrefKey = "SpriteStudio.VerboseImportLog";
+        internal static bool VerboseImportLog
+        {
+            get => EditorPrefs.GetBool(VerboseLogPrefKey, false);
+            set => EditorPrefs.SetBool(VerboseLogPrefKey, value);
+        }
+
+        private const string VerboseLogMenu = "Window/SpriteStudio/Verbose Import Log";
+
+        [MenuItem(VerboseLogMenu)]
+        private static void ToggleVerboseImportLog() => VerboseImportLog = !VerboseImportLog;
+
+        [MenuItem(VerboseLogMenu, true)]
+        private static bool ToggleVerboseImportLogValidate()
+        {
+            Menu.SetChecked(VerboseLogMenu, VerboseImportLog);
+            return true;
+        }
+
         /// <summary>解決済みのテクスチャ参照 (cellmap / external_texture)。</summary>
         internal struct TextureRef
         {
@@ -41,35 +62,45 @@ namespace SpriteStudio.Editor
         }
 
         /// <summary>
-        /// テクスチャ名 (image_path / external name) をプロジェクトパスへ解決する。
-        /// ファイル名のみ/相対ディレクトリ付きの両方をフォールバックで探索する。
+        /// アセット名 (相対パス or ファイル名) をプロジェクト内の指定型アセットへ解決する共通ロジック。
+        /// 相対ディレクトリ付き → ファイル名のみ の順でフォールバック探索し、見つかった実体を out で返す。
         /// onDependency が渡された場合、探索したパスを依存として通知する (importer 用)。
+        /// 戻り値は最有力候補パス (未配置でも返る)。
         /// </summary>
-        internal static string ResolveTexturePath(string baseDir, string texName, out Texture2D tex, Action<string> onDependency)
+        internal static string ResolveAssetPath<T>(string baseDir, string name, out T asset, Action<string> onDependency)
+            where T : UnityEngine.Object
         {
-            tex = null;
-            if (string.IsNullOrEmpty(texName)) return null;
+            asset = null;
+            if (string.IsNullOrEmpty(name)) return null;
 
-            string texPath = Path.Combine(baseDir, texName).Replace("\\", "/");
-            onDependency?.Invoke(texPath);
-            tex = AssetDatabase.LoadAssetAtPath<Texture2D>(texPath);
+            string path = Path.Combine(baseDir, name).Replace("\\", "/");
+            onDependency?.Invoke(path);
+            asset = AssetDatabase.LoadAssetAtPath<T>(path);
 
-            if (tex == null)
+            if (asset == null)
             {
-                string altPath = Path.Combine(baseDir, Path.GetFileName(texName)).Replace("\\", "/");
-                if (altPath != texPath)
+                string altPath = Path.Combine(baseDir, Path.GetFileName(name)).Replace("\\", "/");
+                if (altPath != path)
                 {
                     onDependency?.Invoke(altPath);
-                    var altTex = AssetDatabase.LoadAssetAtPath<Texture2D>(altPath);
-                    if (altTex != null)
+                    var alt = AssetDatabase.LoadAssetAtPath<T>(altPath);
+                    if (alt != null)
                     {
-                        texPath = altPath;
-                        tex = altTex;
+                        path = altPath;
+                        asset = alt;
                     }
                 }
             }
-            return texPath;
+            return path;
         }
+
+        /// <summary>テクスチャ名 (image_path / external name) をプロジェクトパスへ解決する (<see cref="ResolveAssetPath{T}"/>)。</summary>
+        internal static string ResolveTexturePath(string baseDir, string texName, out Texture2D tex, Action<string> onDependency)
+            => ResolveAssetPath(baseDir, texName, out tex, onDependency);
+
+        /// <summary>音声ファイル名 (SoundFile.file_path) をプロジェクト内の AudioClip へ解決する (<see cref="ResolveAssetPath{T}"/>)。</summary>
+        internal static string ResolveAudioClipPath(string baseDir, string fileName, out AudioClip clip, Action<string> onDependency)
+            => ResolveAssetPath(baseDir, fileName, out clip, onDependency);
 
         internal static string ResolveSsabPath(string baseDir, string animePackName, out SpriteStudioAnimeAsset asset, Action<string> onDependency)
         {
@@ -168,6 +199,15 @@ namespace SpriteStudio.Editor
 
             // 2. パース
             var bb = new Google.FlatBuffers.ByteBuffer(asset.SsabData);
+            // 入力検証: コンバータ出力以外 (拡張子だけ .ssab の別物など) を弾き、原因が分かるエラーにする。
+            // 識別子は先頭オフセット(4)+マジック(4) を読むので最低 8 バイト必要。
+            if (asset.SsabData.Length < 8 || !ss.format.SsAnimeBinary.SsAnimeBinaryBufferHasIdentifier(bb))
+            {
+                ctx.LogImportError($"[SpriteStudioSsabImporter] Not a valid .ssab (FlatBuffers 'SSAB' identifier missing): {ctx.assetPath}");
+                ctx.AddObjectToAsset("MainAsset", asset);
+                ctx.SetMainObject(asset);
+                return;
+            }
             var ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
             string baseDir = Path.GetDirectoryName(ctx.assetPath);
             
@@ -258,6 +298,42 @@ namespace SpriteStudio.Editor
                 if (anim.HasValue) asset.AnimationNames[i] = anim.Value.Name;
             }
 
+            // 5b. 音声 (SoundList/SoundFile) → AudioClip の解決と『口』への格納。
+            //     ランタイム再生は未実装だが、再生時に必要な「アドレス用ハッシュ2つ + AudioClip 実体」
+            //     だけを ScriptableObject に持たせる (名前/パス/再生長は SsabData にあるので重複させない)。
+            //     AudioClip はテクスチャと同様にハードリファレンス + 依存登録してビルド落ち (ストリッピング)
+            //     を防ぐ。解決できない音声はテクスチャ同様に警告してスキップする (= Sounds は再生可能分のみ)。
+            int soundListLen = ssab.SoundListsLength;
+            for (int li = 0; li < soundListLen; li++)
+            {
+                var sl = ssab.SoundLists(li);
+                if (!sl.HasValue) continue;
+                var soundList = sl.Value;
+
+                int fileLen = soundList.TableDataLength;
+                for (int fi = 0; fi < fileLen; fi++)
+                {
+                    var sf = soundList.TableData(fi);
+                    if (!sf.HasValue) continue;
+                    var soundFile = sf.Value;
+                    if (string.IsNullOrEmpty(soundFile.FilePath)) continue;
+
+                    ResolveAudioClipPath(baseDir, soundFile.FilePath, out var clip, ctx.DependsOnSourceAsset);
+                    if (clip == null)
+                    {
+                        Debug.LogWarning($"[SpriteStudioSsabImporter] AudioClip not found for '{soundFile.FilePath}' (sound '{soundFile.Name}')");
+                        continue;
+                    }
+
+                    asset.Sounds.Add(new SpriteStudioAnimeAsset.SoundClipEntry
+                    {
+                        SoundListNameHash = soundList.NameHash,
+                        SoundNameHash = soundFile.NameHash,
+                        Clip = clip,
+                    });
+                }
+            }
+
             // 6. 外部アニメーション (Instance) への依存解決。
             //    external_instances ベクタはコンバータが省略しうる (実際 Ringo_tyu で空だった) ため、
             //    parts の PartTypeInstance を直接走査して別パック参照を集める (権威ある参照元)。
@@ -268,7 +344,8 @@ namespace SpriteStudio.Editor
                 CollectExternalReferences(asset.SsabData, baseDir, asset.PackHash, ctx, asset.ExternalReferences, seenAssets, seenPacks);
             }
 
-            Debug.Log($"[SS-IMPORT] {ctx.assetPath} -> textures:{asset.Textures.Count} materials:{asset.Materials.Count} extRefs:{asset.ExternalReferences.Count}");
+            if (VerboseImportLog)
+                Debug.Log($"[SS-IMPORT] {ctx.assetPath} -> textures:{asset.Textures.Count} materials:{asset.Materials.Count} extRefs:{asset.ExternalReferences.Count} sounds:{asset.Sounds.Count}");
 
             ctx.AddObjectToAsset("MainAsset", asset);
             ctx.SetMainObject(asset);
