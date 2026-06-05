@@ -138,17 +138,24 @@ namespace SpriteStudio.Runtime
         private void LateUpdate()
         {
             // play モードは SpriteStudioUpdateManager が集中管理する。
-            // edit モード (ExecuteAlways) のプレビューのみここで自前更新する。
+            // edit モード (ExecuteAlways) のプレビューのみここで自前更新する (直列・並列経路とは分離)。
             if (Application.isPlaying) return;
-            TickAndSchedule(Time.deltaTime);
+            _core.TickAndSchedule(Time.deltaTime, SubFrameEnabled);
             ApplyAndRender();
         }
 
         // --- ISpriteStudioRenderable (SpriteStudioUpdateManager から駆動される) ---
 
-        public void TickAndSchedule(float deltaTime)
+        public void PrepareFrame(float deltaTime, out System.IntPtr handle, out float drawFrame)
         {
-            _core.TickAndSchedule(deltaTime, SubFrameEnabled);
+            if (_core.Internal == null) { handle = System.IntPtr.Zero; drawFrame = 0f; return; }
+            _core.Internal.PrepareFrameData(deltaTime, true, out handle, out drawFrame);
+        }
+
+        public void ConsumeFrame(System.IntPtr frameDataPtr, int len, float deltaTime)
+        {
+            if (_core.Internal == null) return;
+            _core.Internal.ConsumeFrameData(frameDataPtr, len, deltaTime);
         }
 
         public void ApplyAndRender()

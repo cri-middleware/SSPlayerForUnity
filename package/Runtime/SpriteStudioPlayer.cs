@@ -189,19 +189,18 @@ namespace SpriteStudio.Runtime
 
         // --- ISpriteStudioRenderable (SpriteStudioUpdateManager から駆動される) ---
 
-        public void TickAndSchedule(float deltaTime)
+        public void PrepareFrame(float deltaTime, out System.IntPtr handle, out float drawFrame)
+        {
+            if (_core.Internal == null) { handle = System.IntPtr.Zero; drawFrame = 0f; return; }
+            // Timeline 制御中は SetTime が設定したフレームを描画するため自動進行しない (advance=false)
+            _core.Internal.PrepareFrameData(deltaTime, !_timelineControlled, out handle, out drawFrame);
+        }
+
+        public void ConsumeFrame(System.IntPtr frameDataPtr, int len, float deltaTime)
         {
             if (_core.Internal == null) return;
-
-            if (_timelineControlled)
-            {
-                // Timeline がフレームを制御するため自動進行はしない (SetTime で設定済みのフレームを描画する)
-                _core.Internal.ScheduleMeshUpdate(0f);
-            }
-            else
-            {
-                _core.TickAndSchedule(deltaTime, SubFrameEnabled);
-            }
+            // Timeline 制御中はエフェクト/インスタンスを wall-clock dt で進めない (決定論シーク維持のため dt=0)
+            _core.Internal.ConsumeFrameData(frameDataPtr, len, _timelineControlled ? 0f : deltaTime);
         }
 
         public void ApplyAndRender()
@@ -213,7 +212,7 @@ namespace SpriteStudio.Runtime
             UpdateSubmeshMaterials();
         }
 
-        private Material[] _submeshMaterials;
+        private readonly System.Collections.Generic.List<Material> _submeshMaterials = new System.Collections.Generic.List<Material>();
         private uint _lastMaterialSignature;
 
         /// <summary>
@@ -234,16 +233,18 @@ namespace SpriteStudio.Runtime
                 signature = signature * 31u + _core.Internal.GetSubmeshTextureHash(s);
                 signature = signature * 31u + _core.Internal.GetSubmeshBlendType(s);
             }
-            if (signature == _lastMaterialSignature && _submeshMaterials != null && _submeshMaterials.Length == subCount)
+            if (signature == _lastMaterialSignature && _submeshMaterials.Count == subCount)
             {
                 return;
             }
             _lastMaterialSignature = signature;
 
-            if (_submeshMaterials == null || _submeshMaterials.Length != subCount)
+            _submeshMaterials.Clear();
+            if (_submeshMaterials.Capacity < subCount)
             {
-                _submeshMaterials = new Material[subCount];
+                _submeshMaterials.Capacity = subCount;
             }
+
             // 対応不明時のフォールバック先。自身の Materials が空でも外部参照で解決できる場合があるため、
             // ここでは early-return せず submesh ごとに解決する。
             var mats = _animeAsset.Materials;
@@ -260,9 +261,9 @@ namespace SpriteStudio.Runtime
                     Debug.LogError($"[SpriteStudioPlayer] TextureHash {hash} not found in AnimeAsset or its external references (Submesh {s}). Falling back to material 0.");
                     mat = fallback;
                 }
-                _submeshMaterials[s] = mat;
+                _submeshMaterials.Add(mat);
             }
-            _meshRenderer.sharedMaterials = _submeshMaterials;
+            _meshRenderer.SetSharedMaterials(_submeshMaterials);
         }
 
         #region ITimeControl (Timeline 連携)

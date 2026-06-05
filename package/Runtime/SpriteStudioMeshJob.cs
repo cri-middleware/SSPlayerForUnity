@@ -132,6 +132,8 @@ namespace SpriteStudio.Runtime
 
         public NativeArray<SsVertex> Vertices;
         public NativeArray<uint> Indices;
+        // メッシュ境界 (要素 0=min, 1=max)。Execute 末尾で集計する。
+        public NativeArray<Vector3> Bounds;
 
         // 入力バッファは grow-only で過剰確保されうるため、走査は論理件数で行う
         public int BatchCount;
@@ -179,6 +181,29 @@ namespace SpriteStudio.Runtime
                     {
                         BuildMesh(p_idx, ref vbase, ref ibase);
                     }
+                }
+            }
+
+            // 頂点の min/max を集計してメッシュ境界を求める。
+            if (Bounds.Length >= 2)
+            {
+                if (vbase <= 0)
+                {
+                    Bounds[0] = Vector3.zero;
+                    Bounds[1] = Vector3.zero;
+                }
+                else
+                {
+                    float3 mn = Vertices[0].Position;
+                    float3 mx = mn;
+                    for (int v = 1; v < vbase; v++)
+                    {
+                        float3 p = Vertices[v].Position;
+                        mn = math.min(mn, p);
+                        mx = math.max(mx, p);
+                    }
+                    Bounds[0] = (Vector3)mn;
+                    Bounds[1] = (Vector3)mx;
                 }
             }
         }

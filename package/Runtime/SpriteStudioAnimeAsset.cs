@@ -7,6 +7,7 @@ namespace SpriteStudio.Runtime
     /// インポート処理の最終成果物となる ScriptableObject。
     /// .ssab バイト配列の保持や、テクスチャ等のハードリファレンス管理を行います。
     /// </summary>
+    [UnityEngine.Icon("Packages/com.spritestudio.ssruntime/Editor/Icons/ssab_icon.png")]
     public class SpriteStudioAnimeAsset : ScriptableObject
     {
         [Tooltip("コンバート済みの .ssab バイナリデータ")]
@@ -24,7 +25,11 @@ namespace SpriteStudio.Runtime
         
         [Tooltip("ファイル内に含まれるアニメーション名のリスト")]
         public string[] AnimationNames;
-        
+
+        [Tooltip("ssab の音声 (EventAudio が参照) を再生するための『口』。アドレス用ハッシュ2つ + 解決済み AudioClip のみ。" +
+                 "名前/元パス/再生長などのメタは SsabData にあるので重複保持しない。音声なし pack では空。")]
+        public List<SoundClipEntry> Sounds = new List<SoundClipEntry>();
+
         [HideInInspector]
         public uint PackHash;
 
@@ -229,6 +234,45 @@ namespace SpriteStudio.Runtime
                 if (Application.isPlaying) Destroy(m); else DestroyImmediate(m);
             }
             _materialVariants.Clear();
+        }
+
+        /// <summary>
+        /// EventAudio が参照する音声 1 件を、再生に必要な最小限で表す。
+        /// アドレス用の 2 ハッシュ + 再生用 AudioClip のハードリファレンスのみ。
+        /// 名前・元パス・再生長などのメタは SsabData 側に既にあるので重複保持しない。
+        /// </summary>
+        [System.Serializable]
+        public class SoundClipEntry
+        {
+            [Tooltip("SoundList 名のハッシュ (fnv1a)。EventAudio.SoundListNameHash と対応。")]
+            public uint SoundListNameHash;
+            [Tooltip("音声エイリアス名のハッシュ (fnv1a)。EventAudio.SoundNameHash と対応。")]
+            public uint SoundNameHash;
+            [Tooltip("再生用 AudioClip。ビルドストリッピング防止 / 実行時ロードのためのハードリファレンス。")]
+            public AudioClip Clip;
+        }
+
+        [System.NonSerialized] private Dictionary<ulong, AudioClip> _soundToClip;
+
+        /// <summary>
+        /// EventAudio の (sound_list_name_hash, sound_name_hash) に対応する AudioClip を返す。
+        /// 見つからない場合は null。シーケンス/音声のランタイム再生を実装する際の解決口 (現状の呼び出し元はなし)。
+        /// </summary>
+        public AudioClip ResolveAudioClip(uint soundListNameHash, uint soundNameHash)
+        {
+            if (Sounds == null || Sounds.Count == 0) return null;
+            if (_soundToClip == null)
+            {
+                _soundToClip = new Dictionary<ulong, AudioClip>();
+                foreach (var s in Sounds)
+                {
+                    if (s == null) continue;
+                    ulong key = ((ulong)s.SoundListNameHash << 32) | s.SoundNameHash;
+                    _soundToClip[key] = s.Clip;
+                }
+            }
+            ulong k = ((ulong)soundListNameHash << 32) | soundNameHash;
+            return _soundToClip.TryGetValue(k, out var clip) ? clip : null;
         }
     }
 }
