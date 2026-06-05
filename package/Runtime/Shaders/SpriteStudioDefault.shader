@@ -14,6 +14,16 @@ Shader "SpriteStudio/Default"
         _InputPMA   ("Input PMA",   Float) = 0   // 1 = texture is premultiplied -> un-premultiply
         _OutputPMA  ("Output PMA",  Float) = 1   // 1 = emit premultiplied alpha (previous behavior)
         _NotDiscard ("Not Discard", Float) = 0   // 1 = keep transparent pixels (Mul/Invert)
+
+        // --- Stencil state (mask test; property-driven, bit-isolated; set by C# per submesh) ---
+        // Defaults are a no-op (Comp Always / Pass Keep) so non-masked parts are unaffected. A
+        // masked target overrides _StencilComp (Equal/NotEqual) and _StencilReadMask (the isolated
+        // bit) to keep or discard fragments based on the coverage written by SpriteStudio/MaskWrite.
+        _StencilRef       ("Stencil Ref",        Float) = 0
+        [Enum(UnityEngine.Rendering.CompareFunction)] _StencilComp ("Stencil Comp", Float) = 8 // Always
+        [Enum(UnityEngine.Rendering.StencilOp)]       _StencilPass ("Stencil Pass", Float) = 0 // Keep
+        _StencilReadMask  ("Stencil Read Mask",  Float) = 255
+        _StencilWriteMask ("Stencil Write Mask", Float) = 255
     }
 
     SubShader
@@ -33,6 +43,17 @@ Shader "SpriteStudio/Default"
         // Blend state is material-property driven (references [_Prop] rather than fixed values).
         Blend [_SrcBlend] [_DstBlend]
         BlendOp [_BlendOp]
+
+        // Stencil state is also property-driven (render state, not a keyword -> no variant blow-up,
+        // no pink/missing-variant risk). Defaults are a no-op for non-masked parts.
+        Stencil
+        {
+            Ref [_StencilRef]
+            Comp [_StencilComp]
+            Pass [_StencilPass]
+            ReadMask [_StencilReadMask]
+            WriteMask [_StencilWriteMask]
+        }
 
         Pass
         {
