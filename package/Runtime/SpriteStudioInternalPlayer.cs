@@ -63,12 +63,16 @@ namespace SpriteStudio.Runtime
         }
         private InstanceChildState[] _instanceChildren;
         private NativeArray<InstanceMeshPointer> _instanceMeshes;
+        // Instance 子の UpdateMeshJob ハンドルを束ねる依存配列。永続 grow-only (A3: 毎フレ Temp 確保を回避)。
+        private NativeArray<JobHandle> _childHandles;
         // この SSAB に Instance パートが 1 つでもあるか。
         private bool _hasInstanceParts;
         // この SSAB に Effect パートが 1 つでもあるか (フレーム重複スキップの可否判定に使う)。
         private bool _hasEffectParts;
         // 前回ビルドした整数フレーム (subFrame 無効時のフレーム重複スキップ判定用、未ビルドは NaN)。
         private float _lastBuiltDrawFrameNo = float.NaN;
+        // PrepareFrameData が確定した描画フレーム番号。並列 get_frame_data / ConsumeFrameData が共有する。
+        private float _pendingDrawFrame;
         // 直近の ScheduleMeshUpdate が再構築を省いたか。ApplyToMesh が再アップロード可否に使う。
         private bool _frameSkipped;
 
@@ -470,42 +474,81 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// Update実行後、FFIからSoA配列のポインタを取得してメッシュ構築ジョブを発行する
+        /// Pass A (直列・軽量): 前フレームの Job 完了を待ち、advance 指定時は 1 フレーム進め、
+        /// 描画フレーム番号と frame-skip を確定する。out handle が Zero のときは、このフレームは
+        /// このプレイヤーを並列 get_frame_data / ConsumeFrameData の対象から外す (ハンドル無効、または skip)。
+        /// advance=false は frame 駆動 (子 Instance / Timeline 制御) 用。
         /// </summary>
-        public void ScheduleMeshUpdate(float deltaTime)
+        public void PrepareFrameData(float deltaTime, bool advance, out System.IntPtr handle, out float drawFrame)
         {
+            handle = System.IntPtr.Zero;
+            drawFrame = 0f;
             if (!_handle.IsValid) return;
 
             // 永続バッファを書き換える前に、前フレームのジョブ完了を保証する
             _updateJobHandle.Complete();
 
-            float drawFrameNo = SubFrameEnabled ? GetFrame() : UnityEngine.Mathf.Floor(GetFrame());
+            // ss_runtime_update は delta を「ミリ秒」で受け取る (update_interval = 1000/fps)。
+            if (advance)
+            {
+                unsafe { NativeMethods.ss_runtime_update(_handle.ptr, deltaTime * 1000.0f); }
+            }
+
+            drawFrame = SubFrameEnabled ? GetFrame() : UnityEngine.Mathf.Floor(GetFrame());
 
             // subFrame 無効・エフェクト/インスタンス無しで整数フレームが前回ビルドと同一なら、SoA 出力は
             // 完全に同一になる。FFI・集計・Job を省いて前フレームのジオメトリをそのまま再利用する。
             // エフェクトは粒子が毎フレーム進み、インスタンスは子アニメが独立に進むため除外する。
             _frameSkipped = false;
             if (!SubFrameEnabled && !_hasEffectParts && !_hasInstanceParts
-                && _vertexCount > 0 && drawFrameNo == _lastBuiltDrawFrameNo)
+                && _vertexCount > 0 && drawFrame == _lastBuiltDrawFrameNo)
             {
                 _frameSkipped = true;
                 return;
             }
 
+            _pendingDrawFrame = drawFrame;
+            unsafe { handle = (System.IntPtr)_handle.ptr; }
+        }
+
+        /// <summary>
+        /// 直列の便宜ラッパ。advance せず get_frame_data を同期取得してメッシュ構築まで 1 メソッドで行う。
+        /// 子 Instance (frame 駆動) と編集モードプレビューが使う。Play モードのトップレベルは
+        /// SpriteStudioUpdateManager が PrepareFrameData → 並列 get_frame_data → ConsumeFrameData に分割する。
+        /// </summary>
+        public void ScheduleMeshUpdate(float deltaTime)
+        {
+            PrepareFrameData(deltaTime, false, out var handle, out _);
+            if (handle == System.IntPtr.Zero) return;
             unsafe
             {
-                byte* frameDataPtr = null;
-                nuint frameDataLen = 0;
-                NativeMethods.ss_runtime_get_frame_data(_handle.ptr, drawFrameNo, &frameDataPtr, &frameDataLen);
+                byte* p = null;
+                nuint l = 0;
+                NativeMethods.ss_runtime_get_frame_data((void*)handle, _pendingDrawFrame, &p, &l);
+                ConsumeFrameData((System.IntPtr)p, (int)l, deltaTime);
+            }
+        }
 
-                if (frameDataPtr == null || frameDataLen == 0)
+        /// <summary>
+        /// Pass C (直列): 並列 Pass B (GetFrameDataJob) が取得した frame-data ポインタ (job 出力) を消費し、
+        /// SoA を読み出してメッシュ構築 Burst Job を発行する。ptr==Zero / len==0 はジオメトリ無しとして扱う。
+        /// </summary>
+        public void ConsumeFrameData(System.IntPtr frameDataPtrRaw, int len, float deltaTime)
+        {
+            if (!_handle.IsValid) return;
+
+            unsafe
+            {
+                byte* frameDataPtr = (byte*)frameDataPtrRaw;
+
+                if (frameDataPtr == null || len == 0)
                 {
                     _vertexCount = 0;
                     _indexCount = 0;
                     return;
                 }
 
-                int len = (int)frameDataLen;
+                float drawFrameNo = _pendingDrawFrame;
 #if ENABLE_SPAN_T && UNSAFE_BYTEBUFFER
                 // ゼロコピー: per-context の frame_data ネイティブバッファを直接 ByteBuffer に載せる。
                 // 読み取りは本メソッド内 (同期) で完結する。子の get_frame_data は別 context の別バッファに
@@ -563,12 +606,11 @@ namespace SpriteStudio.Runtime
                 float fps = GetFrameRate();
                 if (fps <= 0f) fps = 60f;
 
-                // childHandles への書き込みは InstanceSlot != Zero のブランチ内だけで、
-                // それは _hasInstanceParts が真のときしか成立しないため、無ければ未確保のままで安全。
-                NativeArray<JobHandle> childHandles = default;
+                // _childHandles への書き込みは InstanceSlot != Zero のブランチ内だけで、それは
+                // _hasInstanceParts が真のときしか成立しない。永続 grow-only で毎フレームの Temp 確保を避ける。
                 int childHandleCount = 0;
                 if (_hasInstanceParts)
-                    childHandles = new NativeArray<JobHandle>(partsLength, Allocator.Temp);
+                    EnsureCapacity(ref _childHandles, partsLength);
 
                 // エフェクト結合バッファを毎フレーム先頭から詰め直す。
                 _effectCommandCount = 0;
@@ -618,7 +660,7 @@ namespace SpriteStudio.Runtime
                                 childPlayer.SetFrame(step.child_frame_no);
                                 childPlayer.ScheduleMeshUpdate(deltaTime);
                                 
-                                childHandles[childHandleCount++] = childPlayer.CurrentUpdateJobHandle;
+                                _childHandles[childHandleCount++] = childPlayer.CurrentUpdateJobHandle;
                                 
                                 _instanceMeshes[i] = new InstanceMeshPointer {
                                     Vertices = (SsVertex*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(childPlayer.MeshVertices),
@@ -912,9 +954,8 @@ namespace SpriteStudio.Runtime
                 JobHandle deps = default;
                 if (childHandleCount > 0)
                 {
-                    deps = JobHandle.CombineDependencies(childHandles.GetSubArray(0, childHandleCount));
+                    deps = JobHandle.CombineDependencies(_childHandles.GetSubArray(0, childHandleCount));
                 }
-                if (childHandles.IsCreated) childHandles.Dispose();
 
                 _updateJobHandle = new UpdateMeshJob
                 {
@@ -1117,6 +1158,7 @@ namespace SpriteStudio.Runtime
             if (_effectColors.IsCreated) _effectColors.Dispose();
             if (_effectIndices.IsCreated) _effectIndices.Dispose();
             if (_instanceMeshes.IsCreated) _instanceMeshes.Dispose();
+            if (_childHandles.IsCreated) _childHandles.Dispose();
             if (_meshVertices.IsCreated) _meshVertices.Dispose();
             if (_meshIndices.IsCreated) _meshIndices.Dispose();
             if (_drawBatches.IsCreated) _drawBatches.Dispose();
