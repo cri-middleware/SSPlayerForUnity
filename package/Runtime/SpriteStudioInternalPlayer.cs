@@ -536,6 +536,46 @@ namespace SpriteStudio.Runtime
             public byte StencilWriteMask;
             public float MaskThreshold;
         }
+
+        // Append a submesh, dynamically merging into the previous one to enable batching (origin/main
+        // perf work). Merging is restricted to plain colour submeshes (Role None) of the same texture
+        // + blend: mask submeshes carry per-submesh stencil state and a strict draw order, so they are
+        // never merged. Auto-grows the buffer.
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        private void EmitSubmesh(int indexStart, int indexCount, uint textureHash, byte blendType,
+            StencilRole role = StencilRole.None, byte stencilOp = 0, byte stencilComp = 0, byte stencilRef = 0,
+            byte stencilReadMask = 0, byte stencilWriteMask = 0, float maskThreshold = 0f)
+        {
+            if (role == StencilRole.None && _submeshCount > 0)
+            {
+                ref var last = ref _submeshes[_submeshCount - 1];
+                if (last.Role == StencilRole.None && last.TextureHash == textureHash && last.BlendType == blendType)
+                {
+                    last.IndexCount += indexCount;
+                    return;
+                }
+            }
+            if (_submeshes == null || _submeshCount >= _submeshes.Length)
+            {
+                int newSize = _submeshes == null ? 8 : _submeshes.Length * 2;
+                if (newSize < _submeshCount + 1) newSize = _submeshCount + 1;
+                System.Array.Resize(ref _submeshes, newSize);
+            }
+            _submeshes[_submeshCount++] = new SubmeshInfo
+            {
+                IndexStart = indexStart,
+                IndexCount = indexCount,
+                TextureHash = textureHash,
+                BlendType = blendType,
+                Role = role,
+                StencilOp = stencilOp,
+                StencilComp = stencilComp,
+                StencilRef = stencilRef,
+                StencilReadMask = stencilReadMask,
+                StencilWriteMask = stencilWriteMask,
+                MaskThreshold = maskThreshold
+            };
+        }
         private SubmeshInfo[] _submeshes;
         private int _submeshCount;
         // SetSubMeshes 用の永続バッファ (grow-only で使い回す)。
@@ -614,6 +654,10 @@ namespace SpriteStudio.Runtime
             }
 
             drawFrame = SubFrameEnabled ? GetFrame() : UnityEngine.Mathf.Floor(GetFrame());
+            // SubFrame 有効時は小数のまま評価するため、終端フレーム (end_frame) を超過した浮動小数点数
+            // (例: 59.99) が渡されると、SSABの有効範囲外として扱われ、全てのパーツが消える原因になります。
+            // 常に定義されたフレーム範囲内に収まるようクランプします。
+            drawFrame = UnityEngine.Mathf.Clamp(drawFrame, GetAnimationSectionStart(), GetAnimationSectionEnd());
 
             // subFrame 無効・エフェクト/インスタンス無しで整数フレームが前回ビルドと同一なら、SoA 出力は
             // 完全に同一になる。FFI・集計・Job を省いて前フレームのジオメトリをそのまま再利用する。
@@ -772,20 +816,11 @@ namespace SpriteStudio.Runtime
                 IndexCount = ic,
                 Kind = kind
             };
-            _submeshes[_submeshCount++] = new SubmeshInfo
-            {
-                IndexStart = totalIndices,
-                IndexCount = ic,
-                TextureHash = texHash,
-                BlendType = blend,
-                Role = role,
-                StencilOp = stencilOp,
-                StencilComp = stencilComp,
-                StencilRef = 0,
-                StencilReadMask = SpriteStudioMaterial.MaskStencilMask,
-                StencilWriteMask = role == StencilRole.Write ? SpriteStudioMaterial.MaskStencilMask : (byte)0,
-                MaskThreshold = threshold
-            };
+            // Route through EmitSubmesh for the auto-grow path. Mask submeshes (role != None) are never
+            // merged, so each step stays its own submesh and keeps its stencil ordering.
+            EmitSubmesh(totalIndices, ic, texHash, blend, role, stencilOp, stencilComp, 0,
+                SpriteStudioMaterial.MaskStencilMask,
+                role == StencilRole.Write ? SpriteStudioMaterial.MaskStencilMask : (byte)0, threshold);
             totalVertices += vc;
             totalIndices += ic;
         }
@@ -921,8 +956,9 @@ namespace SpriteStudio.Runtime
                     if (step.visible)
                     {
                         float childDrawFrame = childPlayer.SubFrameEnabled ? step.child_frame_no : UnityEngine.Mathf.Floor(step.child_frame_no);
+                        childDrawFrame = UnityEngine.Mathf.Clamp(childDrawFrame, childPlayer.GetAnimationSectionStart(), childPlayer.GetAnimationSectionEnd());
                         _instanceChildren[i].PreviousFrame = childDrawFrame;
-                        childPlayer.SetFrame(step.child_frame_no);
+                        childPlayer.SetFrame(childDrawFrame);
                         childPlayer.ScheduleMeshUpdate(deltaTime);
 
                         _childHandles[childHandleCount++] = childPlayer.CurrentUpdateJobHandle;
@@ -1080,35 +1116,23 @@ namespace SpriteStudio.Runtime
                                 {
                                     var cs = childPlayer.Submeshes[sm];
                                     // Preserve the child's own stencil role so its internal masks still
-                                    // work (its write submeshes stay ColorMask-0 writes instead of
-                                    // leaking as colour, and its test/restore sequence is kept verbatim
-                                    // and contiguous = self-restoring). Only a plain child colour submesh
-                                    // (Role None) inherits the parent's mask test. NOTE single level: a
-                                    // parent mask and a child mask share the isolated stencil bits, so a
-                                    // child part that is itself masked is not additionally parent-clipped,
-                                    // and simultaneous overlap of the two is a known limitation.
-                                    var si = new SubmeshInfo
-                                    {
-                                        IndexStart = totalIndices + cs.IndexStart,
-                                        IndexCount = cs.IndexCount,
-                                        TextureHash = cs.TextureHash,
-                                        BlendType = cs.BlendType, // inherit the child's per-submesh blend
-                                        Role = cs.Role,
-                                        StencilOp = cs.StencilOp,
-                                        StencilComp = cs.StencilComp,
-                                        StencilRef = cs.StencilRef,
-                                        StencilReadMask = cs.StencilReadMask,
-                                        StencilWriteMask = cs.StencilWriteMask,
-                                        MaskThreshold = cs.MaskThreshold
-                                    };
+                                    // work (its write submeshes stay ColorMask-0 writes instead of leaking
+                                    // as colour, and its test/restore sequence is kept verbatim/contiguous
+                                    // = self-restoring). Only a plain child colour submesh (Role None)
+                                    // inherits the parent's mask test (and stays mergeable via EmitSubmesh).
+                                    // NOTE single level: a parent mask and a child mask share the isolated
+                                    // stencil bits, so a child part that is itself masked is not additionally
+                                    // parent-clipped, and simultaneous overlap of the two is a known limit.
+                                    StencilRole cr = cs.Role;
+                                    byte cComp = cs.StencilComp, cRMask = cs.StencilReadMask;
                                     if (cs.Role == StencilRole.None && instRole == StencilRole.Test)
                                     {
-                                        si.Role = StencilRole.Test;
-                                        si.StencilComp = instComp;
-                                        si.StencilRef = 0;
-                                        si.StencilReadMask = SpriteStudioMaterial.MaskStencilMask;
+                                        cr = StencilRole.Test;
+                                        cComp = instComp;
+                                        cRMask = SpriteStudioMaterial.MaskStencilMask;
                                     }
-                                    _submeshes[_submeshCount++] = si;
+                                    EmitSubmesh(totalIndices + cs.IndexStart, cs.IndexCount, cs.TextureHash, cs.BlendType,
+                                        cr, cs.StencilOp, cComp, cs.StencilRef, cRMask, cs.StencilWriteMask, cs.MaskThreshold);
                                 }
 
                                 totalVertices += cvc;
@@ -1163,19 +1187,11 @@ namespace SpriteStudio.Runtime
                                         EffectPartIndex = p_idx
                                     };
                                     
-                                    _submeshes[_submeshCount++] = new SubmeshInfo
-                                    {
-                                        IndexStart = totalIndices,
-                                        IndexCount = cmdIc,
-                                        TextureHash = cmd.CellmapHash,
-                                        // Effect keeps Mix; its Mix/Add is still handled by the in-shader
-                                        // a=0 trick (see SpriteStudioDefault.shader TODO). Migrate to a
-                                        // per-blend material later.
-                                        BlendType = SpriteStudioMaterial.BlendMix,
-                                        Role = effRole,
-                                        StencilComp = effComp,
-                                        StencilReadMask = effRole == StencilRole.Test ? SpriteStudioMaterial.MaskStencilMask : (byte)0
-                                    };
+                                    // Per-blend effect material (origin/main: Add when cmd.Blend == 1,
+                                    // else Mix), plus the parent-mask stencil test when this effect part
+                                    // is a mask target.
+                                    EmitSubmesh(totalIndices, cmdIc, cmd.CellmapHash, cmd.Blend == 1 ? (byte)2 : (byte)0,
+                                        effRole, 0, effComp, 0, effRole == StencilRole.Test ? SpriteStudioMaterial.MaskStencilMask : (byte)0, 0, 0f);
                                     
                                     totalVertices += cmdVc;
                                     totalIndices += cmdIc;
@@ -1277,13 +1293,7 @@ namespace SpriteStudio.Runtime
                                 Kind = (byte)b.Kind
                             };
 
-                            _submeshes[_submeshCount++] = new SubmeshInfo
-                            {
-                                IndexStart = totalIndices,
-                                IndexCount = ic,
-                                TextureHash = b.TextureHash,
-                                BlendType = (byte)b.BlendType // ssab BlendType for the per-blend material
-                            };
+                            EmitSubmesh(totalIndices, ic, b.TextureHash, (byte)b.BlendType);
 
                             totalVertices += vc;
                             totalIndices += ic;
