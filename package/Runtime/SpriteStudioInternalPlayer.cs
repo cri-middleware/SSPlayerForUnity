@@ -65,6 +65,12 @@ namespace SpriteStudio.Runtime
         private NativeArray<InstanceMeshPointer> _instanceMeshes;
         // Instance 子の UpdateMeshJob ハンドルを束ねる依存配列。永続 grow-only (A3: 毎フレ Temp 確保を回避)。
         private NativeArray<JobHandle> _childHandles;
+        // effect/instance スロットを持つパーツ index の疎なリスト (SetupSlots で確定)。毎フレーム partsLength
+        // 全スキャンせず、これらだけを処理することで通常パーツ多数時 (例 448 中 effect 数個) の空回りを避ける。
+        private int[] _effectPartIndices;
+        private int _effectPartCount;
+        private int[] _instancePartIndices;
+        private int _instancePartCount;
         // この SSAB に Instance パートが 1 つでもあるか。
         private bool _hasInstanceParts;
         // この SSAB に Effect パートが 1 つでもあるか (フレーム重複スキップの可否判定に使う)。
@@ -151,6 +157,8 @@ namespace SpriteStudio.Runtime
         {
             _hasInstanceParts = false;
             _hasEffectParts = false;
+            _effectPartCount = 0;
+            _instancePartCount = 0;
             _lastBuiltDrawFrameNo = float.NaN; // 再ロード時は必ず再構築する
             unsafe
             {
@@ -189,7 +197,9 @@ namespace SpriteStudio.Runtime
 
                 _effectSlots = new EffectSlotState[partsLength];
                 _instanceChildren = new InstanceChildState[partsLength];
-                
+                _effectPartIndices = new int[partsLength];
+                _instancePartIndices = new int[partsLength];
+
                 for (int i = 0; i < partsLength; i++)
                 {
                     var pObj = binary.Parts(i);
@@ -203,6 +213,7 @@ namespace SpriteStudio.Runtime
                         uint seed = (uint)i ^ refHash;
                         void* slot = NativeMethods.ss_effect_slot_create(_resourceHandle, refHash, seed);
                         _effectSlots[i].EffectSlot = (System.IntPtr)slot;
+                        _effectPartIndices[_effectPartCount++] = i;
                         _hasEffectParts = true;
                     }
                     else if (p.PartTypeType == ss.format.PartType.PartTypeInstance)
@@ -245,6 +256,7 @@ namespace SpriteStudio.Runtime
                             Player = childPlayer,
                             PreviousFrame = 0f
                         };
+                        _instancePartIndices[_instancePartCount++] = i;
                         _hasInstanceParts = true;
                     }
                 }
@@ -619,81 +631,79 @@ namespace SpriteStudio.Runtime
                 _effectColorFloatCount = 0;
                 _effectIndexCount = 0;
 
-                for (int i = 0; i < partsLength; i++)
+                // active な effect/instance パーツだけを sparse に処理する (index は SetupSlots で確定)。
+                // 非 active 部 (通常パーツ／解決失敗した instance パーツ等) は会計ループ・Burst Job から default が
+                // 読まれ得るため、事前に一括 MemClear しておく (partsLength 個別 default 書込みより遥かに安く、
+                // 「どのパーツが読まれるか」に依存せず安全)。これで partsLength 全スキャンの空回りを回避する。
+                if (partsLength > 0)
                 {
-                    if (_effectSlots != null && i < _effectSlots.Length && _effectSlots[i].EffectSlot != System.IntPtr.Zero)
-                    {
-                        var ev = NativeMethods.ss_runtime_get_active_effect_event(_handle.ptr, (uint)i);
-                        var step = NativeMethods.ss_effect_slot_step((void*)_effectSlots[i].EffectSlot, ev, drawFrameNo, deltaTime, fps, parentLooped, false, 3);
-                        
-                        if (step.visible && step.draw_plan_len > 0)
-                        {
-                            _effectPlans[i] = AppendEffectDrawPlan(step.draw_plan_buf, (int)step.draw_plan_len);
-                        }
-                        else
-                        {
-                            _effectPlans[i] = default;
-                        }
-                    }
-                    else
-                    {
-                        _effectPlans[i] = default;
-                    }
-                    
-                    if (_instanceChildren != null && i < _instanceChildren.Length && _instanceChildren[i].InstanceSlot != System.IntPtr.Zero)
-                    {
-                        var childPlayer = _instanceChildren[i].Player;
-                        if (childPlayer != null)
-                        {
-                            var ev = NativeMethods.ss_runtime_get_active_event_instance(_handle.ptr, (uint)i);
-                            var step = NativeMethods.ss_instance_slot_step((void*)_instanceChildren[i].InstanceSlot, ev, childPlayer._handle.ptr, _instanceChildren[i].PreviousFrame, drawFrameNo, deltaTime, parentLooped);
-                            
-                            if (step.transitioned)
-                            {
-                                childPlayer.Play(); // Trigger side effects (UnityEvents) if needed
-                            }
-                            
-                            if (step.visible)
-                            {
-                                float childDrawFrame = childPlayer.SubFrameEnabled ? step.child_frame_no : UnityEngine.Mathf.Floor(step.child_frame_no);
-                                _instanceChildren[i].PreviousFrame = childDrawFrame;
-                                childPlayer.SetFrame(step.child_frame_no);
-                                childPlayer.ScheduleMeshUpdate(deltaTime);
-                                
-                                _childHandles[childHandleCount++] = childPlayer.CurrentUpdateJobHandle;
-                                
-                                _instanceMeshes[i] = new InstanceMeshPointer {
-                                    Vertices = (SsVertex*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(childPlayer.MeshVertices),
-                                    Indices = (uint*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(childPlayer.MeshIndices),
-                                    VertexCount = childPlayer.VertexCount,
-                                    IndexCount = childPlayer.IndexCount
-                                };
-                            }
-                            else
-                            {
-                                _instanceMeshes[i] = default;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        _instanceMeshes[i] = default;
-                    }
+                    Unity.Collections.LowLevel.Unsafe.UnsafeUtility.MemClear(
+                        Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_effectPlans),
+                        (long)partsLength * Unity.Collections.LowLevel.Unsafe.UnsafeUtility.SizeOf<EffectDrawPlanData>());
+                    Unity.Collections.LowLevel.Unsafe.UnsafeUtility.MemClear(
+                        Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_instanceMeshes),
+                        (long)partsLength * Unity.Collections.LowLevel.Unsafe.UnsafeUtility.SizeOf<InstanceMeshPointer>());
                 }
 
-                int maxBatches = drawBatchesLength;
-                for (int i = 0; i < partsLength; i++)
+                for (int k = 0; k < _effectPartCount; k++)
                 {
+                    int i = _effectPartIndices[k];
+                    var ev = NativeMethods.ss_runtime_get_active_effect_event(_handle.ptr, (uint)i);
+                    var step = NativeMethods.ss_effect_slot_step((void*)_effectSlots[i].EffectSlot, ev, drawFrameNo, deltaTime, fps, parentLooped, false, 3);
+                    if (step.visible && step.draw_plan_len > 0)
+                        _effectPlans[i] = AppendEffectDrawPlan(step.draw_plan_buf, (int)step.draw_plan_len);
+                    // 非 visible は MemClear 済の default のまま
+                }
+
+                for (int k = 0; k < _instancePartCount; k++)
+                {
+                    int i = _instancePartIndices[k];
+                    var childPlayer = _instanceChildren[i].Player;
+                    if (childPlayer == null) continue; // _instanceMeshes[i] は MemClear 済 default
+
+                    var ev = NativeMethods.ss_runtime_get_active_event_instance(_handle.ptr, (uint)i);
+                    var step = NativeMethods.ss_instance_slot_step((void*)_instanceChildren[i].InstanceSlot, ev, childPlayer._handle.ptr, _instanceChildren[i].PreviousFrame, drawFrameNo, deltaTime, parentLooped);
+
+                    if (step.transitioned)
+                    {
+                        childPlayer.Play(); // Trigger side effects (UnityEvents) if needed
+                    }
+
+                    if (step.visible)
+                    {
+                        float childDrawFrame = childPlayer.SubFrameEnabled ? step.child_frame_no : UnityEngine.Mathf.Floor(step.child_frame_no);
+                        _instanceChildren[i].PreviousFrame = childDrawFrame;
+                        childPlayer.SetFrame(step.child_frame_no);
+                        childPlayer.ScheduleMeshUpdate(deltaTime);
+
+                        _childHandles[childHandleCount++] = childPlayer.CurrentUpdateJobHandle;
+
+                        _instanceMeshes[i] = new InstanceMeshPointer {
+                            Vertices = (SsVertex*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(childPlayer.MeshVertices),
+                            Indices = (uint*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(childPlayer.MeshIndices),
+                            VertexCount = childPlayer.VertexCount,
+                            IndexCount = childPlayer.IndexCount
+                        };
+                    }
+                    // 非 visible は MemClear 済の default のまま
+                }
+
+                // maxBatches も active な effect/instance パーツのみ集計 (非 active は default=0寄与なので不要)。
+                int maxBatches = drawBatchesLength;
+                for (int k = 0; k < _effectPartCount; k++)
+                {
+                    int i = _effectPartIndices[k];
                     if (_effectPlans[i].CommandCount > 0)
                         maxBatches += _effectPlans[i].CommandCount;
-
+                }
+                for (int k = 0; k < _instancePartCount; k++)
+                {
+                    int i = _instancePartIndices[k];
                     if (_instanceMeshes[i].Vertices != null)
                     {
-                        // Instance は子メッシュ全体を 1 draw batch として取り込むが、テクスチャ単位の
-                        // SubMesh は子の submesh 数ぶん発生する。maxBatches は _drawBatches と _submeshes の
-                        // 両方をサイズ確保するため、submesh 数 + 1 (draw batch ぶん) を見込む。
-                        var child = _instanceChildren[i].Player;
-                        maxBatches += child.SubmeshCount + 1;
+                        // Instance は子メッシュ全体を 1 draw batch として取り込むが、テクスチャ単位の SubMesh は
+                        // 子の submesh 数ぶん発生する。submesh 数 + 1 (draw batch ぶん) を見込む。
+                        maxBatches += _instanceChildren[i].Player.SubmeshCount + 1;
                     }
                 }
 
