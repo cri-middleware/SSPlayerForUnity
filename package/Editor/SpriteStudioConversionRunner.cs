@@ -8,32 +8,132 @@ using UnityEngine;
 namespace SpriteStudio.Editor
 {
     /// <summary>
-    /// libssconverter の非同期変換を EditorApplication.update でポーリングし、完了時に
-    /// 結果処理 (エラーログ / SourceMap 登録) と AssetDatabase.Refresh を行う。
-    /// 従来はメインスレッドで Thread.Sleep ポーリングしており変換中エディタが固まっていたが、
-    /// これによりノンブロッキングになる。複数の変換を同時に追跡できる。
+    /// libssconverter による .sspj → .ssab 変換を「キュー + 同時実行上限 + 進捗表示」で実行する。
+    ///
+    /// - EditorApplication.update でポーリングするためノンブロッキング (変換中もエディタは固まらない)。
+    /// - フォルダ D&D 等で大量にエンキューされても、ネイティブ context はスロットが空いた時にのみ
+    ///   生成し、同時実行数を CPU 数で上限化する (スレッド過多を防止)。
+    /// - UnityEditor.Progress でステータスバーに進捗を出し、キャンセルにも対応する。
     /// </summary>
     internal static class SpriteStudioConversionRunner
     {
-        private sealed class Conversion
+        private struct Job
+        {
+            public string SspjPath;
+            public string OutputDir;
+        }
+
+        private sealed class Active
         {
             public IntPtr Context;
             public string SspjPath;
             public string OutputDir;
         }
 
-        private static readonly List<Conversion> _active = new List<Conversion>();
+        private static readonly Queue<Job> _pending = new Queue<Job>();
+        private static readonly List<Active> _active = new List<Active>();
         private static bool _polling;
 
-        /// <summary>開始済みの変換コンテキストを追跡対象に登録する。</summary>
-        public static void Track(IntPtr context, string sspjPath, string outputDir)
+        // 進捗 (実行中バッチ全体で 1 つの Progress。キューが空になるまで生存)
+        private static int _progressId = -1;
+        private static int _total;
+        private static int _completed;
+        private static bool _canceled;
+
+        private static int Concurrency => Mathf.Clamp(SystemInfo.processorCount - 1, 1, 8);
+
+        /// <summary>変換ジョブを 1 件キューに積む。スロットが空いていれば即実行を開始する。</summary>
+        public static void Enqueue(string sspjPath, string outputDir)
         {
-            _active.Add(new Conversion { Context = context, SspjPath = sspjPath, OutputDir = outputDir });
+            if (string.IsNullOrEmpty(sspjPath) || !File.Exists(sspjPath))
+            {
+                Debug.LogError($"[SSPlayer] SSPJ file not found: {sspjPath}");
+                return;
+            }
+
+            try
+            {
+                if (!Directory.Exists(outputDir)) Directory.CreateDirectory(outputDir);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[SSPlayer] Failed to create output dir '{outputDir}': {e.Message}");
+                return;
+            }
+
+            _canceled = false;
+            _pending.Enqueue(new Job { SspjPath = sspjPath, OutputDir = outputDir });
+            _total++;
+
+            EnsureProgress();
+
             if (!_polling)
             {
                 EditorApplication.update += Poll;
                 _polling = true;
             }
+
+            Pump();
+        }
+
+        private static void EnsureProgress()
+        {
+            if (_progressId == -1)
+            {
+                _progressId = Progress.Start("SpriteStudio Import", "Converting .sspj ...");
+                Progress.RegisterCancelCallback(_progressId, OnCancel);
+            }
+            ReportProgress();
+        }
+
+        private static bool OnCancel()
+        {
+            _canceled = true;
+            _pending.Clear();
+            unsafe
+            {
+                foreach (var a in _active)
+                {
+                    var ctx = (SpriteStudio.SsConverter.Context*)a.Context.ToPointer();
+                    SpriteStudio.SsConverter.NativeMethods.ss_converter_abort(ctx);
+                }
+            }
+            return true; // 進行中はアボート要求済み。Poll で回収される。
+        }
+
+        private static void Pump()
+        {
+            int cap = Concurrency;
+            while (!_canceled && _active.Count < cap && _pending.Count > 0)
+            {
+                StartJob(_pending.Dequeue());
+            }
+        }
+
+        private static void StartJob(Job job)
+        {
+            unsafe
+            {
+                var context = SpriteStudio.SsConverter.NativeMethods.ss_converter_create();
+
+                var sspjBytes = Encoding.UTF8.GetBytes(job.SspjPath + "\0");
+                var outDirBytes = Encoding.UTF8.GetBytes(job.OutputDir + "\0");
+
+                fixed (byte* sspjPtr = sspjBytes)
+                fixed (byte* outDirPtr = outDirBytes)
+                {
+                    SpriteStudio.SsConverter.NativeMethods.ss_converter_convert(context, sspjPtr, outDirPtr, null);
+                }
+
+                _active.Add(new Active
+                {
+                    Context = (IntPtr)context,
+                    SspjPath = job.SspjPath,
+                    OutputDir = job.OutputDir,
+                });
+            }
+
+            ReportProgress(Path.GetFileName(job.SspjPath));
         }
 
         private static void Poll()
@@ -57,20 +157,19 @@ namespace SpriteStudio.Editor
                         byte* errData;
                         nuint errLen;
                         SpriteStudio.SsConverter.NativeMethods.ss_converter_get_error(ctx, &errData, &errLen);
+                        string name = Path.GetFileName(conversion.SspjPath);
                         if (errData != null && errLen > 0)
                         {
                             var errStr = Encoding.UTF8.GetString(errData, (int)errLen);
-                            Debug.LogError($"[SSPlayer] Converter Error: {errStr}");
+                            Debug.LogError($"[SSPlayer] Converter Error ({name}): {errStr}");
                         }
                         else
                         {
-                            Debug.LogError($"[SSPlayer] Converter Error: {result}");
+                            Debug.LogError($"[SSPlayer] Converter Error ({name}): {result}");
                         }
                     }
                     else
                     {
-                        Debug.Log("[SSPlayer] Convert Success!");
-
                         var generatedSsabs = Directory.GetFiles(conversion.OutputDir, "*.ssab", SearchOption.AllDirectories);
                         foreach (var ssab in generatedSsabs)
                         {
@@ -82,20 +181,61 @@ namespace SpriteStudio.Editor
                 }
 
                 _active.RemoveAt(i);
+                _completed++;
                 anyCompleted = true;
             }
 
             if (anyCompleted)
             {
-                // 生成された .ssab / テクスチャを Unity に取り込ませる
-                AssetDatabase.Refresh();
+                Pump(); // 空いたスロットへ次のジョブを補充
+                ReportProgress();
             }
 
-            if (_active.Count == 0)
+            // 全完了 (またはキャンセルで pending 空 + active 回収済み) → 後始末
+            if (_active.Count == 0 && _pending.Count == 0)
             {
-                EditorApplication.update -= Poll;
-                _polling = false;
+                Finish();
             }
+        }
+
+        private static void Finish()
+        {
+            EditorApplication.update -= Poll;
+            _polling = false;
+
+            if (_progressId != -1)
+            {
+                Progress.Remove(_progressId);
+                _progressId = -1;
+            }
+
+            bool wasCanceled = _canceled;
+            int converted = _completed;
+            _total = 0;
+            _completed = 0;
+            _canceled = false;
+
+            // 生成された .ssab / テクスチャを Unity に取り込ませる (バッチ末尾で 1 回)
+            AssetDatabase.Refresh();
+
+            if (wasCanceled)
+            {
+                Debug.Log($"[SSPlayer] Import canceled. ({converted} converted)");
+            }
+            else if (converted > 0)
+            {
+                Debug.Log($"[SSPlayer] Convert finished: {converted} file(s).");
+            }
+        }
+
+        private static void ReportProgress(string currentName = null)
+        {
+            if (_progressId == -1) return;
+            float ratio = _total > 0 ? (float)_completed / _total : 0f;
+            string desc = currentName != null
+                ? $"Converting {_completed}/{_total}: {currentName}"
+                : $"Converting {_completed}/{_total}";
+            Progress.Report(_progressId, ratio, desc);
         }
     }
 }
