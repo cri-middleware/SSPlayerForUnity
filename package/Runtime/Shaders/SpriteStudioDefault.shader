@@ -3,15 +3,26 @@ Shader "SpriteStudio/Default"
     Properties
     {
         _MainTex ("Sprite Texture", 2D) = "white" {}
+
+        // --- Blend state (set by the C# MaterialKey per the B-table in project_blend_mapping_truth) ---
+        // Defaults are Mix + PMA output = equivalent to the previous behavior. The MaterialKey
+        // overrides these per ssab BlendType.
+        [Enum(UnityEngine.Rendering.BlendMode)] _SrcBlend ("Src Blend", Float) = 1   // One
+        [Enum(UnityEngine.Rendering.BlendMode)] _DstBlend ("Dst Blend", Float) = 10  // OneMinusSrcAlpha
+        [Enum(UnityEngine.Rendering.BlendOp)]   _BlendOp  ("Blend Op",  Float) = 0   // Add
+        // PMA / discard are uniform branches (not keywords), so variants collapse to one.
+        _InputPMA   ("Input PMA",   Float) = 0   // 1 = texture is premultiplied -> un-premultiply
+        _OutputPMA  ("Output PMA",  Float) = 1   // 1 = emit premultiplied alpha (previous behavior)
+        _NotDiscard ("Not Discard", Float) = 0   // 1 = keep transparent pixels (Mul/Invert)
     }
 
     SubShader
     {
         Tags
-        { 
-            "Queue"="Transparent" 
-            "IgnoreProjector"="True" 
-            "RenderType"="Transparent" 
+        {
+            "Queue"="Transparent"
+            "IgnoreProjector"="True"
+            "RenderType"="Transparent"
             "PreviewType"="Plane"
             "CanUseSpriteAtlas"="True"
         }
@@ -19,31 +30,30 @@ Shader "SpriteStudio/Default"
         Cull Off
         Lighting Off
         ZWrite Off
-        // Premultiplied-alpha 合成。1パスで Mix(通常) と Add(加算) を両立させる。
-        //   Mix : out=(rgb*a, a)  -> rgb*a + dst*(1-a)   (通常アルファ合成と等価)
-        //   Add : out=(rgb*a, 0)  -> rgb*a + dst*(1-0)   (加算合成)
-        // frag 側で rgb を a で premultiply し、加算パーティクルのみ a=0 を出力する。
-        Blend One OneMinusSrcAlpha
+        // Blend state is material-property driven (references [_Prop] rather than fixed values).
+        Blend [_SrcBlend] [_DstBlend]
+        BlendOp [_BlendOp]
 
         Pass
         {
-            CGPROGRAM
+            HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
             #include "UnityCG.cginc"
+            #include "Includes/SpriteStudioCore.hlsl"
 
             struct appdata_t
             {
                 float4 vertex   : POSITION;
                 float4 color    : COLOR;
                 float2 texcoord : TEXCOORD0;
-                float4 texcoord1: TEXCOORD1; // rate, blend_idx, pma_flag, reserved
+                float4 texcoord1: TEXCOORD1; // [rate, blend_idx, isNormalized(effect), reserved]
             };
 
             struct v2f
             {
                 float4 vertex   : SV_POSITION;
-                fixed4 color    : COLOR;
+                half4  color    : COLOR;
                 float2 texcoord : TEXCOORD0;
                 float4 texcoord1: TEXCOORD1;
             };
@@ -51,71 +61,70 @@ Shader "SpriteStudio/Default"
             sampler2D _MainTex;
             float4 _MainTex_TexelSize;
 
+            float _InputPMA;
+            float _OutputPMA;
+            float _NotDiscard;
+
             v2f vert(appdata_t IN)
             {
                 v2f OUT;
                 OUT.vertex = UnityObjectToClipPos(IN.vertex);
-                // Normal parts output pixel coordinates, Effect parts output normalized coordinates (IN.texcoord1.z = 1)
+                // Normal parts carry pixel coordinates; effect parts carry normalized coordinates
+                // (texcoord1.z = 1).
                 float isNormalized = IN.texcoord1.z;
                 float2 texelSizeMultiplier = lerp(_MainTex_TexelSize.xy, float2(1.0, 1.0), isNormalized);
                 OUT.texcoord = IN.texcoord * texelSizeMultiplier;
-                // SpriteStudio uses Top-Left UV origin, Unity uses Bottom-Left UV origin
+                // SS uses a top-left UV origin, Unity uses bottom-left -> flip V (once, here, not on the CPU).
                 OUT.texcoord.y = 1.0 - OUT.texcoord.y;
                 OUT.color = IN.color;
                 OUT.texcoord1 = IN.texcoord1;
                 return OUT;
             }
 
-            fixed4 frag(v2f IN) : SV_Target
+            half4 frag(v2f IN) : SV_Target
             {
-                fixed4 texColor = tex2D(_MainTex, IN.texcoord);
+                // [input] Sample the texture (and un-premultiply if needed).
+                float4 tex = ss_input_texture(_MainTex, IN.texcoord, _InputPMA);
 
-                // texcoord1 = [rate, blend_idx, isNormalized(=effect), reserved]
-                //   blend_idx は ss.format.BlendType: 0=Mix, 1=Mul, 2=Add, 3=Sub
-                float rate = IN.texcoord1.x;
-                float blendIdx = IN.texcoord1.y;
-                float isNormalized = IN.texcoord1.z; // 1 = エフェクトパート, 0 = 通常パート
+                float rate         = IN.texcoord1.x;
+                float blendIdx     = IN.texcoord1.y; // 0=Mix,1=Mul,2=Add,3=Sub (part-color blend kind)
+                float isNormalized = IN.texcoord1.z; // 1 = effect part / 0 = normal part
 
-                fixed3 finalRGB;
+                float3 rgb;
                 if (isNormalized > 0.5)
                 {
-                    // エフェクト: 頂点カラーで乗算 (tint)
-                    finalRGB = texColor.rgb * IN.color.rgb;
+                    // Effect: tint by the vertex color (multiply).
+                    rgb = tex.rgb * IN.color.rgb;
                 }
                 else
                 {
-                    // 通常パート: SpriteStudio の PartColor BlendType に対応
-                    if (blendIdx < 0.5) {
-                        // 0: Mix
-                        finalRGB = texColor.rgb * (1.0 - rate) + IN.color.rgb * rate;
-                    } else if (blendIdx < 1.5) {
-                        // 1: Mul
-                        finalRGB = texColor.rgb * (1.0 - rate) + (texColor.rgb * IN.color.rgb) * rate;
-                    } else if (blendIdx < 2.5) {
-                        // 2: Add
-                        finalRGB = saturate(texColor.rgb + IN.color.rgb * rate);
-                    } else {
-                        // 3: Sub
-                        finalRGB = saturate(texColor.rgb - IN.color.rgb * rate);
-                    }
+                    // Normal part: part-color composition (applies the already-mediated values).
+                    rgb = ss_partcolor_blend(tex.rgb, IN.color.rgb, rate, blendIdx);
                 }
 
-                fixed finalAlpha = texColor.a * IN.color.a;
+                float alpha = tex.a * IN.color.a;
+                float4 col = float4(rgb, alpha);
 
-                // --- Premultiplied alpha ---
-                // Blend One OneMinusSrcAlpha と組み合わせ、通常パートは従来と等価な結果になる。
-                finalRGB *= finalAlpha;
+                // [discard] Drop transparent pixels (disabled by _NotDiscard).
+                if (ss_should_discard(col.a, 0.0, _NotDiscard))
+                {
+                    discard;
+                }
 
-                // 加算合成: エフェクトパートで blend_idx == Add(2) のときのみ a=0 を出力し
-                // dst を素通し ( rgb*a + dst ) させる。通常パートには影響しない。
+                // [output] PMA finalize (correct only in combination with the blend state).
+                col = ss_output_color(col, _OutputPMA);
+
+                // TODO(MaterialKey): effect additive is currently passed through via the a=0 trick.
+                //   Once the C# side assigns an Add-blend material to effect Add submeshes, remove
+                //   this special case and rely solely on the blend state (project_blend_mapping_truth).
                 if (isNormalized > 0.5 && abs(blendIdx - 2.0) < 0.5)
                 {
-                    finalAlpha = 0.0;
+                    col.a = 0.0;
                 }
 
-                return fixed4(finalRGB, finalAlpha);
+                return col;
             }
-            ENDCG
+            ENDHLSL
         }
     }
 }

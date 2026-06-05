@@ -223,9 +223,11 @@ namespace SpriteStudio.Editor
             Material fallback = (asset.Materials != null && asset.Materials.Count > 0) ? asset.Materials[0] : null;
             for (int i = 0; i < _previewMesh.subMeshCount; i++)
             {
-                // サブメッシュのテクスチャハッシュから (外部参照も含めて) マテリアルを解決する。
+                // Resolve the per-(texture, blend) material (incl. external refs and the white base
+                // for cell-less Shape submeshes), matching the scene player's UpdateSubmeshMaterials.
                 uint hash = i < _internalPlayer.SubmeshCount ? _internalPlayer.GetSubmeshTextureHash(i) : 0u;
-                var m = asset.ResolveMaterialForHash(hash) ?? fallback;
+                byte blend = i < _internalPlayer.SubmeshCount ? _internalPlayer.GetSubmeshBlendType(i) : (byte)0;
+                var m = asset.ResolveMaterial(hash, blend) ?? fallback;
                 if (m != null)
                 {
                     // submesh ごとに別 DrawMesh だと半透明の距離ソートで描画順が入れ替わる。

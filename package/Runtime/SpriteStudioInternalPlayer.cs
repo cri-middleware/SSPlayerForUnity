@@ -431,7 +431,9 @@ namespace SpriteStudio.Runtime
 
         // バッチ単位の SubMesh 情報 (MeshRenderer 経路のマルチマテリアル用)。
         // Job では使わず main thread でのみ参照するため managed 配列で保持する。
-        public struct SubmeshInfo { public int IndexStart; public int IndexCount; public uint TextureHash; }
+        // BlendType is the ssab BlendType (0..7) used to resolve the per-blend material variant.
+        // Effect submeshes keep Mix here (their additive path is handled in-shader for now).
+        public struct SubmeshInfo { public int IndexStart; public int IndexCount; public uint TextureHash; public byte BlendType; }
         private SubmeshInfo[] _submeshes;
         private int _submeshCount;
         // SetSubMeshes 用の永続バッファ (grow-only で使い回す)。
@@ -462,6 +464,9 @@ namespace SpriteStudio.Runtime
 
         /// <summary>指定 SubMesh のテクスチャハッシュ (DrawBatch.TextureHash)。</summary>
         public uint GetSubmeshTextureHash(int index) => _submeshes[index].TextureHash;
+
+        /// <summary>SubMesh's ssab BlendType (0..7), used to resolve the per-blend material variant.</summary>
+        public byte GetSubmeshBlendType(int index) => _submeshes[index].BlendType;
 
         /// <summary>必要件数を満たすまで grow-only で確保する。容量が足りていれば再利用する。</summary>
         private static void EnsureCapacity<T>(ref NativeArray<T> arr, int needed) where T : struct
@@ -787,7 +792,8 @@ namespace SpriteStudio.Runtime
                                     {
                                         IndexStart = totalIndices + childSubmesh.IndexStart,
                                         IndexCount = childSubmesh.IndexCount,
-                                        TextureHash = childSubmesh.TextureHash
+                                        TextureHash = childSubmesh.TextureHash,
+                                        BlendType = childSubmesh.BlendType // inherit the child's per-submesh blend
                                     };
                                 }
 
@@ -833,7 +839,11 @@ namespace SpriteStudio.Runtime
                                     {
                                         IndexStart = totalIndices,
                                         IndexCount = cmdIc,
-                                        TextureHash = cmd.CellmapHash
+                                        TextureHash = cmd.CellmapHash,
+                                        // Effect keeps Mix; its Mix/Add is still handled by the in-shader
+                                        // a=0 trick (see SpriteStudioDefault.shader TODO). Migrate to a
+                                        // per-blend material later.
+                                        BlendType = SpriteStudioMaterial.BlendMix
                                     };
                                     
                                     totalVertices += cmdVc;
@@ -894,7 +904,8 @@ namespace SpriteStudio.Runtime
                             {
                                 IndexStart = totalIndices,
                                 IndexCount = ic,
-                                TextureHash = b.TextureHash
+                                TextureHash = b.TextureHash,
+                                BlendType = (byte)b.BlendType // ssab BlendType for the per-blend material
                             };
 
                             totalVertices += vc;
@@ -986,6 +997,7 @@ namespace SpriteStudio.Runtime
 
                     BatchCount = _drawBatchCount,
                     PartCount = _partCount,
+                    PartColorCount = _partColorCount,
                     InvScale = VertexScale,
 
                     DrawBatches = _drawBatches,
@@ -1249,7 +1261,10 @@ namespace SpriteStudio.Runtime
             for (int c = 0; c < cmdLen; c++)
             {
                 var cc = plan.Commands(c);
-                if (!cc.HasValue) continue;
+                // Zero-fill a missing command (QuadCount=0 makes the draw loop skip it reliably).
+                // Skipping the fill with `continue` would leave last frame's stale value here,
+                // causing the wrong quad range to be read.
+                if (!cc.HasValue) { _effectCommands[cmdStart + c] = default; continue; }
                 var cmd = cc.Value;
                 _effectCommands[cmdStart + c] = new EffectDrawCommandData
                 {
