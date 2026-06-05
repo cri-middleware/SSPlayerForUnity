@@ -30,6 +30,10 @@ namespace SpriteStudio.Editor
                         textureImporter.spriteImportMode = SpriteImportMode.None;
                         // For standard Straight Alpha, this prevents black fringes around edges
                         textureImporter.alphaIsTransparency = true;
+                        // Prevent large textures from being downscaled (e.g. 4096x4096)
+                        textureImporter.maxTextureSize = 8192;
+                        // Prevent NPOT textures from being scaled to power of two
+                        textureImporter.npotScale = TextureImporterNPOTScale.None;
                     }
                 }
             }

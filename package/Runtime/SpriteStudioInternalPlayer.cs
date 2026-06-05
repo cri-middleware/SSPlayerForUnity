@@ -512,6 +512,10 @@ namespace SpriteStudio.Runtime
             }
 
             drawFrame = SubFrameEnabled ? GetFrame() : UnityEngine.Mathf.Floor(GetFrame());
+            // SubFrame 有効時は小数のまま評価するため、終端フレーム (end_frame) を超過した浮動小数点数
+            // (例: 59.99) が渡されると、SSABの有効範囲外として扱われ、全てのパーツが消える原因になります。
+            // 常に定義されたフレーム範囲内に収まるようクランプします。
+            drawFrame = UnityEngine.Mathf.Clamp(drawFrame, GetAnimationSectionStart(), GetAnimationSectionEnd());
 
             // subFrame 無効・エフェクト/インスタンス無しで整数フレームが前回ビルドと同一なら、SoA 出力は
             // 完全に同一になる。FFI・集計・Job を省いて前フレームのジオメトリをそのまま再利用する。
@@ -677,8 +681,9 @@ namespace SpriteStudio.Runtime
                     if (step.visible)
                     {
                         float childDrawFrame = childPlayer.SubFrameEnabled ? step.child_frame_no : UnityEngine.Mathf.Floor(step.child_frame_no);
+                        childDrawFrame = UnityEngine.Mathf.Clamp(childDrawFrame, childPlayer.GetAnimationSectionStart(), childPlayer.GetAnimationSectionEnd());
                         _instanceChildren[i].PreviousFrame = childDrawFrame;
-                        childPlayer.SetFrame(step.child_frame_no);
+                        childPlayer.SetFrame(childDrawFrame);
                         childPlayer.ScheduleMeshUpdate(deltaTime);
 
                         _childHandles[childHandleCount++] = childPlayer.CurrentUpdateJobHandle;
