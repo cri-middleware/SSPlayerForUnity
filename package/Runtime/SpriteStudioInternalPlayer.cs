@@ -474,7 +474,7 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// Pass A (直列・軽量): 前フレームの Job 完了を待ち、advance 指定時は 1 フレーム進め、
+        /// 前フレームの Job 完了を待ち、advance 指定時は 1 フレーム進め、
         /// 描画フレーム番号と frame-skip を確定する。out handle が Zero のときは、このフレームは
         /// このプレイヤーを並列 get_frame_data / ConsumeFrameData の対象から外す (ハンドル無効、または skip)。
         /// advance=false は frame 駆動 (子 Instance / Timeline 制御) 用。
@@ -530,7 +530,7 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// Pass C (直列): 並列 Pass B (GetFrameDataJob) が取得した frame-data ポインタ (job 出力) を消費し、
+        /// 並列 GetFrameDataJob が取得した frame-data ポインタ (job 出力) を消費し、
         /// SoA を読み出してメッシュ構築 Burst Job を発行する。ptr==Zero / len==0 はジオメトリ無しとして扱う。
         /// </summary>
         public void ConsumeFrameData(System.IntPtr frameDataPtrRaw, int len, float deltaTime)
@@ -720,11 +720,12 @@ namespace SpriteStudio.Runtime
                     };
                 }
 
-                // DrawOrder も先に充填し、バッチ集計ループは _drawOrder から読む。
-                for (int i = 0; i < drawOrderLength; i++)
-                {
-                    _drawOrder[i] = frameData.DrawOrder(i);
-                }
+                // DrawOrder ([ushort] vector) も先に充填し、バッチ集計ループは _drawOrder から読む。
+                // 連続 scalar vector なので per-element でなく一括 memcpy する (effect ジオメトリと同様)。
+                // draw_order は FrameData の field 6 → vtable offset 16。
+                var tFrame = new Google.FlatBuffers.Table(
+                    _frameDataByteBuffer.GetInt(_frameDataByteBuffer.Position) + _frameDataByteBuffer.Position, _frameDataByteBuffer);
+                CopyFbVector(tFrame, 16, frameDataPtr, _drawOrder, 0, drawOrderLength);
 
                 int totalVertices = 0;
                 int totalIndices = 0;
@@ -1208,21 +1209,28 @@ namespace SpriteStudio.Runtime
             // このスロットのグローバル quad ベース (= これまでに詰めた quad 数 = indices/6)。
             int quadBase = _effectIndexCount / 6;
 
-            // ジオメトリを結合バッファへ追記 (grow は内容保持)。indices 値は command-local のまま保持する。
+            // ジオメトリ (verts/uvs/colors/indices) は fbs で連続 scalar vector。旧実装の per-element 読み
+            // (plan.Verts(j) を粒子数×要素ぶんループ) は実測で処理時間の ~49% を占めた。Table の public API で
+            // vector 先頭の絶対 byte 位置を取り、生ポインタ fb から結合バッファへ一括 memcpy する (fbs コメントの
+            // "one memcpy per command" 設計どおり)。fb と _planByteBuffer は同一バイト列なので位置は共通。
+            // vtable offset = 4 + field_index*2、fbs 定義順: commands(0)/vert_stride(1)/verts(2)/uvs(3)/colors(4)/indices(5)。
+            var t = new Google.FlatBuffers.Table(
+                _planByteBuffer.GetInt(_planByteBuffer.Position) + _planByteBuffer.Position, _planByteBuffer);
+
             EnsureCapacityPreserve(ref _effectVerts, _effectVertFloatCount + vLen);
-            for (int j = 0; j < vLen; j++) _effectVerts[_effectVertFloatCount + j] = plan.Verts(j);
+            CopyFbVector(t, 8, fb, _effectVerts, _effectVertFloatCount, vLen);
             _effectVertFloatCount += vLen;
 
             EnsureCapacityPreserve(ref _effectUvs, _effectUvFloatCount + uLen);
-            for (int j = 0; j < uLen; j++) _effectUvs[_effectUvFloatCount + j] = plan.Uvs(j);
+            CopyFbVector(t, 10, fb, _effectUvs, _effectUvFloatCount, uLen);
             _effectUvFloatCount += uLen;
 
             EnsureCapacityPreserve(ref _effectColors, _effectColorFloatCount + cLen);
-            for (int j = 0; j < cLen; j++) _effectColors[_effectColorFloatCount + j] = plan.Colors(j);
+            CopyFbVector(t, 12, fb, _effectColors, _effectColorFloatCount, cLen);
             _effectColorFloatCount += cLen;
 
             EnsureCapacityPreserve(ref _effectIndices, _effectIndexCount + iLen);
-            for (int j = 0; j < iLen; j++) _effectIndices[_effectIndexCount + j] = plan.Indices(j);
+            CopyFbVector(t, 14, fb, _effectIndices, _effectIndexCount, iLen);
             _effectIndexCount += iLen;
 
             // commands を抽出 (描画順ループでテクスチャ/ブレンド/範囲を参照する)。
@@ -1249,6 +1257,20 @@ namespace SpriteStudio.Runtime
                 CommandCount = cmdLen,
                 QuadBase = quadBase
             };
+        }
+
+        // FlatBuffer の scalar vector (vtable offset vtoff) を生バッファ fb から dst[dstOffset..] へ一括 memcpy する。
+        // n は generated accessor 由来の要素数。vector データは fb 内に連続配置され、位置は Table の public API で取る。
+        private static unsafe void CopyFbVector<T>(Google.FlatBuffers.Table t, int vtoff, byte* fb, NativeArray<T> dst, int dstOffset, int n) where T : unmanaged
+        {
+            if (n <= 0) return;
+            int o = t.__offset(vtoff);
+            if (o == 0) return; // フィールド欠落 (required のはずだが防御的に)
+            UnityEngine.Debug.Assert(t.__vector_len(o) == n, "CopyFbVector: vtable offset と要素数が不一致 (offset 定義ズレの疑い)");
+            int pos = t.__vector(o); // vector 先頭要素の絶対 byte 位置
+            int elem = Unity.Collections.LowLevel.Unsafe.UnsafeUtility.SizeOf<T>();
+            byte* d = (byte*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(dst) + (long)dstOffset * elem;
+            Unity.Collections.LowLevel.Unsafe.UnsafeUtility.MemCpy(d, fb + pos, (long)n * elem);
         }
     }
 }

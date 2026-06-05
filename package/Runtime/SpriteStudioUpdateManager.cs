@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Jobs;
-using Unity.Profiling;
 using UnityEngine;
 using SpriteStudio.SsRuntime;
 
@@ -13,11 +12,11 @@ namespace SpriteStudio.Runtime
     /// </summary>
     internal interface ISpriteStudioRenderable
     {
-        /// <summary>Pass A (直列・軽量): 前フレーム Job 完了待ち + advance + drawFrame/skip 確定。
+        /// <summary>前フレーム Job 完了待ち + advance + drawFrame/skip 確定。
         /// out handle が Zero のときは get_frame_data / ConsumeFrame の対象外 (無効 or skip)。</summary>
         void PrepareFrame(float deltaTime, out IntPtr handle, out float drawFrame);
 
-        /// <summary>Pass C (直列): 並列 Pass B が取得した frame-data ポインタを消費し、Burst Job をスケジュール。</summary>
+        /// <summary>並列処理で取得した frame-data ポインタを消費し、Burst Job をスケジュール。</summary>
         void ConsumeFrame(IntPtr frameDataPtr, int len, float deltaTime);
 
         /// <summary>Phase 2: Job 完了を待ち、メッシュへ反映・描画する。</summary>
@@ -25,13 +24,13 @@ namespace SpriteStudio.Runtime
     }
 
     /// <summary>
-    /// 全 SpriteStudio レンダラーを集中管理し、毎フレームを 3 パス + LateUpdate で駆動する:
-    ///   Pass A (Update, 直列・軽量): 各プレイヤーを 1 フレーム進め (advance) + drawFrame/frame-skip 判定。
-    ///   Pass B (Update, 並列): 非 skip プレイヤーの get_frame_data を IJobParallelFor でワーカー並列実行する。
-    ///       get_frame_data はコンテキスト毎に独立 (グローバル可変状態なし) = 並行安全で、最重量の
-    ///       pose/行列/頂点/draw batch 計算をキャラ間で並列化する。完了をバリアで待つ。
-    ///   Pass C (Update, 直列): 取得した frame-data ポインタを消費しメッシュ構築 Burst Job を発行。
-    ///   Phase 2 (LateUpdate): 全 Job 完了待ち + メッシュ反映。
+    /// 全 SpriteStudio レンダラーを集中管理し、毎フレームの更新と描画を駆動する:
+    ///   1. Update (直列): 各プレイヤーを 1 フレーム進め (advance) + drawFrame/frame-skip 判定。
+    ///   2. Update (並列): 非 skip プレイヤーの get_frame_data を IJobParallelFor でワーカー並列実行する。
+    ///      get_frame_data はコンテキスト毎に独立 (グローバル可変状態なし) = 並行安全で、最重量の
+    ///      pose/行列/頂点/draw batch 計算をキャラ間で並列化する。完了をバリアで待つ。
+    ///   3. Update (直列): 取得した frame-data ポインタを消費しメッシュ構築 Burst Job を発行。
+    ///   4. LateUpdate: 全 Job 完了待ち + メッシュ反映。
     ///
     /// play モードのみ集中管理する。edit モード (Graphic の ExecuteAlways プレビュー) は
     /// 各コンポーネントが自前で _core.TickAndSchedule/ApplyAndRender を直列に呼ぶ (並列経路とは分離)。
@@ -42,7 +41,7 @@ namespace SpriteStudio.Runtime
         private static ISpriteStudioRenderable[] _tickBuffer = new ISpriteStudioRenderable[16];
         private static SpriteStudioUpdateRunner _runner;
 
-        // Pass B (並列 get_frame_data) 用の永続バッファ (grow-only, 定常ゼロ GC)。
+        // 並列 get_frame_data 用の永続バッファ (grow-only, 定常ゼロ GC)。
         private static ISpriteStudioRenderable[] _pending = new ISpriteStudioRenderable[16];
         private static NativeArray<IntPtr> _jobHandles;
         private static NativeArray<float> _jobDrawFrames;
@@ -56,17 +55,6 @@ namespace SpriteStudio.Runtime
         /// <summary>IJobParallelFor の innerloopBatchCount。get_frame_data は 1 件が重いので 1 が最適
         /// (各キャラを独立に全コアへ work-steal で分配)。大きくすると少数キャラで並列度が落ちる。</summary>
         public static int ParallelBatch = 1;
-
-        // 計測用 ProfilerMarker (Profiler に "SpriteStudio.PassX" として表示)。Begin/End は非計測時ほぼ無コスト。
-        //   PassB(parallel) と PassB(serial=トグル off) の差 = A1' の get_frame_data 並列化の効果。
-        //   PassC = 残る直列 (Marshal.Copy + parse + 会計 + effect/instance + Job schedule) = ② で除去する対象。
-        private static readonly ProfilerMarker s_passA = new ProfilerMarker("SpriteStudio.PassA.Advance+Skip");
-        private static readonly ProfilerMarker s_passB = new ProfilerMarker("SpriteStudio.PassB.GetFrameData");
-        private static readonly ProfilerMarker s_passC = new ProfilerMarker("SpriteStudio.PassC.Consume");
-        /// <summary>直近フレームの登録レンダラー総数 (診断用)。</summary>
-        public static int LastTotalCount;
-        /// <summary>直近フレームで get_frame_data を実行した数 (= skip 除く並列対象数, 診断用)。</summary>
-        public static int LastParallelCount;
 
         internal static void Register(ISpriteStudioRenderable renderable)
         {
@@ -100,12 +88,9 @@ namespace SpriteStudio.Runtime
             _renderables.CopyTo(0, _tickBuffer, 0, count);
             EnsureJobCapacity(count);
 
-            LastTotalCount = count;
-
-            // Pass A (直列・軽量): 1 フレーム進め、drawFrame と frame-skip を確定。
+            // 1 フレーム進め、drawFrame と frame-skip を確定。
             // 非 skip かつ有効なプレイヤーだけを並列 get_frame_data の入力へ詰める。
             int n = 0;
-            s_passA.Begin();
             for (int i = 0; i < count; i++)
             {
                 _tickBuffer[i].PrepareFrame(deltaTime, out var handle, out var drawFrame);
@@ -117,15 +102,11 @@ namespace SpriteStudio.Runtime
                     n++;
                 }
             }
-            s_passA.End();
-            LastParallelCount = n;
             if (n == 0) return;
 
-            // Pass B: get_frame_data はコンテキスト毎に独立 (グローバル可変状態なし・共有リソースは不変
+            // get_frame_data はコンテキスト毎に独立 (グローバル可変状態なし・共有リソースは不変
             // Send+Sync) のためキャラ間でワーカースレッド並列に実行できる。最重量の pose/行列/頂点/
-            // draw batch/FlatBuffer build を並列化する。.Complete() でメインスレッドはバリア待ちするので、
-            // この marker の時間 = 並列 get_frame_data の wall-clock (トグル off の serial と比較して効果を測る)。
-            s_passB.Begin();
+            // draw batch/FlatBuffer build を並列化する。.Complete() でメインスレッドはバリア待ちする。
             if (ParallelFrameData && n >= ParallelMinCount)
             {
                 new GetFrameDataJob
@@ -149,18 +130,12 @@ namespace SpriteStudio.Runtime
                     }
                 }
             }
-            s_passB.End();
-
-            // Pass C (直列): 取得した frame-data ポインタを消費してメッシュ構築 Job を発行。
-            // この marker = 残る直列コスト (Marshal.Copy + FlatBuffers parse + 会計 + effect/instance step
-            // + Job schedule)。これが支配的なら A1' の効果は薄く、② (生 SoA ポインタ化) が本命となる。
-            s_passC.Begin();
+            // 取得した frame-data ポインタを消費してメッシュ構築 Job を発行。
             for (int i = 0; i < n; i++)
             {
                 _pending[i].ConsumeFrame(_jobOutPtr[i], _jobOutLen[i], deltaTime);
                 _pending[i] = null; // スナップショットの参照を残さない
             }
-            s_passC.End();
         }
 
         private static void EnsureJobCapacity(int count)
@@ -223,7 +198,7 @@ namespace SpriteStudio.Runtime
     }
 
     /// <summary>
-    /// Pass B: get_frame_data をキャラ間で並列実行する。get_frame_data はコンテキスト毎に独立
+    /// get_frame_data をキャラ間で並列実行する。get_frame_data はコンテキスト毎に独立
     /// (グローバル可変状態なし・共有リソースは不変 Send+Sync) のため並行呼び出しが安全。
     /// DllImport を呼ぶため [BurstCompile] は付けない (Burst から P/Invoke 不可)。各 index は
     /// 自分のスロットだけを書くため WriteOnly でエイリアスなし。
