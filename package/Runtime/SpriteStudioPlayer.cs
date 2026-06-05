@@ -189,19 +189,18 @@ namespace SpriteStudio.Runtime
 
         // --- ISpriteStudioRenderable (SpriteStudioUpdateManager から駆動される) ---
 
-        public void TickAndSchedule(float deltaTime)
+        public void PrepareFrame(float deltaTime, out System.IntPtr handle, out float drawFrame)
+        {
+            if (_core.Internal == null) { handle = System.IntPtr.Zero; drawFrame = 0f; return; }
+            // Timeline 制御中は SetTime が設定したフレームを描画するため自動進行しない (advance=false)
+            _core.Internal.PrepareFrameData(deltaTime, !_timelineControlled, out handle, out drawFrame);
+        }
+
+        public void ConsumeFrame(System.IntPtr frameDataPtr, int len, float deltaTime)
         {
             if (_core.Internal == null) return;
-
-            if (_timelineControlled)
-            {
-                // Timeline がフレームを制御するため自動進行はしない (SetTime で設定済みのフレームを描画する)
-                _core.Internal.ScheduleMeshUpdate(0f);
-            }
-            else
-            {
-                _core.TickAndSchedule(deltaTime, SubFrameEnabled);
-            }
+            // Timeline 制御中はエフェクト/インスタンスを wall-clock dt で進めない (決定論シーク維持のため dt=0)
+            _core.Internal.ConsumeFrameData(frameDataPtr, len, _timelineControlled ? 0f : deltaTime);
         }
 
         public void ApplyAndRender()
