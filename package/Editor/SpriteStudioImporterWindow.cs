@@ -1,19 +1,14 @@
 using UnityEngine;
 using UnityEditor;
-using System;
 using System.IO;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace SpriteStudio.Editor
 {
     public class SpriteStudioImporterWindow : EditorWindow
     {
         private DefaultAsset outputFolder = null;
-        private List<string> recentFiles = new List<string>();
-        private const string RECENT_FILES_PREF_KEY = "SpriteStudio_RecentFiles";
         private const string OUTPUT_FOLDER_PREF_KEY = "SpriteStudio_OutputFolder";
-        private const int MAX_RECENT_FILES = 20;
         private const string DEFAULT_OUTPUT_PATH = "Assets/ssab_generated";
 
         private Vector2 scrollPosition;
@@ -38,44 +33,6 @@ namespace SpriteStudio.Editor
                 AssetDatabase.CreateFolder("Assets", "ssab_generated");
             }
             outputFolder = AssetDatabase.LoadAssetAtPath<DefaultAsset>(savedPath);
-
-            LoadRecentFiles();
-        }
-
-        private void LoadRecentFiles()
-        {
-            string json = EditorPrefs.GetString(RECENT_FILES_PREF_KEY, "[]");
-            try
-            {
-                recentFiles = JsonUtility.FromJson<SerializationHelper>(json).list ?? new List<string>();
-            }
-            catch
-            {
-                recentFiles = new List<string>();
-            }
-        }
-
-        private void SaveRecentFiles()
-        {
-            string json = JsonUtility.ToJson(new SerializationHelper { list = recentFiles });
-            EditorPrefs.SetString(RECENT_FILES_PREF_KEY, json);
-        }
-
-        private void AddToRecentFiles(string path)
-        {
-            recentFiles.RemoveAll(p => p == path);
-            recentFiles.Insert(0, path);
-            if (recentFiles.Count > MAX_RECENT_FILES)
-            {
-                recentFiles = recentFiles.Take(MAX_RECENT_FILES).ToList();
-            }
-            SaveRecentFiles();
-        }
-
-        private void RemoveFromRecentFiles(string path)
-        {
-            recentFiles.RemoveAll(p => p == path);
-            SaveRecentFiles();
         }
 
         private void OnGUI()
@@ -90,10 +47,10 @@ namespace SpriteStudio.Editor
         private void DrawOutputSection()
         {
             GUILayout.BeginVertical(EditorStyles.helpBox);
-            
+
             GUILayout.BeginHorizontal();
             GUILayout.Label("Output Folder", GUILayout.Width(100));
-            
+
             EditorGUI.BeginChangeCheck();
             outputFolder = (DefaultAsset)EditorGUILayout.ObjectField(outputFolder, typeof(DefaultAsset), false);
             if (EditorGUI.EndChangeCheck())
@@ -129,10 +86,10 @@ namespace SpriteStudio.Editor
         private void DrawDropArea()
         {
             Rect dropRect = GUILayoutUtility.GetRect(0.0f, 150.0f, GUILayout.ExpandWidth(true));
-            GUI.Box(dropRect, "Drop SSPJ here\n(drag from your file manager)", EditorStyles.helpBox);
+            GUI.Box(dropRect, GUIContent.none, EditorStyles.helpBox);
 
-            var centeredStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter };
-            GUI.Label(dropRect, "Drop SSPJ here\n(drag from your file manager)", centeredStyle);
+            var centeredStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, wordWrap = true };
+            GUI.Label(dropRect, "Drop .sspj or a folder here\n(folders are batch-converted recursively)", centeredStyle);
 
             Event evt = Event.current;
             switch (evt.type)
@@ -141,20 +98,14 @@ namespace SpriteStudio.Editor
                 case EventType.DragPerform:
                     if (!dropRect.Contains(evt.mousePosition))
                         break;
-                    
+
                     DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
-                    
+
                     if (evt.type == EventType.DragPerform)
                     {
                         DragAndDrop.AcceptDrag();
-                        
-                        foreach (string draggedPath in DragAndDrop.paths)
-                        {
-                            if (Path.GetExtension(draggedPath).ToLower() == ".sspj")
-                            {
-                                RunConvert(draggedPath);
-                            }
-                        }
+                        // フォルダ(再帰走査)・複数ファイル・重複・衝突・Recent をまとめて処理する
+                        SpriteStudioImporter.ImportPaths(DragAndDrop.paths);
                     }
                     Event.current.Use();
                     break;
@@ -167,22 +118,22 @@ namespace SpriteStudio.Editor
             GUILayout.Label("Recent SSPJs", EditorStyles.boldLabel);
             if (GUILayout.Button("Clear", GUILayout.Width(60)))
             {
-                recentFiles.Clear();
-                SaveRecentFiles();
+                SpriteStudioRecentFiles.Clear();
             }
             GUILayout.EndHorizontal();
 
             scrollPosition = GUILayout.BeginScrollView(scrollPosition, GUILayout.ExpandHeight(true));
 
-            if (recentFiles.Count == 0)
+            var recent = SpriteStudioRecentFiles.Get();
+            if (recent.Count == 0)
             {
                 GUIStyle disabledStyle = new GUIStyle(EditorStyles.label);
                 disabledStyle.normal.textColor = Color.gray;
-                GUILayout.Label("No recent files. Drop a sspj above to start.", disabledStyle);
+                GUILayout.Label("No recent files. Drop a sspj or folder above to start.", disabledStyle);
             }
             else
             {
-                foreach (string file in new List<string>(recentFiles))
+                foreach (string file in recent)
                 {
                     if (!File.Exists(file)) continue;
 
@@ -191,7 +142,7 @@ namespace SpriteStudio.Editor
                     string label = $"{fileName}  ·  {parentDir}";
 
                     GUILayout.BeginHorizontal();
-                    
+
                     // Invisible button covering the whole row for right click / left click
                     Rect rect = GUILayoutUtility.GetRect(new GUIContent(label), EditorStyles.label, GUILayout.ExpandWidth(true));
                     GUI.Label(rect, label);
@@ -208,12 +159,13 @@ namespace SpriteStudio.Editor
                         else if (e.type == EventType.ContextClick || (e.type == EventType.MouseDown && e.button == 1))
                         {
                             // Right click -> Context Menu
+                            string captured = file;
                             GenericMenu menu = new GenericMenu();
-                            menu.AddItem(new GUIContent("Open SSPJ"), false, () => OpenSSPJ(file));
-                            menu.AddItem(new GUIContent("Reconvert"), false, () => RunConvert(file));
-                            menu.AddItem(new GUIContent("Reveal"), false, () => EditorUtility.RevealInFinder(file));
+                            menu.AddItem(new GUIContent("Open SSPJ"), false, () => OpenSSPJ(captured));
+                            menu.AddItem(new GUIContent("Reconvert"), false, () => RunConvert(captured));
+                            menu.AddItem(new GUIContent("Reveal"), false, () => EditorUtility.RevealInFinder(captured));
                             menu.AddSeparator("");
-                            menu.AddItem(new GUIContent("Remove from Recent"), false, () => RemoveFromRecentFiles(file));
+                            menu.AddItem(new GUIContent("Remove from Recent"), false, () => SpriteStudioRecentFiles.Remove(captured));
                             menu.ShowAsContext();
                             e.Use();
                         }
@@ -234,73 +186,19 @@ namespace SpriteStudio.Editor
             }
         }
 
+        /// <summary>
+        /// 単一 .sspj の変換 (非対話) を行う既存 API。
+        /// AssetPostprocessor / AnimeAssetEditor の Reconvert から呼ばれるためシグネチャを維持する。
+        /// 実体は一括インポート基盤 (<see cref="SpriteStudioImporter"/>) に委譲する。
+        /// </summary>
         public static void RunConvertDirect(string sspjPath)
         {
-            if (!File.Exists(sspjPath))
-            {
-                Debug.LogError($"[SSPlayer] SSPJ file not found: {sspjPath}");
-                return;
-            }
-
-            string savedPath = EditorPrefs.GetString(OUTPUT_FOLDER_PREF_KEY, DEFAULT_OUTPUT_PATH);
-            if (!AssetDatabase.IsValidFolder(savedPath))
-            {
-                Debug.LogError($"[SSPlayer] Invalid output folder: {savedPath}. Please check Importer Window settings.");
-                return;
-            }
-
-            string absoluteOutputDir = Path.GetFullPath(savedPath);
-            string sspjName = Path.GetFileNameWithoutExtension(sspjPath);
-            string finalOutputDir = Path.Combine(absoluteOutputDir, sspjName);
-
-            if (!Directory.Exists(finalOutputDir))
-            {
-                Directory.CreateDirectory(finalOutputDir);
-            }
-
-            Debug.Log($"[SSPlayer] Converting {sspjPath} to {finalOutputDir}");
-
-            unsafe
-            {
-                var context = SpriteStudio.SsConverter.NativeMethods.ss_converter_create();
-                
-                var sspjBytes = System.Text.Encoding.UTF8.GetBytes(sspjPath + "\0");
-                var outDirBytes = System.Text.Encoding.UTF8.GetBytes(finalOutputDir + "\0");
-
-                fixed (byte* sspjPtr = sspjBytes)
-                fixed (byte* outDirPtr = outDirBytes)
-                {
-                    SpriteStudio.SsConverter.NativeMethods.ss_converter_convert(context, sspjPtr, outDirPtr, null);
-                }
-
-                // 非ブロッキング化: EditorApplication.update でポーリングし、完了時に結果処理 + Refresh する。
-                // (従来は Thread.Sleep でメインスレッドをブロックしており、変換中はエディタが固まっていた)
-                SpriteStudioConversionRunner.Track((System.IntPtr)context, sspjPath, finalOutputDir);
-            }
+            SpriteStudioImporter.ImportPaths(new[] { sspjPath }, interactive: false);
         }
 
         private void RunConvert(string sspjPath)
         {
-            if (!File.Exists(sspjPath))
-            {
-                Debug.LogError($"[SSPlayer] SSPJ file not found: {sspjPath}");
-                return;
-            }
-
-            if (outputFolder == null)
-            {
-                Debug.LogError("[SSPlayer] Please specify an Output Folder.");
-                return;
-            }
-
-            AddToRecentFiles(sspjPath);
-            RunConvertDirect(sspjPath);
-        }
-
-        [Serializable]
-        private class SerializationHelper
-        {
-            public List<string> list;
+            SpriteStudioImporter.ImportPaths(new[] { sspjPath });
         }
     }
 }

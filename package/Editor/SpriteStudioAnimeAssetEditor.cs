@@ -90,6 +90,12 @@ namespace SpriteStudio.Editor
                 GUIStyle warningStyle = new GUIStyle(EditorStyles.wordWrappedMiniLabel);
                 warningStyle.normal.textColor = Color.yellow;
                 GUILayout.Label("Source SSPJ not found in map or doesn't exist.", warningStyle);
+
+                // リンク切れ修復: .sspj を選び直し、同じ出力フォルダの .ssab をまとめて再リンク+再変換
+                if (GUILayout.Button("Relink SSPJ..."))
+                {
+                    SpriteStudioReconvertMenu.RelinkSsab(AssetDatabase.GetAssetPath(target));
+                }
             }
             GUILayout.EndVertical();
 
