@@ -171,6 +171,10 @@ namespace SpriteStudio.Runtime
         // HideAndDontSave and destroyed in OnDisable; never serialized.
         [System.NonSerialized] private Dictionary<SpriteStudioMaterialKey, Material> _materialVariants;
         [System.NonSerialized] private Material _whiteBaseMaterial;
+        // Mask stencil-write materials (SpriteStudio/MaskWrite), cached per (textureHash, stencil op).
+        // Separate from _materialVariants because they use a different shader, not a colour clone.
+        [System.NonSerialized] private Dictionary<(uint textureHash, byte op), Material> _maskWriteVariants;
+        [System.NonSerialized] private Shader _maskWriteShader;
 
         // Base material for cell-less submeshes (TextureHash 0, e.g. Shape parts). It has no texture,
         // so the shader's _MainTex "white" default makes the sampler return white and the part shows
@@ -217,8 +221,69 @@ namespace SpriteStudio.Runtime
             return variant;
         }
 
-        // Destroy runtime-created materials (blend variants and the white base; clones only). The
-        // serialized base materials must not be touched here.
+        /// <summary>
+        /// Resolve a mask-test colour material for a (textureHash, blendType) pair: the per-blend
+        /// colour material plus a stencil test. <paramref name="stencilComp"/> is a
+        /// UnityEngine.Rendering.CompareFunction (NotEqual = draw inside the mask, Equal = outside).
+        /// Cached per (textureHash, blend, comp) via the shared variant dictionary. Returns null only
+        /// when the base material cannot be resolved.
+        /// </summary>
+        public Material ResolveTestMaterial(uint textureHash, byte blendType, byte stencilComp)
+        {
+            var baseMat = (textureHash == 0) ? GetWhiteBaseMaterial() : ResolveMaterialForHash(textureHash);
+            if (baseMat == null) return null;
+
+            var key = new SpriteStudioMaterialKey(textureHash, blendType, stencilComp);
+            if (_materialVariants != null && _materialVariants.TryGetValue(key, out var cached) && cached != null)
+            {
+                return cached;
+            }
+
+            if (_materialVariants == null) _materialVariants = new Dictionary<SpriteStudioMaterialKey, Material>();
+            var variant = SpriteStudioMaterial.CreateTestVariant(baseMat, blendType, stencilComp);
+            _materialVariants[key] = variant;
+            return variant;
+        }
+
+        /// <summary>
+        /// Resolve a stencil-write material (SpriteStudio/MaskWrite) for a mask writer.
+        /// <paramref name="stencilOp"/> is a UnityEngine.Rendering.StencilOp (IncrementWrap /
+        /// DecrementWrap / Invert). The writer's texture is taken from the colour material for the
+        /// same hash; the per-frame _MaskThreshold is supplied by the player via a
+        /// MaterialPropertyBlock. Cached per (textureHash, op). Null if the shader is missing.
+        /// </summary>
+        public Material ResolveMaskWriteMaterial(uint textureHash, byte stencilOp)
+        {
+            if (_maskWriteShader == null)
+            {
+                _maskWriteShader = Shader.Find("SpriteStudio/MaskWrite");
+                if (_maskWriteShader == null) return null;
+            }
+
+            var key = (textureHash, stencilOp);
+            if (_maskWriteVariants != null && _maskWriteVariants.TryGetValue(key, out var cached) && cached != null)
+            {
+                return cached;
+            }
+
+            // Cell-less writers (TextureHash 0, e.g. Shape masks) have no texture; the geometry is the
+            // mask and the shader's "white" default keeps every covered texel.
+            Texture tex = null;
+            if (textureHash != 0)
+            {
+                var colorMat = ResolveMaterialForHash(textureHash);
+                if (colorMat != null) tex = colorMat.mainTexture;
+            }
+
+            if (_maskWriteVariants == null) _maskWriteVariants = new Dictionary<(uint, byte), Material>();
+            var m = SpriteStudioMaterial.CreateMaskWriteMaterial(_maskWriteShader, tex, stencilOp);
+            if (m == null) return null;
+            _maskWriteVariants[key] = m;
+            return m;
+        }
+
+        // Destroy runtime-created materials (blend / test / mask-write variants and the white base;
+        // clones only). The serialized base materials must not be touched here.
         private void OnDisable()
         {
             if (_whiteBaseMaterial != null)
@@ -226,14 +291,26 @@ namespace SpriteStudio.Runtime
                 if (Application.isPlaying) Destroy(_whiteBaseMaterial); else DestroyImmediate(_whiteBaseMaterial);
                 _whiteBaseMaterial = null;
             }
-            if (_materialVariants == null) return;
-            foreach (var kv in _materialVariants)
+            if (_materialVariants != null)
             {
-                var m = kv.Value;
-                if (m == null) continue;
-                if (Application.isPlaying) Destroy(m); else DestroyImmediate(m);
+                foreach (var kv in _materialVariants)
+                {
+                    var m = kv.Value;
+                    if (m == null) continue;
+                    if (Application.isPlaying) Destroy(m); else DestroyImmediate(m);
+                }
+                _materialVariants.Clear();
             }
-            _materialVariants.Clear();
+            if (_maskWriteVariants != null)
+            {
+                foreach (var kv in _maskWriteVariants)
+                {
+                    var m = kv.Value;
+                    if (m == null) continue;
+                    if (Application.isPlaying) Destroy(m); else DestroyImmediate(m);
+                }
+                _maskWriteVariants.Clear();
+            }
         }
 
         /// <summary>

@@ -75,6 +75,56 @@ namespace SpriteStudio.Runtime
         private bool _hasInstanceParts;
         // この SSAB に Effect パートが 1 つでもあるか (フレーム重複スキップの可否判定に使う)。
         private bool _hasEffectParts;
+
+        /// <summary>
+        /// Static per-part mask metadata, derived once at load from ssab PartData. Mirrors the
+        /// static inputs of SSPlayerForGodot's _build_mask_writers (ss_internal_player.cpp:659):
+        /// the per-frame inputs (draw-order rank for scope, threshold via PartState.Mask, hide)
+        /// are resolved later in the draw loop, not here.
+        /// </summary>
+        internal struct MaskPartData
+        {
+            public bool IsMaskPart;        // part_type == PartTypeMask
+            public bool DrawAsMask;        // unified pure-mask flag (shape/text/nines mask)
+            public bool MaskWrite;         // clipping writer flag
+            public bool MaskInfluence;     // writer OP (false=increment / true=invert); on a drawn target = mask opt-in
+            public bool VisibleInsideMask; // target polarity (draw where masked == VisibleInsideMask)
+            // Derived (static), mirroring _build_mask_writers:
+            public bool PureMask;          // IsMaskPart || DrawAsMask: draws no colour, masks parts drawn BEFORE it
+            public bool Writes;            // PureMask || MaskWrite: contributes stencil coverage
+            public bool IsClipping;        // MaskWrite && !PureMask: draws normally, masks parts drawn AFTER it
+            // Geometry kind the mesh job uses to build this part's stencil-write geometry. PartTypeMask
+            // has no colour batch, so it is built as a Normal quad from local vertices (like Godot's
+            // _render_mask_coverage, which routes Mask through _build_normal).
+            public byte DrawKind;          // SsDrawBatchKind: Normal / Shape / Mesh
+        }
+        // Per-part static mask metadata (index-aligned with ssab parts). Null until SetupSlots runs.
+        private MaskPartData[] _maskPartData;
+        // True when this ssab has at least one mask writer (pure mask or clipping). When false the
+        // whole mask path is skipped, like _build_mask_writers returning empty.
+        private bool _hasMaskParts;
+
+        /// <summary>
+        /// Per-frame mask writer, rebuilt each frame from the draw order (rank = scope pivot).
+        /// Mirrors SSPlayerForGodot's MaskWriter / _build_mask_writers (ss_internal_player.cpp:659).
+        /// </summary>
+        internal struct MaskWriter
+        {
+            public int PartIndex;
+            public ushort DrawRank;  // index into draw_order: the writer's scope pivot
+            public bool OpInvert;    // false = increment / true = invert (PartData.MaskInfluence)
+            public bool IsClipping;  // true = masks parts drawn AFTER (rank > self) / false (pure) = BEFORE
+            public float Threshold;  // (255 - PartState.Mask)/255; texel.a <= threshold is discarded
+        }
+        // Mask writers for the current frame (rebuilt by BuildMaskWriters). Managed: consumed on the
+        // main thread when assigning stencil-write submeshes / materials.
+        private MaskWriter[] _maskWriters;
+        private int _maskWriterCount;
+        // Per-part (texture hash, blend) for the current frame, harvested from the draw batches so the
+        // mask path can resolve a writer's texture (Mask twins carry texture 0; the part's colour batch
+        // carries the real one). Index-aligned with parts; only filled when _hasMaskParts.
+        private uint[] _maskPartTexHash;
+        private byte[] _maskPartBlend;
         // 前回ビルドした整数フレーム (subFrame 無効時のフレーム重複スキップ判定用、未ビルドは NaN)。
         private float _lastBuiltDrawFrameNo = float.NaN;
         // PrepareFrameData が確定した描画フレーム番号。並列 get_frame_data / ConsumeFrameData が共有する。
@@ -157,6 +207,8 @@ namespace SpriteStudio.Runtime
         {
             _hasInstanceParts = false;
             _hasEffectParts = false;
+            _hasMaskParts = false;
+            _maskPartData = null;
             _effectPartCount = 0;
             _instancePartCount = 0;
             _lastBuiltDrawFrameNo = float.NaN; // 再ロード時は必ず再構築する
@@ -199,13 +251,41 @@ namespace SpriteStudio.Runtime
                 _instanceChildren = new InstanceChildState[partsLength];
                 _effectPartIndices = new int[partsLength];
                 _instancePartIndices = new int[partsLength];
+                _maskPartData = new MaskPartData[partsLength];
 
                 for (int i = 0; i < partsLength; i++)
                 {
                     var pObj = binary.Parts(i);
                     if (!pObj.HasValue) continue;
                     var p = pObj.Value;
-                    
+
+                    // Cache the static mask flags for every part (any Normal/Mesh/Shape/Mask part can
+                    // be a writer or a target). Derivation mirrors _build_mask_writers exactly.
+                    {
+                        bool isMaskPart = p.PartTypeType == ss.format.PartType.PartTypeMask;
+                        bool drawAsMask = p.DrawAsMask;
+                        bool maskWrite = p.MaskWrite;
+                        bool pureMask = isMaskPart || drawAsMask;
+                        bool writes = pureMask || maskWrite;
+                        // Geometry kind for the mesh job. PartTypeMask -> Normal quad (no colour batch).
+                        byte drawKind = SsDrawBatchKind.Normal;
+                        if (p.PartTypeType == ss.format.PartType.PartTypeShape) drawKind = SsDrawBatchKind.Shape;
+                        else if (p.PartTypeType == ss.format.PartType.PartTypeMesh) drawKind = SsDrawBatchKind.Mesh;
+                        _maskPartData[i] = new MaskPartData
+                        {
+                            IsMaskPart = isMaskPart,
+                            DrawAsMask = drawAsMask,
+                            MaskWrite = maskWrite,
+                            MaskInfluence = p.MaskInfluence,
+                            VisibleInsideMask = p.VisibleInsideMask,
+                            PureMask = pureMask,
+                            Writes = writes,
+                            IsClipping = maskWrite && !pureMask,
+                            DrawKind = drawKind,
+                        };
+                        if (writes) _hasMaskParts = true;
+                    }
+
                     if (p.PartTypeType == ss.format.PartType.PartTypeEffect)
                     {
                         var pt = p.PartTypeAsPartTypeEffect();
@@ -433,15 +513,43 @@ namespace SpriteStudio.Runtime
         // Job では使わず main thread でのみ参照するため managed 配列で保持する。
         // BlendType is the ssab BlendType (0..7) used to resolve the per-blend material variant.
         // Effect submeshes keep Mix here (their additive path is handled in-shader for now).
-        public struct SubmeshInfo { public int IndexStart; public int IndexCount; public uint TextureHash; public byte BlendType; }
+        // Stencil role of a submesh. None = a plain colour submesh (existing behaviour). Write =
+        // the SpriteStudio/MaskWrite pass (ColorMask 0) that increments/decrements/inverts the
+        // isolated stencil bits (covers both the pure-mask "write" and its "restore"; the op
+        // distinguishes them). Test = a colour submesh that is kept/discarded by a stencil compare.
+        public enum StencilRole : byte { None = 0, Write = 1, Test = 2 }
 
-        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        private void EmitSubmesh(int indexStart, int indexCount, uint textureHash, byte blendType)
+        public struct SubmeshInfo
         {
-            if (_submeshCount > 0)
+            public int IndexStart;
+            public int IndexCount;
+            public uint TextureHash;
+            public byte BlendType;
+            // Stencil state (only meaningful when Role != None). Op/Comp hold the corresponding
+            // UnityEngine.Rendering.StencilOp / CompareFunction values; the masks/ref are the
+            // bit-isolated stencil values; MaskThreshold = (255 - mask)/255 for Write (<0 = no cutout).
+            public StencilRole Role;
+            public byte StencilOp;        // Write: StencilOp (IncrWrap/DecrWrap/Invert/...)
+            public byte StencilComp;      // Test: CompareFunction (Equal/NotEqual/...)
+            public byte StencilRef;
+            public byte StencilReadMask;
+            public byte StencilWriteMask;
+            public float MaskThreshold;
+        }
+
+        // Append a submesh, dynamically merging into the previous one to enable batching (origin/main
+        // perf work). Merging is restricted to plain colour submeshes (Role None) of the same texture
+        // + blend: mask submeshes carry per-submesh stencil state and a strict draw order, so they are
+        // never merged. Auto-grows the buffer.
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        private void EmitSubmesh(int indexStart, int indexCount, uint textureHash, byte blendType,
+            StencilRole role = StencilRole.None, byte stencilOp = 0, byte stencilComp = 0, byte stencilRef = 0,
+            byte stencilReadMask = 0, byte stencilWriteMask = 0, float maskThreshold = 0f)
+        {
+            if (role == StencilRole.None && _submeshCount > 0)
             {
                 ref var last = ref _submeshes[_submeshCount - 1];
-                if (last.TextureHash == textureHash && last.BlendType == blendType)
+                if (last.Role == StencilRole.None && last.TextureHash == textureHash && last.BlendType == blendType)
                 {
                     last.IndexCount += indexCount;
                     return;
@@ -458,7 +566,14 @@ namespace SpriteStudio.Runtime
                 IndexStart = indexStart,
                 IndexCount = indexCount,
                 TextureHash = textureHash,
-                BlendType = blendType
+                BlendType = blendType,
+                Role = role,
+                StencilOp = stencilOp,
+                StencilComp = stencilComp,
+                StencilRef = stencilRef,
+                StencilReadMask = stencilReadMask,
+                StencilWriteMask = stencilWriteMask,
+                MaskThreshold = maskThreshold
             };
         }
         private SubmeshInfo[] _submeshes;
@@ -575,6 +690,139 @@ namespace SpriteStudio.Runtime
                 NativeMethods.ss_runtime_get_frame_data((void*)handle, _pendingDrawFrame, &p, &l);
                 ConsumeFrameData((System.IntPtr)p, (int)l, deltaTime);
             }
+        }
+
+        /// <summary>
+        /// Rebuilds <see cref="_maskWriters"/> for the current frame from the draw order, mirroring
+        /// SSPlayerForGodot's _build_mask_writers: a writer is any part whose static MaskPartData
+        /// marks it as writing (pure mask or clipping). Hidden masks are already excluded from the
+        /// draw order by the runtime, so iterating draw_order is sufficient. The per-frame threshold
+        /// comes from PartState.Mask: (255 - mask) / 255 (texel alpha &lt;= threshold is cut out).
+        /// </summary>
+        private void BuildMaskWriters(ss.runtime.FrameData frameData, int drawOrderLength, int partsLength)
+        {
+            _maskWriterCount = 0;
+            if (!_hasMaskParts || _maskPartData == null) return;
+            if (_maskWriters == null || _maskWriters.Length < drawOrderLength)
+            {
+                _maskWriters = new MaskWriter[drawOrderLength < 1 ? 1 : drawOrderLength];
+            }
+            for (int rank = 0; rank < drawOrderLength; rank++)
+            {
+                int p_idx = _drawOrder[rank];
+                if (p_idx < 0 || p_idx >= partsLength || p_idx >= _maskPartData.Length) continue;
+                var md = _maskPartData[p_idx];
+                if (!md.Writes) continue;
+                var ps = frameData.Parts(p_idx);
+                if (!ps.HasValue) continue;
+                _maskWriters[_maskWriterCount++] = new MaskWriter
+                {
+                    PartIndex = p_idx,
+                    DrawRank = (ushort)rank,
+                    OpInvert = md.MaskInfluence,
+                    IsClipping = md.IsClipping,
+                    Threshold = (255f - ps.Value.Mask) / 255f,
+                };
+            }
+        }
+
+        // Stencil op / compare values used by the mask path (UnityEngine.Rendering enums as bytes).
+        private const byte StencilOpIncr = (byte)UnityEngine.Rendering.StencilOp.IncrementWrap;   // 7
+        private const byte StencilOpDecr = (byte)UnityEngine.Rendering.StencilOp.DecrementWrap;   // 8
+        private const byte StencilOpInvert = (byte)UnityEngine.Rendering.StencilOp.Invert;        // 5
+        private const byte StencilCompEqual = (byte)UnityEngine.Rendering.CompareFunction.Equal;       // 3 (draw outside mask)
+        private const byte StencilCompNotEqual = (byte)UnityEngine.Rendering.CompareFunction.NotEqual; // 6 (draw inside mask)
+
+        /// <summary>
+        /// Harvest each part's (texture hash, blend) for the current frame from the draw batches.
+        /// A Mask twin carries texture 0; the part's colour batch (emitted after the twin) carries the
+        /// real texture and overwrites it. PartTypeMask parts have only a Mask batch (real texture).
+        /// </summary>
+        private void BuildMaskPartLookup(ss.runtime.FrameData frameData, int drawBatchesLength, int drawOrderLength, int partsLength)
+        {
+            if (_maskPartTexHash == null || _maskPartTexHash.Length < partsLength)
+            {
+                _maskPartTexHash = new uint[partsLength < 1 ? 1 : partsLength];
+                _maskPartBlend = new byte[partsLength < 1 ? 1 : partsLength];
+            }
+            for (int i = 0; i < partsLength; i++) { _maskPartTexHash[i] = 0; _maskPartBlend[i] = 0; }
+
+            for (int bi = 0; bi < drawBatchesLength; bi++)
+            {
+                var b = frameData.DrawBatches(bi).Value;
+                var k = b.Kind;
+                if (k != ss.runtime.DrawBatchKind.Normal && k != ss.runtime.DrawBatchKind.Shape
+                    && k != ss.runtime.DrawBatchKind.Mesh && k != ss.runtime.DrawBatchKind.Mask) continue;
+                for (int j = 0; j < b.Count; j++)
+                {
+                    int rank = b.StartRank + j;
+                    if (rank < 0 || rank >= drawOrderLength) continue;
+                    int p_idx = _drawOrder[rank];
+                    if (p_idx < 0 || p_idx >= partsLength) continue;
+                    _maskPartTexHash[p_idx] = b.TextureHash;
+                    _maskPartBlend[p_idx] = (byte)b.BlendType;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Vertex / index count a part contributes for the given mesh-job kind, matching the job's
+        /// builders exactly (Normal: 4/5 with centre, Shape: fan, Mesh: CSR slice). False = degenerate.
+        /// </summary>
+        private unsafe bool MaskPartVcIc(int p_idx, byte kind, in DrawFrame frame, out int vc, out int ic)
+        {
+            vc = 0; ic = 0;
+            if (kind == SsDrawBatchKind.Normal)
+            {
+                bool needsCenter = (_partStates[p_idx].UpdateFlag & SsUpdateFlag.NeedsCenterMask) != 0;
+                vc = needsCenter ? 5 : 4;
+                ic = needsCenter ? 12 : 6;
+                return true;
+            }
+            if (kind == SsDrawBatchKind.Shape)
+            {
+                int svc = frame.ShapeVertexCounts[p_idx];
+                if (svc < 3) return false;
+                vc = svc; ic = (svc - 2) * 3;
+                return true;
+            }
+            if (kind == SsDrawBatchKind.Mesh)
+            {
+                uint v0 = frame.MeshVertexOffsets[p_idx];
+                uint v1 = frame.MeshVertexOffsets[p_idx + 1];
+                uint i0 = frame.MeshIndexOffsets[p_idx];
+                uint i1 = frame.MeshIndexOffsets[p_idx + 1];
+                if (!(v1 > v0 && i1 > i0 && (i1 - i0) % 3 == 0)) return false;
+                vc = (int)(v1 - v0); ic = (int)(i1 - i0);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Emit one mask render step: a single-part geometry batch (built by the mesh job) plus a
+        /// submesh carrying its stencil role/params. Geometry is rebuilt per step, so a writer that
+        /// both writes and later restores costs two builds (cheap; masks are few).
+        /// </summary>
+        private void EmitMaskStep(byte kind, int rank, int vc, int ic, uint texHash, byte blend,
+            StencilRole role, byte stencilOp, byte stencilComp, float threshold,
+            ref int totalVertices, ref int totalIndices)
+        {
+            _drawBatches[_drawBatchCount++] = new DrawBatchData
+            {
+                StartRank = (ushort)rank,
+                Count = 1,
+                VertexCount = vc,
+                IndexCount = ic,
+                Kind = kind
+            };
+            // Route through EmitSubmesh for the auto-grow path. Mask submeshes (role != None) are never
+            // merged, so each step stays its own submesh and keeps its stencil ordering.
+            EmitSubmesh(totalIndices, ic, texHash, blend, role, stencilOp, stencilComp, 0,
+                SpriteStudioMaterial.MaskStencilMask,
+                role == StencilRole.Write ? SpriteStudioMaterial.MaskStencilMask : (byte)0, threshold);
+            totalVertices += vc;
+            totalIndices += ic;
         }
 
         /// <summary>
@@ -744,6 +992,11 @@ namespace SpriteStudio.Runtime
                     }
                 }
 
+                // Masking emits per-part submeshes (no batch merge) plus extra write/restore steps, so
+                // grow the batch/submesh budget. Each part contributes up to ~2 steps (test+write or
+                // colour-suppressed restore); the pre-write phase adds at most one per writer.
+                if (_hasMaskParts) maxBatches += partsLength * 2 + _maskWriterCount;
+
                 // 永続バッファを grow-only で確保 (毎フレーム new しない)
                 EnsureCapacity(ref _drawBatches, maxBatches);
                 EnsureCapacity(ref _drawOrder, drawOrderLength);
@@ -774,6 +1027,10 @@ namespace SpriteStudio.Runtime
                     _frameDataByteBuffer.GetInt(_frameDataByteBuffer.Position) + _frameDataByteBuffer.Position, _frameDataByteBuffer);
                 CopyFbVector(tFrame, 16, frameDataPtr, _drawOrder, 0, drawOrderLength);
 
+                // Build the per-frame mask writer list (mirrors _build_mask_writers). Behaviour-neutral
+                // until the stencil submesh pipeline consumes it.
+                BuildMaskWriters(frameData, drawOrderLength, partsLength);
+
                 int totalVertices = 0;
                 int totalIndices = 0;
                 _submeshCount = 0;
@@ -781,6 +1038,29 @@ namespace SpriteStudio.Runtime
                 {
                     _submeshes = new SubmeshInfo[maxBatches < 1 ? 1 : maxBatches];
                 }
+
+                // Mask Phase A: harvest per-part textures, then pre-write every pure mask so the stencil
+                // reflects all of them before any body part is drawn. Each pure mask's coverage is
+                // removed again at its own rank in the main loop (Phase B), yielding the "mask affects
+                // lower-priority parts" scope (mirrors SS6PU's pre-draw + slot decrement).
+                if (_hasMaskParts)
+                {
+                    BuildMaskPartLookup(frameData, drawBatchesLength, drawOrderLength, partsLength);
+                    for (int wi = 0; wi < _maskWriterCount; wi++)
+                    {
+                        var w = _maskWriters[wi];
+                        if (w.IsClipping) continue; // clipping writes at its own rank (Phase B), not pre-written
+                        int wp = w.PartIndex;
+                        if (wp < 0 || wp >= partsLength) continue;
+                        var md = _maskPartData[wp];
+                        if (!MaskPartVcIc(wp, md.DrawKind, frame, out int wvc, out int wic)) continue;
+                        byte op = w.OpInvert ? StencilOpInvert : StencilOpIncr;
+                        float threshold = md.DrawKind == SsDrawBatchKind.Shape ? -1f : w.Threshold;
+                        EmitMaskStep(md.DrawKind, w.DrawRank, wvc, wic, _maskPartTexHash[wp], _maskPartBlend[wp],
+                            StencilRole.Write, op, 0, threshold, ref totalVertices, ref totalIndices);
+                    }
+                }
+
                 for (int i = 0; i < drawBatchesLength; i++)
                 {
                     var b = frameData.DrawBatches(i).Value;
@@ -817,10 +1097,42 @@ namespace SpriteStudio.Runtime
                                     IndexCount = cic
                                 };
 
+                                // Parent-mask inheritance (single level): if this instance part is a
+                                // mask target, stencil-test the whole child sub-animation against the
+                                // shared coverage. Mirrors Godot's _emit_instance_slot mask path.
+                                StencilRole instRole = StencilRole.None;
+                                byte instComp = 0;
+                                if (_hasMaskParts)
+                                {
+                                    var imd = _maskPartData[p_idx];
+                                    if (imd.MaskInfluence || imd.MaskWrite)
+                                    {
+                                        instRole = StencilRole.Test;
+                                        instComp = imd.VisibleInsideMask ? StencilCompNotEqual : StencilCompEqual;
+                                    }
+                                }
+
                                 for (int sm = 0; sm < childPlayer.SubmeshCount; sm++)
                                 {
-                                    var childSubmesh = childPlayer.Submeshes[sm];
-                                    EmitSubmesh(totalIndices + childSubmesh.IndexStart, childSubmesh.IndexCount, childSubmesh.TextureHash, childSubmesh.BlendType);
+                                    var cs = childPlayer.Submeshes[sm];
+                                    // Preserve the child's own stencil role so its internal masks still
+                                    // work (its write submeshes stay ColorMask-0 writes instead of leaking
+                                    // as colour, and its test/restore sequence is kept verbatim/contiguous
+                                    // = self-restoring). Only a plain child colour submesh (Role None)
+                                    // inherits the parent's mask test (and stays mergeable via EmitSubmesh).
+                                    // NOTE single level: a parent mask and a child mask share the isolated
+                                    // stencil bits, so a child part that is itself masked is not additionally
+                                    // parent-clipped, and simultaneous overlap of the two is a known limit.
+                                    StencilRole cr = cs.Role;
+                                    byte cComp = cs.StencilComp, cRMask = cs.StencilReadMask;
+                                    if (cs.Role == StencilRole.None && instRole == StencilRole.Test)
+                                    {
+                                        cr = StencilRole.Test;
+                                        cComp = instComp;
+                                        cRMask = SpriteStudioMaterial.MaskStencilMask;
+                                    }
+                                    EmitSubmesh(totalIndices + cs.IndexStart, cs.IndexCount, cs.TextureHash, cs.BlendType,
+                                        cr, cs.StencilOp, cComp, cs.StencilRef, cRMask, cs.StencilWriteMask, cs.MaskThreshold);
                                 }
 
                                 totalVertices += cvc;
@@ -838,6 +1150,20 @@ namespace SpriteStudio.Runtime
                             
                             var plan = _effectPlans[p_idx];
                             if (plan.CommandCount == 0) continue;
+
+                            // Parent-mask inheritance: stencil-test the effect quads when this effect
+                            // part is a mask target (same single-level rule as Instance / Normal).
+                            StencilRole effRole = StencilRole.None;
+                            byte effComp = 0;
+                            if (_hasMaskParts)
+                            {
+                                var emd = _maskPartData[p_idx];
+                                if (emd.MaskInfluence || emd.MaskWrite)
+                                {
+                                    effRole = StencilRole.Test;
+                                    effComp = emd.VisibleInsideMask ? StencilCompNotEqual : StencilCompEqual;
+                                }
+                            }
 
                             for (int c = 0; c < plan.CommandCount; c++)
                             {
@@ -861,10 +1187,11 @@ namespace SpriteStudio.Runtime
                                         EffectPartIndex = p_idx
                                     };
                                     
-                                    // Effect keeps Mix; its Mix/Add is still handled by the in-shader
-                                    // a=0 trick (see SpriteStudioDefault.shader TODO). Migrate to a
-                                    // per-blend material later.
-                                    EmitSubmesh(totalIndices, cmdIc, cmd.CellmapHash, cmd.Blend == 1 ? (byte)2 : (byte)0);
+                                    // Per-blend effect material (origin/main: Add when cmd.Blend == 1,
+                                    // else Mix), plus the parent-mask stencil test when this effect part
+                                    // is a mask target.
+                                    EmitSubmesh(totalIndices, cmdIc, cmd.CellmapHash, cmd.Blend == 1 ? (byte)2 : (byte)0,
+                                        effRole, 0, effComp, 0, effRole == StencilRole.Test ? SpriteStudioMaterial.MaskStencilMask : (byte)0, 0, 0f);
                                     
                                     totalVertices += cmdVc;
                                     totalIndices += cmdIc;
@@ -874,6 +1201,52 @@ namespace SpriteStudio.Runtime
                     }
                     else if (b.Kind == ss.runtime.DrawBatchKind.Normal || b.Kind == ss.runtime.DrawBatchKind.Shape || b.Kind == ss.runtime.DrawBatchKind.Mesh)
                     {
+                        if (_hasMaskParts)
+                        {
+                            // Phase B (rank order): emit each part per-part with its stencil role.
+                            byte kind = (byte)b.Kind;
+                            for (int k = 0; k < b.Count; k++)
+                            {
+                                int rank = b.StartRank + k;
+                                int p_idx = _drawOrder[rank];
+                                if (p_idx < 0 || p_idx >= partsLength) continue;
+                                if (!MaskPartVcIc(p_idx, kind, frame, out int pvc, out int pic)) continue;
+                                var md = _maskPartData[p_idx];
+                                if (md.PureMask)
+                                {
+                                    // draw_as_mask: suppress colour, restore (pre-written in Phase A).
+                                    byte rop = md.MaskInfluence ? StencilOpInvert : StencilOpDecr;
+                                    float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
+                                    EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                                        StencilRole.Write, rop, 0, th, ref totalVertices, ref totalIndices);
+                                }
+                                else
+                                {
+                                    bool maskTarget = md.MaskInfluence || md.MaskWrite;
+                                    if (maskTarget)
+                                    {
+                                        byte comp = md.VisibleInsideMask ? StencilCompNotEqual : StencilCompEqual;
+                                        EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                                            StencilRole.Test, 0, comp, 0f, ref totalVertices, ref totalIndices);
+                                    }
+                                    else
+                                    {
+                                        EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                                            StencilRole.None, 0, 0, 0f, ref totalVertices, ref totalIndices);
+                                    }
+                                    if (md.IsClipping)
+                                    {
+                                        // Clipping also writes coverage at its own rank (no restore -> affects later parts).
+                                        byte wop = md.MaskInfluence ? StencilOpInvert : StencilOpIncr;
+                                        float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
+                                        EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                                            StencilRole.Write, wop, 0, th, ref totalVertices, ref totalIndices);
+                                    }
+                                }
+                            }
+                            continue; // masked per-part handling replaces the batch-merge below
+                        }
+
                         for (int k = 0; k < b.Count; k++)
                         {
                             int rank = b.StartRank + k;
@@ -924,6 +1297,26 @@ namespace SpriteStudio.Runtime
 
                             totalVertices += vc;
                             totalIndices += ic;
+                        }
+                    }
+                    else if (b.Kind == ss.runtime.DrawBatchKind.Mask && _hasMaskParts)
+                    {
+                        // PartTypeMask parts arrive as a Mask batch (vc/ic = 0) and are built as a
+                        // Normal quad. The write happened in Phase A; restore here at the mask's rank.
+                        // Mask twins (texture 0) for draw_as_mask / clipping parts are skipped — those
+                        // are handled via their colour batch in the Normal/Shape/Mesh branch above.
+                        for (int k = 0; k < b.Count; k++)
+                        {
+                            int rank = b.StartRank + k;
+                            int p_idx = _drawOrder[rank];
+                            if (p_idx < 0 || p_idx >= partsLength) continue;
+                            var md = _maskPartData[p_idx];
+                            if (!md.IsMaskPart) continue;
+                            if (!MaskPartVcIc(p_idx, SsDrawBatchKind.Normal, frame, out int mvc, out int mic)) continue;
+                            byte rop = md.MaskInfluence ? StencilOpInvert : StencilOpDecr;
+                            float th = (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
+                            EmitMaskStep(SsDrawBatchKind.Normal, rank, mvc, mic, b.TextureHash, (byte)b.BlendType,
+                                StencilRole.Write, rop, 0, th, ref totalVertices, ref totalIndices);
                         }
                     }
                 }

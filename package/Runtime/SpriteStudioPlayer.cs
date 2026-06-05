@@ -214,10 +214,12 @@ namespace SpriteStudio.Runtime
 
         private readonly System.Collections.Generic.List<Material> _submeshMaterials = new System.Collections.Generic.List<Material>();
         private uint _lastMaterialSignature;
+        private MaterialPropertyBlock _maskMpb;
 
         /// <summary>
-        /// SubMesh (= 描画バッチ) ごとに、テクスチャハッシュへ対応するマテリアルを割り当てる。
-        /// バッチ構成が前フレームと同じなら再割り当てしない (毎フレームのアロケーションを避ける)。
+        /// SubMesh (= 描画バッチ) ごとに、テクスチャハッシュ + ステンシルロールへ対応するマテリアルを割り当てる。
+        /// 構成 (SubMesh 数 / texture / blend / role / op / comp) が前フレームと同じなら再割り当てしない。
+        /// マスク書込 SubMesh の閾値 (_MaskThreshold) は毎フレーム変わり得るので MaterialPropertyBlock で別途設定する。
         /// </summary>
         private void UpdateSubmeshMaterials()
         {
@@ -226,44 +228,77 @@ namespace SpriteStudio.Runtime
             int subCount = _core.Internal.SubmeshCount;
             if (subCount <= 0) return;
 
-            // 構成 (SubMesh 数 + 各テクスチャハッシュ) のシグネチャが不変なら再割り当てしない
+            var submeshes = _core.Internal.Submeshes;
+
+            // 構成シグネチャ。threshold は per-frame 可変なのでここには含めず MPB で渡す。
             uint signature = (uint)subCount;
+            bool hasWrite = false;
             for (int s = 0; s < subCount; s++)
             {
-                signature = signature * 31u + _core.Internal.GetSubmeshTextureHash(s);
-                signature = signature * 31u + _core.Internal.GetSubmeshBlendType(s);
-            }
-            if (signature == _lastMaterialSignature && _submeshMaterials.Count == subCount)
-            {
-                return;
-            }
-            _lastMaterialSignature = signature;
-
-            _submeshMaterials.Clear();
-            if (_submeshMaterials.Capacity < subCount)
-            {
-                _submeshMaterials.Capacity = subCount;
+                var info = submeshes[s];
+                signature = signature * 31u + info.TextureHash;
+                signature = signature * 31u + info.BlendType;
+                signature = signature * 31u + (uint)info.Role;
+                signature = signature * 31u + info.StencilOp;
+                signature = signature * 31u + info.StencilComp;
+                if (info.Role == SpriteStudioInternalPlayer.StencilRole.Write) hasWrite = true;
             }
 
-            // 対応不明時のフォールバック先。自身の Materials が空でも外部参照で解決できる場合があるため、
-            // ここでは early-return せず submesh ごとに解決する。
-            var mats = _animeAsset.Materials;
-            Material fallback = (mats != null && mats.Count > 0) ? mats[0] : null;
-
-            for (int s = 0; s < subCount; s++)
+            if (signature != _lastMaterialSignature || _submeshMaterials.Count != subCount)
             {
-                uint hash = _core.Internal.GetSubmeshTextureHash(s);
-                byte blend = _core.Internal.GetSubmeshBlendType(s);
-                // Resolve self -> Instance external reference, then apply the per-blend material variant.
-                var mat = _animeAsset.ResolveMaterial(hash, blend);
-                if (mat == null)
+                _lastMaterialSignature = signature;
+                _submeshMaterials.Clear();
+                if (_submeshMaterials.Capacity < subCount)
                 {
-                    Debug.LogError($"[SpriteStudioPlayer] TextureHash {hash} not found in AnimeAsset or its external references (Submesh {s}). Falling back to material 0.");
-                    mat = fallback;
+                    _submeshMaterials.Capacity = subCount;
                 }
-                _submeshMaterials.Add(mat);
+
+                // 対応不明時のフォールバック先。自身の Materials が空でも外部参照で解決できる場合があるため、
+                // ここでは early-return せず submesh ごとに解決する。
+                var mats = _animeAsset.Materials;
+                Material fallback = (mats != null && mats.Count > 0) ? mats[0] : null;
+
+                for (int s = 0; s < subCount; s++)
+                {
+                    var info = submeshes[s];
+                    Material mat;
+                    switch (info.Role)
+                    {
+                        case SpriteStudioInternalPlayer.StencilRole.Write:
+                            mat = _animeAsset.ResolveMaskWriteMaterial(info.TextureHash, info.StencilOp);
+                            break;
+                        case SpriteStudioInternalPlayer.StencilRole.Test:
+                            mat = _animeAsset.ResolveTestMaterial(info.TextureHash, info.BlendType, info.StencilComp);
+                            break;
+                        default:
+                            // Resolve self -> Instance external reference, then apply the per-blend material variant.
+                            mat = _animeAsset.ResolveMaterial(info.TextureHash, info.BlendType);
+                            break;
+                    }
+                    if (mat == null)
+                    {
+                        Debug.LogError($"[SpriteStudioPlayer] TextureHash {info.TextureHash} not resolved (Submesh {s}, role {info.Role}). Falling back to material 0.");
+                        mat = fallback;
+                    }
+                    _submeshMaterials.Add(mat);
+                }
+                _meshRenderer.SetSharedMaterials(_submeshMaterials);
             }
-            _meshRenderer.SetSharedMaterials(_submeshMaterials);
+
+            // マスク書込 SubMesh の cutout 閾値を per-submesh MaterialPropertyBlock で毎フレーム設定する
+            // (閾値はアニメーションし得るので material-list キャッシュとは独立に更新する)。
+            if (hasWrite)
+            {
+                for (int s = 0; s < subCount; s++)
+                {
+                    var info = submeshes[s];
+                    if (info.Role != SpriteStudioInternalPlayer.StencilRole.Write) continue;
+                    if (_maskMpb == null) _maskMpb = new MaterialPropertyBlock();
+                    _meshRenderer.GetPropertyBlock(_maskMpb, s);
+                    _maskMpb.SetFloat(SpriteStudioMaterial.IdMaskThreshold, info.MaskThreshold);
+                    _meshRenderer.SetPropertyBlock(_maskMpb, s);
+                }
+            }
         }
 
         #region ITimeControl (Timeline 連携)
