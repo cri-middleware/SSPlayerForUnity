@@ -1078,17 +1078,37 @@ namespace SpriteStudio.Runtime
 
                                 for (int sm = 0; sm < childPlayer.SubmeshCount; sm++)
                                 {
-                                    var childSubmesh = childPlayer.Submeshes[sm];
-                                    _submeshes[_submeshCount++] = new SubmeshInfo
+                                    var cs = childPlayer.Submeshes[sm];
+                                    // Preserve the child's own stencil role so its internal masks still
+                                    // work (its write submeshes stay ColorMask-0 writes instead of
+                                    // leaking as colour, and its test/restore sequence is kept verbatim
+                                    // and contiguous = self-restoring). Only a plain child colour submesh
+                                    // (Role None) inherits the parent's mask test. NOTE single level: a
+                                    // parent mask and a child mask share the isolated stencil bits, so a
+                                    // child part that is itself masked is not additionally parent-clipped,
+                                    // and simultaneous overlap of the two is a known limitation.
+                                    var si = new SubmeshInfo
                                     {
-                                        IndexStart = totalIndices + childSubmesh.IndexStart,
-                                        IndexCount = childSubmesh.IndexCount,
-                                        TextureHash = childSubmesh.TextureHash,
-                                        BlendType = childSubmesh.BlendType, // inherit the child's per-submesh blend
-                                        Role = instRole,
-                                        StencilComp = instComp,
-                                        StencilReadMask = instRole == StencilRole.Test ? SpriteStudioMaterial.MaskStencilMask : (byte)0
+                                        IndexStart = totalIndices + cs.IndexStart,
+                                        IndexCount = cs.IndexCount,
+                                        TextureHash = cs.TextureHash,
+                                        BlendType = cs.BlendType, // inherit the child's per-submesh blend
+                                        Role = cs.Role,
+                                        StencilOp = cs.StencilOp,
+                                        StencilComp = cs.StencilComp,
+                                        StencilRef = cs.StencilRef,
+                                        StencilReadMask = cs.StencilReadMask,
+                                        StencilWriteMask = cs.StencilWriteMask,
+                                        MaskThreshold = cs.MaskThreshold
                                     };
+                                    if (cs.Role == StencilRole.None && instRole == StencilRole.Test)
+                                    {
+                                        si.Role = StencilRole.Test;
+                                        si.StencilComp = instComp;
+                                        si.StencilRef = 0;
+                                        si.StencilReadMask = SpriteStudioMaterial.MaskStencilMask;
+                                    }
+                                    _submeshes[_submeshCount++] = si;
                                 }
 
                                 totalVertices += cvc;
