@@ -434,6 +434,33 @@ namespace SpriteStudio.Runtime
         // BlendType is the ssab BlendType (0..7) used to resolve the per-blend material variant.
         // Effect submeshes keep Mix here (their additive path is handled in-shader for now).
         public struct SubmeshInfo { public int IndexStart; public int IndexCount; public uint TextureHash; public byte BlendType; }
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        private void EmitSubmesh(int indexStart, int indexCount, uint textureHash, byte blendType)
+        {
+            if (_submeshCount > 0)
+            {
+                ref var last = ref _submeshes[_submeshCount - 1];
+                if (last.TextureHash == textureHash && last.BlendType == blendType)
+                {
+                    last.IndexCount += indexCount;
+                    return;
+                }
+            }
+            if (_submeshes == null || _submeshCount >= _submeshes.Length)
+            {
+                int newSize = _submeshes == null ? 8 : _submeshes.Length * 2;
+                if (newSize < _submeshCount + 1) newSize = _submeshCount + 1;
+                System.Array.Resize(ref _submeshes, newSize);
+            }
+            _submeshes[_submeshCount++] = new SubmeshInfo
+            {
+                IndexStart = indexStart,
+                IndexCount = indexCount,
+                TextureHash = textureHash,
+                BlendType = blendType
+            };
+        }
         private SubmeshInfo[] _submeshes;
         private int _submeshCount;
         // SetSubMeshes 用の永続バッファ (grow-only で使い回す)。
@@ -793,13 +820,7 @@ namespace SpriteStudio.Runtime
                                 for (int sm = 0; sm < childPlayer.SubmeshCount; sm++)
                                 {
                                     var childSubmesh = childPlayer.Submeshes[sm];
-                                    _submeshes[_submeshCount++] = new SubmeshInfo
-                                    {
-                                        IndexStart = totalIndices + childSubmesh.IndexStart,
-                                        IndexCount = childSubmesh.IndexCount,
-                                        TextureHash = childSubmesh.TextureHash,
-                                        BlendType = childSubmesh.BlendType // inherit the child's per-submesh blend
-                                    };
+                                    EmitSubmesh(totalIndices + childSubmesh.IndexStart, childSubmesh.IndexCount, childSubmesh.TextureHash, childSubmesh.BlendType);
                                 }
 
                                 totalVertices += cvc;
@@ -840,16 +861,10 @@ namespace SpriteStudio.Runtime
                                         EffectPartIndex = p_idx
                                     };
                                     
-                                    _submeshes[_submeshCount++] = new SubmeshInfo
-                                    {
-                                        IndexStart = totalIndices,
-                                        IndexCount = cmdIc,
-                                        TextureHash = cmd.CellmapHash,
-                                        // Effect keeps Mix; its Mix/Add is still handled by the in-shader
-                                        // a=0 trick (see SpriteStudioDefault.shader TODO). Migrate to a
-                                        // per-blend material later.
-                                        BlendType = SpriteStudioMaterial.BlendMix
-                                    };
+                                    // Effect keeps Mix; its Mix/Add is still handled by the in-shader
+                                    // a=0 trick (see SpriteStudioDefault.shader TODO). Migrate to a
+                                    // per-blend material later.
+                                    EmitSubmesh(totalIndices, cmdIc, cmd.CellmapHash, cmd.Blend == 1 ? (byte)2 : (byte)0);
                                     
                                     totalVertices += cmdVc;
                                     totalIndices += cmdIc;
@@ -905,13 +920,7 @@ namespace SpriteStudio.Runtime
                                 Kind = (byte)b.Kind
                             };
 
-                            _submeshes[_submeshCount++] = new SubmeshInfo
-                            {
-                                IndexStart = totalIndices,
-                                IndexCount = ic,
-                                TextureHash = b.TextureHash,
-                                BlendType = (byte)b.BlendType // ssab BlendType for the per-blend material
-                            };
+                            EmitSubmesh(totalIndices, ic, b.TextureHash, (byte)b.BlendType);
 
                             totalVertices += vc;
                             totalIndices += ic;
