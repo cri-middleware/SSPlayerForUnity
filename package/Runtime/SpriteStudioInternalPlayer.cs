@@ -93,6 +93,10 @@ namespace SpriteStudio.Runtime
             public bool PureMask;          // IsMaskPart || DrawAsMask: draws no colour, masks parts drawn BEFORE it
             public bool Writes;            // PureMask || MaskWrite: contributes stencil coverage
             public bool IsClipping;        // MaskWrite && !PureMask: draws normally, masks parts drawn AFTER it
+            // Geometry kind the mesh job uses to build this part's stencil-write geometry. PartTypeMask
+            // has no colour batch, so it is built as a Normal quad from local vertices (like Godot's
+            // _render_mask_coverage, which routes Mask through _build_normal).
+            public byte DrawKind;          // SsDrawBatchKind: Normal / Shape / Mesh
         }
         // Per-part static mask metadata (index-aligned with ssab parts). Null until SetupSlots runs.
         private MaskPartData[] _maskPartData;
@@ -258,6 +262,10 @@ namespace SpriteStudio.Runtime
                         bool maskWrite = p.MaskWrite;
                         bool pureMask = isMaskPart || drawAsMask;
                         bool writes = pureMask || maskWrite;
+                        // Geometry kind for the mesh job. PartTypeMask -> Normal quad (no colour batch).
+                        byte drawKind = SsDrawBatchKind.Normal;
+                        if (p.PartTypeType == ss.format.PartType.PartTypeShape) drawKind = SsDrawBatchKind.Shape;
+                        else if (p.PartTypeType == ss.format.PartType.PartTypeMesh) drawKind = SsDrawBatchKind.Mesh;
                         _maskPartData[i] = new MaskPartData
                         {
                             IsMaskPart = isMaskPart,
@@ -268,6 +276,7 @@ namespace SpriteStudio.Runtime
                             PureMask = pureMask,
                             Writes = writes,
                             IsClipping = maskWrite && !pureMask,
+                            DrawKind = drawKind,
                         };
                         if (writes) _hasMaskParts = true;
                     }
