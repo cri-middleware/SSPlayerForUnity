@@ -13,7 +13,7 @@ namespace SpriteStudio.Runtime
     /// </summary>
     [RequireComponent(typeof(RectTransform))]
     [ExecuteAlways]
-    public class SpriteStudioGraphic : Graphic, ISpriteStudioRenderable
+    public class SpriteStudioGraphic : MaskableGraphic, ISpriteStudioRenderable
     {
         [Header("SpriteStudio Asset")]
         [Tooltip("描画対象となるコンバート済みの ssab アセット")]
@@ -127,6 +127,12 @@ namespace SpriteStudio.Runtime
             }
 
             _core.EnsureCreated(_animeAsset, _subFrameEnabled);
+            // Canvas path: drop SpriteStudio internal masking and leave the stencil buffer to uGUI's
+            // own Mask/RectMask2D (project_unity_canvas_plan). Pure-mask parts then draw nothing and
+            // the rest draw unmasked; a parent uGUI Mask clips this graphic read-only via the per-
+            // submesh stencil wrap below.
+            if (_core.Internal != null) _core.Internal.SuppressInternalMask = true;
+            _canvasMaterialDirty = true;
             SpriteStudioUpdateManager.Register(this);
         }
 
@@ -137,11 +143,13 @@ namespace SpriteStudio.Runtime
             SpriteStudioUpdateManager.Unregister(this);
             _core.Dispose();
 
-            // クローン所有マテリアルを破棄し、次回有効化時に再解決させるためシグネチャを無効化する。
-            DestroyOwnedMaterials();
+            // Release the uGUI stencil wrappers (refcounted by StencilMaterial) and invalidate the
+            // material signature so OnEnable re-resolves from scratch.
+            ReleaseStencilWrappers();
             _canvasMaterials.Clear();
             _lastMaterialSignature = 0;
-            _hasWriteSubmesh = false;
+            _lastStencilDepth = -1;
+            _canvasMaterialDirty = true;
 
             if (_sharedMesh != null)
             {
@@ -203,112 +211,129 @@ namespace SpriteStudio.Runtime
             canvasRenderer.SetMesh(_sharedMesh);
         }
 
-        // --- SubMesh ごとのマテリアル解決 (マルチテクスチャ / ブレンド / マスク) ---
-        // 解決規則は SpriteStudioPlayer.UpdateSubmeshMaterials と同一。相違点は 2 つ:
-        //   1) MeshRenderer.SetSharedMaterials の代わりに CanvasRenderer.materialCount + SetMaterial を使う。
-        //   2) CanvasRenderer は MaterialPropertyBlock 非対応なので、マスク書込 SubMesh の per-frame 閾値
-        //      (_MaskThreshold) はクローンした所有マテリアルへ直接書き込む。
+        // --- Per-submesh material resolution (multi-texture / blend, + uGUI read-only mask) ---
+        // SpriteStudio internal masking is suppressed on the Canvas path, so every submesh resolves to
+        // a plain colour material (Role None) on the SpriteStudio/Canvas shader. The only stencil here
+        // is the READ-ONLY test injected when this graphic is nested under a uGUI Mask: we compute the
+        // mask depth and wrap each base material with StencilMaterial.Add (the same thing
+        // MaskableGraphic.GetModifiedMaterial does, but done per-submesh since GetModifiedMaterial only
+        // tracks one material). RectMask2D needs nothing here — MaskableGraphic clips it through
+        // CanvasRenderer.EnableRectClipping.
         private readonly System.Collections.Generic.List<Material> _canvasMaterials = new System.Collections.Generic.List<Material>();
-        // Write SubMesh 用にクローンして所有するマテリアル (閾値書込のため)。OnDisable / 再構築時に破棄する。
-        private readonly System.Collections.Generic.List<Material> _ownedMaterialInstances = new System.Collections.Generic.List<Material>();
+        // StencilMaterial.Add results to release (one slot per submesh; null when not stencil-wrapped).
+        private readonly System.Collections.Generic.List<Material> _stencilWrapped = new System.Collections.Generic.List<Material>();
         private uint _lastMaterialSignature;
-        private bool _hasWriteSubmesh;
+        private int _lastStencilDepth = -1;
+        private bool _canvasMaterialDirty;
+        private bool _warnedMultiTexture;
 
         private void UpdateCanvasMaterials()
         {
             if (_animeAsset == null || _core.Internal == null) return;
 
             int subCount = _core.Internal.SubmeshCount;
-            if (subCount <= 0) return;
+            if (subCount <= 0)
+            {
+                if (_canvasMaterials.Count > 0)
+                {
+                    ReleaseStencilWrappers();
+                    _canvasMaterials.Clear();
+                    canvasRenderer.materialCount = 0;
+                    _lastMaterialSignature = 0;
+                }
+                return;
+            }
 
             var submeshes = _core.Internal.Submeshes;
 
-            // 構成シグネチャ。threshold は per-frame 可変なのでここには含めず、書込マテリアルへ別途設定する。
+            // Composition signature over (texture, blend). Roles never vary here (masking suppressed).
             uint signature = (uint)subCount;
-            bool hasWrite = false;
             for (int s = 0; s < subCount; s++)
             {
                 var info = submeshes[s];
                 signature = signature * 31u + info.TextureHash;
                 signature = signature * 31u + info.BlendType;
-                signature = signature * 31u + (uint)info.Role;
-                signature = signature * 31u + info.StencilOp;
-                signature = signature * 31u + info.StencilComp;
-                if (info.Role == SpriteStudioGeometryBuilder.StencilRole.Write) hasWrite = true;
             }
 
-            if (signature != _lastMaterialSignature || _canvasMaterials.Count != subCount)
+            // Current uGUI mask depth (0 when not nested under a Mask). Checked every frame so a reparent
+            // under/out of a Mask re-wraps the materials even if the SetMaterialDirty signal is missed;
+            // the tree walk is shallow for UI hierarchies.
+            int stencilDepth = maskable
+                ? UnityEngine.UI.MaskUtilities.GetStencilDepth(transform, UnityEngine.UI.MaskUtilities.FindRootSortOverrideCanvas(transform))
+                : 0;
+
+            // Re-resolve when the geometry composition changes, the mask depth changes, a uGUI mask
+            // state change marked us dirty (SetMaterialDirty), or on first build.
+            if (signature != _lastMaterialSignature || stencilDepth != _lastStencilDepth
+                || _canvasMaterialDirty || _canvasMaterials.Count != subCount)
             {
+                RebuildCanvasMaterials(subCount, submeshes, stencilDepth);
+
                 _lastMaterialSignature = signature;
-                DestroyOwnedMaterials();
-                _canvasMaterials.Clear();
-
-                var mats = _animeAsset.Materials;
-                Material fallback = (mats != null && mats.Count > 0) ? mats[0] : null;
-
-                for (int s = 0; s < subCount; s++)
-                {
-                    var info = submeshes[s];
-                    Material mat;
-                    switch (info.Role)
-                    {
-                        case SpriteStudioGeometryBuilder.StencilRole.Write:
-                            mat = _animeAsset.ResolveMaskWriteMaterial(info.TextureHash, info.StencilOp);
-                            break;
-                        case SpriteStudioGeometryBuilder.StencilRole.Test:
-                            mat = _animeAsset.ResolveTestMaterial(info.TextureHash, info.BlendType, info.StencilComp);
-                            break;
-                        default:
-                            mat = _animeAsset.ResolveMaterial(info.TextureHash, info.BlendType);
-                            break;
-                    }
-                    if (mat == null)
-                    {
-                        Debug.LogError($"[SpriteStudioGraphic] TextureHash {info.TextureHash} not resolved (Submesh {s}, role {info.Role}). Falling back to material 0.");
-                        mat = fallback;
-                    }
-                    // Write SubMesh は閾値を毎フレーム書き換えるため、共有マテリアル (解決値/フォールバック共に)
-                    // を汚さないようインスタンス化して所有する。CanvasRenderer は MPB 非対応のための回避策。
-                    if (info.Role == SpriteStudioGeometryBuilder.StencilRole.Write && mat != null)
-                    {
-                        mat = new Material(mat);
-                        _ownedMaterialInstances.Add(mat);
-                    }
-                    _canvasMaterials.Add(mat);
-                }
-
-                // CanvasRenderer へ SubMesh と 1:1 でマテリアルを反映する。
-                canvasRenderer.materialCount = subCount;
-                for (int s = 0; s < subCount; s++)
-                {
-                    canvasRenderer.SetMaterial(_canvasMaterials[s], s);
-                }
-                _hasWriteSubmesh = hasWrite;
-            }
-
-            // マスク書込 SubMesh の cutout 閾値は per-frame でアニメーションし得るので、所有インスタンスへ毎フレーム設定する。
-            if (_hasWriteSubmesh)
-            {
-                for (int s = 0; s < subCount; s++)
-                {
-                    var info = submeshes[s];
-                    if (info.Role != SpriteStudioGeometryBuilder.StencilRole.Write) continue;
-                    var mat = _canvasMaterials[s];
-                    if (mat != null) mat.SetFloat(SpriteStudioMaterial.IdMaskThreshold, info.MaskThreshold);
-                }
+                _lastStencilDepth = stencilDepth;
+                _canvasMaterialDirty = false;
             }
         }
 
-        private void DestroyOwnedMaterials()
+        private void RebuildCanvasMaterials(int subCount, Unity.Collections.NativeArray<SpriteStudioGeometryBuilder.SubmeshInfo> submeshes, int stencilDepth)
         {
-            for (int i = 0; i < _ownedMaterialInstances.Count; i++)
+            ReleaseStencilWrappers();
+            _canvasMaterials.Clear();
+
+            // The Canvas path assumes a single atlas (one texture). Multiple cellmaps cannot be drawn
+            // distinctly through one CanvasRenderer; warn once and fall back to the first texture's
+            // material (use the world player or merge to a single atlas for multi-texture assets).
+            if (!_warnedMultiTexture && _animeAsset.Textures != null && _animeAsset.Textures.Count > 1)
             {
-                var m = _ownedMaterialInstances[i];
-                if (m == null) continue;
-                if (Application.isPlaying) Destroy(m);
-                else DestroyImmediate(m);
+                Debug.LogWarning($"[SpriteStudioGraphic] '{_animeAsset.name}' has {_animeAsset.Textures.Count} textures. " +
+                                 "The Canvas (uGUI) path is single-atlas; extra textures may not draw correctly. " +
+                                 "Use the world (MeshRenderer) player or merge into one atlas.", this);
+                _warnedMultiTexture = true;
             }
-            _ownedMaterialInstances.Clear();
+
+            int stencilId = stencilDepth > 0 ? (1 << stencilDepth) - 1 : 0;
+
+            for (int s = 0; s < subCount; s++)
+            {
+                var info = submeshes[s];
+                Material baseMat = _animeAsset.ResolveCanvasMaterial(info.TextureHash, info.BlendType);
+                if (baseMat == null)
+                {
+                    Debug.LogError($"[SpriteStudioGraphic] TextureHash {info.TextureHash} not resolved (Submesh {s}).", this);
+                }
+
+                Material finalMat = baseMat;
+                Material wrapped = null;
+                if (stencilDepth > 0 && baseMat != null)
+                {
+                    // Read-only stencil test for a parent uGUI Mask (Comp Equal, Op Keep, no write).
+                    wrapped = UnityEngine.UI.StencilMaterial.Add(
+                        baseMat, stencilId,
+                        UnityEngine.Rendering.StencilOp.Keep,
+                        UnityEngine.Rendering.CompareFunction.Equal,
+                        UnityEngine.Rendering.ColorWriteMask.All,
+                        stencilId, 0);
+                    finalMat = wrapped;
+                }
+                _canvasMaterials.Add(finalMat);
+                _stencilWrapped.Add(wrapped);
+            }
+
+            canvasRenderer.materialCount = subCount;
+            for (int s = 0; s < subCount; s++)
+            {
+                canvasRenderer.SetMaterial(_canvasMaterials[s], s);
+            }
+        }
+
+        private void ReleaseStencilWrappers()
+        {
+            for (int i = 0; i < _stencilWrapped.Count; i++)
+            {
+                var m = _stencilWrapped[i];
+                if (m != null) UnityEngine.UI.StencilMaterial.Remove(m);
+            }
+            _stencilWrapped.Clear();
         }
 
         // --- Canvas の Rebuild フローとの衝突回避 ---
@@ -322,7 +347,11 @@ namespace SpriteStudio.Runtime
 
         public override void SetMaterialDirty()
         {
-            // 無効化: 標準のマテリアル再構築を発動させない
+            // Do NOT call base: the standard uGUI material rebuild (CanvasUpdateRegistry) would try to
+            // drive our mesh/material through the normal Graphic path and fight our direct SetMesh/
+            // SetMaterial. Instead just flag a re-resolve so a mask-hierarchy change (MaskableGraphic
+            // raises SetMaterialDirty on stencil-state changes) re-wraps the per-submesh materials.
+            _canvasMaterialDirty = true;
         }
 
         protected override void OnPopulateMesh(VertexHelper vh)

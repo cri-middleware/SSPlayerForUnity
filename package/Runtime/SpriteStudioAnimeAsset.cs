@@ -176,6 +176,15 @@ namespace SpriteStudio.Runtime
         [System.NonSerialized] private Dictionary<(uint textureHash, byte op), Material> _maskWriteVariants;
         [System.NonSerialized] private Shader _maskWriteShader;
 
+        // Canvas (uGUI) material cache. The Canvas path uses the SpriteStudio/Canvas shader (uGUI
+        // stencil scaffolding) instead of SpriteStudio/Default, but the same per-blend variants and a
+        // white base for cell-less parts. Internal masking is suppressed on Canvas, so there are no
+        // mask-test / mask-write Canvas variants. Cleared with the others in OnDisable.
+        [System.NonSerialized] private Dictionary<SpriteStudioMaterialKey, Material> _canvasVariants;
+        [System.NonSerialized] private Dictionary<uint, Material> _canvasBaseByHash;
+        [System.NonSerialized] private Material _canvasWhiteBase;
+        [System.NonSerialized] private Shader _canvasShader;
+
         // Base material for cell-less submeshes (TextureHash 0, e.g. Shape parts). It has no texture,
         // so the shader's _MainTex "white" default makes the sampler return white and the part shows
         // its vertex / part color. Cloned per blend like any other base material.
@@ -282,6 +291,65 @@ namespace SpriteStudio.Runtime
             return m;
         }
 
+        // Canvas base material for a texture hash: a SpriteStudio/Canvas material carrying the same
+        // texture as the world base (TextureHash 0 -> a textureless white base, like GetWhiteBaseMaterial).
+        // Cached and HideAndDontSave; destroyed in OnDisable. Returns null if the Canvas shader or the
+        // source texture base cannot be resolved.
+        private Material GetCanvasBaseMaterial(uint textureHash)
+        {
+            if (_canvasShader == null)
+            {
+                _canvasShader = Shader.Find("SpriteStudio/Canvas");
+                if (_canvasShader == null) return null;
+            }
+
+            if (textureHash == 0)
+            {
+                if (_canvasWhiteBase != null) return _canvasWhiteBase;
+                _canvasWhiteBase = new Material(_canvasShader) { hideFlags = HideFlags.HideAndDontSave, name = "SpriteStudio_CanvasWhiteBase" };
+                return _canvasWhiteBase;
+            }
+
+            if (_canvasBaseByHash != null && _canvasBaseByHash.TryGetValue(textureHash, out var cachedBase) && cachedBase != null)
+            {
+                return cachedBase;
+            }
+
+            var worldBase = ResolveMaterialForHash(textureHash);
+            if (worldBase == null) return null;
+
+            var canvasBase = new Material(_canvasShader) { hideFlags = HideFlags.HideAndDontSave, name = "SpriteStudio_CanvasBase" };
+            canvasBase.mainTexture = worldBase.mainTexture; // copy the resolved atlas texture (_MainTex)
+            if (_canvasBaseByHash == null) _canvasBaseByHash = new Dictionary<uint, Material>();
+            _canvasBaseByHash[textureHash] = canvasBase;
+            return canvasBase;
+        }
+
+        /// <summary>
+        /// Resolve the Canvas (uGUI) material for a (textureHash, blendType) pair. Same per-blend
+        /// scheme as <see cref="ResolveMaterial"/> but on the SpriteStudio/Canvas shader (uGUI stencil
+        /// scaffolding). Mix (0) returns the Canvas base directly; other blends return a cached clone
+        /// with the blend state applied. Internal masking is suppressed on Canvas, so there is no
+        /// stencil-role variant here. Returns null only when the Canvas base cannot be created.
+        /// </summary>
+        public Material ResolveCanvasMaterial(uint textureHash, byte blendType)
+        {
+            var baseMat = GetCanvasBaseMaterial(textureHash);
+            if (baseMat == null) return null;
+            if (blendType == SpriteStudioMaterial.BlendMix) return baseMat;
+
+            var key = new SpriteStudioMaterialKey(textureHash, blendType);
+            if (_canvasVariants != null && _canvasVariants.TryGetValue(key, out var cached) && cached != null)
+            {
+                return cached;
+            }
+
+            if (_canvasVariants == null) _canvasVariants = new Dictionary<SpriteStudioMaterialKey, Material>();
+            var variant = SpriteStudioMaterial.CreateVariant(baseMat, blendType);
+            _canvasVariants[key] = variant;
+            return variant;
+        }
+
         // Destroy runtime-created materials (blend / test / mask-write variants and the white base;
         // clones only). The serialized base materials must not be touched here.
         private void OnDisable()
@@ -310,6 +378,31 @@ namespace SpriteStudio.Runtime
                     if (Application.isPlaying) Destroy(m); else DestroyImmediate(m);
                 }
                 _maskWriteVariants.Clear();
+            }
+            if (_canvasWhiteBase != null)
+            {
+                if (Application.isPlaying) Destroy(_canvasWhiteBase); else DestroyImmediate(_canvasWhiteBase);
+                _canvasWhiteBase = null;
+            }
+            if (_canvasBaseByHash != null)
+            {
+                foreach (var kv in _canvasBaseByHash)
+                {
+                    var m = kv.Value;
+                    if (m == null) continue;
+                    if (Application.isPlaying) Destroy(m); else DestroyImmediate(m);
+                }
+                _canvasBaseByHash.Clear();
+            }
+            if (_canvasVariants != null)
+            {
+                foreach (var kv in _canvasVariants)
+                {
+                    var m = kv.Value;
+                    if (m == null) continue;
+                    if (Application.isPlaying) Destroy(m); else DestroyImmediate(m);
+                }
+                _canvasVariants.Clear();
             }
         }
 

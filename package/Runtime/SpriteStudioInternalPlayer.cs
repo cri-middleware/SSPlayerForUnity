@@ -82,6 +82,34 @@ internal struct MaskPartData
         // whole mask path is skipped, like _build_mask_writers returning empty.
         internal bool _hasMaskParts;
 
+        // When true, SpriteStudio internal masking is suppressed (the Canvas/uGUI path): pure-mask
+        // parts draw nothing and every other part draws unmasked, leaving the stencil buffer to
+        // uGUI's own Mask/RectMask2D. The world (MeshRenderer) player leaves this false to keep full
+        // internal masking. See project_unity_canvas_plan.
+        internal bool _suppressInternalMask;
+
+        /// <summary>
+        /// Suppress SpriteStudio internal masking for this player and (recursively) its instance
+        /// children. Set true on the Canvas path; left false for the world path. Propagates so an
+        /// instance child's own internal masks are also dropped on Canvas instead of writing stencil.
+        /// </summary>
+        public bool SuppressInternalMask
+        {
+            get => _suppressInternalMask;
+            set
+            {
+                _suppressInternalMask = value;
+                if (_instanceChildren != null)
+                {
+                    for (int i = 0; i < _instanceChildren.Length; i++)
+                    {
+                        var c = _instanceChildren[i].Player;
+                        if (c != null) c.SuppressInternalMask = value;
+                    }
+                }
+            }
+        }
+
         internal struct InstanceChildState { public System.IntPtr InstanceSlot; public SpriteStudioInternalPlayer Player; public float PreviousFrame; }
         internal InstanceChildState[] _instanceChildren;
         internal int[] _instancePartIndices;
@@ -238,6 +266,9 @@ internal struct MaskPartData
                         }
 
                         var childPlayer = new SpriteStudioInternalPlayer { SubFrameEnabled = SubFrameEnabled };
+                        // Inherit the parent's suppression so children (re)created on load match the
+                        // Canvas/world choice; the public setter also propagates to existing children.
+                        childPlayer._suppressInternalMask = _suppressInternalMask;
                         childPlayer.LoadSsabInternal(childSsab, _assetResolver, _instanceDepth + 1);
 
                         if (!childPlayer.SetupAnimationByHash(nameHash))

@@ -526,6 +526,12 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     }
                 }
 
+                // Internal masking is active only when the asset has mask writers AND this player is
+                // not suppressing them. Canvas/uGUI suppresses (project_unity_canvas_plan); the world
+                // path keeps it. When suppressed we still walk masked parts per-part (to drop pure-mask
+                // parts), so the per-part budget below is needed in both cases.
+                bool maskActive = _player._hasMaskParts && !_player._suppressInternalMask;
+
                 // Masking emits per-part submeshes (no batch merge) plus extra write/restore steps, so
                 // grow the batch/submesh budget. Each part contributes up to ~2 steps (test+write or
                 // colour-suppressed restore); the pre-write phase adds at most one per writer.
@@ -575,7 +581,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 // reflects all of them before any body part is drawn. Each pure mask's coverage is
                 // removed again at its own rank in the main loop (Phase B), yielding the "mask affects
                 // lower-priority parts" scope (mirrors SS6PU's pre-draw + slot decrement).
-                if (_player._hasMaskParts)
+                if (maskActive)
                 {
                     BuildMaskPartLookup(frameData, drawBatchesLength, drawOrderLength, partsLength);
                     for (int wi = 0; wi < _maskWriterCount; wi++)
@@ -635,7 +641,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                                 // shared coverage. Mirrors Godot's _emit_instance_slot mask path.
                                 StencilRole instRole = StencilRole.None;
                                 byte instComp = 0;
-                                if (_player._hasMaskParts)
+                                if (maskActive)
                                 {
                                     var imd = _player._maskPartData[p_idx];
                                     if (imd.MaskInfluence || imd.MaskWrite)
@@ -688,7 +694,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                             // part is a mask target (same single-level rule as Instance / Normal).
                             StencilRole effRole = StencilRole.None;
                             byte effComp = 0;
-                            if (_player._hasMaskParts)
+                            if (maskActive)
                             {
                                 var emd = _player._maskPartData[p_idx];
                                 if (emd.MaskInfluence || emd.MaskWrite)
@@ -733,15 +739,27 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     {
                         if (_player._hasMaskParts)
                         {
-                            // Phase B (rank order): emit each part per-part with its stencil role.
+                            // Phase B (rank order): emit each part per-part. When masking is active each
+                            // part carries its stencil role; when suppressed (Canvas) pure-mask parts are
+                            // dropped and everything else draws as plain colour (Role None, still merged
+                            // by EmitSubmesh). See project_unity_canvas_plan.
                             byte kind = (byte)b.Kind;
                             for (int k = 0; k < b.Count; k++)
                             {
                                 int rank = b.StartRank + k;
                                 int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
                                 if (p_idx < 0 || p_idx >= partsLength) continue;
-                                if (!MaskPartVcIc(p_idx, kind, frame, out int pvc, out int pic)) continue;
                                 var md = _player._maskPartData[p_idx];
+                                if (!maskActive)
+                                {
+                                    // Canvas: a pure mask contributes no colour; draw nothing for it.
+                                    if (md.PureMask) continue;
+                                    if (!MaskPartVcIc(p_idx, kind, frame, out int cvc, out int cic)) continue;
+                                    EmitMaskStep(kind, rank, cvc, cic, b.TextureHash, (byte)b.BlendType,
+                                        StencilRole.None, 0, 0, 0f, ref totalVertices, ref totalIndices);
+                                    continue;
+                                }
+                                if (!MaskPartVcIc(p_idx, kind, frame, out int pvc, out int pic)) continue;
                                 if (md.PureMask)
                                 {
                                     // draw_as_mask: suppress colour, restore (pre-written in Phase A).
@@ -829,7 +847,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                             totalIndices += ic;
                         }
                     }
-                    else if (b.Kind == ss.runtime.DrawBatchKind.Mask && _player._hasMaskParts)
+                    else if (b.Kind == ss.runtime.DrawBatchKind.Mask && maskActive)
                     {
                         // PartTypeMask parts arrive as a Mask batch (vc/ic = 0) and are built as a
                         // Normal quad. The write happened in Phase A; restore here at the mask's rank.
