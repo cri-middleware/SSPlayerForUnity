@@ -38,8 +38,10 @@ namespace SpriteStudio.Runtime.Tests
 
                 // コンバート完了を待つ (ファイルが生成されるか、タイムアウト)
                 float timeout = 10f;
+                var pollMethod = runnerType?.GetMethod("Poll", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
                 while (!File.Exists(absoluteSsabPath) && timeout > 0)
                 {
+                    pollMethod?.Invoke(null, null);
                     yield return null;
                     timeout -= Time.deltaTime;
                 }
