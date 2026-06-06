@@ -60,8 +60,8 @@ namespace SpriteStudio.Runtime.Tests
             yield return null;
         }
 
-        [Test]
-        public void PlayRingo_SsabIsLoadedAndGeneratesMesh()
+        [UnityTest]
+        public IEnumerator PlayRingo_SsabIsLoadedAndGeneratesMesh()
         {
             // We can read directly from bytes since Resources.Load might fail if AssetDatabase isn't fully refreshed synchronously
             string absoluteSsabPath = Path.GetFullPath(RingoSsabPath);
@@ -81,8 +81,9 @@ namespace SpriteStudio.Runtime.Tests
 
             Assert.DoesNotThrow(() => player.Play("Ringo"));
 
-            // 1フレームTick回してJobが実行されるか確認
-            player.LateUpdate();
+            // 1フレーム待機してUpdateManagerによるJob実行を完了させる
+            yield return null;
+            yield return null;
             
             // Dispose
             Object.DestroyImmediate(go);
