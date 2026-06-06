@@ -462,256 +462,21 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 {
                     var b = frameData.DrawBatches(i).Value;
 
-                    // 描画対象は Normal(0)/Shape(1)/Instance(2)/Effect(3)/Mesh(4) のみ。
-                    int vc = 0;
-                    int ic = 0;
-                    
                     if (b.Kind == ss.runtime.DrawBatchKind.Instance)
                     {
-                        for (int k = 0; k < b.Count; k++)
-                        {
-                            int rank = b.StartRank + k;
-                            int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
-                            if (p_idx < 0 || p_idx >= partsLength) continue;
-
-                            var meshPtr = _instanceMeshes[p_idx];
-                            if (meshPtr.Vertices != null && meshPtr.VertexCount > 0)
-                            {
-                                var childPlayer = _player._instanceChildren[p_idx].Player;
-                                int cvc = childPlayer.VertexCount;
-                                int cic = childPlayer.IndexCount;
-
-                                // 子メッシュは頂点/インデックスが子バッファ上で連続しているため、1 つの
-                                // Instance バッチとして丸ごと取り込む (Job の BuildInstance が meshPtr 全体を
-                                // 1 回でコピーする)。子が複数バッチ (複数テクスチャ) でも、ここで複数の
-                                // DrawBatchData を積むと BuildInstance が子メッシュをバッチ数ぶん重複コピーして
-                                // バッファ溢れ・描画破綻を起こすため不可。テクスチャ単位の分割は下の SubmeshInfo が担う。
-                                ((DrawBatchData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
-                                {
-                                    Kind = SsDrawBatchKind.Instance,
-                                    EffectPartIndex = p_idx,
-                                    VertexCount = cvc,
-                                    IndexCount = cic
-                                };
-
-                                // Parent-mask inheritance (single level): if this instance part is a
-                                // mask target, stencil-test the whole child sub-animation against the
-                                // shared coverage. Mirrors Godot's _emit_instance_slot mask path.
-                                StencilRole instRole = StencilRole.None;
-                                byte instComp = 0;
-                                if (_player._hasMaskParts)
-                                {
-                                    var imd = _player._maskPartData[p_idx];
-                                    if (imd.MaskInfluence || imd.MaskWrite)
-                                    {
-                                        instRole = StencilRole.Test;
-                                        instComp = imd.VisibleInsideMask ? StencilCompNotEqual : StencilCompEqual;
-                                    }
-                                }
-
-                                for (int sm = 0; sm < childPlayer.SubmeshCount; sm++)
-                                {
-                                    var cs = childPlayer.Submeshes[sm];
-                                    // Preserve the child's own stencil role so its internal masks still
-                                    // work (its write submeshes stay ColorMask-0 writes instead of leaking
-                                    // as colour, and its test/restore sequence is kept verbatim/contiguous
-                                    // = self-restoring). Only a plain child colour submesh (Role None)
-                                    // inherits the parent's mask test (and stays mergeable via EmitSubmesh).
-                                    // NOTE single level: a parent mask and a child mask share the isolated
-                                    // stencil bits, so a child part that is itself masked is not additionally
-                                    // parent-clipped, and simultaneous overlap of the two is a known limit.
-                                    StencilRole cr = cs.Role;
-                                    byte cComp = cs.StencilComp, cRMask = cs.StencilReadMask;
-                                    if (cs.Role == StencilRole.None && instRole == StencilRole.Test)
-                                    {
-                                        cr = StencilRole.Test;
-                                        cComp = instComp;
-                                        cRMask = SpriteStudioMaterial.MaskStencilMask;
-                                    }
-                                    EmitSubmesh(totalIndices + cs.IndexStart, cs.IndexCount, cs.TextureHash, cs.BlendType,
-                                        cr, cs.StencilOp, cComp, cs.StencilRef, cRMask, cs.StencilWriteMask, cs.MaskThreshold);
-                                }
-
-                                totalVertices += cvc;
-                                totalIndices += cic;
-                            }
-                        }
+                        ProcessInstanceBatch(b, partsLength, ref totalVertices, ref totalIndices);
                     }
                     else if (b.Kind == ss.runtime.DrawBatchKind.Effect)
                     {
-                        for (int k = 0; k < b.Count; k++)
-                        {
-                            int rank = b.StartRank + k;
-                            int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
-                            if (p_idx < 0 || p_idx >= partsLength) continue;
-                            
-                            var plan = _effectBuffer.GetPlan(p_idx);
-                            if (plan.CommandCount == 0) continue;
-
-                            // Parent-mask inheritance: stencil-test the effect quads when this effect
-                            // part is a mask target (same single-level rule as Instance / Normal).
-                            StencilRole effRole = StencilRole.None;
-                            byte effComp = 0;
-                            if (_player._hasMaskParts)
-                            {
-                                var emd = _player._maskPartData[p_idx];
-                                if (emd.MaskInfluence || emd.MaskWrite)
-                                {
-                                    effRole = StencilRole.Test;
-                                    effComp = emd.VisibleInsideMask ? StencilCompNotEqual : StencilCompEqual;
-                                }
-                            }
-
-                            for (int c = 0; c < plan.CommandCount; c++)
-                            {
-                                var cmd = _effectBuffer.GetCommand(plan.CommandStart + c);
-                                if (cmd.QuadCount > 0)
-                                {
-                                    int cmdVc = (int)cmd.QuadCount * 4;
-                                    int cmdIc = (int)cmd.QuadCount * 6;
-
-                                    ((DrawBatchData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
-                                    {
-                                        StartRank = 0,
-                                        Count = 0,
-                                        VertexCount = cmdVc,
-                                        IndexCount = cmdIc,
-                                        Kind = SsDrawBatchKind.Effect,
-                                        EffectBlend = cmd.Blend,
-                                        // 結合ジオメトリ内のグローバル quad オフセット (= スロットベース + コマンド内オフセット)。
-                                        EffectParticleOffset = (uint)plan.QuadBase + cmd.ParticleOffset,
-                                        EffectQuadCount = cmd.QuadCount,
-                                        EffectPartIndex = p_idx
-                                    };
-                                    
-                                    EmitSubmesh(totalIndices, cmdIc, cmd.CellmapHash, SpriteStudioMaterial.BlendMix,
-                                        effRole, 0, effComp, 0, effRole == StencilRole.Test ? SpriteStudioMaterial.MaskStencilMask : (byte)0, 0, 0f);
-                                    
-                                    totalVertices += cmdVc;
-                                    totalIndices += cmdIc;
-                                }
-                            }
-                        }
+                        ProcessEffectBatch(b, partsLength, ref totalVertices, ref totalIndices);
                     }
                     else if (b.Kind == ss.runtime.DrawBatchKind.Normal || b.Kind == ss.runtime.DrawBatchKind.Shape || b.Kind == ss.runtime.DrawBatchKind.Mesh)
                     {
-                        if (_player._hasMaskParts)
-                        {
-                            // Phase B (rank order): emit each part per-part with its stencil role.
-                            byte kind = (byte)b.Kind;
-                            for (int k = 0; k < b.Count; k++)
-                            {
-                                int rank = b.StartRank + k;
-                                int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
-                                if (p_idx < 0 || p_idx >= partsLength) continue;
-                                if (!_maskPlanner.MaskPartVcIc(p_idx, kind, frame, _partStates, out int pvc, out int pic)) continue;
-                                var md = _player._maskPartData[p_idx];
-                                if (md.PureMask)
-                                {
-                                    // draw_as_mask: suppress colour, restore (pre-written in Phase A).
-                                    byte rop = md.MaskInfluence ? StencilOpInvert : StencilOpDecr;
-                                    float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
-                                    EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
-                                        StencilRole.Write, rop, 0, th, ref totalVertices, ref totalIndices);
-                                }
-                                else
-                                {
-                                    bool maskTarget = md.MaskInfluence || md.MaskWrite;
-                                    if (maskTarget)
-                                    {
-                                        byte comp = md.VisibleInsideMask ? StencilCompNotEqual : StencilCompEqual;
-                                        EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
-                                            StencilRole.Test, 0, comp, 0f, ref totalVertices, ref totalIndices);
-                                    }
-                                    else
-                                    {
-                                        EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
-                                            StencilRole.None, 0, 0, 0f, ref totalVertices, ref totalIndices);
-                                    }
-                                    if (md.IsClipping)
-                                    {
-                                        // Clipping also writes coverage at its own rank (no restore -> affects later parts).
-                                        byte wop = md.MaskInfluence ? StencilOpInvert : StencilOpIncr;
-                                        float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
-                                        EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
-                                            StencilRole.Write, wop, 0, th, ref totalVertices, ref totalIndices);
-                                    }
-                                }
-                            }
-                            continue; // masked per-part handling replaces the batch-merge below
-                        }
-
-                        for (int k = 0; k < b.Count; k++)
-                        {
-                            int rank = b.StartRank + k;
-                            int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
-                            if (p_idx < 0 || p_idx >= partsLength) continue;
-
-                            if (b.Kind == ss.runtime.DrawBatchKind.Normal)
-                            {
-                                bool needsCenter = (_partStates[p_idx].UpdateFlag & SsUpdateFlag.NeedsCenterMask) != 0;
-                                vc += needsCenter ? 5 : 4;
-                                ic += needsCenter ? 12 : 6;
-                            }
-                            else if (b.Kind == ss.runtime.DrawBatchKind.Shape)
-                            {
-                                int svc = frame.ShapeVertexCounts[p_idx];
-                                if (svc >= 3)
-                                {
-                                    vc += svc;
-                                    ic += (svc - 2) * 3;
-                                }
-                            }
-                            else if (b.Kind == ss.runtime.DrawBatchKind.Mesh)
-                            {
-                                uint v0 = frame.MeshVertexOffsets[p_idx];
-                                uint v1 = frame.MeshVertexOffsets[p_idx + 1];
-                                uint i0 = frame.MeshIndexOffsets[p_idx];
-                                uint i1 = frame.MeshIndexOffsets[p_idx + 1];
-                                if (v1 > v0 && i1 > i0 && (i1 - i0) % 3 == 0)
-                                {
-                                    vc += (int)(v1 - v0);
-                                    ic += (int)(i1 - i0);
-                                }
-                            }
-                        }
-
-                        if (vc > 0 && ic > 0)
-                        {
-                            ((DrawBatchData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
-                            {
-                                StartRank = (ushort)b.StartRank,
-                                Count = (ushort)b.Count,
-                                VertexCount = vc,
-                                IndexCount = ic,
-                                Kind = (byte)b.Kind
-                            };
-
-                            EmitSubmesh(totalIndices, ic, b.TextureHash, (byte)b.BlendType);
-
-                            totalVertices += vc;
-                            totalIndices += ic;
-                        }
+                        ProcessNormalShapeMeshBatch(b, partsLength, ref frame, frameData, ref totalVertices, ref totalIndices);
                     }
                     else if (b.Kind == ss.runtime.DrawBatchKind.Mask && _player._hasMaskParts)
                     {
-                        // PartTypeMask parts arrive as a Mask batch (vc/ic = 0) and are built as a
-                        // Normal quad. The write happened in Phase A; restore here at the mask's rank.
-                        // Mask twins (texture 0) for draw_as_mask / clipping parts are skipped — those
-                        // are handled via their colour batch in the Normal/Shape/Mesh branch above.
-                        for (int k = 0; k < b.Count; k++)
-                        {
-                            int rank = b.StartRank + k;
-                            int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
-                            if (p_idx < 0 || p_idx >= partsLength) continue;
-                            var md = _player._maskPartData[p_idx];
-                            if (!md.IsMaskPart) continue;
-                            if (!_maskPlanner.MaskPartVcIc(p_idx, SsDrawBatchKind.Normal, frame, _partStates, out int mvc, out int mic)) continue;
-                            byte rop = md.MaskInfluence ? StencilOpInvert : StencilOpDecr;
-                            float th = (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
-                            EmitMaskStep(SsDrawBatchKind.Normal, rank, mvc, mic, b.TextureHash, (byte)b.BlendType,
-                                StencilRole.Write, rop, 0, th, ref totalVertices, ref totalIndices);
-                        }
+                        ProcessMaskBatch(b, partsLength, ref frame, frameData, ref totalVertices, ref totalIndices);
                     }
                 }
 
@@ -916,6 +681,235 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         /// submesh carrying its stencil role/params. Geometry is rebuilt per step, so a writer that
         /// both writes and later restores costs two builds (cheap; masks are few).
         /// </summary>
+
+        private unsafe void ProcessInstanceBatch(ss.runtime.DrawBatch b, int partsLength, ref int totalVertices, ref int totalIndices)
+        {
+            for (int k = 0; k < b.Count; k++)
+            {
+                int rank = b.StartRank + k;
+                int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
+                if (p_idx < 0 || p_idx >= partsLength) continue;
+
+                var meshPtr = _instanceMeshes[p_idx];
+                if (meshPtr.Vertices != null && meshPtr.VertexCount > 0)
+                {
+                    var childPlayer = _player._instanceChildren[p_idx].Player;
+                    int cvc = childPlayer.VertexCount;
+                    int cic = childPlayer.IndexCount;
+
+                    ((DrawBatchData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
+                    {
+                        Kind = SsDrawBatchKind.Instance,
+                        EffectPartIndex = p_idx,
+                        VertexCount = cvc,
+                        IndexCount = cic
+                    };
+
+                    StencilRole instRole = StencilRole.None;
+                    byte instComp = 0;
+                    if (_player._hasMaskParts)
+                    {
+                        var imd = _player._maskPartData[p_idx];
+                        if (imd.MaskInfluence || imd.MaskWrite)
+                        {
+                            instRole = StencilRole.Test;
+                            instComp = imd.VisibleInsideMask ? StencilCompNotEqual : StencilCompEqual;
+                        }
+                    }
+
+                    for (int sm = 0; sm < childPlayer.SubmeshCount; sm++)
+                    {
+                        var cs = childPlayer.Submeshes[sm];
+                        StencilRole cr = cs.Role;
+                        byte cComp = cs.StencilComp, cRMask = cs.StencilReadMask;
+                        if (cs.Role == StencilRole.None && instRole == StencilRole.Test)
+                        {
+                            cr = StencilRole.Test;
+                            cComp = instComp;
+                            cRMask = SpriteStudioMaterial.MaskStencilMask;
+                        }
+                        EmitSubmesh(totalIndices + cs.IndexStart, cs.IndexCount, cs.TextureHash, cs.BlendType,
+                            cr, cs.StencilOp, cComp, cs.StencilRef, cRMask, cs.StencilWriteMask, cs.MaskThreshold);
+                    }
+
+                    totalVertices += cvc;
+                    totalIndices += cic;
+                }
+            }
+        }
+
+        private unsafe void ProcessEffectBatch(ss.runtime.DrawBatch b, int partsLength, ref int totalVertices, ref int totalIndices)
+        {
+            for (int k = 0; k < b.Count; k++)
+            {
+                int rank = b.StartRank + k;
+                int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
+                if (p_idx < 0 || p_idx >= partsLength) continue;
+                
+                var plan = _effectBuffer.GetPlan(p_idx);
+                if (plan.CommandCount == 0) continue;
+
+                StencilRole effRole = StencilRole.None;
+                byte effComp = 0;
+                if (_player._hasMaskParts)
+                {
+                    var emd = _player._maskPartData[p_idx];
+                    if (emd.MaskInfluence || emd.MaskWrite)
+                    {
+                        effRole = StencilRole.Test;
+                        effComp = emd.VisibleInsideMask ? StencilCompNotEqual : StencilCompEqual;
+                    }
+                }
+
+                for (int c = 0; c < plan.CommandCount; c++)
+                {
+                    var cmd = _effectBuffer.GetCommand(plan.CommandStart + c);
+                    if (cmd.QuadCount > 0)
+                    {
+                        int cmdVc = (int)cmd.QuadCount * 4;
+                        int cmdIc = (int)cmd.QuadCount * 6;
+
+                        ((DrawBatchData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
+                        {
+                            StartRank = 0,
+                            Count = 0,
+                            VertexCount = cmdVc,
+                            IndexCount = cmdIc,
+                            Kind = SsDrawBatchKind.Effect,
+                            EffectBlend = cmd.Blend,
+                            EffectParticleOffset = (uint)plan.QuadBase + cmd.ParticleOffset,
+                            EffectQuadCount = cmd.QuadCount,
+                            EffectPartIndex = p_idx
+                        };
+                        
+                        EmitSubmesh(totalIndices, cmdIc, cmd.CellmapHash, SpriteStudioMaterial.BlendMix,
+                            effRole, 0, effComp, 0, effRole == StencilRole.Test ? SpriteStudioMaterial.MaskStencilMask : (byte)0, 0, 0f);
+                        
+                        totalVertices += cmdVc;
+                        totalIndices += cmdIc;
+                    }
+                }
+            }
+        }
+
+        private unsafe void ProcessNormalShapeMeshBatch(ss.runtime.DrawBatch b, int partsLength, ref DrawFrame frame, ss.runtime.FrameData frameData, ref int totalVertices, ref int totalIndices)
+        {
+            int vc = 0;
+            int ic = 0;
+
+            if (_player._hasMaskParts)
+            {
+                byte kind = (byte)b.Kind;
+                for (int k = 0; k < b.Count; k++)
+                {
+                    int rank = b.StartRank + k;
+                    int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
+                    if (p_idx < 0 || p_idx >= partsLength) continue;
+                    if (!_maskPlanner.MaskPartVcIc(p_idx, kind, frame, _partStates, out int pvc, out int pic)) continue;
+                    var md = _player._maskPartData[p_idx];
+                    if (md.PureMask)
+                    {
+                        byte rop = md.MaskInfluence ? StencilOpInvert : StencilOpDecr;
+                        float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
+                        EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                            StencilRole.Write, rop, 0, th, ref totalVertices, ref totalIndices);
+                    }
+                    else
+                    {
+                        bool maskTarget = md.MaskInfluence || md.MaskWrite;
+                        if (maskTarget)
+                        {
+                            byte comp = md.VisibleInsideMask ? StencilCompNotEqual : StencilCompEqual;
+                            EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                                StencilRole.Test, 0, comp, 0f, ref totalVertices, ref totalIndices);
+                        }
+                        else
+                        {
+                            EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                                StencilRole.None, 0, 0, 0f, ref totalVertices, ref totalIndices);
+                        }
+                        if (md.IsClipping)
+                        {
+                            byte wop = md.MaskInfluence ? StencilOpInvert : StencilOpIncr;
+                            float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
+                            EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                                StencilRole.Write, wop, 0, th, ref totalVertices, ref totalIndices);
+                        }
+                    }
+                }
+                return;
+            }
+
+            for (int k = 0; k < b.Count; k++)
+            {
+                int rank = b.StartRank + k;
+                int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
+                if (p_idx < 0 || p_idx >= partsLength) continue;
+
+                if (b.Kind == ss.runtime.DrawBatchKind.Normal)
+                {
+                    bool needsCenter = (_partStates[p_idx].UpdateFlag & SsUpdateFlag.NeedsCenterMask) != 0;
+                    vc += needsCenter ? 5 : 4;
+                    ic += needsCenter ? 12 : 6;
+                }
+                else if (b.Kind == ss.runtime.DrawBatchKind.Shape)
+                {
+                    int svc = frame.ShapeVertexCounts[p_idx];
+                    if (svc >= 3)
+                    {
+                        vc += svc;
+                        ic += (svc - 2) * 3;
+                    }
+                }
+                else if (b.Kind == ss.runtime.DrawBatchKind.Mesh)
+                {
+                    uint v0 = frame.MeshVertexOffsets[p_idx];
+                    uint v1 = frame.MeshVertexOffsets[p_idx + 1];
+                    uint i0 = frame.MeshIndexOffsets[p_idx];
+                    uint i1 = frame.MeshIndexOffsets[p_idx + 1];
+                    if (v1 > v0 && i1 > i0 && (i1 - i0) % 3 == 0)
+                    {
+                        vc += (int)(v1 - v0);
+                        ic += (int)(i1 - i0);
+                    }
+                }
+            }
+
+            if (vc > 0 && ic > 0)
+            {
+                ((DrawBatchData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
+                {
+                    StartRank = (ushort)b.StartRank,
+                    Count = (ushort)b.Count,
+                    VertexCount = vc,
+                    IndexCount = ic,
+                    Kind = (byte)b.Kind
+                };
+
+                EmitSubmesh(totalIndices, ic, b.TextureHash, (byte)b.BlendType);
+
+                totalVertices += vc;
+                totalIndices += ic;
+            }
+        }
+
+        private unsafe void ProcessMaskBatch(ss.runtime.DrawBatch b, int partsLength, ref DrawFrame frame, ss.runtime.FrameData frameData, ref int totalVertices, ref int totalIndices)
+        {
+            for (int k = 0; k < b.Count; k++)
+            {
+                int rank = b.StartRank + k;
+                int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
+                if (p_idx < 0 || p_idx >= partsLength) continue;
+                var md = _player._maskPartData[p_idx];
+                if (!md.IsMaskPart) continue;
+                if (!_maskPlanner.MaskPartVcIc(p_idx, SsDrawBatchKind.Normal, frame, _partStates, out int mvc, out int mic)) continue;
+                byte rop = md.MaskInfluence ? StencilOpInvert : StencilOpDecr;
+                float th = (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
+                EmitMaskStep(SsDrawBatchKind.Normal, rank, mvc, mic, b.TextureHash, (byte)b.BlendType,
+                    StencilRole.Write, rop, 0, th, ref totalVertices, ref totalIndices);
+            }
+        }
+
         private unsafe void EmitMaskStep(byte kind, int rank, int vc, int ic, uint texHash, byte blend,
             StencilRole role, byte stencilOp, byte stencilComp, float threshold,
             ref int totalVertices, ref int totalIndices)
