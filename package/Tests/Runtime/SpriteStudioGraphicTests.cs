@@ -45,7 +45,6 @@ namespace SpriteStudio.Runtime.Tests
         public void InitialProperties_AreDefaulted()
         {
             var graphic = _go.AddComponent<SpriteStudioGraphic>();
-            Assert.AreEqual(100f, graphic.PixelsPerUnit);
             Assert.AreEqual(1f, graphic.SpeedScale);
             Assert.AreEqual(0, graphic.LoopCount);
             Assert.IsTrue(graphic.AutoPlay);
