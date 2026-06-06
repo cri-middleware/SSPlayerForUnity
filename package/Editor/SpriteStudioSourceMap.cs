@@ -94,6 +94,31 @@ namespace SpriteStudio.Editor
             if (save) SaveMap();
         }
 
+        /// <summary>.ssab が削除されたとき、対応するリンクを除去する (stale エントリ防止)。
+        /// 除去できたら true。<paramref name="save"/>=false なら呼び出し側でまとめて保存する。</summary>
+        public static bool RemoveSsab(string ssabPath, bool save = true)
+        {
+            var map = GetMap();
+            string ssabRel = GetRelativePath(Path.GetFullPath(ssabPath));
+            bool removed = map.Remove(ssabRel);
+            if (removed && save) SaveMap();
+            return removed;
+        }
+
+        /// <summary>.ssab が移動/リネームされたとき、キーを付け替える (リンク先 .sspj は維持)。
+        /// 付け替えたら true。<paramref name="save"/>=false なら呼び出し側でまとめて保存する。</summary>
+        public static bool RenameSsab(string fromSsabPath, string toSsabPath, bool save = true)
+        {
+            var map = GetMap();
+            string fromRel = GetRelativePath(Path.GetFullPath(fromSsabPath));
+            if (!map.TryGetValue(fromRel, out string sspjRel)) return false;
+            string toRel = GetRelativePath(Path.GetFullPath(toSsabPath));
+            map.Remove(fromRel);
+            map[toRel] = sspjRel;
+            if (save) SaveMap();
+            return true;
+        }
+
         public static string GetSspjForSsab(string ssabAbsolutePath)
         {
             var map = GetMap();

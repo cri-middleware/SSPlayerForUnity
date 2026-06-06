@@ -8,6 +8,9 @@ namespace SpriteStudio.Editor
     {
         private static System.Collections.Generic.HashSet<string> delayedSsabChecks = new System.Collections.Generic.HashSet<string>();
         private static bool isDelayCallRegistered = false;
+        // 同一内容 (mtime 一致) の .sspj を毎インポートで再変換しないためのセッション内ダーティチェック。
+        private static readonly System.Collections.Generic.Dictionary<string, System.DateTime> convertedSspjMtime
+            = new System.Collections.Generic.Dictionary<string, System.DateTime>();
 
         void OnPreprocessTexture()
         {
@@ -71,6 +74,26 @@ namespace SpriteStudio.Editor
                 EditorApplication.delayCall += ProcessDelayedSsabs;
                 isDelayCallRegistered = true;
             }
+
+            // .ssab の移動/削除に追従して source map を再キー/prune する (stale エントリ防止)。
+            // .sspj は Model B で外部任意パスのため Unity の move/delete イベントには現れない。
+            bool sourceMapDirty = false;
+            for (int i = 0; i < movedAssets.Length; i++)
+            {
+                if (movedAssets[i].EndsWith(".ssab") &&
+                    SpriteStudioSourceMap.RenameSsab(movedFromAssetPaths[i], movedAssets[i], save: false))
+                {
+                    sourceMapDirty = true;
+                }
+            }
+            foreach (string del in deletedAssets)
+            {
+                if (del.EndsWith(".ssab") && SpriteStudioSourceMap.RemoveSsab(del, save: false))
+                {
+                    sourceMapDirty = true;
+                }
+            }
+            if (sourceMapDirty) SpriteStudioSourceMap.SaveMap();
         }
 
         private static void ProcessDelayedSsabs()
@@ -132,6 +155,21 @@ namespace SpriteStudio.Editor
         private static bool ConvertSspj(string sspjPath)
         {
             string sspjAbsolutePath = Path.GetFullPath(sspjPath);
+
+            // ダーティチェック: 同一内容 (mtime 一致) の .sspj をインポートのたびに再変換しない。
+            // 無変更リインポートや変換完了後 Refresh での無駄な再変換 (連鎖) を防ぐ。mtime が
+            // 変わっていれば変換する。取得失敗時は安全側で従来どおり変換する。
+            try
+            {
+                var mtime = File.GetLastWriteTimeUtc(sspjAbsolutePath);
+                if (convertedSspjMtime.TryGetValue(sspjAbsolutePath, out var prev) && prev == mtime)
+                {
+                    return false; // このセッションで既に最新を変換済み
+                }
+                convertedSspjMtime[sspjAbsolutePath] = mtime;
+            }
+            catch { /* mtime 取得不可なら従来どおり変換 */ }
+
             SpriteStudioImporterWindow.RunConvertDirect(sspjAbsolutePath);
             return true;
         }
