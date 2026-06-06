@@ -1,0 +1,25 @@
+{
+    "name": "SpriteStudio.Editor.Tests",
+    "rootNamespace": "SpriteStudio.Editor.Tests",
+    "references": [
+        "SpriteStudio.Runtime",
+        "SpriteStudio.Editor",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

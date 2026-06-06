@@ -1562,3 +1562,7 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 [Aa]ssets/[Ss]ceneDependencyCache*
+
+# Tests runtime generated resources
+package/Tests/Runtime/Resources/Ringo/
+package/Tests/Runtime/Resources/TestConvertOut/

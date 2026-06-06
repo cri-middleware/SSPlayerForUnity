@@ -17,10 +17,11 @@ A Unity Engine integration for SpriteStudio 7, designed for extreme performance.
 
 | Path | Role |
 |---|---|
-| `package/Runtime/` | C# source: Player components (`SpriteStudioPlayer`, `SpriteStudioGraphic`), Internal logic (`SpriteStudioInternalPlayer`), and FFI bindings. |
+| `package/Runtime/` | C# source: Player components (`SpriteStudioPlayer`, `SpriteStudioGraphic`), Internal logic (`SpriteStudioInternalPlayer` and its `partial` sub-files for `.Mesh`, `.Effect`, `.Mask`, `.Instance`), UpdateManager, and FFI bindings. |
 | `package/Runtime/Plugins/` | Binary artifacts (`libssruntime`) per platform. |
 | `package/Editor/` | C# source: Asset importers (`SpriteStudioSsabImporter`, `SpriteStudioAssetPostprocessor`), Importer Window UI, and Source Map. |
 | `package/Editor/Plugins/` | Binary artifacts (`libssconverter`) used only in Editor. |
+| `package/Tests/` | Unit and Integration tests for Runtime (PlayMode) and Editor (EditMode). |
 | `SpriteStudio7-SDK/` | Submodule for core Rust runtime/converter. |
 | `scripts/` | Build wrappers (`build-runtime.sh`, `download-flatbuffers.sh`) to bridge Rust/Unity. |
 
@@ -29,6 +30,8 @@ A Unity Engine integration for SpriteStudio 7, designed for extreme performance.
 *   **FFI Safety & Memory Management:** Native pointers (`SsPlayerHandle`) must strictly implement `IDisposable`. Always call `JobHandle.Complete()` before freeing native resources to prevent Unity from segfaulting during Burst Job execution.
 *   **Zero Allocation:** The `Tick` and Mesh update loop must not allocate any GC memory (`new`). Re-use `NativeArray` and dynamically update the mesh via `SetVertexBufferData`.
 *   **Canvas Rebuild Bypass:** For `SpriteStudioGraphic` (uGUI), standard `OnPopulateMesh` and Vertex/Material dirty flags must be bypassed/overridden to prevent Unity from automatically destroying and re-allocating canvas meshes.
+*   **Partial Class Compartmentalization:** `SpriteStudioInternalPlayer` is intentionally split into partial classes (`.Mesh`, `.Effect`, `.Mask`, `.Instance`) to prevent a God Class. When adding new features, maintain this strict separation of concerns while preserving the main struct layouts required for Burst and FFI.
+*   **Update Loop Consistency:** Components are batch-updated via `SpriteStudioUpdateManager`. To prevent `NullReferenceException`s during dynamic instantiation/destruction, always iterate over the securely snapshotted `_tickCount` instead of the raw active list.
 
 ## Verification
 

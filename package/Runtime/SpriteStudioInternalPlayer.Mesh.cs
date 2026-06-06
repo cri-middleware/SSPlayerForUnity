@@ -1,0 +1,968 @@
+using System;
+using Unity.Collections;
+using Unity.Jobs;
+using UnityEngine;
+using SpriteStudio.SsRuntime;
+
+namespace SpriteStudio.Runtime
+{
+    public partial class SpriteStudioInternalPlayer
+    {
+        public unsafe struct DrawFrame
+        {
+            public float FrameNo;
+            public float DeltaSeconds;
+
+            public float* WorldMatrices;
+            public nuint WorldMatricesLen;
+
+            public float* LocalUvs;
+            public nuint LocalUvsLen;
+
+            public float* LocalVertices;
+            public nuint LocalVerticesLen;
+
+            public float* ShapeVertices;
+            public nuint ShapeVerticesLen;
+
+            public float* ShapeBoxCoords;
+            public nuint ShapeBoxCoordsLen;
+
+            public int* ShapeVertexCounts;
+            public nuint ShapeVertexCountsLen;
+
+            public float* MeshVerticesX;
+            public nuint MeshVerticesXLen;
+
+            public float* MeshVerticesY;
+            public nuint MeshVerticesYLen;
+
+            public uint* MeshVertexOffsets;
+            public nuint MeshVertexOffsetsLen;
+
+            public float* MeshUvs;
+            public nuint MeshUvsLen;
+
+            public int* MeshIndices;
+            public nuint MeshIndicesLen;
+
+            public uint* MeshIndexOffsets;
+            public nuint MeshIndexOffsetsLen;
+        }
+
+        private Google.FlatBuffers.ByteBuffer _frameDataByteBuffer;
+#if ENABLE_SPAN_T && UNSAFE_BYTEBUFFER
+        // ゼロコピー: per-context の frame_data ネイティブバッファを直接 ByteBuffer に載せる。
+        private NativeByteBufferAllocator _frameDataAllocator;
+#else
+        private byte[] _frameDataArray;
+#endif
+
+        // ゼロアロケーションのため、Job 入出力バッファは永続確保し grow-only で再利用する。
+        // NativeArray.Length は確保容量、論理件数は別途 *_Count で保持する。
+        private NativeArray<SsVertex> _meshVertices;
+        // インデックスは 32bit。エフェクトの大量パーティクルや mesh/instance 合算で
+        // 頂点数が 65535 を超えても破綻しないようにする (ApplyToMesh は IndexFormat.UInt32)。
+        private NativeArray<uint> _meshIndices;
+        private NativeArray<DrawBatchData> _drawBatches;
+        private NativeArray<ushort> _drawOrder;
+        private NativeArray<PartStateData> _partStates;
+        private NativeArray<PartColorData> _partColors;
+
+        private int _vertexCount;
+        private int _indexCount;
+        private int _drawBatchCount;
+        private int _partCount;
+        private int _partColorCount;
+
+        // index アップロードのキャッシュ用。トポロジ (バッチ構造) が不変なら ApplyToMesh で
+        // index/submesh の再アップロードを省き、頂点のみ更新する。
+        private ulong _topologySignature;
+        private bool _meshUploaded;
+        private int _lastMeshId;
+        private ulong _uploadedTopologySignature;
+        private int _uploadedVertexCount;
+        private int _uploadedIndexCount;
+        private bool _uploadedPerBatchSubmesh;
+
+        // バッチ単位の SubMesh 情報 (MeshRenderer 経路のマルチマテリアル用)。
+        // Job では使わず main thread でのみ参照するため managed 配列で保持する。
+        // BlendType is the ssab BlendType (0..7) used to resolve the per-blend material variant.
+        // Effect submeshes keep Mix here (their additive path is handled in-shader for now).
+        // Stencil role of a submesh. None = a plain colour submesh (existing behaviour). Write =
+        // the SpriteStudio/MaskWrite pass (ColorMask 0) that increments/decrements/inverts the
+        // isolated stencil bits (covers both the pure-mask "write" and its "restore"; the op
+        // distinguishes them). Test = a colour submesh that is kept/discarded by a stencil compare.
+        public enum StencilRole : byte { None = 0, Write = 1, Test = 2 }
+
+        public struct SubmeshInfo
+        {
+            public int IndexStart;
+            public int IndexCount;
+            public uint TextureHash;
+            public byte BlendType;
+            // Stencil state (only meaningful when Role != None). Op/Comp hold the corresponding
+            // UnityEngine.Rendering.StencilOp / CompareFunction values; the masks/ref are the
+            // bit-isolated stencil values; MaskThreshold = (255 - mask)/255 for Write (<0 = no cutout).
+            public StencilRole Role;
+            public byte StencilOp;        // Write: StencilOp (IncrWrap/DecrWrap/Invert/...)
+            public byte StencilComp;      // Test: CompareFunction (Equal/NotEqual/...)
+            public byte StencilRef;
+            public byte StencilReadMask;
+            public byte StencilWriteMask;
+            public float MaskThreshold;
+        }
+
+        // Append a submesh, dynamically merging into the previous one to enable batching (origin/main
+        // perf work). Merging is restricted to plain colour submeshes (Role None) of the same texture
+        // + blend: mask submeshes carry per-submesh stencil state and a strict draw order, so they are
+        // never merged. Auto-grows the buffer.
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        private void EmitSubmesh(int indexStart, int indexCount, uint textureHash, byte blendType,
+            StencilRole role = StencilRole.None, byte stencilOp = 0, byte stencilComp = 0, byte stencilRef = 0,
+            byte stencilReadMask = 0, byte stencilWriteMask = 0, float maskThreshold = 0f)
+        {
+            if (role == StencilRole.None && _submeshCount > 0)
+            {
+                ref var last = ref _submeshes[_submeshCount - 1];
+                if (last.Role == StencilRole.None && last.TextureHash == textureHash && last.BlendType == blendType)
+                {
+                    last.IndexCount += indexCount;
+                    return;
+                }
+            }
+            if (_submeshes == null || _submeshCount >= _submeshes.Length)
+            {
+                int newSize = _submeshes == null ? 8 : _submeshes.Length * 2;
+                if (newSize < _submeshCount + 1) newSize = _submeshCount + 1;
+                System.Array.Resize(ref _submeshes, newSize);
+            }
+            _submeshes[_submeshCount++] = new SubmeshInfo
+            {
+                IndexStart = indexStart,
+                IndexCount = indexCount,
+                TextureHash = textureHash,
+                BlendType = blendType,
+                Role = role,
+                StencilOp = stencilOp,
+                StencilComp = stencilComp,
+                StencilRef = stencilRef,
+                StencilReadMask = stencilReadMask,
+                StencilWriteMask = stencilWriteMask,
+                MaskThreshold = maskThreshold
+            };
+        }
+        private SubmeshInfo[] _submeshes;
+        private int _submeshCount;
+        // SetSubMeshes 用の永続バッファ (grow-only で使い回す)。
+        private NativeArray<UnityEngine.Rendering.SubMeshDescriptor> _submeshDescriptors;
+        // メッシュ境界 (要素 0=min, 1=max)。UpdateMeshJob が書き込み、ApplyToMesh が Mesh.bounds へ適用する。
+        private NativeArray<Vector3> _meshBounds;
+
+        // 頂点レイアウト (Position / Color / TexCoord0 / TexCoord1)。SetVertexBufferParams へ使い回す。
+        private static readonly UnityEngine.Rendering.VertexAttributeDescriptor[] s_vertexLayout =
+        {
+            new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.Position, UnityEngine.Rendering.VertexAttributeFormat.Float32, 3),
+            new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.Color, UnityEngine.Rendering.VertexAttributeFormat.UNorm8, 4),
+            new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.TexCoord0, UnityEngine.Rendering.VertexAttributeFormat.Float32, 2),
+            new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.TexCoord1, UnityEngine.Rendering.VertexAttributeFormat.Float32, 4),
+        };
+
+        public int VertexCount => _vertexCount;
+        public int IndexCount => _indexCount;
+        public int DrawBatchCount => _drawBatchCount;
+        public int SubmeshCount => _submeshCount;
+        public SubmeshInfo[] Submeshes => _submeshes;
+        public NativeArray<DrawBatchData> DrawBatches => _drawBatches;
+        public NativeArray<SsVertex> MeshVertices => _meshVertices;
+        public NativeArray<uint> MeshIndices => _meshIndices;
+
+        /// <summary>直近の ScheduleMeshUpdate で生成された描画バッチ (= SubMesh) の数。</summary>
+        // public int SubmeshCount => _submeshCount;
+
+        /// <summary>指定 SubMesh のテクスチャハッシュ (DrawBatch.TextureHash)。</summary>
+        public uint GetSubmeshTextureHash(int index) => _submeshes[index].TextureHash;
+
+        /// <summary>SubMesh's ssab BlendType (0..7), used to resolve the per-blend material variant.</summary>
+        public byte GetSubmeshBlendType(int index) => _submeshes[index].BlendType;
+
+        /// <summary>必要件数を満たすまで grow-only で確保する。容量が足りていれば再利用する。</summary>
+        private static void EnsureCapacity<T>(ref NativeArray<T> arr, int needed) where T : struct
+        {
+            if (arr.IsCreated && arr.Length >= needed) return;
+            if (arr.IsCreated) arr.Dispose();
+            arr = new NativeArray<T>(needed < 1 ? 1 : needed, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+        }
+
+        // grow 時に既存内容を保持する版 (エフェクト結合バッファを slot ごとに追記するため)。
+        private static void EnsureCapacityPreserve<T>(ref NativeArray<T> arr, int needed) where T : struct
+        {
+            if (arr.IsCreated && arr.Length >= needed) return;
+            int newLen = UnityEngine.Mathf.Max(needed, arr.IsCreated ? arr.Length * 2 : 256);
+            var newArr = new NativeArray<T>(newLen, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            if (arr.IsCreated)
+            {
+                NativeArray<T>.Copy(arr, newArr, arr.Length);
+                arr.Dispose();
+            }
+            arr = newArr;
+        }
+
+        /// <summary>
+        /// 前フレームの Job 完了を待ち、advance 指定時は 1 フレーム進め、
+        /// 描画フレーム番号と frame-skip を確定する。out handle が Zero のときは、このフレームは
+        /// このプレイヤーを並列 get_frame_data / ConsumeFrameData の対象から外す (ハンドル無効、または skip)。
+        /// advance=false は frame 駆動 (子 Instance / Timeline 制御) 用。
+        /// </summary>
+        public void PrepareFrameData(float deltaTime, bool advance, out System.IntPtr handle, out float drawFrame)
+        {
+            handle = System.IntPtr.Zero;
+            drawFrame = 0f;
+            if (!_handle.IsValid) return;
+
+            // 永続バッファを書き換える前に、前フレームのジョブ完了を保証する
+            _updateJobHandle.Complete();
+
+            // ss_runtime_update は delta を「ミリ秒」で受け取る (update_interval = 1000/fps)。
+            if (advance)
+            {
+                unsafe { NativeMethods.ss_runtime_update(_handle.ptr, deltaTime * 1000.0f); }
+            }
+
+            drawFrame = SubFrameEnabled ? GetFrame() : UnityEngine.Mathf.Floor(GetFrame());
+            // SubFrame 有効時は小数のまま評価するため、終端フレーム (end_frame) を超過した浮動小数点数
+            // (例: 59.99) が渡されると、SSABの有効範囲外として扱われ、全てのパーツが消える原因になります。
+            // 常に定義されたフレーム範囲内に収まるようクランプします。
+            drawFrame = UnityEngine.Mathf.Clamp(drawFrame, GetAnimationSectionStart(), GetAnimationSectionEnd());
+
+            // subFrame 無効・エフェクト/インスタンス無しで整数フレームが前回ビルドと同一なら、SoA 出力は
+            // 完全に同一になる。FFI・集計・Job を省いて前フレームのジオメトリをそのまま再利用する。
+            // エフェクトは粒子が毎フレーム進み、インスタンスは子アニメが独立に進むため除外する。
+            _frameSkipped = false;
+            if (!SubFrameEnabled && !_hasEffectParts && !_hasInstanceParts
+                && _vertexCount > 0 && drawFrame == _lastBuiltDrawFrameNo)
+            {
+                _frameSkipped = true;
+                return;
+            }
+
+            _pendingDrawFrame = drawFrame;
+            unsafe { handle = (System.IntPtr)_handle.ptr; }
+        }
+
+        /// <summary>
+        /// 直列の便宜ラッパ。advance せず get_frame_data を同期取得してメッシュ構築まで 1 メソッドで行う。
+        /// 子 Instance (frame 駆動) と編集モードプレビューが使う。Play モードのトップレベルは
+        /// SpriteStudioUpdateManager が PrepareFrameData → 並列 get_frame_data → ConsumeFrameData に分割する。
+        /// </summary>
+        public void ScheduleMeshUpdate(float deltaTime)
+        {
+            PrepareFrameData(deltaTime, false, out var handle, out _);
+            if (handle == System.IntPtr.Zero) return;
+            unsafe
+            {
+                byte* p = null;
+                nuint l = 0;
+                NativeMethods.ss_runtime_get_frame_data((void*)handle, _pendingDrawFrame, &p, &l);
+                ConsumeFrameData((System.IntPtr)p, (int)l, deltaTime);
+            }
+        }
+
+
+        /// <summary>
+        /// 並列 GetFrameDataJob が取得した frame-data ポインタ (job 出力) を消費し、
+        /// SoA を読み出してメッシュ構築 Burst Job を発行する。ptr==Zero / len==0 はジオメトリ無しとして扱う。
+        /// </summary>
+        public void ConsumeFrameData(System.IntPtr frameDataPtrRaw, int len, float deltaTime)
+        {
+            if (!_handle.IsValid) return;
+
+            unsafe
+            {
+                byte* frameDataPtr = (byte*)frameDataPtrRaw;
+
+                if (frameDataPtr == null || len == 0)
+                {
+                    _vertexCount = 0;
+                    _indexCount = 0;
+                    return;
+                }
+
+                float drawFrameNo = _pendingDrawFrame;
+#if ENABLE_SPAN_T && UNSAFE_BYTEBUFFER
+                // ゼロコピー: per-context の frame_data ネイティブバッファを直接 ByteBuffer に載せる。
+                // 読み取りは本メソッド内 (同期) で完結する。子の get_frame_data は別 context の別バッファに
+                // 書くので親バッファを汚さない (SDK: get_frame_data は &mut self 借用 = context 毎)。
+                if (_frameDataAllocator == null)
+                {
+                    _frameDataAllocator = new NativeByteBufferAllocator();
+                    _frameDataByteBuffer = new Google.FlatBuffers.ByteBuffer(_frameDataAllocator, 0);
+                }
+                _frameDataAllocator.Reset(frameDataPtr, len);
+                _frameDataByteBuffer.Position = 0;
+#else
+                if (_frameDataArray == null || _frameDataArray.Length < len)
+                {
+                    _frameDataArray = new byte[UnityEngine.Mathf.Max(len, 4096)];
+                    _frameDataByteBuffer = new Google.FlatBuffers.ByteBuffer(_frameDataArray);
+                }
+                // ゼロGC: 既存のbyte[]にポインタからメモリコピー (フォールバック)
+                System.Runtime.InteropServices.Marshal.Copy((System.IntPtr)frameDataPtr, _frameDataArray, 0, len);
+                _frameDataByteBuffer.Position = 0; // Reset ByteBuffer offset
+#endif
+
+                var frameData = ss.runtime.FrameData.GetRootAsFrameData(_frameDataByteBuffer);
+
+                DrawFrame frame = new DrawFrame
+                {
+                    FrameNo = drawFrameNo,
+                    DeltaSeconds = deltaTime
+                };
+
+                NativeMethods.ss_runtime_get_world_matrices(_handle.ptr, &frame.WorldMatrices, &frame.WorldMatricesLen);
+                NativeMethods.ss_runtime_get_local_uvs(_handle.ptr, &frame.LocalUvs, &frame.LocalUvsLen);
+                NativeMethods.ss_runtime_get_local_vertices(_handle.ptr, &frame.LocalVertices, &frame.LocalVerticesLen);
+
+                NativeMethods.ss_runtime_get_shape_vertices(_handle.ptr, &frame.ShapeVertices, &frame.ShapeVerticesLen);
+                NativeMethods.ss_runtime_get_shape_vertex_box_coords(_handle.ptr, &frame.ShapeBoxCoords, &frame.ShapeBoxCoordsLen);
+                NativeMethods.ss_runtime_get_shape_vertex_counts(_handle.ptr, &frame.ShapeVertexCounts, &frame.ShapeVertexCountsLen);
+
+                NativeMethods.ss_runtime_get_mesh_vertices_x(_handle.ptr, &frame.MeshVerticesX, &frame.MeshVerticesXLen);
+                NativeMethods.ss_runtime_get_mesh_vertices_y(_handle.ptr, &frame.MeshVerticesY, &frame.MeshVerticesYLen);
+                NativeMethods.ss_runtime_get_mesh_vertex_offsets(_handle.ptr, &frame.MeshVertexOffsets, &frame.MeshVertexOffsetsLen);
+                NativeMethods.ss_runtime_get_mesh_uvs(_handle.ptr, &frame.MeshUvs, &frame.MeshUvsLen);
+                NativeMethods.ss_runtime_get_mesh_indices(_handle.ptr, &frame.MeshIndices, &frame.MeshIndicesLen);
+                NativeMethods.ss_runtime_get_mesh_index_offsets(_handle.ptr, &frame.MeshIndexOffsets, &frame.MeshIndexOffsetsLen);
+
+                int drawBatchesLength = frameData.DrawBatchesLength;
+                int drawOrderLength = frameData.DrawOrderLength;
+                int partsLength = frameData.PartsLength;
+                int partsColorLength = frameData.PartsColorLength;
+
+                EnsureCapacity(ref _effectPlans, partsLength);
+                EnsureCapacity(ref _instanceMeshes, partsLength);
+
+                bool parentLooped = NativeMethods.ss_runtime_is_looped(_handle.ptr);
+                float fps = GetFrameRate();
+                if (fps <= 0f) fps = 60f;
+
+                // _childHandles への書き込みは InstanceSlot != Zero のブランチ内だけで、それは
+                // _hasInstanceParts が真のときしか成立しない。永続 grow-only で毎フレームの Temp 確保を避ける。
+                int childHandleCount = 0;
+                if (_hasInstanceParts)
+                    EnsureCapacity(ref _childHandles, partsLength);
+
+                // エフェクト結合バッファを毎フレーム先頭から詰め直す。
+                _effectCommandCount = 0;
+                _effectVertFloatCount = 0;
+                _effectUvFloatCount = 0;
+                _effectColorFloatCount = 0;
+                _effectIndexCount = 0;
+
+                // active な effect/instance パーツだけを sparse に処理する (index は SetupSlots で確定)。
+                // 非 active 部 (通常パーツ／解決失敗した instance パーツ等) は会計ループ・Burst Job から default が
+                // 読まれ得るため、事前に一括 MemClear しておく (partsLength 個別 default 書込みより遥かに安く、
+                // 「どのパーツが読まれるか」に依存せず安全)。これで partsLength 全スキャンの空回りを回避する。
+                if (partsLength > 0)
+                {
+                    Unity.Collections.LowLevel.Unsafe.UnsafeUtility.MemClear(
+                        Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_effectPlans),
+                        (long)partsLength * Unity.Collections.LowLevel.Unsafe.UnsafeUtility.SizeOf<EffectDrawPlanData>());
+                    Unity.Collections.LowLevel.Unsafe.UnsafeUtility.MemClear(
+                        Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_instanceMeshes),
+                        (long)partsLength * Unity.Collections.LowLevel.Unsafe.UnsafeUtility.SizeOf<InstanceMeshPointer>());
+                }
+
+                for (int k = 0; k < _effectPartCount; k++)
+                {
+                    int i = _effectPartIndices[k];
+                    var ev = NativeMethods.ss_runtime_get_active_effect_event(_handle.ptr, (uint)i);
+                    var step = NativeMethods.ss_effect_slot_step((void*)_effectSlots[i].EffectSlot, ev, drawFrameNo, deltaTime, fps, parentLooped, false, 3);
+                    if (step.visible && step.draw_plan_len > 0)
+                        _effectPlans[i] = AppendEffectDrawPlan(step.draw_plan_buf, (int)step.draw_plan_len);
+                    // 非 visible は MemClear 済の default のまま
+                }
+
+                for (int k = 0; k < _instancePartCount; k++)
+                {
+                    int i = _instancePartIndices[k];
+                    var childPlayer = _instanceChildren[i].Player;
+                    if (childPlayer == null) continue; // _instanceMeshes[i] は MemClear 済 default
+
+                    var ev = NativeMethods.ss_runtime_get_active_event_instance(_handle.ptr, (uint)i);
+                    var step = NativeMethods.ss_instance_slot_step((void*)_instanceChildren[i].InstanceSlot, ev, childPlayer._handle.ptr, _instanceChildren[i].PreviousFrame, drawFrameNo, deltaTime, parentLooped);
+
+                    if (step.transitioned)
+                    {
+                        childPlayer.Play(); // Trigger side effects (UnityEvents) if needed
+                    }
+
+                    if (step.visible)
+                    {
+                        float childDrawFrame = childPlayer.SubFrameEnabled ? step.child_frame_no : UnityEngine.Mathf.Floor(step.child_frame_no);
+                        childDrawFrame = UnityEngine.Mathf.Clamp(childDrawFrame, childPlayer.GetAnimationSectionStart(), childPlayer.GetAnimationSectionEnd());
+                        _instanceChildren[i].PreviousFrame = childDrawFrame;
+                        childPlayer.SetFrame(childDrawFrame);
+                        childPlayer.ScheduleMeshUpdate(deltaTime);
+
+                        _childHandles[childHandleCount++] = childPlayer.CurrentUpdateJobHandle;
+
+                        _instanceMeshes[i] = new InstanceMeshPointer {
+                            Vertices = (SsVertex*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(childPlayer.MeshVertices),
+                            Indices = (uint*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(childPlayer.MeshIndices),
+                            VertexCount = childPlayer.VertexCount,
+                            IndexCount = childPlayer.IndexCount
+                        };
+                    }
+                    // 非 visible は MemClear 済の default のまま
+                }
+
+                // maxBatches も active な effect/instance パーツのみ集計 (非 active は default=0寄与なので不要)。
+                int maxBatches = drawBatchesLength;
+                for (int k = 0; k < _effectPartCount; k++)
+                {
+                    int i = _effectPartIndices[k];
+                    if (_effectPlans[i].CommandCount > 0)
+                        maxBatches += _effectPlans[i].CommandCount;
+                }
+                for (int k = 0; k < _instancePartCount; k++)
+                {
+                    int i = _instancePartIndices[k];
+                    if (_instanceMeshes[i].Vertices != null)
+                    {
+                        // Instance は子メッシュ全体を 1 draw batch として取り込むが、テクスチャ単位の SubMesh は
+                        // 子の submesh 数ぶん発生する。submesh 数 + 1 (draw batch ぶん) を見込む。
+                        maxBatches += _instanceChildren[i].Player.SubmeshCount + 1;
+                    }
+                }
+
+                // Masking emits per-part submeshes (no batch merge) plus extra write/restore steps, so
+                // grow the batch/submesh budget. Each part contributes up to ~2 steps (test+write or
+                // colour-suppressed restore); the pre-write phase adds at most one per writer.
+                if (_hasMaskParts) maxBatches += partsLength * 2 + _maskWriterCount;
+
+                // 永続バッファを grow-only で確保 (毎フレーム new しない)
+                EnsureCapacity(ref _drawBatches, maxBatches);
+                EnsureCapacity(ref _drawOrder, drawOrderLength);
+                EnsureCapacity(ref _partStates, partsLength);
+                EnsureCapacity(ref _partColors, partsColorLength);
+
+                _drawBatchCount = 0; // Will be incremented dynamically
+                _partCount = partsLength;
+                _partColorCount = partsColorLength;
+
+                // PartState を先に充填し、下のバッチ集計 (Normal の needsCenter 判定) が
+                // UpdateFlag を FlatBuffer から再デコードせず _partStates から読めるようにする。
+                for (int i = 0; i < partsLength; i++)
+                {
+                    var p = frameData.Parts(i).Value;
+                    _partStates[i] = new PartStateData
+                    {
+                        UpdateFlag = (ulong)p.UpdateFlag,
+                        Alpha = p.Alpha,
+                        PartColorIndex = p.PartColor
+                    };
+                }
+
+                // DrawOrder ([ushort] vector) も先に充填し、バッチ集計ループは _drawOrder から読む。
+                // 連続 scalar vector なので per-element でなく一括 memcpy する (effect ジオメトリと同様)。
+                // draw_order は FrameData の field 6 → vtable offset 16。
+                var tFrame = new Google.FlatBuffers.Table(
+                    _frameDataByteBuffer.GetInt(_frameDataByteBuffer.Position) + _frameDataByteBuffer.Position, _frameDataByteBuffer);
+                CopyFbVector(tFrame, 16, frameDataPtr, _drawOrder, 0, drawOrderLength);
+
+                // Build the per-frame mask writer list (mirrors _build_mask_writers). Behaviour-neutral
+                // until the stencil submesh pipeline consumes it.
+                BuildMaskWriters(frameData, drawOrderLength, partsLength);
+
+                int totalVertices = 0;
+                int totalIndices = 0;
+                _submeshCount = 0;
+                if (_submeshes == null || _submeshes.Length < maxBatches)
+                {
+                    _submeshes = new SubmeshInfo[maxBatches < 1 ? 1 : maxBatches];
+                }
+
+                // Mask Phase A: harvest per-part textures, then pre-write every pure mask so the stencil
+                // reflects all of them before any body part is drawn. Each pure mask's coverage is
+                // removed again at its own rank in the main loop (Phase B), yielding the "mask affects
+                // lower-priority parts" scope (mirrors SS6PU's pre-draw + slot decrement).
+                if (_hasMaskParts)
+                {
+                    BuildMaskPartLookup(frameData, drawBatchesLength, drawOrderLength, partsLength);
+                    for (int wi = 0; wi < _maskWriterCount; wi++)
+                    {
+                        var w = _maskWriters[wi];
+                        if (w.IsClipping) continue; // clipping writes at its own rank (Phase B), not pre-written
+                        int wp = w.PartIndex;
+                        if (wp < 0 || wp >= partsLength) continue;
+                        var md = _maskPartData[wp];
+                        if (!MaskPartVcIc(wp, md.DrawKind, frame, out int wvc, out int wic)) continue;
+                        byte op = w.OpInvert ? StencilOpInvert : StencilOpIncr;
+                        float threshold = md.DrawKind == SsDrawBatchKind.Shape ? -1f : w.Threshold;
+                        EmitMaskStep(md.DrawKind, w.DrawRank, wvc, wic, _maskPartTexHash[wp], _maskPartBlend[wp],
+                            StencilRole.Write, op, 0, threshold, ref totalVertices, ref totalIndices);
+                    }
+                }
+
+                for (int i = 0; i < drawBatchesLength; i++)
+                {
+                    var b = frameData.DrawBatches(i).Value;
+
+                    // 描画対象は Normal(0)/Shape(1)/Instance(2)/Effect(3)/Mesh(4) のみ。
+                    int vc = 0;
+                    int ic = 0;
+                    
+                    if (b.Kind == ss.runtime.DrawBatchKind.Instance)
+                    {
+                        for (int k = 0; k < b.Count; k++)
+                        {
+                            int rank = b.StartRank + k;
+                            int p_idx = _drawOrder[rank];
+                            if (p_idx < 0 || p_idx >= partsLength) continue;
+
+                            var meshPtr = _instanceMeshes[p_idx];
+                            if (meshPtr.Vertices != null && meshPtr.VertexCount > 0)
+                            {
+                                var childPlayer = _instanceChildren[p_idx].Player;
+                                int cvc = childPlayer.VertexCount;
+                                int cic = childPlayer.IndexCount;
+
+                                // 子メッシュは頂点/インデックスが子バッファ上で連続しているため、1 つの
+                                // Instance バッチとして丸ごと取り込む (Job の BuildInstance が meshPtr 全体を
+                                // 1 回でコピーする)。子が複数バッチ (複数テクスチャ) でも、ここで複数の
+                                // DrawBatchData を積むと BuildInstance が子メッシュをバッチ数ぶん重複コピーして
+                                // バッファ溢れ・描画破綻を起こすため不可。テクスチャ単位の分割は下の SubmeshInfo が担う。
+                                _drawBatches[_drawBatchCount++] = new DrawBatchData
+                                {
+                                    Kind = SsDrawBatchKind.Instance,
+                                    EffectPartIndex = p_idx,
+                                    VertexCount = cvc,
+                                    IndexCount = cic
+                                };
+
+                                // Parent-mask inheritance (single level): if this instance part is a
+                                // mask target, stencil-test the whole child sub-animation against the
+                                // shared coverage. Mirrors Godot's _emit_instance_slot mask path.
+                                StencilRole instRole = StencilRole.None;
+                                byte instComp = 0;
+                                if (_hasMaskParts)
+                                {
+                                    var imd = _maskPartData[p_idx];
+                                    if (imd.MaskInfluence || imd.MaskWrite)
+                                    {
+                                        instRole = StencilRole.Test;
+                                        instComp = imd.VisibleInsideMask ? StencilCompNotEqual : StencilCompEqual;
+                                    }
+                                }
+
+                                for (int sm = 0; sm < childPlayer.SubmeshCount; sm++)
+                                {
+                                    var cs = childPlayer.Submeshes[sm];
+                                    // Preserve the child's own stencil role so its internal masks still
+                                    // work (its write submeshes stay ColorMask-0 writes instead of leaking
+                                    // as colour, and its test/restore sequence is kept verbatim/contiguous
+                                    // = self-restoring). Only a plain child colour submesh (Role None)
+                                    // inherits the parent's mask test (and stays mergeable via EmitSubmesh).
+                                    // NOTE single level: a parent mask and a child mask share the isolated
+                                    // stencil bits, so a child part that is itself masked is not additionally
+                                    // parent-clipped, and simultaneous overlap of the two is a known limit.
+                                    StencilRole cr = cs.Role;
+                                    byte cComp = cs.StencilComp, cRMask = cs.StencilReadMask;
+                                    if (cs.Role == StencilRole.None && instRole == StencilRole.Test)
+                                    {
+                                        cr = StencilRole.Test;
+                                        cComp = instComp;
+                                        cRMask = SpriteStudioMaterial.MaskStencilMask;
+                                    }
+                                    EmitSubmesh(totalIndices + cs.IndexStart, cs.IndexCount, cs.TextureHash, cs.BlendType,
+                                        cr, cs.StencilOp, cComp, cs.StencilRef, cRMask, cs.StencilWriteMask, cs.MaskThreshold);
+                                }
+
+                                totalVertices += cvc;
+                                totalIndices += cic;
+                            }
+                        }
+                    }
+                    else if (b.Kind == ss.runtime.DrawBatchKind.Effect)
+                    {
+                        for (int k = 0; k < b.Count; k++)
+                        {
+                            int rank = b.StartRank + k;
+                            int p_idx = _drawOrder[rank];
+                            if (p_idx < 0 || p_idx >= partsLength) continue;
+                            
+                            var plan = _effectPlans[p_idx];
+                            if (plan.CommandCount == 0) continue;
+
+                            // Parent-mask inheritance: stencil-test the effect quads when this effect
+                            // part is a mask target (same single-level rule as Instance / Normal).
+                            StencilRole effRole = StencilRole.None;
+                            byte effComp = 0;
+                            if (_hasMaskParts)
+                            {
+                                var emd = _maskPartData[p_idx];
+                                if (emd.MaskInfluence || emd.MaskWrite)
+                                {
+                                    effRole = StencilRole.Test;
+                                    effComp = emd.VisibleInsideMask ? StencilCompNotEqual : StencilCompEqual;
+                                }
+                            }
+
+                            for (int c = 0; c < plan.CommandCount; c++)
+                            {
+                                var cmd = _effectCommands[plan.CommandStart + c];
+                                if (cmd.QuadCount > 0)
+                                {
+                                    int cmdVc = (int)cmd.QuadCount * 4;
+                                    int cmdIc = (int)cmd.QuadCount * 6;
+
+                                    _drawBatches[_drawBatchCount++] = new DrawBatchData
+                                    {
+                                        StartRank = 0,
+                                        Count = 0,
+                                        VertexCount = cmdVc,
+                                        IndexCount = cmdIc,
+                                        Kind = SsDrawBatchKind.Effect,
+                                        EffectBlend = cmd.Blend,
+                                        // 結合ジオメトリ内のグローバル quad オフセット (= スロットベース + コマンド内オフセット)。
+                                        EffectParticleOffset = (uint)plan.QuadBase + cmd.ParticleOffset,
+                                        EffectQuadCount = cmd.QuadCount,
+                                        EffectPartIndex = p_idx
+                                    };
+                                    
+                                    EmitSubmesh(totalIndices, cmdIc, cmd.CellmapHash, SpriteStudioMaterial.BlendMix,
+                                        effRole, 0, effComp, 0, effRole == StencilRole.Test ? SpriteStudioMaterial.MaskStencilMask : (byte)0, 0, 0f);
+                                    
+                                    totalVertices += cmdVc;
+                                    totalIndices += cmdIc;
+                                }
+                            }
+                        }
+                    }
+                    else if (b.Kind == ss.runtime.DrawBatchKind.Normal || b.Kind == ss.runtime.DrawBatchKind.Shape || b.Kind == ss.runtime.DrawBatchKind.Mesh)
+                    {
+                        if (_hasMaskParts)
+                        {
+                            // Phase B (rank order): emit each part per-part with its stencil role.
+                            byte kind = (byte)b.Kind;
+                            for (int k = 0; k < b.Count; k++)
+                            {
+                                int rank = b.StartRank + k;
+                                int p_idx = _drawOrder[rank];
+                                if (p_idx < 0 || p_idx >= partsLength) continue;
+                                if (!MaskPartVcIc(p_idx, kind, frame, out int pvc, out int pic)) continue;
+                                var md = _maskPartData[p_idx];
+                                if (md.PureMask)
+                                {
+                                    // draw_as_mask: suppress colour, restore (pre-written in Phase A).
+                                    byte rop = md.MaskInfluence ? StencilOpInvert : StencilOpDecr;
+                                    float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
+                                    EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                                        StencilRole.Write, rop, 0, th, ref totalVertices, ref totalIndices);
+                                }
+                                else
+                                {
+                                    bool maskTarget = md.MaskInfluence || md.MaskWrite;
+                                    if (maskTarget)
+                                    {
+                                        byte comp = md.VisibleInsideMask ? StencilCompNotEqual : StencilCompEqual;
+                                        EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                                            StencilRole.Test, 0, comp, 0f, ref totalVertices, ref totalIndices);
+                                    }
+                                    else
+                                    {
+                                        EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                                            StencilRole.None, 0, 0, 0f, ref totalVertices, ref totalIndices);
+                                    }
+                                    if (md.IsClipping)
+                                    {
+                                        // Clipping also writes coverage at its own rank (no restore -> affects later parts).
+                                        byte wop = md.MaskInfluence ? StencilOpInvert : StencilOpIncr;
+                                        float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
+                                        EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                                            StencilRole.Write, wop, 0, th, ref totalVertices, ref totalIndices);
+                                    }
+                                }
+                            }
+                            continue; // masked per-part handling replaces the batch-merge below
+                        }
+
+                        for (int k = 0; k < b.Count; k++)
+                        {
+                            int rank = b.StartRank + k;
+                            int p_idx = _drawOrder[rank];
+                            if (p_idx < 0 || p_idx >= partsLength) continue;
+
+                            if (b.Kind == ss.runtime.DrawBatchKind.Normal)
+                            {
+                                bool needsCenter = (_partStates[p_idx].UpdateFlag & SsUpdateFlag.NeedsCenterMask) != 0;
+                                vc += needsCenter ? 5 : 4;
+                                ic += needsCenter ? 12 : 6;
+                            }
+                            else if (b.Kind == ss.runtime.DrawBatchKind.Shape)
+                            {
+                                int svc = frame.ShapeVertexCounts[p_idx];
+                                if (svc >= 3)
+                                {
+                                    vc += svc;
+                                    ic += (svc - 2) * 3;
+                                }
+                            }
+                            else if (b.Kind == ss.runtime.DrawBatchKind.Mesh)
+                            {
+                                uint v0 = frame.MeshVertexOffsets[p_idx];
+                                uint v1 = frame.MeshVertexOffsets[p_idx + 1];
+                                uint i0 = frame.MeshIndexOffsets[p_idx];
+                                uint i1 = frame.MeshIndexOffsets[p_idx + 1];
+                                if (v1 > v0 && i1 > i0 && (i1 - i0) % 3 == 0)
+                                {
+                                    vc += (int)(v1 - v0);
+                                    ic += (int)(i1 - i0);
+                                }
+                            }
+                        }
+
+                        if (vc > 0 && ic > 0)
+                        {
+                            _drawBatches[_drawBatchCount++] = new DrawBatchData
+                            {
+                                StartRank = (ushort)b.StartRank,
+                                Count = (ushort)b.Count,
+                                VertexCount = vc,
+                                IndexCount = ic,
+                                Kind = (byte)b.Kind
+                            };
+
+                            EmitSubmesh(totalIndices, ic, b.TextureHash, (byte)b.BlendType);
+
+                            totalVertices += vc;
+                            totalIndices += ic;
+                        }
+                    }
+                    else if (b.Kind == ss.runtime.DrawBatchKind.Mask && _hasMaskParts)
+                    {
+                        // PartTypeMask parts arrive as a Mask batch (vc/ic = 0) and are built as a
+                        // Normal quad. The write happened in Phase A; restore here at the mask's rank.
+                        // Mask twins (texture 0) for draw_as_mask / clipping parts are skipped — those
+                        // are handled via their colour batch in the Normal/Shape/Mesh branch above.
+                        for (int k = 0; k < b.Count; k++)
+                        {
+                            int rank = b.StartRank + k;
+                            int p_idx = _drawOrder[rank];
+                            if (p_idx < 0 || p_idx >= partsLength) continue;
+                            var md = _maskPartData[p_idx];
+                            if (!md.IsMaskPart) continue;
+                            if (!MaskPartVcIc(p_idx, SsDrawBatchKind.Normal, frame, out int mvc, out int mic)) continue;
+                            byte rop = md.MaskInfluence ? StencilOpInvert : StencilOpDecr;
+                            float th = (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
+                            EmitMaskStep(SsDrawBatchKind.Normal, rank, mvc, mic, b.TextureHash, (byte)b.BlendType,
+                                StencilRole.Write, rop, 0, th, ref totalVertices, ref totalIndices);
+                        }
+                    }
+                }
+
+                for (int i = 0; i < partsColorLength; i++)
+                {
+                    var pc = frameData.PartsColor(i).Value;
+                    _partColors[i] = new PartColorData
+                    {
+                        BlendType = (byte)pc.BlendType,
+                        Lt = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Lt.Rgba.R, pc.Lt.Rgba.G, pc.Lt.Rgba.B, pc.Lt.Rgba.A), Rate = pc.Lt.Rate },
+                        Rt = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Rt.Rgba.R, pc.Rt.Rgba.G, pc.Rt.Rgba.B, pc.Rt.Rgba.A), Rate = pc.Rt.Rate },
+                        Lb = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Lb.Rgba.R, pc.Lb.Rgba.G, pc.Lb.Rgba.B, pc.Lb.Rgba.A), Rate = pc.Lb.Rate },
+                        Rb = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Rb.Rgba.R, pc.Rb.Rgba.G, pc.Rb.Rgba.B, pc.Rb.Rgba.A), Rate = pc.Rb.Rate }
+                    };
+                }
+
+                if (totalVertices == 0 || totalIndices == 0)
+                {
+                    _vertexCount = 0;
+                    _indexCount = 0;
+                    return;
+                }
+
+                EnsureCapacity(ref _meshVertices, totalVertices);
+                EnsureCapacity(ref _meshIndices, totalIndices);
+                EnsureCapacity(ref _meshBounds, 2); // Job が min/max を書き込む
+                _vertexCount = totalVertices;
+                _indexCount = totalIndices;
+
+                // index アップロードキャッシュ用のトポロジシグネチャ。バッチ構造は生成される index 値と
+                // submesh 範囲を一意に決めるため、これが前フレームと同一なら index/submesh は再送不要。
+                // (Effect は QuadCount/Offset が毎フレーム変わるので自然に不一致 = キャッシュされない)
+                {
+                    ulong sig = 14695981039346656037UL;
+                    const ulong prime = 1099511628211UL;
+                    sig = (sig ^ (ulong)(uint)_drawBatchCount) * prime;
+                    for (int i = 0; i < _drawBatchCount; i++)
+                    {
+                        var b = _drawBatches[i];
+                        sig = (sig ^ ((ulong)b.Kind | ((ulong)b.Count << 8) | ((ulong)b.StartRank << 24))) * prime;
+                        sig = (sig ^ (ulong)(uint)b.VertexCount) * prime;
+                        sig = (sig ^ (ulong)(uint)b.IndexCount) * prime;
+                        sig = (sig ^ (ulong)(uint)b.EffectPartIndex) * prime;
+                        sig = (sig ^ ((ulong)b.EffectQuadCount | ((ulong)b.EffectParticleOffset << 32))) * prime;
+                    }
+                    sig = (sig ^ (ulong)(uint)_submeshCount) * prime;
+                    for (int i = 0; i < _submeshCount; i++)
+                    {
+                        var s = _submeshes[i];
+                        sig = (sig ^ ((ulong)(uint)s.IndexStart | ((ulong)(uint)s.IndexCount << 32))) * prime;
+                    }
+                    sig = (sig ^ (ulong)(uint)_indexCount) * prime;
+                    sig = (sig ^ (ulong)(uint)_vertexCount) * prime;
+                    _topologySignature = sig;
+                }
+
+                // エフェクトが無くても Job が参照するため、結合配列は最低 1 要素を確保しておく。
+                EnsureCapacityPreserve(ref _effectVerts, 1);
+                EnsureCapacityPreserve(ref _effectUvs, 1);
+                EnsureCapacityPreserve(ref _effectColors, 1);
+                EnsureCapacityPreserve(ref _effectIndices, 1);
+
+                JobHandle deps = default;
+                if (childHandleCount > 0)
+                {
+                    deps = JobHandle.CombineDependencies(_childHandles.GetSubArray(0, childHandleCount));
+                }
+
+                _updateJobHandle = new UpdateMeshJob
+                {
+                    WorldMatrices = frame.WorldMatrices,
+                    LocalUvs = frame.LocalUvs,
+                    LocalVertices = frame.LocalVertices,
+                    ShapeVertices = frame.ShapeVertices,
+                    ShapeBoxCoords = frame.ShapeBoxCoords,
+                    ShapeVertexCounts = frame.ShapeVertexCounts,
+
+                    MeshVerticesX = frame.MeshVerticesX,
+                    MeshVerticesY = frame.MeshVerticesY,
+                    MeshVertexOffsets = frame.MeshVertexOffsets,
+                    MeshUvs = frame.MeshUvs,
+                    MeshIndices = frame.MeshIndices,
+                    MeshIndexOffsets = frame.MeshIndexOffsets,
+
+                    BatchCount = _drawBatchCount,
+                    PartCount = _partCount,
+                    PartColorCount = _partColorCount,
+                    InvScale = VertexScale,
+
+                    DrawBatches = _drawBatches,
+                    DrawOrder = _drawOrder,
+                    PartStates = _partStates,
+                    PartColors = _partColors,
+                    EffectVerts = _effectVerts,
+                    EffectUvs = _effectUvs,
+                    EffectColors = _effectColors,
+                    EffectIndices = _effectIndices,
+                    InstanceMeshes = _instanceMeshes,
+
+                    Vertices = _meshVertices,
+                    Indices = _meshIndices,
+                    Bounds = _meshBounds
+                }.Schedule(deps);
+
+                // 次フレームこの整数フレームと一致すれば再構築を省く基準。
+                _lastBuiltDrawFrameNo = drawFrameNo;
+            }
+        }
+
+        /// <summary>
+        /// 発行済みのメッシュ構築ジョブの完了を待ち、UnityのMeshへ反映する
+        /// </summary>
+        public void ApplyToMesh(UnityEngine.Mesh targetMesh, bool perBatchSubmesh = false)
+        {
+            // Meshに適用する前に Job の完了を待機
+            _updateJobHandle.Complete();
+
+            // ScheduleMeshUpdate が再構築を省いたフレームは Mesh が前回のまま正しいので、再アップロードも省く。
+            if (_frameSkipped) return;
+
+            if (_vertexCount == 0 || _indexCount == 0 || !_meshVertices.IsCreated || !_meshIndices.IsCreated)
+            {
+                targetMesh.Clear();
+                _meshUploaded = false; // 次回はフルアップロード (キャッシュ無効化)
+                return;
+            }
+
+            // Unity の厳格なバリデーション (Overlapや領域外参照) を回避するためのフラグ
+            // DontValidateIndices = 8 (Unity 2021以降)
+            var updateFlags = UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds | (UnityEngine.Rendering.MeshUpdateFlags)8;
+
+            // トポロジ (index/submesh 構造) が前回アップロードと完全一致するなら、毎フレーム動く頂点だけ
+            // 更新し、index/submesh の再アップロードを省く (考察の「index キャッシュ」)。Mesh インスタンスが
+            // 変わった場合 (共有/プレビュー等) は安全側でフルアップロードに倒す。
+            int meshId = targetMesh.GetInstanceID();
+            bool topoUnchanged = _meshUploaded
+                && meshId == _lastMeshId
+                && _topologySignature == _uploadedTopologySignature
+                && _vertexCount == _uploadedVertexCount
+                && _indexCount == _uploadedIndexCount
+                && perBatchSubmesh == _uploadedPerBatchSubmesh;
+
+            if (topoUnchanged)
+            {
+                targetMesh.SetVertexBufferData(_meshVertices, 0, 0, _vertexCount, 0, updateFlags);
+                ApplyJobComputedBounds(targetMesh);
+                return;
+            }
+
+            // --- フルアップロード (初回 or トポロジ変化) ---
+            // バッファ再宣言時の領域外参照を避けるため一旦 submesh を空にする。
+            targetMesh.SetSubMesh(0, new UnityEngine.Rendering.SubMeshDescriptor(0, 0), updateFlags);
+            targetMesh.subMeshCount = 1;
+
+            targetMesh.SetVertexBufferParams(_vertexCount, s_vertexLayout);
+            targetMesh.SetIndexBufferParams(_indexCount, UnityEngine.Rendering.IndexFormat.UInt32);
+
+            targetMesh.SetVertexBufferData(_meshVertices, 0, 0, _vertexCount, 0, updateFlags);
+            targetMesh.SetIndexBufferData(_meshIndices, 0, 0, _indexCount, updateFlags);
+
+            if (perBatchSubmesh && _submeshCount > 0)
+            {
+                // SetSubMeshes で一括設定する (逐次設定時の Overlap 警告を回避)。
+                EnsureCapacity(ref _submeshDescriptors, _submeshCount);
+                for (int s = 0; s < _submeshCount; s++)
+                {
+                    var info = _submeshes[s];
+                    _submeshDescriptors[s] = new UnityEngine.Rendering.SubMeshDescriptor(info.IndexStart, info.IndexCount, UnityEngine.MeshTopology.Triangles);
+                }
+                targetMesh.SetSubMeshes(_submeshDescriptors, 0, _submeshCount, updateFlags);
+            }
+            else
+            {
+                targetMesh.subMeshCount = 1;
+                var subMeshDescriptor = new UnityEngine.Rendering.SubMeshDescriptor(0, _indexCount, UnityEngine.MeshTopology.Triangles);
+                targetMesh.SetSubMesh(0, subMeshDescriptor, updateFlags);
+            }
+            ApplyJobComputedBounds(targetMesh);
+
+            // アップロード済みトポロジを記録 (次フレーム以降の index 再送スキップ判定に使う)。
+            _meshUploaded = true;
+            _lastMeshId = meshId;
+            _uploadedTopologySignature = _topologySignature;
+            _uploadedVertexCount = _vertexCount;
+            _uploadedIndexCount = _indexCount;
+            _uploadedPerBatchSubmesh = perBatchSubmesh;
+
+            // バッファは破棄せず再利用する (Dispose() でのみ解放)
+        }
+
+        /// <summary>
+        /// UpdateMeshJob が算出した min/max を Mesh.bounds へ適用する。
+        /// 未算出時は Mesh.RecalculateBounds() にフォールバックする。
+        /// </summary>
+        private void ApplyJobComputedBounds(UnityEngine.Mesh targetMesh)
+        {
+            if (!_meshBounds.IsCreated || _meshBounds.Length < 2)
+            {
+                targetMesh.RecalculateBounds();
+                return;
+            }
+            Vector3 mn = _meshBounds[0];
+            Vector3 mx = _meshBounds[1];
+            targetMesh.bounds = new Bounds((mn + mx) * 0.5f, mx - mn);
+        }
+    }
+}

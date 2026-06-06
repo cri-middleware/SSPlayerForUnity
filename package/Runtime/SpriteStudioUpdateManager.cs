@@ -38,7 +38,8 @@ namespace SpriteStudio.Runtime
     public static class SpriteStudioUpdateManager
     {
         private static readonly List<ISpriteStudioRenderable> _renderables = new List<ISpriteStudioRenderable>();
-        private static ISpriteStudioRenderable[] _tickBuffer = new ISpriteStudioRenderable[16];
+        private static ISpriteStudioRenderable[] _tickBuffer = new ISpriteStudioRenderable[32];
+        private static int _tickCount = 0;
         private static SpriteStudioUpdateRunner _runner;
 
         // 並列 get_frame_data 用の永続バッファ (grow-only, 定常ゼロ GC)。
@@ -81,6 +82,7 @@ namespace SpriteStudio.Runtime
         internal static void Schedule(float deltaTime)
         {
             int count = _renderables.Count;
+            _tickCount = count;
             if (count == 0) return;
 
             // 反復中の Register/Unregister に備え、再利用バッファへスナップショットしてから処理する
@@ -165,14 +167,14 @@ namespace SpriteStudio.Runtime
 
         internal static void Apply()
         {
-            int count = _renderables.Count;
-            if (count == 0) return;
+            if (_tickCount == 0) return;
 
             // Phase 2: 全インスタンスの Job 完了待ち + メッシュ反映
-            for (int i = 0; i < count; i++) _tickBuffer[i].ApplyAndRender();
+            for (int i = 0; i < _tickCount; i++) _tickBuffer[i]?.ApplyAndRender();
 
             // スナップショットの参照を残さない
-            for (int i = 0; i < count; i++) _tickBuffer[i] = null;
+            for (int i = 0; i < _tickCount; i++) _tickBuffer[i] = null;
+            _tickCount = 0;
         }
     }
 
