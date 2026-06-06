@@ -85,6 +85,10 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             if (_meshVertices.IsCreated) _meshVertices.Dispose();
             if (_meshIndices.IsCreated) _meshIndices.Dispose();
             if (_meshIndices16.IsCreated) _meshIndices16.Dispose();
+            if (_canvasPositions.IsCreated) _canvasPositions.Dispose();
+            if (_canvasColors.IsCreated) _canvasColors.Dispose();
+            if (_canvasUv0.IsCreated) _canvasUv0.Dispose();
+            if (_canvasUv1.IsCreated) _canvasUv1.Dispose();
             if (_drawBatches.IsCreated) _drawBatches.Dispose();
             if (_drawOrder.IsCreated) _drawOrder.Dispose();
             if (_partStates.IsCreated) _partStates.Dispose();
@@ -157,6 +161,13 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         // Only filled when ApplyToMesh is asked for 16-bit indices (the Canvas/uGUI path).
         private NativeArray<ushort> _meshIndices16;
         private bool _warned16BitOverflow;
+        // De-interleaved scratch channels for the Canvas high-level Mesh upload (see ApplyToMeshCanvas).
+        // CanvasRenderer cannot consume a low-level SetVertexBufferData mesh on Windows/D3D12, so the
+        // Canvas path uploads per channel via the high-level API instead. Reused (grow-only) = zero alloc.
+        private NativeArray<Vector3> _canvasPositions;
+        private NativeArray<Color32> _canvasColors;
+        private NativeArray<Vector2> _canvasUv0;
+        private NativeArray<Vector4> _canvasUv1;
         private NativeArray<DrawBatchData> _drawBatches;
         private NativeArray<ushort> _drawOrder;
         private NativeArray<PartStateData> _partStates;
@@ -1000,6 +1011,15 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 return;
             }
 
+            // CanvasRenderer rejects low-level SetVertexBufferData meshes on Windows/D3D12 (it issues an
+            // invalid GPU draw that removes the device). The Canvas path builds via the high-level Mesh
+            // API instead; the world (MeshRenderer) path keeps the fast low-level upload below.
+            if (use16BitIndices)
+            {
+                ApplyToMeshCanvas(targetMesh);
+                return;
+            }
+
             // Unity の厳格なバリデーション (Overlapや領域外参照) を回避するためのフラグ
             // DontValidateIndices = 8 (Unity 2021以降)
             var updateFlags = UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds | (UnityEngine.Rendering.MeshUpdateFlags)8;
@@ -1031,31 +1051,10 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             targetMesh.SetVertexBufferParams(_vertexCount, s_vertexLayout);
             targetMesh.SetVertexBufferData(_meshVertices, 0, 0, _vertexCount, 0, updateFlags);
 
-            if (use16BitIndices)
-            {
-                // CanvasRenderer only accepts 16-bit index meshes. Index VALUES must fit in ushort, so
-                // vertexCount must be <= 65535 (the index COUNT itself is unconstrained). Build a 16-bit
-                // copy on this (throttled) full upload; the per-frame vertex-only path reuses it.
-                if (_vertexCount > 65535 && !_warned16BitOverflow)
-                {
-                    UnityEngine.Debug.LogWarning("[SpriteStudio] Canvas mesh exceeds 65535 vertices; 16-bit indices (required by CanvasRenderer) will wrap. Reduce part/particle count or use the world (MeshRenderer) player.");
-                    _warned16BitOverflow = true;
-                }
-                EnsureCapacity(ref _meshIndices16, _indexCount);
-                unsafe
-                {
-                    uint* src = (uint*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_meshIndices);
-                    ushort* dst = (ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_meshIndices16);
-                    for (int i = 0; i < _indexCount; i++) dst[i] = (ushort)src[i];
-                }
-                targetMesh.SetIndexBufferParams(_indexCount, UnityEngine.Rendering.IndexFormat.UInt16);
-                targetMesh.SetIndexBufferData(_meshIndices16, 0, 0, _indexCount, updateFlags);
-            }
-            else
-            {
-                targetMesh.SetIndexBufferParams(_indexCount, UnityEngine.Rendering.IndexFormat.UInt32);
-                targetMesh.SetIndexBufferData(_meshIndices, 0, 0, _indexCount, updateFlags);
-            }
+            // World (MeshRenderer) path is always 32-bit. The Canvas path returns earlier via
+            // ApplyToMeshCanvas (high-level API), so use16BitIndices is always false here.
+            targetMesh.SetIndexBufferParams(_indexCount, UnityEngine.Rendering.IndexFormat.UInt32);
+            targetMesh.SetIndexBufferData(_meshIndices, 0, 0, _indexCount, updateFlags);
 
             if (perBatchSubmesh && _submeshCount > 0)
             {
@@ -1086,6 +1085,62 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             _uploadedUse16BitIndices = use16BitIndices;
 
             // バッファは破棄せず再利用する (Dispose() でのみ解放)
+        }
+
+        /// <summary>
+        /// Canvas (uGUI) mesh upload. CanvasRenderer does not reliably consume a mesh built with the
+        /// low-level SetVertexBufferData path on Windows/D3D12 — it issues an invalid GPU draw that removes
+        /// the device. The high-level Mesh API produces the same layout uGUI's VertexHelper.FillMesh uses,
+        /// which CanvasRenderer accepts. The job's packed SsVertex stream is de-interleaved into reused
+        /// scratch channels (zero managed alloc) and indices are narrowed to 16-bit (CanvasRenderer rejects
+        /// 32-bit index meshes). A full rebuild runs each call — UI geometry animates per frame anyway — so
+        /// the low-level topology cache is bypassed and invalidated.
+        /// </summary>
+        private void ApplyToMeshCanvas(UnityEngine.Mesh targetMesh)
+        {
+            // Index VALUES must fit in ushort, i.e. vertexCount <= 65535 (the index COUNT is unconstrained).
+            if (_vertexCount > 65535 && !_warned16BitOverflow)
+            {
+                UnityEngine.Debug.LogWarning("[SpriteStudio] Canvas mesh exceeds 65535 vertices; CanvasRenderer requires 16-bit indices so geometry will wrap. Reduce part/particle count or use the world (MeshRenderer) player.");
+                _warned16BitOverflow = true;
+            }
+
+            EnsureCapacity(ref _canvasPositions, _vertexCount);
+            EnsureCapacity(ref _canvasColors, _vertexCount);
+            EnsureCapacity(ref _canvasUv0, _vertexCount);
+            EnsureCapacity(ref _canvasUv1, _vertexCount);
+            EnsureCapacity(ref _meshIndices16, _indexCount);
+
+            unsafe
+            {
+                var src = (SsVertex*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_meshVertices);
+                var pos = (Vector3*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_canvasPositions);
+                var col = (Color32*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_canvasColors);
+                var uv0 = (Vector2*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_canvasUv0);
+                var uv1 = (Vector4*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_canvasUv1);
+                for (int i = 0; i < _vertexCount; i++)
+                {
+                    var v = src[i];
+                    pos[i] = v.Position;
+                    col[i] = v.Color;
+                    uv0[i] = v.TexCoord0;
+                    uv1[i] = v.TexCoord1;
+                }
+                var si = (uint*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_meshIndices);
+                var di = (ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_meshIndices16);
+                for (int i = 0; i < _indexCount; i++) di[i] = (ushort)si[i];
+            }
+
+            // High-level upload (per channel). SetVertices first so the colour/uv channels size to it.
+            targetMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt16;
+            targetMesh.SetVertices(_canvasPositions, 0, _vertexCount);
+            targetMesh.SetColors(_canvasColors, 0, _vertexCount);
+            targetMesh.SetUVs(0, _canvasUv0, 0, _vertexCount);
+            targetMesh.SetUVs(1, _canvasUv1, 0, _vertexCount);
+            targetMesh.SetIndices(_meshIndices16, 0, _indexCount, UnityEngine.MeshTopology.Triangles, 0, false);
+            ApplyJobComputedBounds(targetMesh);
+
+            _meshUploaded = false; // Canvas path bypasses the low-level topology cache.
         }
 
         /// <summary>
