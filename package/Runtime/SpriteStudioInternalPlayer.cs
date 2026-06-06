@@ -14,15 +14,13 @@ namespace SpriteStudio.Runtime
     /// </summary>
     public class SpriteStudioInternalPlayer : IDisposable
     {
-        // ネイティブポインタを安全に扱うための ECS ラッパー
-        private SsPlayerHandle _handle;
+        // ネイティブコンテキスト（ポインタ管理を委譲）
+        private SpriteStudioNativeContext _nativeContext;
+        private SsPlayerHandle _handle => _nativeContext.Handle;
+        private unsafe void* _resourceHandle => _nativeContext.ResourceHandle;
 
         // 実行中の Burst Job のハンドル（破棄時や次フレーム更新時の同期に必須）
         private JobHandle _updateJobHandle;
-
-        // SSAB データの固定用（Rust 側にメモリを Borrow させるため）
-        private System.Runtime.InteropServices.GCHandle _ssabPin;
-        private unsafe void* _resourceHandle;
 
         private struct EffectSlotState
         {
@@ -145,27 +143,15 @@ namespace SpriteStudio.Runtime
 
         ~SpriteStudioInternalPlayer()
         {
-            if (!_isDisposed && (_handle.IsValid || _ssabPin.IsAllocated))
+            if (!_isDisposed)
             {
-                Debug.LogError("[SpriteStudioInternalPlayer] Memory leak detected! Dispose() was not called before the object was garbage collected. This leads to native memory leaks.");
+                Debug.LogError("[SpriteStudioInternalPlayer] Memory leak detected! Dispose() was not called before the object was garbage collected.");
             }
         }
 
         public SpriteStudioInternalPlayer()
         {
-            unsafe
-            {
-                _handle = new SsPlayerHandle { ptr = NativeMethods.ss_runtime_create() };
-                // 既定値 (YUp / Direct) に依存せず明示設定し、SDK 既定が将来変わっても巻き込まれないようにする。
-                //  coordinate_system=0(YUp): Unity ワールドは Y-up。get_local_vertices は flip 適用済みで
-                //    返るためワールド行列側で Y を再反転しない (二重反転防止)。
-                //  render_mode=0(Direct): SoA ゲッター経路 (本実装が前提とする経路) を使う。
-                if (_handle.IsValid)
-                {
-                    NativeMethods.ss_context_set_coordinate_system(_handle.ptr, 0);
-                    NativeMethods.ss_runtime_set_render_mode(_handle.ptr, (byte)0);
-                }
-            }
+            _nativeContext = new SpriteStudioNativeContext();
         }
 
         /// <summary>
@@ -185,28 +171,7 @@ namespace SpriteStudio.Runtime
         {
             _assetResolver = resolver;
             _instanceDepth = depth;
-            if (!_handle.IsValid || ssabData == null || ssabData.Length == 0) return;
-
-            // 既存のピン留めがあれば解除
-            if (_ssabPin.IsAllocated)
-            {
-                _ssabPin.Free();
-            }
-
-            // バイト配列のメモリを固定して Rust 側へ Borrow させる（ゼロコピー）
-            _ssabPin = System.Runtime.InteropServices.GCHandle.Alloc(ssabData, System.Runtime.InteropServices.GCHandleType.Pinned);
-
-            unsafe
-            {
-                if (_resourceHandle != null)
-                {
-                    NativeMethods.ss_resource_destroy(_resourceHandle);
-                    _resourceHandle = null;
-                }
-                byte* ptr = (byte*)_ssabPin.AddrOfPinnedObject();
-                _resourceHandle = NativeMethods.ss_resource_create_borrow(ptr, (nuint)ssabData.Length);
-                NativeMethods.ss_runtime_load_ssab_borrow(_handle.ptr, ptr, (nuint)ssabData.Length);
-            }
+            _nativeContext.LoadSsab(ssabData);
             
             var bb = new Google.FlatBuffers.ByteBuffer(ssabData);
             var ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
@@ -1547,19 +1512,10 @@ namespace SpriteStudio.Runtime
             // 必ず実行中の Burst Job を同期（完了待機）してセグフォールトを防ぐ。
             _updateJobHandle.Complete();
 
-            if (_handle.IsValid)
+            if (_nativeContext != null)
             {
-                unsafe
-                {
-                    NativeMethods.ss_runtime_destroy(_handle.ptr);
-                    _handle.ptr = null;
-                }
+                _nativeContext.Dispose();
             }
-            if (_ssabPin.IsAllocated)
-            {
-                _ssabPin.Free();
-            }
-            _updateJobHandle.Complete();
             
             unsafe
             {
@@ -1589,12 +1545,6 @@ namespace SpriteStudio.Runtime
                         }
                     }
                     _instanceChildren = null;
-                }
-                
-                if (_resourceHandle != null)
-                {
-                    NativeMethods.ss_resource_destroy(_resourceHandle);
-                    _resourceHandle = null;
                 }
             }
             
