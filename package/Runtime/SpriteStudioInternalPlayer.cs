@@ -141,6 +141,16 @@ namespace SpriteStudio.Runtime
         /// </summary>
         public float VertexScale { get; set; } = 1f;
 
+        private bool _isDisposed = false;
+
+        ~SpriteStudioInternalPlayer()
+        {
+            if (!_isDisposed && (_handle.IsValid || _ssabPin.IsAllocated))
+            {
+                Debug.LogError("[SpriteStudioInternalPlayer] Memory leak detected! Dispose() was not called before the object was garbage collected. This leads to native memory leaks.");
+            }
+        }
+
         public SpriteStudioInternalPlayer()
         {
             unsafe
@@ -1529,6 +1539,10 @@ namespace SpriteStudio.Runtime
 
         public void Dispose()
         {
+            if (_isDisposed) return;
+            _isDisposed = true;
+            System.GC.SuppressFinalize(this);
+
             // 【最重要】ネイティブポインタを解放したりNativeArrayを破棄する直前に、
             // 必ず実行中の Burst Job を同期（完了待機）してセグフォールトを防ぐ。
             _updateJobHandle.Complete();
