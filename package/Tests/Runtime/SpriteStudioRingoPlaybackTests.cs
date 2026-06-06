@@ -16,6 +16,13 @@ namespace SpriteStudio.Runtime.Tests
         [UnitySetUp]
         public IEnumerator Setup()
         {
+            // If we can load it from Resources, it's already built (Standalone or cached Editor)
+            var asset = Resources.Load<SpriteStudioAnimeAsset>(RingoAssetPath);
+            if (asset != null && asset.SsabData != null && asset.SsabData.Length > 0)
+            {
+                yield break;
+            }
+
             // Run conversion if Ringo.ssab doesn't exist
             string absoluteSsabPath = Path.GetFullPath(RingoSsabPath);
             if (!File.Exists(absoluteSsabPath))
@@ -65,17 +72,24 @@ namespace SpriteStudio.Runtime.Tests
         [UnityTest]
         public IEnumerator PlayRingo_SsabIsLoadedAndGeneratesMesh()
         {
-            // We can read directly from bytes since Resources.Load might fail if AssetDatabase isn't fully refreshed synchronously
-            string absoluteSsabPath = Path.GetFullPath(RingoSsabPath);
-            Assert.IsTrue(File.Exists(absoluteSsabPath), "Ringo.ssab must exist for this test.");
+            var animeAsset = Resources.Load<SpriteStudioAnimeAsset>(RingoAssetPath);
+            bool createdAsset = false;
 
-            byte[] ssabBytes = File.ReadAllBytes(absoluteSsabPath);
-            Assert.IsNotNull(ssabBytes);
-            Assert.Greater(ssabBytes.Length, 0);
+            if (animeAsset == null || animeAsset.SsabData == null || animeAsset.SsabData.Length == 0)
+            {
+                // We can read directly from bytes since Resources.Load might fail if AssetDatabase isn't fully refreshed synchronously
+                string absoluteSsabPath = Path.GetFullPath(RingoSsabPath);
+                Assert.IsTrue(File.Exists(absoluteSsabPath), "Ringo.ssab must exist for this test.");
 
-            // Create temporary asset
-            var animeAsset = ScriptableObject.CreateInstance<SpriteStudioAnimeAsset>();
-            animeAsset.SsabData = ssabBytes;
+                byte[] ssabBytes = File.ReadAllBytes(absoluteSsabPath);
+                Assert.IsNotNull(ssabBytes);
+                Assert.Greater(ssabBytes.Length, 0);
+
+                // Create temporary asset
+                animeAsset = ScriptableObject.CreateInstance<SpriteStudioAnimeAsset>();
+                animeAsset.SsabData = ssabBytes;
+                createdAsset = true;
+            }
 
             var go = new GameObject("RingoTest");
             var player = go.AddComponent<SpriteStudioPlayer>();
@@ -91,7 +105,7 @@ namespace SpriteStudio.Runtime.Tests
             
             // Dispose
             Object.DestroyImmediate(go);
-            Object.DestroyImmediate(animeAsset);
+            if (createdAsset) Object.DestroyImmediate(animeAsset);
         }
 
         [Test]
@@ -104,9 +118,19 @@ namespace SpriteStudio.Runtime.Tests
             //
             // 注: Unity の Mesh.vertexCount は GPU バッファ依存で headless/batchmode では 0 になりうる
             // ため、ここでは get_frame_data 由来の CPU 側カウント (InternalPlayer.VertexCount) で検証する。
-            string absoluteSsabPath = Path.GetFullPath(RingoSsabPath);
-            Assert.IsTrue(File.Exists(absoluteSsabPath), "Ringo.ssab must exist for this test.");
-            byte[] ssabBytes = File.ReadAllBytes(absoluteSsabPath);
+            byte[] ssabBytes = null;
+            var animeAsset = Resources.Load<SpriteStudioAnimeAsset>(RingoAssetPath);
+            if (animeAsset != null && animeAsset.SsabData != null && animeAsset.SsabData.Length > 0)
+            {
+                ssabBytes = animeAsset.SsabData;
+            }
+            else
+            {
+                string absoluteSsabPath = Path.GetFullPath(RingoSsabPath);
+                Assert.IsTrue(File.Exists(absoluteSsabPath), "Ringo.ssab must exist for this test.");
+                ssabBytes = File.ReadAllBytes(absoluteSsabPath);
+            }
+            Assert.IsNotNull(ssabBytes);
             Assert.Greater(ssabBytes.Length, 0);
 
             using (var player = new SpriteStudioInternalPlayer())
