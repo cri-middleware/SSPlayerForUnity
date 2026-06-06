@@ -48,13 +48,13 @@ internal struct MaskWriter
         }
         // Mask writers for the current frame (rebuilt by BuildMaskWriters). Managed: consumed on the
         // main thread when assigning stencil-write submeshes / materials.
-        private MaskWriter[] _maskWriters;
+        private NativeArray<MaskWriter> _maskWriters;
         private int _maskWriterCount;
         // Per-part (texture hash, blend) for the current frame, harvested from the draw batches so the
         // mask path can resolve a writer's texture (Mask twins carry texture 0; the part's colour batch
         // carries the real one). Index-aligned with parts; only filled when _player._hasMaskParts.
-        private uint[] _maskPartTexHash;
-        private byte[] _maskPartBlend;
+        private NativeArray<uint> _maskPartTexHash;
+        private NativeArray<byte> _maskPartBlend;
         // --- Moved from Instance.cs ---
 internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         // Instance 子の UpdateMeshJob ハンドルを束ねる依存配列。永続 grow-only (A3: 毎フレ Temp 確保を回避)。
@@ -90,6 +90,10 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             if (_partColors.IsCreated) _partColors.Dispose();
             if (_submeshDescriptors.IsCreated) _submeshDescriptors.Dispose();
             if (_meshBounds.IsCreated) _meshBounds.Dispose();
+            if (_submeshes.IsCreated) _submeshes.Dispose();
+            if (_maskWriters.IsCreated) _maskWriters.Dispose();
+            if (_maskPartTexHash.IsCreated) _maskPartTexHash.Dispose();
+            if (_maskPartBlend.IsCreated) _maskPartBlend.Dispose();
         }
 
         public unsafe struct DrawFrame
@@ -202,26 +206,28 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         // + blend: mask submeshes carry per-submesh stencil state and a strict draw order, so they are
         // never merged. Auto-grows the buffer.
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        private void EmitSubmesh(int indexStart, int indexCount, uint textureHash, byte blendType,
+        private unsafe void EmitSubmesh(int indexStart, int indexCount, uint textureHash, byte blendType,
             StencilRole role = StencilRole.None, byte stencilOp = 0, byte stencilComp = 0, byte stencilRef = 0,
             byte stencilReadMask = 0, byte stencilWriteMask = 0, float maskThreshold = 0f)
         {
             if (role == StencilRole.None && _submeshCount > 0)
             {
-                ref var last = ref _submeshes[_submeshCount - 1];
+                var pSub = (SubmeshInfo*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_submeshes);
+                ref var last = ref pSub[_submeshCount - 1];
                 if (last.Role == StencilRole.None && last.TextureHash == textureHash && last.BlendType == blendType)
                 {
                     last.IndexCount += indexCount;
                     return;
                 }
             }
-            if (_submeshes == null || _submeshCount >= _submeshes.Length)
+            if (!_submeshes.IsCreated || _submeshCount >= _submeshes.Length)
             {
-                int newSize = _submeshes == null ? 8 : _submeshes.Length * 2;
+                int newSize = !_submeshes.IsCreated ? 8 : _submeshes.Length * 2;
                 if (newSize < _submeshCount + 1) newSize = _submeshCount + 1;
-                System.Array.Resize(ref _submeshes, newSize);
+                EnsureCapacityPreserve(ref _submeshes, newSize);
             }
-            _submeshes[_submeshCount++] = new SubmeshInfo
+            var ptr = (SubmeshInfo*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_submeshes);
+            ptr[_submeshCount++] = new SubmeshInfo
             {
                 IndexStart = indexStart,
                 IndexCount = indexCount,
@@ -236,7 +242,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 MaskThreshold = maskThreshold
             };
         }
-        private SubmeshInfo[] _submeshes;
+        private NativeArray<SubmeshInfo> _submeshes;
         private int _submeshCount;
         // SetSubMeshes 用の永続バッファ (grow-only で使い回す)。
         private NativeArray<UnityEngine.Rendering.SubMeshDescriptor> _submeshDescriptors;
@@ -256,7 +262,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         public int IndexCount => _indexCount;
         public int DrawBatchCount => _drawBatchCount;
         public int SubmeshCount => _submeshCount;
-        public SubmeshInfo[] Submeshes => _submeshes;
+        public NativeArray<SubmeshInfo> Submeshes => _submeshes;
         public NativeArray<DrawBatchData> DrawBatches => _drawBatches;
         public NativeArray<SsVertex> MeshVertices => _meshVertices;
         public NativeArray<uint> MeshIndices => _meshIndices;
@@ -537,10 +543,11 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 // PartState を先に充填し、下のバッチ集計 (Normal の needsCenter 判定) が
                 // UpdateFlag を FlatBuffer から再デコードせず _partStates から読めるようにする。
+                var pStates = (PartStateData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_partStates);
                 for (int i = 0; i < partsLength; i++)
                 {
                     var p = frameData.Parts(i).Value;
-                    _partStates[i] = new PartStateData
+                    pStates[i] = new PartStateData
                     {
                         UpdateFlag = (ulong)p.UpdateFlag,
                         Alpha = p.Alpha,
@@ -562,10 +569,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 int totalVertices = 0;
                 int totalIndices = 0;
                 _submeshCount = 0;
-                if (_submeshes == null || _submeshes.Length < maxBatches)
-                {
-                    _submeshes = new SubmeshInfo[maxBatches < 1 ? 1 : maxBatches];
-                }
+                EnsureCapacity(ref _submeshes, maxBatches < 1 ? 1 : maxBatches);
 
                 // Mask Phase A: harvest per-part textures, then pre-write every pure mask so the stencil
                 // reflects all of them before any body part is drawn. Each pure mask's coverage is
@@ -576,7 +580,8 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     BuildMaskPartLookup(frameData, drawBatchesLength, drawOrderLength, partsLength);
                     for (int wi = 0; wi < _maskWriterCount; wi++)
                     {
-                        var w = _maskWriters[wi];
+                        var pWriters = (MaskWriter*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskWriters);
+                        var w = pWriters[wi];
                         if (w.IsClipping) continue; // clipping writes at its own rank (Phase B), not pre-written
                         int wp = w.PartIndex;
                         if (wp < 0 || wp >= partsLength) continue;
@@ -584,7 +589,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         if (!MaskPartVcIc(wp, md.DrawKind, frame, out int wvc, out int wic)) continue;
                         byte op = w.OpInvert ? StencilOpInvert : StencilOpIncr;
                         float threshold = md.DrawKind == SsDrawBatchKind.Shape ? -1f : w.Threshold;
-                        EmitMaskStep(md.DrawKind, w.DrawRank, wvc, wic, _maskPartTexHash[wp], _maskPartBlend[wp],
+                        EmitMaskStep(md.DrawKind, w.DrawRank, wvc, wic, ((uint*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskPartTexHash))[wp], ((byte*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskPartBlend))[wp],
                             StencilRole.Write, op, 0, threshold, ref totalVertices, ref totalIndices);
                     }
                 }
@@ -602,7 +607,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         for (int k = 0; k < b.Count; k++)
                         {
                             int rank = b.StartRank + k;
-                            int p_idx = _drawOrder[rank];
+                            int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
                             if (p_idx < 0 || p_idx >= partsLength) continue;
 
                             var meshPtr = _instanceMeshes[p_idx];
@@ -617,7 +622,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                                 // 1 回でコピーする)。子が複数バッチ (複数テクスチャ) でも、ここで複数の
                                 // DrawBatchData を積むと BuildInstance が子メッシュをバッチ数ぶん重複コピーして
                                 // バッファ溢れ・描画破綻を起こすため不可。テクスチャ単位の分割は下の SubmeshInfo が担う。
-                                _drawBatches[_drawBatchCount++] = new DrawBatchData
+                                ((DrawBatchData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
                                 {
                                     Kind = SsDrawBatchKind.Instance,
                                     EffectPartIndex = p_idx,
@@ -673,7 +678,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         for (int k = 0; k < b.Count; k++)
                         {
                             int rank = b.StartRank + k;
-                            int p_idx = _drawOrder[rank];
+                            int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
                             if (p_idx < 0 || p_idx >= partsLength) continue;
                             
                             var plan = _effectPlans[p_idx];
@@ -701,7 +706,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                                     int cmdVc = (int)cmd.QuadCount * 4;
                                     int cmdIc = (int)cmd.QuadCount * 6;
 
-                                    _drawBatches[_drawBatchCount++] = new DrawBatchData
+                                    ((DrawBatchData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
                                     {
                                         StartRank = 0,
                                         Count = 0,
@@ -733,7 +738,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                             for (int k = 0; k < b.Count; k++)
                             {
                                 int rank = b.StartRank + k;
-                                int p_idx = _drawOrder[rank];
+                                int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
                                 if (p_idx < 0 || p_idx >= partsLength) continue;
                                 if (!MaskPartVcIc(p_idx, kind, frame, out int pvc, out int pic)) continue;
                                 var md = _player._maskPartData[p_idx];
@@ -775,7 +780,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         for (int k = 0; k < b.Count; k++)
                         {
                             int rank = b.StartRank + k;
-                            int p_idx = _drawOrder[rank];
+                            int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
                             if (p_idx < 0 || p_idx >= partsLength) continue;
 
                             if (b.Kind == ss.runtime.DrawBatchKind.Normal)
@@ -809,7 +814,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                         if (vc > 0 && ic > 0)
                         {
-                            _drawBatches[_drawBatchCount++] = new DrawBatchData
+                            ((DrawBatchData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
                             {
                                 StartRank = (ushort)b.StartRank,
                                 Count = (ushort)b.Count,
@@ -833,7 +838,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         for (int k = 0; k < b.Count; k++)
                         {
                             int rank = b.StartRank + k;
-                            int p_idx = _drawOrder[rank];
+                            int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
                             if (p_idx < 0 || p_idx >= partsLength) continue;
                             var md = _player._maskPartData[p_idx];
                             if (!md.IsMaskPart) continue;
@@ -881,7 +886,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     sig = (sig ^ (ulong)(uint)_drawBatchCount) * prime;
                     for (int i = 0; i < _drawBatchCount; i++)
                     {
-                        var b = _drawBatches[i];
+                        var b = ((DrawBatchData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[i];
                         sig = (sig ^ ((ulong)b.Kind | ((ulong)b.Count << 8) | ((ulong)b.StartRank << 24))) * prime;
                         sig = (sig ^ (ulong)(uint)b.VertexCount) * prime;
                         sig = (sig ^ (ulong)(uint)b.IndexCount) * prime;
@@ -1151,23 +1156,21 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             byte* d = (byte*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(dst) + (long)dstOffset * elem;
             Unity.Collections.LowLevel.Unsafe.UnsafeUtility.MemCpy(d, fb + pos, (long)n * elem);
         }
-private void BuildMaskWriters(ss.runtime.FrameData frameData, int drawOrderLength, int partsLength)
+private unsafe void BuildMaskWriters(ss.runtime.FrameData frameData, int drawOrderLength, int partsLength)
         {
             _maskWriterCount = 0;
             if (!_player._hasMaskParts || _player._maskPartData == null) return;
-            if (_maskWriters == null || _maskWriters.Length < drawOrderLength)
-            {
-                _maskWriters = new MaskWriter[drawOrderLength < 1 ? 1 : drawOrderLength];
-            }
+            EnsureCapacity(ref _maskWriters, drawOrderLength < 1 ? 1 : drawOrderLength);
             for (int rank = 0; rank < drawOrderLength; rank++)
             {
-                int p_idx = _drawOrder[rank];
+                int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
                 if (p_idx < 0 || p_idx >= partsLength || p_idx >= _player._maskPartData.Length) continue;
                 var md = _player._maskPartData[p_idx];
                 if (!md.Writes) continue;
                 var ps = frameData.Parts(p_idx);
                 if (!ps.HasValue) continue;
-                _maskWriters[_maskWriterCount++] = new MaskWriter
+                var pWriter = (MaskWriter*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskWriters);
+                pWriter[_maskWriterCount++] = new MaskWriter
                 {
                     PartIndex = p_idx,
                     DrawRank = (ushort)rank,
@@ -1190,14 +1193,19 @@ private void BuildMaskWriters(ss.runtime.FrameData frameData, int drawOrderLengt
         /// A Mask twin carries texture 0; the part's colour batch (emitted after the twin) carries the
         /// real texture and overwrites it. PartTypeMask parts have only a Mask batch (real texture).
         /// </summary>
-        private void BuildMaskPartLookup(ss.runtime.FrameData frameData, int drawBatchesLength, int drawOrderLength, int partsLength)
+        private unsafe void BuildMaskPartLookup(ss.runtime.FrameData frameData, int drawBatchesLength, int drawOrderLength, int partsLength)
         {
-            if (_maskPartTexHash == null || _maskPartTexHash.Length < partsLength)
+            if (!_maskPartTexHash.IsCreated || _maskPartTexHash.Length < partsLength)
             {
-                _maskPartTexHash = new uint[partsLength < 1 ? 1 : partsLength];
-                _maskPartBlend = new byte[partsLength < 1 ? 1 : partsLength];
+                EnsureCapacity(ref _maskPartTexHash, partsLength < 1 ? 1 : partsLength);
+                EnsureCapacity(ref _maskPartBlend, partsLength < 1 ? 1 : partsLength);
             }
-            for (int i = 0; i < partsLength; i++) { _maskPartTexHash[i] = 0; _maskPartBlend[i] = 0; }
+            Unity.Collections.LowLevel.Unsafe.UnsafeUtility.MemClear(
+                Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskPartTexHash),
+                (long)partsLength * sizeof(uint));
+            Unity.Collections.LowLevel.Unsafe.UnsafeUtility.MemClear(
+                Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskPartBlend),
+                (long)partsLength * sizeof(byte));
 
             for (int bi = 0; bi < drawBatchesLength; bi++)
             {
@@ -1209,7 +1217,7 @@ private void BuildMaskWriters(ss.runtime.FrameData frameData, int drawOrderLengt
                 {
                     int rank = b.StartRank + j;
                     if (rank < 0 || rank >= drawOrderLength) continue;
-                    int p_idx = _drawOrder[rank];
+                    int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
                     if (p_idx < 0 || p_idx >= partsLength) continue;
                     _maskPartTexHash[p_idx] = b.TextureHash;
                     _maskPartBlend[p_idx] = (byte)b.BlendType;
@@ -1256,11 +1264,11 @@ private void BuildMaskWriters(ss.runtime.FrameData frameData, int drawOrderLengt
         /// submesh carrying its stencil role/params. Geometry is rebuilt per step, so a writer that
         /// both writes and later restores costs two builds (cheap; masks are few).
         /// </summary>
-        private void EmitMaskStep(byte kind, int rank, int vc, int ic, uint texHash, byte blend,
+        private unsafe void EmitMaskStep(byte kind, int rank, int vc, int ic, uint texHash, byte blend,
             StencilRole role, byte stencilOp, byte stencilComp, float threshold,
             ref int totalVertices, ref int totalIndices)
         {
-            _drawBatches[_drawBatchCount++] = new DrawBatchData
+            ((DrawBatchData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
             {
                 StartRank = (ushort)rank,
                 Count = 1,
