@@ -46,7 +46,7 @@ namespace SpriteStudio.Runtime.Tests
         {
             var graphic = _go.AddComponent<SpriteStudioGraphic>();
             Assert.AreEqual(1f, graphic.SpeedScale);
-            Assert.AreEqual(0, graphic.LoopCount);
+            Assert.AreEqual(-1, graphic.LoopCount);
             Assert.IsTrue(graphic.AutoPlay);
         }
     }

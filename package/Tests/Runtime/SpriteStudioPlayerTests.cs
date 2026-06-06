@@ -44,9 +44,9 @@ namespace SpriteStudio.Runtime.Tests
         public void InitialProperties_AreDefaulted()
         {
             var player = _go.AddComponent<SpriteStudioPlayer>();
-            Assert.AreEqual(100f, player.PixelsPerUnit);
+            Assert.AreEqual(1f, player.PixelsPerUnit);
             Assert.AreEqual(1f, player.SpeedScale);
-            Assert.AreEqual(0, player.LoopCount);
+            Assert.AreEqual(-1, player.LoopCount);
             Assert.IsTrue(player.AutoPlay);
         }
     }
