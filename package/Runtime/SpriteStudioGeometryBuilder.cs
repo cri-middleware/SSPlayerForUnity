@@ -44,12 +44,12 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             if (_childHandles.IsCreated) _childHandles.Dispose();
             if (_meshVertices.IsCreated) _meshVertices.Dispose();
             if (_meshIndices.IsCreated) _meshIndices.Dispose();
-            if (_drawBatches.IsCreated) _drawBatches.Dispose();
+            _batchBuilder.Dispose();
             if (_drawOrder.IsCreated) _drawOrder.Dispose();
             if (_partStates.IsCreated) _partStates.Dispose();
             if (_partColors.IsCreated) _partColors.Dispose();
             if (_meshBounds.IsCreated) _meshBounds.Dispose();
-            if (_submeshes.IsCreated) _submeshes.Dispose();
+            
             _meshUploader.Dispose();
             _maskPlanner.Dispose();
         }
@@ -110,113 +110,37 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         // インデックスは 32bit。エフェクトの大量パーティクルや mesh/instance 合算で
         // 頂点数が 65535 を超えても破綻しないようにする (ApplyToMesh は IndexFormat.UInt32)。
         private NativeArray<uint> _meshIndices;
-        private NativeArray<DrawBatchData> _drawBatches;
+        private SpriteStudioBatchBuilder _batchBuilder = new SpriteStudioBatchBuilder();
+
         private NativeArray<ushort> _drawOrder;
         private NativeArray<PartStateData> _partStates;
         private NativeArray<PartColorData> _partColors;
-
-        private int _vertexCount;
-        private int _indexCount;
-        private int _drawBatchCount;
         private int _partCount;
         private int _partColorCount;
-
-        // index アップロードのキャッシュ判定に使うトポロジシグネチャ (ConsumeFrameData が算出)。
-        // 実際の Mesh アップロードと再送スキップのキャッシュ状態は SpriteStudioMeshUploader が所有する。
+        private int _vertexCount;
+        private int _indexCount;
         private ulong _topologySignature;
         private readonly SpriteStudioMeshUploader _meshUploader = new SpriteStudioMeshUploader();
-
-        // バッチ単位の SubMesh 情報 (MeshRenderer 経路のマルチマテリアル用)。
-        // Job では使わず main thread でのみ参照するため managed 配列で保持する。
-        // BlendType is the ssab BlendType (0..7) used to resolve the per-blend material variant.
-        // Effect submeshes keep Mix here (their additive path is handled in-shader for now).
-        // Stencil role of a submesh. None = a plain colour submesh (existing behaviour). Write =
-        // the SpriteStudio/MaskWrite pass (ColorMask 0) that increments/decrements/inverts the
-        // isolated stencil bits (covers both the pure-mask "write" and its "restore"; the op
-        // distinguishes them). Test = a colour submesh that is kept/discarded by a stencil compare.
-        public enum StencilRole : byte { None = 0, Write = 1, Test = 2 }
-
-        public struct SubmeshInfo
-        {
-            public int IndexStart;
-            public int IndexCount;
-            public uint TextureHash;
-            public byte BlendType;
-            // Stencil state (only meaningful when Role != None). Op/Comp hold the corresponding
-            // UnityEngine.Rendering.StencilOp / CompareFunction values; the masks/ref are the
-            // bit-isolated stencil values; MaskThreshold = (255 - mask)/255 for Write (<0 = no cutout).
-            public StencilRole Role;
-            public byte StencilOp;        // Write: StencilOp (IncrWrap/DecrWrap/Invert/...)
-            public byte StencilComp;      // Test: CompareFunction (Equal/NotEqual/...)
-            public byte StencilRef;
-            public byte StencilReadMask;
-            public byte StencilWriteMask;
-            public float MaskThreshold;
-        }
-
-        // Append a submesh, dynamically merging into the previous one to enable batching (origin/main
-        // perf work). Merging is restricted to plain colour submeshes (Role None) of the same texture
-        // + blend: mask submeshes carry per-submesh stencil state and a strict draw order, so they are
-        // never merged. Auto-grows the buffer.
-        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        private unsafe void EmitSubmesh(int indexStart, int indexCount, uint textureHash, byte blendType,
-            StencilRole role = StencilRole.None, byte stencilOp = 0, byte stencilComp = 0, byte stencilRef = 0,
-            byte stencilReadMask = 0, byte stencilWriteMask = 0, float maskThreshold = 0f)
-        {
-            if (role == StencilRole.None && _submeshCount > 0)
-            {
-                var pSub = (SubmeshInfo*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_submeshes);
-                ref var last = ref pSub[_submeshCount - 1];
-                if (last.Role == StencilRole.None && last.TextureHash == textureHash && last.BlendType == blendType)
-                {
-                    last.IndexCount += indexCount;
-                    return;
-                }
-            }
-            if (!_submeshes.IsCreated || _submeshCount >= _submeshes.Length)
-            {
-                int newSize = !_submeshes.IsCreated ? 8 : _submeshes.Length * 2;
-                if (newSize < _submeshCount + 1) newSize = _submeshCount + 1;
-                SpriteStudioNativeBuffers.EnsureCapacityPreserve(ref _submeshes, newSize);
-            }
-            var ptr = (SubmeshInfo*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_submeshes);
-            ptr[_submeshCount++] = new SubmeshInfo
-            {
-                IndexStart = indexStart,
-                IndexCount = indexCount,
-                TextureHash = textureHash,
-                BlendType = blendType,
-                Role = role,
-                StencilOp = stencilOp,
-                StencilComp = stencilComp,
-                StencilRef = stencilRef,
-                StencilReadMask = stencilReadMask,
-                StencilWriteMask = stencilWriteMask,
-                MaskThreshold = maskThreshold
-            };
-        }
-        private NativeArray<SubmeshInfo> _submeshes;
-        private int _submeshCount;
         // メッシュ境界 (要素 0=min, 1=max)。UpdateMeshJob が書き込み、MeshUploader が Mesh.bounds へ適用する。
         private NativeArray<Vector3> _meshBounds;
 
         public int VertexCount => _vertexCount;
         public int IndexCount => _indexCount;
-        public int DrawBatchCount => _drawBatchCount;
-        public int SubmeshCount => _submeshCount;
-        public NativeArray<SubmeshInfo> Submeshes => _submeshes;
-        public NativeArray<DrawBatchData> DrawBatches => _drawBatches;
+        public int DrawBatchCount => _batchBuilder.DrawBatchCount;
+        public int SubmeshCount => _batchBuilder.SubmeshCount;
+        public NativeArray<SubmeshInfo> Submeshes => _batchBuilder.Submeshes;
+        public NativeArray<DrawBatchData> DrawBatches => _batchBuilder.DrawBatches;
         public NativeArray<SsVertex> MeshVertices => _meshVertices;
         public NativeArray<uint> MeshIndices => _meshIndices;
 
         /// <summary>直近の ScheduleMeshUpdate で生成された描画バッチ (= SubMesh) の数。</summary>
-        // public int SubmeshCount => _submeshCount;
+        // public int SubmeshCount => _batchBuilder.SubmeshCount;
 
         /// <summary>指定 SubMesh のテクスチャハッシュ (DrawBatch.TextureHash)。</summary>
-        public uint GetSubmeshTextureHash(int index) => _submeshes[index].TextureHash;
+        public uint GetSubmeshTextureHash(int index) => _batchBuilder.Submeshes[index].TextureHash;
 
         /// <summary>SubMesh's ssab BlendType (0..7), used to resolve the per-blend material variant.</summary>
-        public byte GetSubmeshBlendType(int index) => _submeshes[index].BlendType;
+        public byte GetSubmeshBlendType(int index) => _batchBuilder.Submeshes[index].BlendType;
 
         /// <summary>
         /// 前フレームの Job 完了を待ち、advance 指定時は 1 フレーム進め、
@@ -397,12 +321,12 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 if (_player._hasMaskParts) maxBatches += partsLength * 2 + _maskPlanner.WriterCount;
 
                 // 永続バッファを grow-only で確保 (毎フレーム new しない)
-                SpriteStudioNativeBuffers.EnsureCapacity(ref _drawBatches, maxBatches);
+                _batchBuilder.BeginFrame(maxBatches);
                 SpriteStudioNativeBuffers.EnsureCapacity(ref _drawOrder, drawOrderLength);
                 SpriteStudioNativeBuffers.EnsureCapacity(ref _partStates, partsLength);
                 SpriteStudioNativeBuffers.EnsureCapacity(ref _partColors, partsColorLength);
 
-                _drawBatchCount = 0; // Will be incremented dynamically
+                
                 _partCount = partsLength;
                 _partColorCount = partsColorLength;
 
@@ -433,8 +357,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 int totalVertices = 0;
                 int totalIndices = 0;
-                _submeshCount = 0;
-                SpriteStudioNativeBuffers.EnsureCapacity(ref _submeshes, maxBatches < 1 ? 1 : maxBatches);
+                
 
                 // Mask Phase A: harvest per-part textures, then pre-write every pure mask so the stencil
                 // reflects all of them before any body part is drawn. Each pure mask's coverage is
@@ -453,7 +376,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         if (!_maskPlanner.MaskPartVcIc(wp, md.DrawKind, frame, _partStates, out int wvc, out int wic)) continue;
                         byte op = w.OpInvert ? StencilOpInvert : StencilOpIncr;
                         float threshold = md.DrawKind == SsDrawBatchKind.Shape ? -1f : w.Threshold;
-                        EmitMaskStep(md.DrawKind, w.DrawRank, wvc, wic, _maskPlanner.GetPartTexHash(wp), _maskPlanner.GetPartBlend(wp),
+                        _batchBuilder.EmitMaskStep(md.DrawKind, w.DrawRank, wvc, wic, _maskPlanner.GetPartTexHash(wp), _maskPlanner.GetPartBlend(wp),
                             StencilRole.Write, op, 0, threshold, ref totalVertices, ref totalIndices);
                     }
                 }
@@ -497,7 +420,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 // index アップロードキャッシュ用のトポロジシグネチャ (前フレームと同一なら index/submesh は
                 // 再送不要)。Effect は QuadCount/Offset が毎フレーム変わり自然に不一致 = キャッシュされない。
-                _topologySignature = ComputeTopologySignature();
+                _topologySignature = _batchBuilder.ComputeTopologySignature(totalVertices, totalIndices);
 
                 // エフェクトが無くても Job が参照するため、結合配列は最低 1 要素を確保しておく。
                 _effectBuffer.EnsureGeometryMinimum();
@@ -524,12 +447,12 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     MeshIndices = frame.MeshIndices,
                     MeshIndexOffsets = frame.MeshIndexOffsets,
 
-                    BatchCount = _drawBatchCount,
+                    BatchCount = _batchBuilder.DrawBatchCount,
                     PartCount = _partCount,
                     PartColorCount = _partColorCount,
                     InvScale = _player.VertexScale,
 
-                    DrawBatches = _drawBatches,
+                    DrawBatches = _batchBuilder.DrawBatches,
                     DrawOrder = _drawOrder,
                     PartStates = _partStates,
                     PartColors = _partColors,
@@ -561,7 +484,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
             _meshUploader.Apply(targetMesh, perBatchSubmesh, new SpriteStudioMeshUploader.UploadData(
                 _frameSkipped, _vertexCount, _indexCount, _meshVertices, _meshIndices,
-                _submeshes, _submeshCount, _topologySignature, _meshBounds));
+                _batchBuilder.Submeshes, _batchBuilder.SubmeshCount, _topologySignature, _meshBounds));
         }
 
         /// <summary>active な effect スロットを step し、可視なものの draw_plan を結合バッファへ追記する。</summary>
@@ -644,30 +567,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         /// 現在の draw batch / submesh 構造から index アップロードキャッシュ判定用の FNV-1a シグネチャを算出する。
         /// _vertexCount / _indexCount 確定後に呼ぶこと。
         /// </summary>
-        private unsafe ulong ComputeTopologySignature()
-        {
-            ulong sig = 14695981039346656037UL;
-            const ulong prime = 1099511628211UL;
-            sig = (sig ^ (ulong)(uint)_drawBatchCount) * prime;
-            for (int i = 0; i < _drawBatchCount; i++)
-            {
-                var b = ((DrawBatchData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[i];
-                sig = (sig ^ ((ulong)b.Kind | ((ulong)b.Count << 8) | ((ulong)b.StartRank << 24))) * prime;
-                sig = (sig ^ (ulong)(uint)b.VertexCount) * prime;
-                sig = (sig ^ (ulong)(uint)b.IndexCount) * prime;
-                sig = (sig ^ (ulong)(uint)b.EffectPartIndex) * prime;
-                sig = (sig ^ ((ulong)b.EffectQuadCount | ((ulong)b.EffectParticleOffset << 32))) * prime;
-            }
-            sig = (sig ^ (ulong)(uint)_submeshCount) * prime;
-            for (int i = 0; i < _submeshCount; i++)
-            {
-                var s = _submeshes[i];
-                sig = (sig ^ ((ulong)(uint)s.IndexStart | ((ulong)(uint)s.IndexCount << 32))) * prime;
-            }
-            sig = (sig ^ (ulong)(uint)_indexCount) * prime;
-            sig = (sig ^ (ulong)(uint)_vertexCount) * prime;
-            return sig;
-        }
+        
 
         // Stencil op / compare values used by the mask path (UnityEngine.Rendering enums as bytes).
         private const byte StencilOpIncr = (byte)UnityEngine.Rendering.StencilOp.IncrementWrap;   // 7
@@ -697,13 +597,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     int cvc = childPlayer.VertexCount;
                     int cic = childPlayer.IndexCount;
 
-                    ((DrawBatchData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
-                    {
-                        Kind = SsDrawBatchKind.Instance,
-                        EffectPartIndex = p_idx,
-                        VertexCount = cvc,
-                        IndexCount = cic
-                    };
+                    _batchBuilder.EmitInstanceBatch(p_idx, cvc, cic);
 
                     StencilRole instRole = StencilRole.None;
                     byte instComp = 0;
@@ -728,7 +622,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                             cComp = instComp;
                             cRMask = SpriteStudioMaterial.MaskStencilMask;
                         }
-                        EmitSubmesh(totalIndices + cs.IndexStart, cs.IndexCount, cs.TextureHash, cs.BlendType,
+                        _batchBuilder.EmitSubmesh(totalIndices + cs.IndexStart, cs.IndexCount, cs.TextureHash, cs.BlendType,
                             cr, cs.StencilOp, cComp, cs.StencilRef, cRMask, cs.StencilWriteMask, cs.MaskThreshold);
                     }
 
@@ -769,20 +663,9 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         int cmdVc = (int)cmd.QuadCount * 4;
                         int cmdIc = (int)cmd.QuadCount * 6;
 
-                        ((DrawBatchData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
-                        {
-                            StartRank = 0,
-                            Count = 0,
-                            VertexCount = cmdVc,
-                            IndexCount = cmdIc,
-                            Kind = SsDrawBatchKind.Effect,
-                            EffectBlend = cmd.Blend,
-                            EffectParticleOffset = (uint)plan.QuadBase + cmd.ParticleOffset,
-                            EffectQuadCount = cmd.QuadCount,
-                            EffectPartIndex = p_idx
-                        };
+                        _batchBuilder.EmitEffectBatch(cmdVc, cmdIc, cmd.Blend, (uint)plan.QuadBase, cmd.ParticleOffset, cmd.QuadCount, p_idx);
                         
-                        EmitSubmesh(totalIndices, cmdIc, cmd.CellmapHash, SpriteStudioMaterial.BlendMix,
+                        _batchBuilder.EmitSubmesh(totalIndices, cmdIc, cmd.CellmapHash, SpriteStudioMaterial.BlendMix,
                             effRole, 0, effComp, 0, effRole == StencilRole.Test ? SpriteStudioMaterial.MaskStencilMask : (byte)0, 0, 0f);
                         
                         totalVertices += cmdVc;
@@ -811,7 +694,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     {
                         byte rop = md.MaskInfluence ? StencilOpInvert : StencilOpDecr;
                         float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
-                        EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                        _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
                             StencilRole.Write, rop, 0, th, ref totalVertices, ref totalIndices);
                     }
                     else
@@ -820,19 +703,19 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         if (maskTarget)
                         {
                             byte comp = md.VisibleInsideMask ? StencilCompNotEqual : StencilCompEqual;
-                            EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                            _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
                                 StencilRole.Test, 0, comp, 0f, ref totalVertices, ref totalIndices);
                         }
                         else
                         {
-                            EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                            _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
                                 StencilRole.None, 0, 0, 0f, ref totalVertices, ref totalIndices);
                         }
                         if (md.IsClipping)
                         {
                             byte wop = md.MaskInfluence ? StencilOpInvert : StencilOpIncr;
                             float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
-                            EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                            _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
                                 StencilRole.Write, wop, 0, th, ref totalVertices, ref totalIndices);
                         }
                     }
@@ -877,19 +760,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
             if (vc > 0 && ic > 0)
             {
-                ((DrawBatchData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
-                {
-                    StartRank = (ushort)b.StartRank,
-                    Count = (ushort)b.Count,
-                    VertexCount = vc,
-                    IndexCount = ic,
-                    Kind = (byte)b.Kind
-                };
-
-                EmitSubmesh(totalIndices, ic, b.TextureHash, (byte)b.BlendType);
-
-                totalVertices += vc;
-                totalIndices += ic;
+                _batchBuilder.EmitDrawBatch((ushort)b.StartRank, (ushort)b.Count, vc, ic, (byte)b.Kind, b.TextureHash, (byte)b.BlendType, ref totalVertices, ref totalIndices);
             }
         }
 
@@ -905,30 +776,11 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 if (!_maskPlanner.MaskPartVcIc(p_idx, SsDrawBatchKind.Normal, frame, _partStates, out int mvc, out int mic)) continue;
                 byte rop = md.MaskInfluence ? StencilOpInvert : StencilOpDecr;
                 float th = (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
-                EmitMaskStep(SsDrawBatchKind.Normal, rank, mvc, mic, b.TextureHash, (byte)b.BlendType,
+                _batchBuilder.EmitMaskStep(SsDrawBatchKind.Normal, rank, mvc, mic, b.TextureHash, (byte)b.BlendType,
                     StencilRole.Write, rop, 0, th, ref totalVertices, ref totalIndices);
             }
         }
 
-        private unsafe void EmitMaskStep(byte kind, int rank, int vc, int ic, uint texHash, byte blend,
-            StencilRole role, byte stencilOp, byte stencilComp, float threshold,
-            ref int totalVertices, ref int totalIndices)
-        {
-            ((DrawBatchData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
-            {
-                StartRank = (ushort)rank,
-                Count = 1,
-                VertexCount = vc,
-                IndexCount = ic,
-                Kind = kind
-            };
-            // Route through EmitSubmesh for the auto-grow path. Mask submeshes (role != None) are never
-            // merged, so each step stays its own submesh and keeps its stencil ordering.
-            EmitSubmesh(totalIndices, ic, texHash, blend, role, stencilOp, stencilComp, 0,
-                SpriteStudioMaterial.MaskStencilMask,
-                role == StencilRole.Write ? SpriteStudioMaterial.MaskStencilMask : (byte)0, threshold);
-            totalVertices += vc;
-            totalIndices += ic;
-        }
+        
     }
 }

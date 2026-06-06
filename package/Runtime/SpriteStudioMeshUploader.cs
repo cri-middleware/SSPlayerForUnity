@@ -23,14 +23,14 @@ namespace SpriteStudio.Runtime
             public readonly int IndexCount;
             public readonly NativeArray<SsVertex> Vertices;
             public readonly NativeArray<uint> Indices;
-            public readonly NativeArray<SpriteStudioGeometryBuilder.SubmeshInfo> Submeshes;
+            public readonly NativeArray<SubmeshInfo> Submeshes;
             public readonly int SubmeshCount;
             public readonly ulong TopologySignature;
             public readonly NativeArray<Vector3> Bounds;
 
             public UploadData(bool frameSkipped, int vertexCount, int indexCount,
                 NativeArray<SsVertex> vertices, NativeArray<uint> indices,
-                NativeArray<SpriteStudioGeometryBuilder.SubmeshInfo> submeshes, int submeshCount,
+                NativeArray<SubmeshInfo> submeshes, int submeshCount,
                 ulong topologySignature, NativeArray<Vector3> bounds)
             {
                 FrameSkipped = frameSkipped;
