@@ -293,8 +293,11 @@ namespace SpriteStudio.Runtime
                         uint seed = (uint)i ^ refHash;
                         void* slot = NativeMethods.ss_effect_slot_create(_resourceHandle, refHash, seed);
                         _effectSlots[i].EffectSlot = (System.IntPtr)slot;
-                        _effectPartIndices[_effectPartCount++] = i;
-                        _hasEffectParts = true;
+                        if (slot != null)
+                        {
+                            _effectPartIndices[_effectPartCount++] = i;
+                            _hasEffectParts = true;
+                        }
                     }
                     else if (p.PartTypeType == ss.format.PartType.PartTypeInstance)
                     {
@@ -1190,10 +1193,7 @@ namespace SpriteStudio.Runtime
                                         EffectPartIndex = p_idx
                                     };
                                     
-                                    // Per-blend effect material (origin/main: Add when cmd.Blend == 1,
-                                    // else Mix), plus the parent-mask stencil test when this effect part
-                                    // is a mask target.
-                                    EmitSubmesh(totalIndices, cmdIc, cmd.CellmapHash, cmd.Blend == 1 ? (byte)2 : (byte)0,
+                                    EmitSubmesh(totalIndices, cmdIc, cmd.CellmapHash, SpriteStudioMaterial.BlendMix,
                                         effRole, 0, effComp, 0, effRole == StencilRole.Test ? SpriteStudioMaterial.MaskStencilMask : (byte)0, 0, 0f);
                                     
                                     totalVertices += cmdVc;
