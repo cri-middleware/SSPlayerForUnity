@@ -17,5 +17,14 @@ namespace SpriteStudio.Runtime.Tests
                 // JobHandle や GCHandle などの初期化が成功しているはずです
             }
         }
+
+        [Test]
+        public void ConsumeFrameData_WithZeroPtr_DoesNotCrash()
+        {
+            using (var player = new SpriteStudioInternalPlayer())
+            {
+                Assert.DoesNotThrow(() => player.ConsumeFrameData(System.IntPtr.Zero, 0, 0.016f));
+            }
+        }
     }
 }
