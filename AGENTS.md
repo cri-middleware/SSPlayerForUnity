@@ -17,9 +17,9 @@ A Unity Engine integration for SpriteStudio 7, designed for extreme performance.
 
 | Path | Role |
 |---|---|
-| `package/Runtime/` | C# source: Player components (`SpriteStudioPlayer`, `SpriteStudioGraphic`), Internal logic (`SpriteStudioInternalPlayer` and its `partial` sub-files for `.Mesh`, `.Effect`, `.Mask`, `.Instance`), UpdateManager, and FFI bindings. |
+| `package/Runtime/` | C# source: Player components (`SpriteStudioPlayer`, `SpriteStudioGraphic`), playback core (`SpriteStudioPlaybackCore`), the internal player (`SpriteStudioInternalPlayer` — owns native lifecycle/FFI/`IDisposable`) which delegates all per-frame geometry/mesh construction to `SpriteStudioGeometryBuilder`. The builder in turn delegates focused responsibilities to collaborators: `SpriteStudioMeshUploader` (Unity `Mesh` upload + topology cache), `SpriteStudioEffectPlanBuffer` (effect draw-plan decode + combined geometry), `SpriteStudioNativeBuffers` (shared NativeArray grow-only + FlatBuffer copy helpers), and the Burst `SpriteStudioMeshJob`. Also native pointer ownership (`SpriteStudioNativeContext`), `SpriteStudioUpdateManager`, and FFI bindings. (Mask/Instance batch emission still lives in the builder.) |
 | `package/Runtime/Plugins/` | Binary artifacts (`libssruntime`) per platform. |
-| `package/Editor/` | C# source: Asset importers (`SpriteStudioSsabImporter`, `SpriteStudioAssetPostprocessor`), Importer Window UI, and Source Map. |
+| `package/Editor/` | C# source: Asset importers (`SpriteStudioSsabImporter`, `SpriteStudioSsqbImporter`), the conversion driver (`SpriteStudioConversionRunner` + `SpriteStudioAssetPostprocessor`), the native directory scan (`SpriteStudioDirectoryScan`), Importer Window UI, and Source Map. |
 | `package/Editor/Plugins/` | Binary artifacts (`libssconverter`) used only in Editor. |
 | `package/Tests/` | Unit and Integration tests for Runtime (PlayMode) and Editor (EditMode). |
 | `SpriteStudio7-SDK/` | Submodule for core Rust runtime/converter. |
@@ -30,7 +30,7 @@ A Unity Engine integration for SpriteStudio 7, designed for extreme performance.
 *   **FFI Safety & Memory Management:** Native pointers (`SsPlayerHandle`) must strictly implement `IDisposable`. Always call `JobHandle.Complete()` before freeing native resources to prevent Unity from segfaulting during Burst Job execution.
 *   **Zero Allocation:** The `Tick` and Mesh update loop must not allocate any GC memory (`new`). Re-use `NativeArray` and dynamically update the mesh via `SetVertexBufferData`.
 *   **Canvas Rebuild Bypass:** For `SpriteStudioGraphic` (uGUI), standard `OnPopulateMesh` and Vertex/Material dirty flags must be bypassed/overridden to prevent Unity from automatically destroying and re-allocating canvas meshes.
-*   **Partial Class Compartmentalization:** `SpriteStudioInternalPlayer` is intentionally split into partial classes (`.Mesh`, `.Effect`, `.Mask`, `.Instance`) to prevent a God Class. When adding new features, maintain this strict separation of concerns while preserving the main struct layouts required for Burst and FFI.
+*   **Geometry Builder Separation:** `SpriteStudioInternalPlayer` owns native lifecycle, FFI calls, and `IDisposable`; all per-frame geometry/mesh construction (frame-data decode, effect/instance/mask batching, Burst job scheduling, mesh upload) is delegated to `SpriteStudioGeometryBuilder` and `SpriteStudioMeshJob`. When adding rendering features, keep them in the geometry builder / mesh job rather than swelling the player, and preserve the struct layouts required for Burst and FFI. (Reality check: the builder is currently ~1300 lines and still reaches into the player's `internal` fields — further decomposition into focused collaborators, e.g. frame-data reader / mask planner / mesh uploader, is encouraged but must keep the Burst/FFI struct layouts intact.)
 *   **Update Loop Consistency:** Components are batch-updated via `SpriteStudioUpdateManager`. To prevent `NullReferenceException`s during dynamic instantiation/destruction, always iterate over the securely snapshotted `_tickCount` instead of the raw active list.
 
 ## Verification

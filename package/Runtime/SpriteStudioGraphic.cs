@@ -264,7 +264,9 @@ namespace SpriteStudio.Runtime
                     }
                     if (mat == null)
                     {
-                        Debug.LogError($"[SpriteStudioGraphic] TextureHash {info.TextureHash} not resolved (Submesh {s}, role {info.Role}). Falling back to material 0.");
+                        // 回復可能なフォールバック (マテリアル/テクスチャ未割当 or 未解決)。signature 変化時のみ
+                        // 通るためスパムにはならない。実行継続可能なので severity は Warning が適切。
+                        Debug.LogWarning($"[SpriteStudioGraphic] TextureHash {info.TextureHash} not resolved (Submesh {s}, role {info.Role}). Falling back to material 0.");
                         mat = fallback;
                     }
                     // Write SubMesh は閾値を毎フレーム書き換えるため、共有マテリアル (解決値/フォールバック共に)

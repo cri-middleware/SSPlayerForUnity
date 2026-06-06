@@ -95,6 +95,31 @@ namespace SpriteStudio.Editor
 
         private void Poll()
         {
+            // EditorApplication.update から呼ばれる。例外が漏れると Unity が update デリゲートを
+            // 解除し、セッションが進行不能 (進捗バー固定・onComplete 未呼び出し) に陥る。
+            // 例外時は安全に終了させて自己回復する。
+            try
+            {
+                PollInner();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[SSPlayer] Directory scan poll error: {e.Message}");
+                // 走査スレッドが実行中の context は destroy しない (この SDK の destroy は join せず
+                // Box を解放するだけのため、実行中だと UAF になりうる)。停止要求のみ出して放棄する
+                // (稀なエラー経路での 1 context リークは UAF 回避とのトレードオフで許容)。
+                if (_ctx != IntPtr.Zero)
+                {
+                    AbortCurrent();
+                    _ctx = IntPtr.Zero;
+                }
+                _canceled = true;
+                Finish();
+            }
+        }
+
+        private void PollInner()
+        {
             if (_ctx != IntPtr.Zero)
             {
                 unsafe
@@ -114,19 +139,27 @@ namespace SpriteStudio.Editor
                         return; // まだ走査中
                     }
 
-                    // 完了 → このディレクトリの結果を一旦ローカルに回収
-                    bool budgetExceeded = SpriteStudio.SsConverter.NativeMethods.ss_converter_scan_budget_exceeded(ctx);
+                    // 完了 (is_finished=true、走査スレッドは終了済み) → 結果を回収。
+                    // 回収中に例外が出ても context を必ず破棄し _ctx を解放する。finished 後なので
+                    // destroy は安全で、leak と _ctx 詰まり (= 以降のディレクトリが進まない) を防ぐ。
+                    bool budgetExceeded = false;
                     var dirResults = new List<string>();
-                    nuint count = SpriteStudio.SsConverter.NativeMethods.ss_converter_scan_result_count(ctx);
-                    for (nuint i = 0; i < count; i++)
+                    try
                     {
-                        byte* p = SpriteStudio.SsConverter.NativeMethods.ss_converter_scan_result_at(ctx, i);
-                        string s = PtrToStringUtf8(p);
-                        if (!string.IsNullOrEmpty(s)) dirResults.Add(s);
+                        budgetExceeded = SpriteStudio.SsConverter.NativeMethods.ss_converter_scan_budget_exceeded(ctx);
+                        nuint count = SpriteStudio.SsConverter.NativeMethods.ss_converter_scan_result_count(ctx);
+                        for (nuint i = 0; i < count; i++)
+                        {
+                            byte* p = SpriteStudio.SsConverter.NativeMethods.ss_converter_scan_result_at(ctx, i);
+                            string s = PtrToStringUtf8(p);
+                            if (!string.IsNullOrEmpty(s)) dirResults.Add(s);
+                        }
                     }
-
-                    SpriteStudio.SsConverter.NativeMethods.ss_converter_destroy(ctx);
-                    _ctx = IntPtr.Zero;
+                    finally
+                    {
+                        SpriteStudio.SsConverter.NativeMethods.ss_converter_destroy(ctx);
+                        _ctx = IntPtr.Zero;
+                    }
 
                     if (!_canceled)
                     {

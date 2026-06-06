@@ -1,0 +1,81 @@
+# SpriteStudioPlayer for Unity — CI (EditMode + PlayMode tests)
+#
+# ⚠️ このワークフローは scaffold です (ローカル検証不可)。最低限、以下のリポジトリ Secret を
+#    設定しないと game-ci のテスト実行は失敗します:
+#      - UNITY_LICENSE  : Unity の .ulf ライセンスファイルの中身 (Personal/Pro)
+#      - UNITY_EMAIL    : Unity アカウントのメール
+#      - UNITY_PASSWORD : Unity アカウントのパスワード
+#    取得方法: https://game.ci/docs/github/activation
+#
+# ネイティブ libssruntime / libssconverter は gitignore されているため、テスト前に
+# Rust から Linux 向けにビルドして package/**/Plugins へ配置する必要がある。
+name: Unity Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: EditMode & PlayMode
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Install build prerequisites (zsh)
+        run: sudo apt-get update && sudo apt-get install -y zsh
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            SpriteStudio7-SDK/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('SpriteStudio7-SDK/**/Cargo.lock') }}
+
+      - name: Download FlatBuffers
+        run: ./scripts/download-flatbuffers.sh
+
+      # Linux 向けネイティブ (libssruntime.so + libssconverter.so) をビルドし、
+      # C# バインディングと共に package/**/Plugins, package/**/Bindings へ配置する。
+      - name: Build native runtime (Linux)
+        run: ./scripts/build-runtime.sh platform=linux
+
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: examples/UnityTestProject/Library
+          key: Library-${{ hashFiles('examples/UnityTestProject/Assets/**', 'package/**') }}
+          restore-keys: |
+            Library-
+
+      - name: Run tests (game-ci)
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: examples/UnityTestProject
+          testMode: all            # EditMode + PlayMode
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          # libssconverter/SDK Ringo.sspj が無い環境では一部テストが失敗しうるため、
+          # 必要に応じて -testFilter 等で安定テストのみに絞ることを検討する。
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: artifacts

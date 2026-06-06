@@ -57,17 +57,41 @@ namespace SpriteStudio.Editor
                 data.SspjPaths.Add(kvp.Value);
             }
             string json = JsonUtility.ToJson(data, true);
-            File.WriteAllText(MAP_FILE_PATH, json);
+
+            try
+            {
+                // 一時ファイルへ書いてからアトミックに置換する。直接上書き中にエディタが落ちると
+                // JSON が壊れ、次回ロードで全リンクが失われる (GetMap が catch して空にリセットする)
+                // ため、temp → File.Replace で原子性を確保する。同一ディレクトリなので同一ボリューム。
+                string tmp = MAP_FILE_PATH + ".tmp";
+                File.WriteAllText(tmp, json);
+                if (File.Exists(MAP_FILE_PATH))
+                {
+                    File.Replace(tmp, MAP_FILE_PATH, null);
+                }
+                else
+                {
+                    File.Move(tmp, MAP_FILE_PATH);
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[SSPlayer] Failed to save source map: {e.Message}");
+            }
         }
 
-        public static void Register(string ssabAbsolutePath, string sspjAbsolutePath)
+        /// <summary>
+        /// .ssab → .sspj のリンクを登録する。<paramref name="save"/>=false のときは辞書だけ更新し、
+        /// 保存しない (大量登録時に呼び出し側でまとめて <see cref="SaveMap"/> を 1 回呼ぶため)。
+        /// </summary>
+        public static void Register(string ssabAbsolutePath, string sspjAbsolutePath, bool save = true)
         {
             var map = GetMap();
             string ssabRel = GetRelativePath(ssabAbsolutePath);
             string sspjRel = GetRelativePath(sspjAbsolutePath);
 
             map[ssabRel] = sspjRel;
-            SaveMap();
+            if (save) SaveMap();
         }
 
         public static string GetSspjForSsab(string ssabAbsolutePath)

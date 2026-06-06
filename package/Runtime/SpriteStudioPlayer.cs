@@ -314,7 +314,10 @@ namespace SpriteStudio.Runtime
                     }
                     if (mat == null)
                     {
-                        Debug.LogError($"[SpriteStudioPlayer] TextureHash {info.TextureHash} not resolved (Submesh {s}, role {info.Role}). Falling back to material 0.");
+                        // 回復可能なフォールバック (アセットにマテリアル/テクスチャが未割当 or 未解決)。
+                        // ここは signature 変化時のみ通るのでスパムにはならない。視覚的には壊れるが
+                        // 実行は継続できるため、severity は Warning (設定不備の通知) が適切。
+                        Debug.LogWarning($"[SpriteStudioPlayer] TextureHash {info.TextureHash} not resolved (Submesh {s}, role {info.Role}). Falling back to material 0.");
                         mat = fallback;
                     }
                     _submeshMaterials.Add(mat);

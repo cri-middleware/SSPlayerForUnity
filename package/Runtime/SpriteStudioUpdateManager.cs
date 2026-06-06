@@ -57,6 +57,27 @@ namespace SpriteStudio.Runtime
         /// (各キャラを独立に全コアへ work-steal で分配)。大きくすると少数キャラで並列度が落ちる。</summary>
         public static int ParallelBatch = 1;
 
+        /// <summary>
+        /// "Enter Play Mode without Domain Reload" 有効時、static フィールドは前回 play セッションの
+        /// 値を保持したまま次の play へ持ち越される。前セッションの stale な renderable / tick
+        /// スナップショットが残らないよう、play 開始時 (SubsystemRegistration) に必ずリセットする。
+        /// </summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        internal static void ResetStaticState()
+        {
+            _renderables.Clear();
+            if (_tickBuffer != null) Array.Clear(_tickBuffer, 0, _tickBuffer.Length);
+            if (_pending != null) Array.Clear(_pending, 0, _pending.Length);
+            _tickCount = 0;
+            _runner = null;
+            // NativeArray は通常 Teardown (runner OnDestroy) で破棄済み。ドメインリロード無効時に
+            // 万一 IsCreated のまま持ち越されていたら、ここで破棄して次フレームに作り直させる。
+            if (_jobHandles.IsCreated) _jobHandles.Dispose();
+            if (_jobDrawFrames.IsCreated) _jobDrawFrames.Dispose();
+            if (_jobOutPtr.IsCreated) _jobOutPtr.Dispose();
+            if (_jobOutLen.IsCreated) _jobOutLen.Dispose();
+        }
+
         internal static void Register(ISpriteStudioRenderable renderable)
         {
             if (renderable == null || _renderables.Contains(renderable)) return;
@@ -162,6 +183,12 @@ namespace SpriteStudio.Runtime
             if (_jobDrawFrames.IsCreated) _jobDrawFrames.Dispose();
             if (_jobOutPtr.IsCreated) _jobOutPtr.Dispose();
             if (_jobOutLen.IsCreated) _jobOutLen.Dispose();
+            // マネージド側のスナップショット/登録も解放して stale 参照を持ち越さない
+            // (ドメインリロード無効時の保険。ResetStaticState と対になる)。
+            _renderables.Clear();
+            if (_tickBuffer != null) Array.Clear(_tickBuffer, 0, _tickBuffer.Length);
+            if (_pending != null) Array.Clear(_pending, 0, _pending.Length);
+            _tickCount = 0;
             _runner = null;
         }
 

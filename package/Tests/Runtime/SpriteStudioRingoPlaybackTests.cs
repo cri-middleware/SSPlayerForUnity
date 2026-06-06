@@ -81,7 +81,9 @@ namespace SpriteStudio.Runtime.Tests
             var player = go.AddComponent<SpriteStudioPlayer>();
             player.AnimeAsset = animeAsset;
 
-            Assert.DoesNotThrow(() => player.Play("Ringo"));
+            // 注: "Ringo" はパック名であってアニメーション名ではない。pack "Ringo" の実アニメは
+            // walk / run / dance / attack1 など。正しいアニメ名で再生する。
+            Assert.DoesNotThrow(() => player.Play("walk"));
 
             // 1フレーム待機してUpdateManagerによるJob実行を完了させる
             yield return null;
@@ -90,6 +92,45 @@ namespace SpriteStudio.Runtime.Tests
             // Dispose
             Object.DestroyImmediate(go);
             Object.DestroyImmediate(animeAsset);
+        }
+
+        [Test]
+        public void ReloadSsab_AtRuntime_DoesNotCrashAndRebuildsGeometry()
+        {
+            // 実行時のアセット差し替え経路 (SpriteStudioInternalPlayer.LoadSsab 再呼び出し) を、
+            // 実 Burst Job を 1 度走らせて ssab バッファを borrow させた状態で検証する。#3a で入れた
+            // 「解放順序の修正 + in-flight Job の Complete()」が効いてクラッシュ/リークしないこと、
+            // および再ロード後もジオメトリが再構築されることを確認する。
+            //
+            // 注: Unity の Mesh.vertexCount は GPU バッファ依存で headless/batchmode では 0 になりうる
+            // ため、ここでは get_frame_data 由来の CPU 側カウント (InternalPlayer.VertexCount) で検証する。
+            string absoluteSsabPath = Path.GetFullPath(RingoSsabPath);
+            Assert.IsTrue(File.Exists(absoluteSsabPath), "Ringo.ssab must exist for this test.");
+            byte[] ssabBytes = File.ReadAllBytes(absoluteSsabPath);
+            Assert.Greater(ssabBytes.Length, 0);
+
+            using (var player = new SpriteStudioInternalPlayer())
+            {
+                // 初回ロード + 1 フレーム駆動 (実 Burst Job を投げて ssab バッファを borrow させる)。
+                player.LoadSsab(ssabBytes);
+                Assert.IsTrue(player.SetupAnimation("walk"), "walk アニメーションが見つかるはず");
+                player.Play();
+                player.Tick(0.016f, false);
+                player.ScheduleMeshUpdate(0.016f);
+                player.CurrentUpdateJobHandle.Complete();
+                Assert.Greater(player.VertexCount, 0, "初回ビルドで頂点が生成されるはず");
+
+                // 再ロード: LoadSsab が再度走り、#3a の解放順序 + in-flight Job Complete を経由する。
+                Assert.DoesNotThrow(() => player.LoadSsab(ssabBytes));
+                Assert.IsTrue(player.SetupAnimation("walk"));
+                player.Play();
+                player.Tick(0.016f, false);
+                player.ScheduleMeshUpdate(0.016f);
+                player.CurrentUpdateJobHandle.Complete();
+                Assert.Greater(player.VertexCount, 0, "再ロード後も頂点が再構築されるはず");
+            }
+
+            LogAssert.NoUnexpectedReceived();
         }
     }
 }
