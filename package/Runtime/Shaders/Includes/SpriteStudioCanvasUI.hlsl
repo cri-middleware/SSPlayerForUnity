@@ -82,8 +82,10 @@ float3 ss_canvas_default_rgb(float4 tex, ss_canvas_v2f IN, float rate, float ble
 }
 
 // Finalize a composed (rgb, alpha) into the output colour: discard test, PMA finalize, and the
-// effect-additive a=0 pass-through (matching SpriteStudio/Default). Call this last in the fragment.
-float4 ss_canvas_finalize(float3 rgb, float alpha, float blendIdx, float isNormalized)
+// additive a=0 pass-through. The Canvas path uses a single fixed PMA blend (One, OneMinusSrcAlpha);
+// ADD parts (and effect-additive) emit alpha 0 so the blend becomes additive (src + dst). All other
+// blends collapse to MIX. isAdditive is the per-vertex flag the mesh job packs into TEXCOORD1.w.
+float4 ss_canvas_finalize(float3 rgb, float alpha, float isAdditive)
 {
     float4 col = float4(rgb, alpha);
     if (ss_should_discard(col.a, 0.0, _NotDiscard))
@@ -91,8 +93,7 @@ float4 ss_canvas_finalize(float3 rgb, float alpha, float blendIdx, float isNorma
         discard;
     }
     col = ss_output_color(col, _OutputPMA);
-    // Effect additive is passed through via the a=0 trick.
-    if (isNormalized > 0.5 && abs(blendIdx - 2.0) < 0.5)
+    if (isAdditive > 0.5)
     {
         col.a = 0.0;
     }

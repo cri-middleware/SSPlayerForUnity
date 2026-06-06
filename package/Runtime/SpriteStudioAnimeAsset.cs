@@ -318,36 +318,34 @@ namespace SpriteStudio.Runtime
             var worldBase = ResolveMaterialForHash(textureHash);
             if (worldBase == null) return null;
 
-            var canvasBase = new Material(_canvasShader) { hideFlags = HideFlags.HideAndDontSave, name = "SpriteStudio_CanvasBase" };
-            canvasBase.mainTexture = worldBase.mainTexture; // copy the resolved atlas texture (_MainTex)
+            // Clone the world base (which already has _MainTex and the Mix blend state bound at import)
+            // and swap only the shader to SpriteStudio/Canvas. Cloning copies every property by name, so
+            // _MainTex carries over verbatim (more robust than reading material.mainTexture, which can be
+            // null depending on the main-texture property resolution); the shader swap keeps matching
+            // property values and picks up the Canvas-only uGUI stencil props at their defaults.
+            var canvasBase = new Material(worldBase) { hideFlags = HideFlags.HideAndDontSave, name = "SpriteStudio_CanvasBase" };
+            canvasBase.shader = _canvasShader;
+            if (canvasBase.mainTexture == null) canvasBase.mainTexture = worldBase.mainTexture; // belt-and-suspenders
+            // Fix the single-material Canvas PMA policy regardless of the source material: straight
+            // input, premultiplied output, discard transparent. MIX/ADD are split per-vertex in-shader.
+            canvasBase.SetFloat("_InputPMA", 0f);
+            canvasBase.SetFloat("_OutputPMA", 1f);
+            canvasBase.SetFloat("_NotDiscard", 0f);
+
             if (_canvasBaseByHash == null) _canvasBaseByHash = new Dictionary<uint, Material>();
             _canvasBaseByHash[textureHash] = canvasBase;
             return canvasBase;
         }
 
         /// <summary>
-        /// Resolve the Canvas (uGUI) material for a (textureHash, blendType) pair. Same per-blend
-        /// scheme as <see cref="ResolveMaterial"/> but on the SpriteStudio/Canvas shader (uGUI stencil
-        /// scaffolding). Mix (0) returns the Canvas base directly; other blends return a cached clone
-        /// with the blend state applied. Internal masking is suppressed on Canvas, so there is no
-        /// stencil-role variant here. Returns null only when the Canvas base cannot be created.
+        /// Resolve the single Canvas (uGUI) material for a texture atlas. The Canvas path is one
+        /// material with one fixed PMA blend; MIX vs ADD is handled per-vertex in-shader (a=0 trick)
+        /// and all other ssab blends collapse to MIX, so there are no per-blend variants. blendType is
+        /// accepted for call-site symmetry but ignored. Returns null only if the base cannot be created.
         /// </summary>
         public Material ResolveCanvasMaterial(uint textureHash, byte blendType)
         {
-            var baseMat = GetCanvasBaseMaterial(textureHash);
-            if (baseMat == null) return null;
-            if (blendType == SpriteStudioMaterial.BlendMix) return baseMat;
-
-            var key = new SpriteStudioMaterialKey(textureHash, blendType);
-            if (_canvasVariants != null && _canvasVariants.TryGetValue(key, out var cached) && cached != null)
-            {
-                return cached;
-            }
-
-            if (_canvasVariants == null) _canvasVariants = new Dictionary<SpriteStudioMaterialKey, Material>();
-            var variant = SpriteStudioMaterial.CreateVariant(baseMat, blendType);
-            _canvasVariants[key] = variant;
-            return variant;
+            return GetCanvasBaseMaterial(textureHash);
         }
 
         // Destroy runtime-created materials (blend / test / mask-write variants and the white base;

@@ -84,6 +84,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             if (_childHandles.IsCreated) _childHandles.Dispose();
             if (_meshVertices.IsCreated) _meshVertices.Dispose();
             if (_meshIndices.IsCreated) _meshIndices.Dispose();
+            if (_meshIndices16.IsCreated) _meshIndices16.Dispose();
             if (_drawBatches.IsCreated) _drawBatches.Dispose();
             if (_drawOrder.IsCreated) _drawOrder.Dispose();
             if (_partStates.IsCreated) _partStates.Dispose();
@@ -152,6 +153,10 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         // インデックスは 32bit。エフェクトの大量パーティクルや mesh/instance 合算で
         // 頂点数が 65535 を超えても破綻しないようにする (ApplyToMesh は IndexFormat.UInt32)。
         private NativeArray<uint> _meshIndices;
+        // 16-bit index copy built on upload for CanvasRenderer (which rejects 32-bit index meshes).
+        // Only filled when ApplyToMesh is asked for 16-bit indices (the Canvas/uGUI path).
+        private NativeArray<ushort> _meshIndices16;
+        private bool _warned16BitOverflow;
         private NativeArray<DrawBatchData> _drawBatches;
         private NativeArray<ushort> _drawOrder;
         private NativeArray<PartStateData> _partStates;
@@ -172,6 +177,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         private int _uploadedVertexCount;
         private int _uploadedIndexCount;
         private bool _uploadedPerBatchSubmesh;
+        private bool _uploadedUse16BitIndices;
 
         // バッチ単位の SubMesh 情報 (MeshRenderer 経路のマルチマテリアル用)。
         // Job では使わず main thread でのみ参照するため managed 配列で保持する。
@@ -838,7 +844,8 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                                 Count = (ushort)b.Count,
                                 VertexCount = vc,
                                 IndexCount = ic,
-                                Kind = (byte)b.Kind
+                                Kind = (byte)b.Kind,
+                                BlendType = (byte)b.BlendType
                             };
 
                             EmitSubmesh(totalIndices, ic, b.TextureHash, (byte)b.BlendType);
@@ -978,7 +985,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         /// <summary>
         /// 発行済みのメッシュ構築ジョブの完了を待ち、UnityのMeshへ反映する
         /// </summary>
-        public void ApplyToMesh(UnityEngine.Mesh targetMesh, bool perBatchSubmesh = false)
+        public void ApplyToMesh(UnityEngine.Mesh targetMesh, bool perBatchSubmesh = false, bool use16BitIndices = false)
         {
             // Meshに適用する前に Job の完了を待機
             _updateJobHandle.Complete();
@@ -1006,7 +1013,8 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 && _topologySignature == _uploadedTopologySignature
                 && _vertexCount == _uploadedVertexCount
                 && _indexCount == _uploadedIndexCount
-                && perBatchSubmesh == _uploadedPerBatchSubmesh;
+                && perBatchSubmesh == _uploadedPerBatchSubmesh
+                && use16BitIndices == _uploadedUse16BitIndices;
 
             if (topoUnchanged)
             {
@@ -1021,10 +1029,33 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             targetMesh.subMeshCount = 1;
 
             targetMesh.SetVertexBufferParams(_vertexCount, s_vertexLayout);
-            targetMesh.SetIndexBufferParams(_indexCount, UnityEngine.Rendering.IndexFormat.UInt32);
-
             targetMesh.SetVertexBufferData(_meshVertices, 0, 0, _vertexCount, 0, updateFlags);
-            targetMesh.SetIndexBufferData(_meshIndices, 0, 0, _indexCount, updateFlags);
+
+            if (use16BitIndices)
+            {
+                // CanvasRenderer only accepts 16-bit index meshes. Index VALUES must fit in ushort, so
+                // vertexCount must be <= 65535 (the index COUNT itself is unconstrained). Build a 16-bit
+                // copy on this (throttled) full upload; the per-frame vertex-only path reuses it.
+                if (_vertexCount > 65535 && !_warned16BitOverflow)
+                {
+                    UnityEngine.Debug.LogWarning("[SpriteStudio] Canvas mesh exceeds 65535 vertices; 16-bit indices (required by CanvasRenderer) will wrap. Reduce part/particle count or use the world (MeshRenderer) player.");
+                    _warned16BitOverflow = true;
+                }
+                EnsureCapacity(ref _meshIndices16, _indexCount);
+                unsafe
+                {
+                    uint* src = (uint*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_meshIndices);
+                    ushort* dst = (ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_meshIndices16);
+                    for (int i = 0; i < _indexCount; i++) dst[i] = (ushort)src[i];
+                }
+                targetMesh.SetIndexBufferParams(_indexCount, UnityEngine.Rendering.IndexFormat.UInt16);
+                targetMesh.SetIndexBufferData(_meshIndices16, 0, 0, _indexCount, updateFlags);
+            }
+            else
+            {
+                targetMesh.SetIndexBufferParams(_indexCount, UnityEngine.Rendering.IndexFormat.UInt32);
+                targetMesh.SetIndexBufferData(_meshIndices, 0, 0, _indexCount, updateFlags);
+            }
 
             if (perBatchSubmesh && _submeshCount > 0)
             {
@@ -1052,6 +1083,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             _uploadedVertexCount = _vertexCount;
             _uploadedIndexCount = _indexCount;
             _uploadedPerBatchSubmesh = perBatchSubmesh;
+            _uploadedUse16BitIndices = use16BitIndices;
 
             // バッファは破棄せず再利用する (Dispose() でのみ解放)
         }
@@ -1292,7 +1324,8 @@ private unsafe void BuildMaskWriters(ss.runtime.FrameData frameData, int drawOrd
                 Count = 1,
                 VertexCount = vc,
                 IndexCount = ic,
-                Kind = kind
+                Kind = kind,
+                BlendType = blend
             };
             // Route through EmitSubmesh for the auto-grow path. Mask submeshes (role != None) are never
             // merged, so each step stays its own submesh and keeps its stencil ordering.

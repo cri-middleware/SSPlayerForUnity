@@ -12,6 +12,7 @@ namespace SpriteStudio.Runtime
     /// 自前の LateUpdate でプレビュー更新します。
     /// </summary>
     [RequireComponent(typeof(RectTransform))]
+    [RequireComponent(typeof(CanvasRenderer))]
     [ExecuteAlways]
     public class SpriteStudioGraphic : MaskableGraphic, ISpriteStudioRenderable
     {
@@ -117,6 +118,11 @@ namespace SpriteStudio.Runtime
 
         protected override void OnEnable()
         {
+            // A Graphic drives a CanvasRenderer. RequireComponent adds one for newly created objects;
+            // also self-heal a GameObject that was created before this requirement existed so that
+            // canvasRenderer.materialCount does not throw a MissingComponentException.
+            if (GetComponent<CanvasRenderer>() == null) gameObject.AddComponent<CanvasRenderer>();
+
             base.OnEnable();
 
             if (_sharedMesh == null)
@@ -143,10 +149,9 @@ namespace SpriteStudio.Runtime
             SpriteStudioUpdateManager.Unregister(this);
             _core.Dispose();
 
-            // Release the uGUI stencil wrappers (refcounted by StencilMaterial) and invalidate the
+            // Release the uGUI stencil wrapper (refcounted by StencilMaterial) and invalidate the
             // material signature so OnEnable re-resolves from scratch.
-            ReleaseStencilWrappers();
-            _canvasMaterials.Clear();
+            ReleaseCanvasStencil();
             _lastMaterialSignature = 0;
             _lastStencilDepth = -1;
             _canvasMaterialDirty = true;
@@ -203,26 +208,29 @@ namespace SpriteStudio.Runtime
         {
             if (_core.Internal == null || _sharedMesh == null) return;
 
-            // バッチ単位に SubMesh を分割し、テクスチャ/ブレンド/マスクごとに別マテリアルを当てる
-            // (Mesh 版 SpriteStudioPlayer と同等)。CanvasRenderer は materialCount + SetMaterial で
-            // SubMesh と 1:1 にマテリアルを対応づけられる。
-            _core.Internal.ApplyToMesh(_sharedMesh, true);
+            // Single-material Canvas: build the whole graphic as ONE submesh (perBatchSubmesh: false) and
+            // drive it with one material; MIX/ADD are split per-vertex in-shader. CanvasRenderer only
+            // accepts 16-bit index meshes, so upload 16-bit.
+            _core.Internal.ApplyToMesh(_sharedMesh, false, use16BitIndices: true);
+            EnsureCanvasShaderChannels();
             UpdateCanvasMaterials();
+            // CanvasRenderer multiplies the mesh vertex colours by its own colour. The normal uGUI
+            // rebuild (which we suppress) is what would push the Graphic colour into it; without that
+            // the renderer colour stays at its uninitialised default (black) and zeroes the sprite RGB.
+            // Push the Graphic colour every frame (default white = identity, also honours a user tint).
+            canvasRenderer.SetColor(color);
             canvasRenderer.SetMesh(_sharedMesh);
         }
 
-        // --- Per-submesh material resolution (multi-texture / blend, + uGUI read-only mask) ---
-        // SpriteStudio internal masking is suppressed on the Canvas path, so every submesh resolves to
-        // a plain colour material (Role None) on the SpriteStudio/Canvas shader. The only stencil here
-        // is the READ-ONLY test injected when this graphic is nested under a uGUI Mask: we compute the
-        // mask depth and wrap each base material with StencilMaterial.Add (the same thing
-        // MaskableGraphic.GetModifiedMaterial does, but done per-submesh since GetModifiedMaterial only
-        // tracks one material). RectMask2D needs nothing here — MaskableGraphic clips it through
-        // CanvasRenderer.EnableRectClipping.
-        private readonly System.Collections.Generic.List<Material> _canvasMaterials = new System.Collections.Generic.List<Material>();
-        // StencilMaterial.Add results to release (one slot per submesh; null when not stencil-wrapped).
-        private readonly System.Collections.Generic.List<Material> _stencilWrapped = new System.Collections.Generic.List<Material>();
-        private uint _lastMaterialSignature;
+        // --- Single-material Canvas resolution (one atlas + one fixed PMA blend) ---
+        // The whole graphic renders as ONE submesh with ONE material on the SpriteStudio/Canvas shader.
+        // MIX vs ADD is handled per-vertex in-shader (a=0 trick); other blends collapse to MIX. SpriteStudio
+        // internal masking is suppressed; the only stencil is the READ-ONLY test injected when this graphic
+        // is nested under a uGUI Mask, via StencilMaterial.Add (we compute the mask depth ourselves and wrap
+        // the single material, since MaskableGraphic.GetModifiedMaterial tracks only one material anyway).
+        // RectMask2D needs nothing here — MaskableGraphic clips it through CanvasRenderer.EnableRectClipping.
+        private Material _canvasStencilWrapped; // StencilMaterial.Add result to release (null if not wrapped)
+        private uint _lastMaterialSignature;    // resolved atlas texture hash + 1 (0 = nothing resolved)
         private int _lastStencilDepth = -1;
         private bool _canvasMaterialDirty;
         private bool _warnedMultiTexture;
@@ -234,10 +242,9 @@ namespace SpriteStudio.Runtime
             int subCount = _core.Internal.SubmeshCount;
             if (subCount <= 0)
             {
-                if (_canvasMaterials.Count > 0)
+                if (_lastMaterialSignature != 0)
                 {
-                    ReleaseStencilWrappers();
-                    _canvasMaterials.Clear();
+                    ReleaseCanvasStencil();
                     canvasRenderer.materialCount = 0;
                     _lastMaterialSignature = 0;
                 }
@@ -246,94 +253,85 @@ namespace SpriteStudio.Runtime
 
             var submeshes = _core.Internal.Submeshes;
 
-            // Composition signature over (texture, blend). Roles never vary here (masking suppressed).
-            uint signature = (uint)subCount;
-            for (int s = 0; s < subCount; s++)
+            // Single atlas assumed: one material for the whole graphic. Warn once if the asset has >1 texture.
+            if (!_warnedMultiTexture && _animeAsset.Textures != null && _animeAsset.Textures.Count > 1)
             {
-                var info = submeshes[s];
-                signature = signature * 31u + info.TextureHash;
-                signature = signature * 31u + info.BlendType;
+                Debug.LogWarning($"[SpriteStudioGraphic] '{_animeAsset.name}' has {_animeAsset.Textures.Count} textures. " +
+                                 "The Canvas (uGUI) path is single-atlas / single-material; extra textures will not draw correctly. " +
+                                 "Use the world (MeshRenderer) player or merge into one atlas.", this);
+                _warnedMultiTexture = true;
             }
 
+            uint texHash = submeshes[0].TextureHash;
+
             // Current uGUI mask depth (0 when not nested under a Mask). Checked every frame so a reparent
-            // under/out of a Mask re-wraps the materials even if the SetMaterialDirty signal is missed;
-            // the tree walk is shallow for UI hierarchies.
+            // under/out of a Mask re-wraps the material even if the SetMaterialDirty signal is missed.
             int stencilDepth = maskable
                 ? UnityEngine.UI.MaskUtilities.GetStencilDepth(transform, UnityEngine.UI.MaskUtilities.FindRootSortOverrideCanvas(transform))
                 : 0;
 
-            // Re-resolve when the geometry composition changes, the mask depth changes, a uGUI mask
-            // state change marked us dirty (SetMaterialDirty), or on first build.
-            if (signature != _lastMaterialSignature || stencilDepth != _lastStencilDepth
-                || _canvasMaterialDirty || _canvasMaterials.Count != subCount)
+            uint signature = texHash + 1u; // +1 so a valid hash never collides with the empty sentinel 0
+            if (signature != _lastMaterialSignature || stencilDepth != _lastStencilDepth || _canvasMaterialDirty)
             {
-                RebuildCanvasMaterials(subCount, submeshes, stencilDepth);
-
+                RebuildCanvasMaterial(texHash, stencilDepth);
                 _lastMaterialSignature = signature;
                 _lastStencilDepth = stencilDepth;
                 _canvasMaterialDirty = false;
             }
         }
 
-        private void RebuildCanvasMaterials(int subCount, Unity.Collections.NativeArray<SpriteStudioGeometryBuilder.SubmeshInfo> submeshes, int stencilDepth)
+        private void RebuildCanvasMaterial(uint texHash, int stencilDepth)
         {
-            ReleaseStencilWrappers();
-            _canvasMaterials.Clear();
+            ReleaseCanvasStencil();
 
-            // The Canvas path assumes a single atlas (one texture). Multiple cellmaps cannot be drawn
-            // distinctly through one CanvasRenderer; warn once and fall back to the first texture's
-            // material (use the world player or merge to a single atlas for multi-texture assets).
-            if (!_warnedMultiTexture && _animeAsset.Textures != null && _animeAsset.Textures.Count > 1)
+            Material baseMat = _animeAsset.ResolveCanvasMaterial(texHash, 0);
+            if (baseMat == null)
             {
-                Debug.LogWarning($"[SpriteStudioGraphic] '{_animeAsset.name}' has {_animeAsset.Textures.Count} textures. " +
-                                 "The Canvas (uGUI) path is single-atlas; extra textures may not draw correctly. " +
-                                 "Use the world (MeshRenderer) player or merge into one atlas.", this);
-                _warnedMultiTexture = true;
+                Debug.LogError($"[SpriteStudioGraphic] Canvas material for texture {texHash} could not be resolved.", this);
+                canvasRenderer.materialCount = 0;
+                return;
             }
 
-            int stencilId = stencilDepth > 0 ? (1 << stencilDepth) - 1 : 0;
-
-            for (int s = 0; s < subCount; s++)
+            Material finalMat = baseMat;
+            if (stencilDepth > 0)
             {
-                var info = submeshes[s];
-                Material baseMat = _animeAsset.ResolveCanvasMaterial(info.TextureHash, info.BlendType);
-                if (baseMat == null)
-                {
-                    Debug.LogError($"[SpriteStudioGraphic] TextureHash {info.TextureHash} not resolved (Submesh {s}).", this);
-                }
-
-                Material finalMat = baseMat;
-                Material wrapped = null;
-                if (stencilDepth > 0 && baseMat != null)
-                {
-                    // Read-only stencil test for a parent uGUI Mask (Comp Equal, Op Keep, no write).
-                    wrapped = UnityEngine.UI.StencilMaterial.Add(
-                        baseMat, stencilId,
-                        UnityEngine.Rendering.StencilOp.Keep,
-                        UnityEngine.Rendering.CompareFunction.Equal,
-                        UnityEngine.Rendering.ColorWriteMask.All,
-                        stencilId, 0);
-                    finalMat = wrapped;
-                }
-                _canvasMaterials.Add(finalMat);
-                _stencilWrapped.Add(wrapped);
+                // Read-only stencil test for a parent uGUI Mask (Comp Equal, Op Keep, no write).
+                int stencilId = (1 << stencilDepth) - 1;
+                _canvasStencilWrapped = UnityEngine.UI.StencilMaterial.Add(
+                    baseMat, stencilId,
+                    UnityEngine.Rendering.StencilOp.Keep,
+                    UnityEngine.Rendering.CompareFunction.Equal,
+                    UnityEngine.Rendering.ColorWriteMask.All,
+                    stencilId, 0);
+                finalMat = _canvasStencilWrapped;
             }
 
-            canvasRenderer.materialCount = subCount;
-            for (int s = 0; s < subCount; s++)
+            canvasRenderer.materialCount = 1;
+            canvasRenderer.SetMaterial(finalMat, 0);
+        }
+
+        // The mesh packs per-vertex [rate, blend_idx, isNormalized, reserved] into TEXCOORD1. A Canvas
+        // only emits the shader channels listed in additionalShaderChannels; TexCoord1 is NOT included
+        // by default, so without this the uv1 data is dropped/garbage and the part-color blend breaks
+        // (renders black). Enable it on the canvas we render to.
+        private void EnsureCanvasShaderChannels()
+        {
+            var c = canvas;
+            if (c == null) return;
+            const AdditionalCanvasShaderChannels needed = AdditionalCanvasShaderChannels.TexCoord1;
+            if ((c.additionalShaderChannels & needed) != needed)
             {
-                canvasRenderer.SetMaterial(_canvasMaterials[s], s);
+                c.additionalShaderChannels |= needed;
             }
         }
 
-        private void ReleaseStencilWrappers()
+        private void ReleaseCanvasStencil()
         {
-            for (int i = 0; i < _stencilWrapped.Count; i++)
+            if (_canvasStencilWrapped != null)
             {
-                var m = _stencilWrapped[i];
-                if (m != null) UnityEngine.UI.StencilMaterial.Remove(m);
+                UnityEngine.UI.StencilMaterial.Remove(_canvasStencilWrapped);
+                _canvasStencilWrapped = null;
             }
-            _stencilWrapped.Clear();
         }
 
         // --- Canvas の Rebuild フローとの衝突回避 ---

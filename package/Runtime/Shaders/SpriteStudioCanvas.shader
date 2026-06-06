@@ -18,15 +18,13 @@ Shader "SpriteStudio/Canvas"
     {
         _MainTex ("Sprite Texture", 2D) = "white" {}
 
-        // --- Blend state (set by the C# MaterialKey per the B-table in project_blend_mapping_truth) ---
-        // Defaults are Mix + PMA output. The MaterialKey overrides these per ssab BlendType.
-        [Enum(UnityEngine.Rendering.BlendMode)] _SrcBlend ("Src Blend", Float) = 1   // One
-        [Enum(UnityEngine.Rendering.BlendMode)] _DstBlend ("Dst Blend", Float) = 10  // OneMinusSrcAlpha
-        [Enum(UnityEngine.Rendering.BlendOp)]   _BlendOp  ("Blend Op",  Float) = 0   // Add
-        // PMA / discard are uniform branches (not keywords), so variants collapse to one.
-        _InputPMA   ("Input PMA",   Float) = 0   // 1 = texture is premultiplied -> un-premultiply
-        _OutputPMA  ("Output PMA",  Float) = 1   // 1 = emit premultiplied alpha
-        _NotDiscard ("Not Discard", Float) = 0   // 1 = keep transparent pixels (Mul/Invert)
+        // Single-material Canvas: ONE fixed PMA blend (One, OneMinusSrcAlpha) hardcoded in the SubShader.
+        // MIX and ADD are distinguished per-vertex (TEXCOORD1.w = isAdditive) via the a=0 trick; every
+        // other ssab blend collapses to MIX (the deliberate uGUI simplification). The PMA/discard policy
+        // is fixed by the C# Canvas material resolution: straight input, premultiplied output, discard on.
+        _InputPMA   ("Input PMA",   Float) = 0
+        _OutputPMA  ("Output PMA",  Float) = 1
+        _NotDiscard ("Not Discard", Float) = 0
 
         // --- uGUI stencil scaffolding (read-only; driven by StencilMaterial.Add when this graphic
         // is nested under a uGUI Mask). Defaults are a no-op (Comp Always / Op Keep / full masks). ---
@@ -65,8 +63,8 @@ Shader "SpriteStudio/Canvas"
         ZWrite Off
         ZTest [unity_GUIZTestMode] // respects the Canvas render mode (Overlay ignores depth)
         ColorMask [_ColorMask]
-        Blend [_SrcBlend] [_DstBlend]
-        BlendOp [_BlendOp]
+        // Single fixed PMA blend; MIX vs ADD is handled per-vertex via the a=0 trick (TEXCOORD1.w).
+        Blend One OneMinusSrcAlpha
 
         Pass
         {
@@ -83,7 +81,8 @@ Shader "SpriteStudio/Canvas"
                 float3 rgb = ss_canvas_default_rgb(tex, IN, rate, blendIdx, isNormalized);
                 float alpha = tex.a * IN.color.a;
                 // -----------------------------------------------------------
-                return ss_canvas_finalize(rgb, alpha, blendIdx, isNormalized);
+                // TEXCOORD1.w = per-vertex isAdditive (ADD -> a=0 PMA trick); others collapse to MIX.
+                return ss_canvas_finalize(rgb, alpha, IN.texcoord1.w);
             }
             ENDHLSL
         }
