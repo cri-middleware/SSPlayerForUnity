@@ -253,12 +253,17 @@ namespace SpriteStudio.Runtime
 
             var submeshes = _core.Internal.Submeshes;
 
-            // Single atlas assumed: one material for the whole graphic. Warn once if the asset has >1 texture.
+            // Multi-texture (multi-atlas) is intentionally NOT supported on the Canvas path for now. A single
+            // CanvasRenderer draws one mesh with one material, and multi-material on one CanvasRenderer was
+            // rejected by design (draw-order / batching). Interim guard: draw the whole graphic with the FIRST
+            // atlas only and warn once; parts belonging to other atlases sample the wrong texture but never
+            // crash. Real multi-atlas support (child-CanvasRenderer split, or import-time atlas merge) is
+            // deferred. See memory project_canvas_single_material_resume.
             if (!_warnedMultiTexture && _animeAsset.Textures != null && _animeAsset.Textures.Count > 1)
             {
-                Debug.LogWarning($"[SpriteStudioGraphic] '{_animeAsset.name}' has {_animeAsset.Textures.Count} textures. " +
-                                 "The Canvas (uGUI) path is single-atlas / single-material; extra textures will not draw correctly. " +
-                                 "Use the world (MeshRenderer) player or merge into one atlas.", this);
+                Debug.LogWarning($"[SpriteStudioGraphic] '{_animeAsset.name}' uses {_animeAsset.Textures.Count} atlases. " +
+                                 "The Canvas (uGUI) path is single-atlas only: only the first atlas is drawn, so parts on other " +
+                                 "atlases will sample the wrong texture. Merge to one atlas, or use the world (MeshRenderer) player.", this);
                 _warnedMultiTexture = true;
             }
 
