@@ -15,7 +15,7 @@ namespace SpriteStudio.Editor
     ///   生成し、同時実行数を CPU 数で上限化する (スレッド過多を防止)。
     /// - UnityEditor.Progress でステータスバーに進捗を出し、キャンセルにも対応する。
     /// </summary>
-    internal static class SpriteStudioConversionRunner
+    public static class SpriteStudioConversionRunner
     {
         private struct Job
         {
