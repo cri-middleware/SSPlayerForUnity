@@ -355,12 +355,6 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 float fps = _player.GetFrameRate();
                 if (fps <= 0f) fps = 60f;
 
-                // _childHandles への書き込みは InstanceSlot != Zero のブランチ内だけで、それは
-                // _player._hasInstanceParts が真のときしか成立しない。永続 grow-only で毎フレームの Temp 確保を避ける。
-                int childHandleCount = 0;
-                if (_player._hasInstanceParts)
-                    SpriteStudioNativeBuffers.EnsureCapacity(ref _childHandles, partsLength);
-
                 // エフェクト plan テーブルの確保・default クリアと結合バッファの件数リセットをまとめて行う。
                 _effectBuffer.BeginFrame(partsLength);
 
@@ -374,49 +368,9 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         (long)partsLength * Unity.Collections.LowLevel.Unsafe.UnsafeUtility.SizeOf<InstanceMeshPointer>());
                 }
 
-                for (int k = 0; k < _player._effectPartCount; k++)
-                {
-                    int i = _player._effectPartIndices[k];
-                    var ev = NativeMethods.ss_runtime_get_active_effect_event(_player._handle.ptr, (uint)i);
-                    var step = NativeMethods.ss_effect_slot_step((void*)_player._effectSlots[i].EffectSlot, ev, drawFrameNo, deltaTime, fps, parentLooped, false, 3);
-                    if (step.visible && step.draw_plan_len > 0)
-                        _effectBuffer.SetPlan(i, _effectBuffer.Append(step.draw_plan_buf, (int)step.draw_plan_len));
-                    // 非 visible は MemClear 済の default のまま
-                }
-
-                for (int k = 0; k < _player._instancePartCount; k++)
-                {
-                    int i = _player._instancePartIndices[k];
-                    var childPlayer = _player._instanceChildren[i].Player;
-                    if (childPlayer == null) continue; // _instanceMeshes[i] は MemClear 済 default
-
-                    var ev = NativeMethods.ss_runtime_get_active_event_instance(_player._handle.ptr, (uint)i);
-                    var step = NativeMethods.ss_instance_slot_step((void*)_player._instanceChildren[i].InstanceSlot, ev, childPlayer._handle.ptr, _player._instanceChildren[i].PreviousFrame, drawFrameNo, deltaTime, parentLooped);
-
-                    if (step.transitioned)
-                    {
-                        childPlayer.Play(); // Trigger side effects (UnityEvents) if needed
-                    }
-
-                    if (step.visible)
-                    {
-                        float childDrawFrame = childPlayer.SubFrameEnabled ? step.child_frame_no : UnityEngine.Mathf.Floor(step.child_frame_no);
-                        childDrawFrame = UnityEngine.Mathf.Clamp(childDrawFrame, childPlayer.GetAnimationSectionStart(), childPlayer.GetAnimationSectionEnd());
-                        _player._instanceChildren[i].PreviousFrame = childDrawFrame;
-                        childPlayer.SetFrame(childDrawFrame);
-                        childPlayer.ScheduleMeshUpdate(deltaTime);
-
-                        _childHandles[childHandleCount++] = childPlayer.CurrentUpdateJobHandle;
-
-                        _instanceMeshes[i] = new InstanceMeshPointer {
-                            Vertices = (SsVertex*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(childPlayer.MeshVertices),
-                            Indices = (uint*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(childPlayer.MeshIndices),
-                            VertexCount = childPlayer.VertexCount,
-                            IndexCount = childPlayer.IndexCount
-                        };
-                    }
-                    // 非 visible は MemClear 済の default のまま
-                }
+                // active な effect/instance スロットを step し、結合バッファ / 子メッシュポインタを充填する。
+                StepEffects(drawFrameNo, deltaTime, fps, parentLooped);
+                int childHandleCount = StepInstances(drawFrameNo, deltaTime, parentLooped, partsLength);
 
                 // maxBatches も active な effect/instance パーツのみ集計 (非 active は default=0寄与なので不要)。
                 int maxBatches = drawBatchesLength;
@@ -761,18 +715,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     }
                 }
 
-                for (int i = 0; i < partsColorLength; i++)
-                {
-                    var pc = frameData.PartsColor(i).Value;
-                    _partColors[i] = new PartColorData
-                    {
-                        BlendType = (byte)pc.BlendType,
-                        Lt = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Lt.Rgba.R, pc.Lt.Rgba.G, pc.Lt.Rgba.B, pc.Lt.Rgba.A), Rate = pc.Lt.Rate },
-                        Rt = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Rt.Rgba.R, pc.Rt.Rgba.G, pc.Rt.Rgba.B, pc.Rt.Rgba.A), Rate = pc.Rt.Rate },
-                        Lb = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Lb.Rgba.R, pc.Lb.Rgba.G, pc.Lb.Rgba.B, pc.Lb.Rgba.A), Rate = pc.Lb.Rate },
-                        Rb = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Rb.Rgba.R, pc.Rb.Rgba.G, pc.Rb.Rgba.B, pc.Rb.Rgba.A), Rate = pc.Rb.Rate }
-                    };
-                }
+                FillPartColors(frameData, partsColorLength);
 
                 if (totalVertices == 0 || totalIndices == 0)
                 {
@@ -787,32 +730,9 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 _vertexCount = totalVertices;
                 _indexCount = totalIndices;
 
-                // index アップロードキャッシュ用のトポロジシグネチャ。バッチ構造は生成される index 値と
-                // submesh 範囲を一意に決めるため、これが前フレームと同一なら index/submesh は再送不要。
-                // (Effect は QuadCount/Offset が毎フレーム変わるので自然に不一致 = キャッシュされない)
-                {
-                    ulong sig = 14695981039346656037UL;
-                    const ulong prime = 1099511628211UL;
-                    sig = (sig ^ (ulong)(uint)_drawBatchCount) * prime;
-                    for (int i = 0; i < _drawBatchCount; i++)
-                    {
-                        var b = ((DrawBatchData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[i];
-                        sig = (sig ^ ((ulong)b.Kind | ((ulong)b.Count << 8) | ((ulong)b.StartRank << 24))) * prime;
-                        sig = (sig ^ (ulong)(uint)b.VertexCount) * prime;
-                        sig = (sig ^ (ulong)(uint)b.IndexCount) * prime;
-                        sig = (sig ^ (ulong)(uint)b.EffectPartIndex) * prime;
-                        sig = (sig ^ ((ulong)b.EffectQuadCount | ((ulong)b.EffectParticleOffset << 32))) * prime;
-                    }
-                    sig = (sig ^ (ulong)(uint)_submeshCount) * prime;
-                    for (int i = 0; i < _submeshCount; i++)
-                    {
-                        var s = _submeshes[i];
-                        sig = (sig ^ ((ulong)(uint)s.IndexStart | ((ulong)(uint)s.IndexCount << 32))) * prime;
-                    }
-                    sig = (sig ^ (ulong)(uint)_indexCount) * prime;
-                    sig = (sig ^ (ulong)(uint)_vertexCount) * prime;
-                    _topologySignature = sig;
-                }
+                // index アップロードキャッシュ用のトポロジシグネチャ (前フレームと同一なら index/submesh は
+                // 再送不要)。Effect は QuadCount/Offset が毎フレーム変わり自然に不一致 = キャッシュされない。
+                _topologySignature = ComputeTopologySignature();
 
                 // エフェクトが無くても Job が参照するため、結合配列は最低 1 要素を確保しておく。
                 _effectBuffer.EnsureGeometryMinimum();
@@ -877,6 +797,111 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             _meshUploader.Apply(targetMesh, perBatchSubmesh, new SpriteStudioMeshUploader.UploadData(
                 _frameSkipped, _vertexCount, _indexCount, _meshVertices, _meshIndices,
                 _submeshes, _submeshCount, _topologySignature, _meshBounds));
+        }
+
+        /// <summary>active な effect スロットを step し、可視なものの draw_plan を結合バッファへ追記する。</summary>
+        private unsafe void StepEffects(float drawFrameNo, float deltaTime, float fps, bool parentLooped)
+        {
+            for (int k = 0; k < _player._effectPartCount; k++)
+            {
+                int i = _player._effectPartIndices[k];
+                var ev = NativeMethods.ss_runtime_get_active_effect_event(_player._handle.ptr, (uint)i);
+                var step = NativeMethods.ss_effect_slot_step((void*)_player._effectSlots[i].EffectSlot, ev, drawFrameNo, deltaTime, fps, parentLooped, false, 3);
+                if (step.visible && step.draw_plan_len > 0)
+                    _effectBuffer.SetPlan(i, _effectBuffer.Append(step.draw_plan_buf, (int)step.draw_plan_len));
+                // 非 visible は MemClear 済の default のまま
+            }
+        }
+
+        /// <summary>active な instance スロットを step し、可視な子の mesh ポインタ/Job ハンドルを収集する。
+        /// 返り値は依存に束ねる子 Job ハンドル数 (CombineDependencies 用)。</summary>
+        private unsafe int StepInstances(float drawFrameNo, float deltaTime, bool parentLooped, int partsLength)
+        {
+            int childHandleCount = 0;
+            // _childHandles への書き込みは可視 instance のときだけ。永続 grow-only で毎フレームの Temp 確保を避ける。
+            if (_player._hasInstanceParts)
+                SpriteStudioNativeBuffers.EnsureCapacity(ref _childHandles, partsLength);
+
+            for (int k = 0; k < _player._instancePartCount; k++)
+            {
+                int i = _player._instancePartIndices[k];
+                var childPlayer = _player._instanceChildren[i].Player;
+                if (childPlayer == null) continue; // _instanceMeshes[i] は MemClear 済 default
+
+                var ev = NativeMethods.ss_runtime_get_active_event_instance(_player._handle.ptr, (uint)i);
+                var step = NativeMethods.ss_instance_slot_step((void*)_player._instanceChildren[i].InstanceSlot, ev, childPlayer._handle.ptr, _player._instanceChildren[i].PreviousFrame, drawFrameNo, deltaTime, parentLooped);
+
+                if (step.transitioned)
+                {
+                    childPlayer.Play(); // Trigger side effects (UnityEvents) if needed
+                }
+
+                if (step.visible)
+                {
+                    float childDrawFrame = childPlayer.SubFrameEnabled ? step.child_frame_no : UnityEngine.Mathf.Floor(step.child_frame_no);
+                    childDrawFrame = UnityEngine.Mathf.Clamp(childDrawFrame, childPlayer.GetAnimationSectionStart(), childPlayer.GetAnimationSectionEnd());
+                    _player._instanceChildren[i].PreviousFrame = childDrawFrame;
+                    childPlayer.SetFrame(childDrawFrame);
+                    childPlayer.ScheduleMeshUpdate(deltaTime);
+
+                    _childHandles[childHandleCount++] = childPlayer.CurrentUpdateJobHandle;
+
+                    _instanceMeshes[i] = new InstanceMeshPointer {
+                        Vertices = (SsVertex*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(childPlayer.MeshVertices),
+                        Indices = (uint*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(childPlayer.MeshIndices),
+                        VertexCount = childPlayer.VertexCount,
+                        IndexCount = childPlayer.IndexCount
+                    };
+                }
+                // 非 visible は MemClear 済の default のまま
+            }
+            return childHandleCount;
+        }
+
+        /// <summary>frameData の PartsColor から _partColors を充填する (4 隅の頂点カラー)。</summary>
+        private void FillPartColors(ss.runtime.FrameData frameData, int partsColorLength)
+        {
+            for (int i = 0; i < partsColorLength; i++)
+            {
+                var pc = frameData.PartsColor(i).Value;
+                _partColors[i] = new PartColorData
+                {
+                    BlendType = (byte)pc.BlendType,
+                    Lt = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Lt.Rgba.R, pc.Lt.Rgba.G, pc.Lt.Rgba.B, pc.Lt.Rgba.A), Rate = pc.Lt.Rate },
+                    Rt = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Rt.Rgba.R, pc.Rt.Rgba.G, pc.Rt.Rgba.B, pc.Rt.Rgba.A), Rate = pc.Rt.Rate },
+                    Lb = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Lb.Rgba.R, pc.Lb.Rgba.G, pc.Lb.Rgba.B, pc.Lb.Rgba.A), Rate = pc.Lb.Rate },
+                    Rb = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Rb.Rgba.R, pc.Rb.Rgba.G, pc.Rb.Rgba.B, pc.Rb.Rgba.A), Rate = pc.Rb.Rate }
+                };
+            }
+        }
+
+        /// <summary>
+        /// 現在の draw batch / submesh 構造から index アップロードキャッシュ判定用の FNV-1a シグネチャを算出する。
+        /// _vertexCount / _indexCount 確定後に呼ぶこと。
+        /// </summary>
+        private unsafe ulong ComputeTopologySignature()
+        {
+            ulong sig = 14695981039346656037UL;
+            const ulong prime = 1099511628211UL;
+            sig = (sig ^ (ulong)(uint)_drawBatchCount) * prime;
+            for (int i = 0; i < _drawBatchCount; i++)
+            {
+                var b = ((DrawBatchData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[i];
+                sig = (sig ^ ((ulong)b.Kind | ((ulong)b.Count << 8) | ((ulong)b.StartRank << 24))) * prime;
+                sig = (sig ^ (ulong)(uint)b.VertexCount) * prime;
+                sig = (sig ^ (ulong)(uint)b.IndexCount) * prime;
+                sig = (sig ^ (ulong)(uint)b.EffectPartIndex) * prime;
+                sig = (sig ^ ((ulong)b.EffectQuadCount | ((ulong)b.EffectParticleOffset << 32))) * prime;
+            }
+            sig = (sig ^ (ulong)(uint)_submeshCount) * prime;
+            for (int i = 0; i < _submeshCount; i++)
+            {
+                var s = _submeshes[i];
+                sig = (sig ^ ((ulong)(uint)s.IndexStart | ((ulong)(uint)s.IndexCount << 32))) * prime;
+            }
+            sig = (sig ^ (ulong)(uint)_indexCount) * prime;
+            sig = (sig ^ (ulong)(uint)_vertexCount) * prime;
+            return sig;
         }
 
         // Stencil op / compare values used by the mask path (UnityEngine.Rendering enums as bytes).
