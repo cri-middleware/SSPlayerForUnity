@@ -112,6 +112,13 @@ internal struct MaskPartData
         {
             _assetResolver = resolver;
             _instanceDepth = depth;
+
+            // 再ロード (実行時のアセット差し替え) では、旧 ssab バッファを borrow している
+            // in-flight な Burst Job が残っている可能性がある。ネイティブリソースを破棄/再 borrow
+            // する前に必ず Job を完了させ、解放済みメモリ参照によるセグフォールトを防ぐ。
+            // 初回ロード時は Job 未投入なので default ハンドルへの Complete() で no-op。
+            _geometryBuilder?.CurrentUpdateJobHandle.Complete();
+
             _nativeContext.LoadSsab(ssabData);
             
             var bb = new Google.FlatBuffers.ByteBuffer(ssabData);

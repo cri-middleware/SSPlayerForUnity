@@ -115,22 +115,43 @@ namespace SpriteStudio.Editor
             unsafe
             {
                 var context = SpriteStudio.SsConverter.NativeMethods.ss_converter_create();
-
-                var sspjBytes = Encoding.UTF8.GetBytes(job.SspjPath + "\0");
-                var outDirBytes = Encoding.UTF8.GetBytes(job.OutputDir + "\0");
-
-                fixed (byte* sspjPtr = sspjBytes)
-                fixed (byte* outDirPtr = outDirBytes)
+                if (context == null)
                 {
-                    SpriteStudio.SsConverter.NativeMethods.ss_converter_convert(context, sspjPtr, outDirPtr, null);
+                    // context を作れない場合、_active に積めず進捗も進まないので Progress が 100% に
+                    // 到達しなくなる。完了扱いにして停滞を防ぐ。
+                    Debug.LogError($"[SSPlayer] ss_converter_create() failed for '{Path.GetFileName(job.SspjPath)}'. Skipping.");
+                    _completed++;
+                    return;
                 }
 
-                _active.Add(new Active
+                try
                 {
-                    Context = (IntPtr)context,
-                    SspjPath = job.SspjPath,
-                    OutputDir = job.OutputDir,
-                });
+                    var sspjBytes = Encoding.UTF8.GetBytes(job.SspjPath + "\0");
+                    var outDirBytes = Encoding.UTF8.GetBytes(job.OutputDir + "\0");
+
+                    // Rust 側 (ss_converter_convert) は spawn 前に CStr を into_owned でコピーするため、
+                    // fixed の範囲を抜けてバッファが解放されても安全 (use-after-free にならない)。
+                    fixed (byte* sspjPtr = sspjBytes)
+                    fixed (byte* outDirPtr = outDirBytes)
+                    {
+                        SpriteStudio.SsConverter.NativeMethods.ss_converter_convert(context, sspjPtr, outDirPtr, null);
+                    }
+
+                    _active.Add(new Active
+                    {
+                        Context = (IntPtr)context,
+                        SspjPath = job.SspjPath,
+                        OutputDir = job.OutputDir,
+                    });
+                }
+                catch (Exception e)
+                {
+                    // 変換開始に失敗 (marshalling 等)。ここで context を破棄しないと永久リークし、
+                    // _active へ積まれないため進捗も停滞する。完了扱いにして回収する。
+                    Debug.LogError($"[SSPlayer] Failed to start conversion for '{Path.GetFileName(job.SspjPath)}': {e.Message}");
+                    SpriteStudio.SsConverter.NativeMethods.ss_converter_destroy(context);
+                    _completed++;
+                }
             }
 
             ReportProgress(Path.GetFileName(job.SspjPath));
@@ -143,46 +164,37 @@ namespace SpriteStudio.Editor
             for (int i = _active.Count - 1; i >= 0; i--)
             {
                 var conversion = _active[i];
+
+                bool finished;
                 unsafe
                 {
                     var ctx = (SpriteStudio.SsConverter.Context*)conversion.Context.ToPointer();
-                    if (!SpriteStudio.SsConverter.NativeMethods.ss_converter_is_finished(ctx))
-                    {
-                        continue; // まだ変換中
-                    }
-
-                    var result = SpriteStudio.SsConverter.NativeMethods.ss_converter_get_result(ctx);
-                    if (result != SpriteStudio.SsConverter.CConverterError.Success)
-                    {
-                        byte* errData;
-                        nuint errLen;
-                        SpriteStudio.SsConverter.NativeMethods.ss_converter_get_error(ctx, &errData, &errLen);
-                        string name = Path.GetFileName(conversion.SspjPath);
-                        if (errData != null && errLen > 0)
-                        {
-                            var errStr = Encoding.UTF8.GetString(errData, (int)errLen);
-                            Debug.LogError($"[SSPlayer] Converter Error ({name}): {errStr}");
-                        }
-                        else
-                        {
-                            Debug.LogError($"[SSPlayer] Converter Error ({name}): {result}");
-                        }
-                    }
-                    else
-                    {
-                        var generatedSsabs = Directory.GetFiles(conversion.OutputDir, "*.ssab", SearchOption.AllDirectories);
-                        foreach (var ssab in generatedSsabs)
-                        {
-                            SpriteStudioSourceMap.Register(ssab, conversion.SspjPath);
-                        }
-                    }
-
-                    SpriteStudio.SsConverter.NativeMethods.ss_converter_destroy(ctx);
+                    finished = SpriteStudio.SsConverter.NativeMethods.ss_converter_is_finished(ctx);
                 }
+                if (!finished) continue; // まだ変換中
 
-                _active.RemoveAt(i);
-                _completed++;
-                anyCompleted = true;
+                // 結果処理 (ファイル列挙 / source map 登録) は例外を投げうる。例外が
+                // EditorApplication.update へ伝播すると Poll が解除されてパイプライン全体が停止し、
+                // context もリークする。破棄・回収・進捗加算は必ず finally で行い、自己回復させる。
+                try
+                {
+                    ProcessFinished(conversion);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError($"[SSPlayer] Error finalizing conversion of '{Path.GetFileName(conversion.SspjPath)}': {e.Message}");
+                }
+                finally
+                {
+                    unsafe
+                    {
+                        var ctx = (SpriteStudio.SsConverter.Context*)conversion.Context.ToPointer();
+                        SpriteStudio.SsConverter.NativeMethods.ss_converter_destroy(ctx);
+                    }
+                    _active.RemoveAt(i);
+                    _completed++;
+                    anyCompleted = true;
+                }
             }
 
             if (anyCompleted)
@@ -195,6 +207,46 @@ namespace SpriteStudio.Editor
             if (_active.Count == 0 && _pending.Count == 0)
             {
                 Finish();
+            }
+        }
+
+        /// <summary>完了した変換の結果を処理する (成否ログ + 生成 .ssab の source map 登録)。
+        /// context の破棄は呼び出し側 (Poll) が finally で必ず行う。</summary>
+        private static void ProcessFinished(Active conversion)
+        {
+            unsafe
+            {
+                var ctx = (SpriteStudio.SsConverter.Context*)conversion.Context.ToPointer();
+                var result = SpriteStudio.SsConverter.NativeMethods.ss_converter_get_result(ctx);
+                if (result != SpriteStudio.SsConverter.CConverterError.Success)
+                {
+                    byte* errData;
+                    nuint errLen;
+                    SpriteStudio.SsConverter.NativeMethods.ss_converter_get_error(ctx, &errData, &errLen);
+                    string name = Path.GetFileName(conversion.SspjPath);
+                    if (errData != null && errLen > 0)
+                    {
+                        var errStr = Encoding.UTF8.GetString(errData, (int)errLen);
+                        Debug.LogError($"[SSPlayer] Converter Error ({name}): {errStr}");
+                    }
+                    else
+                    {
+                        Debug.LogError($"[SSPlayer] Converter Error ({name}): {result}");
+                    }
+                    return;
+                }
+            }
+
+            // 成功: 生成された .ssab をまとめて登録し、最後に 1 回だけ保存する
+            // (1 ファイルごとにマップ JSON を全書き換えしない)。
+            var generatedSsabs = Directory.GetFiles(conversion.OutputDir, "*.ssab", SearchOption.AllDirectories);
+            if (generatedSsabs.Length > 0)
+            {
+                foreach (var ssab in generatedSsabs)
+                {
+                    SpriteStudioSourceMap.Register(ssab, conversion.SspjPath, save: false);
+                }
+                SpriteStudioSourceMap.SaveMap();
             }
         }
 

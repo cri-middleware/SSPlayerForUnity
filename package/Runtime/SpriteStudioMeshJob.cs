@@ -440,10 +440,11 @@ namespace SpriteStudio.Runtime
                 float wLB = (1f - fx) * fy;
                 float wRB = fx * fy;
 
-                byte r = (byte)(corner_colors[0].r * wLT + corner_colors[1].r * wRT + corner_colors[2].r * wLB + corner_colors[3].r * wRB);
-                byte g = (byte)(corner_colors[0].g * wLT + corner_colors[1].g * wRT + corner_colors[2].g * wLB + corner_colors[3].g * wRB);
-                byte b = (byte)(corner_colors[0].b * wLT + corner_colors[1].b * wRT + corner_colors[2].b * wLB + corner_colors[3].b * wRB);
-                byte a = (byte)(corner_colors[0].a * wLT + corner_colors[1].a * wRT + corner_colors[2].a * wLB + corner_colors[3].a * wRB);
+                // 重みの和は 1 だが FP 誤差で 255 を僅かに超えうるため、他経路 (effect/normal) と同様に clamp する。
+                byte r = (byte)math.clamp(corner_colors[0].r * wLT + corner_colors[1].r * wRT + corner_colors[2].r * wLB + corner_colors[3].r * wRB, 0f, 255f);
+                byte g = (byte)math.clamp(corner_colors[0].g * wLT + corner_colors[1].g * wRT + corner_colors[2].g * wLB + corner_colors[3].g * wRB, 0f, 255f);
+                byte b = (byte)math.clamp(corner_colors[0].b * wLT + corner_colors[1].b * wRT + corner_colors[2].b * wLB + corner_colors[3].b * wRB, 0f, 255f);
+                byte a = (byte)math.clamp(corner_colors[0].a * wLT + corner_colors[1].a * wRT + corner_colors[2].a * wLB + corner_colors[3].a * wRB, 0f, 255f);
                 
                 float v_rate = corner_rates[0] * wLT + corner_rates[1] * wRT + corner_rates[2] * wLB + corner_rates[3] * wRB;
 
