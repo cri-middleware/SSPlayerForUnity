@@ -278,7 +278,7 @@ namespace SpriteStudio.Runtime
                 signature = signature * 31u + (uint)info.Role;
                 signature = signature * 31u + info.StencilOp;
                 signature = signature * 31u + info.StencilComp;
-                if (info.Role == SpriteStudioInternalPlayer.StencilRole.Write) hasWrite = true;
+                if (info.Role == SpriteStudioGeometryBuilder.StencilRole.Write) hasWrite = true;
             }
 
             if (signature != _lastMaterialSignature || _submeshMaterials.Count != subCount)
@@ -301,10 +301,10 @@ namespace SpriteStudio.Runtime
                     Material mat;
                     switch (info.Role)
                     {
-                        case SpriteStudioInternalPlayer.StencilRole.Write:
+                        case SpriteStudioGeometryBuilder.StencilRole.Write:
                             mat = _animeAsset.ResolveMaskWriteMaterial(info.TextureHash, info.StencilOp);
                             break;
-                        case SpriteStudioInternalPlayer.StencilRole.Test:
+                        case SpriteStudioGeometryBuilder.StencilRole.Test:
                             mat = _animeAsset.ResolveTestMaterial(info.TextureHash, info.BlendType, info.StencilComp);
                             break;
                         default:
@@ -329,7 +329,7 @@ namespace SpriteStudio.Runtime
                 for (int s = 0; s < subCount; s++)
                 {
                     var info = submeshes[s];
-                    if (info.Role != SpriteStudioInternalPlayer.StencilRole.Write) continue;
+                    if (info.Role != SpriteStudioGeometryBuilder.StencilRole.Write) continue;
                     if (_maskMpb == null) _maskMpb = new MaterialPropertyBlock();
                     _meshRenderer.GetPropertyBlock(_maskMpb, s);
                     _maskMpb.SetFloat(SpriteStudioMaterial.IdMaskThreshold, info.MaskThreshold);

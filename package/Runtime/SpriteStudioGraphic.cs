@@ -234,7 +234,7 @@ namespace SpriteStudio.Runtime
                 signature = signature * 31u + (uint)info.Role;
                 signature = signature * 31u + info.StencilOp;
                 signature = signature * 31u + info.StencilComp;
-                if (info.Role == SpriteStudioInternalPlayer.StencilRole.Write) hasWrite = true;
+                if (info.Role == SpriteStudioGeometryBuilder.StencilRole.Write) hasWrite = true;
             }
 
             if (signature != _lastMaterialSignature || _canvasMaterials.Count != subCount)
@@ -252,10 +252,10 @@ namespace SpriteStudio.Runtime
                     Material mat;
                     switch (info.Role)
                     {
-                        case SpriteStudioInternalPlayer.StencilRole.Write:
+                        case SpriteStudioGeometryBuilder.StencilRole.Write:
                             mat = _animeAsset.ResolveMaskWriteMaterial(info.TextureHash, info.StencilOp);
                             break;
-                        case SpriteStudioInternalPlayer.StencilRole.Test:
+                        case SpriteStudioGeometryBuilder.StencilRole.Test:
                             mat = _animeAsset.ResolveTestMaterial(info.TextureHash, info.BlendType, info.StencilComp);
                             break;
                         default:
@@ -269,7 +269,7 @@ namespace SpriteStudio.Runtime
                     }
                     // Write SubMesh は閾値を毎フレーム書き換えるため、共有マテリアル (解決値/フォールバック共に)
                     // を汚さないようインスタンス化して所有する。CanvasRenderer は MPB 非対応のための回避策。
-                    if (info.Role == SpriteStudioInternalPlayer.StencilRole.Write && mat != null)
+                    if (info.Role == SpriteStudioGeometryBuilder.StencilRole.Write && mat != null)
                     {
                         mat = new Material(mat);
                         _ownedMaterialInstances.Add(mat);
@@ -292,7 +292,7 @@ namespace SpriteStudio.Runtime
                 for (int s = 0; s < subCount; s++)
                 {
                     var info = submeshes[s];
-                    if (info.Role != SpriteStudioInternalPlayer.StencilRole.Write) continue;
+                    if (info.Role != SpriteStudioGeometryBuilder.StencilRole.Write) continue;
                     var mat = _canvasMaterials[s];
                     if (mat != null) mat.SetFloat(SpriteStudioMaterial.IdMaskThreshold, info.MaskThreshold);
                 }
