@@ -35,7 +35,7 @@ namespace SpriteStudio.Editor
             Event e = Event.current;
             if (e.type == EventType.DragUpdated || e.type == EventType.DragPerform)
             {
-                GameObject hoverTarget = EditorUtility.InstanceIDToObject(instanceID) as GameObject;
+var hoverTarget = EditorUtility.EntityIdToObject(instanceID) as GameObject;
                 
                 // アイテムが存在する場合、マウスカーソルがそのアイテムの Rect 内にあるか判定する
                 if (hoverTarget != null && !selectionRect.Contains(e.mousePosition))
@@ -137,7 +137,7 @@ namespace SpriteStudio.Editor
                     // UI 用の場合、親が Canvas 配下でなければ Canvas を探して親にする
                     if (parent == null || parent.GetComponentInParent<Canvas>() == null)
                     {
-                        Canvas canvas = Object.FindObjectOfType<Canvas>();
+Canvas canvas = UnityEngine.Object.FindFirstObjectByType<Canvas>();
                         if (canvas != null)
                         {
                             go.transform.SetParent(canvas.transform, false);
@@ -156,14 +156,16 @@ namespace SpriteStudio.Editor
                             go.transform.SetParent(canvas.transform, false);
                             go.name = GameObjectUtility.GetUniqueNameForSibling(canvas.transform, asset.name);
                             
-                            // EventSystem がない場合は作成
-                            var eventSystem = Object.FindObjectOfType<UnityEngine.EventSystems.EventSystem>();
-                            if (eventSystem == null)
+                            if (go.GetComponent<UnityEngine.EventSystems.EventSystem>() == null)
                             {
-                                var esGo = new GameObject("EventSystem");
-                                esGo.AddComponent<UnityEngine.EventSystems.EventSystem>();
-                                esGo.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
-                                Undo.RegisterCreatedObjectUndo(esGo, "Create EventSystem");
+var eventSystem = UnityEngine.Object.FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>();
+                                if (eventSystem == null)
+                                {
+                                    var esGo = new GameObject("EventSystem");
+                                    esGo.AddComponent<UnityEngine.EventSystems.EventSystem>();
+                                    esGo.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+                                    Undo.RegisterCreatedObjectUndo(esGo, "Create EventSystem");
+                                }
                             }
                         }
                     }

@@ -12,29 +12,27 @@ namespace SpriteStudio.Runtime
     /// アニメーションの Tick と Job System を用いたメッシュ構築を管理します。
     /// ライフサイクル管理（IDisposable）を厳格に行い、メモリリークを防ぎます。
     /// </summary>
-    public partial class SpriteStudioInternalPlayer : IDisposable
+    public class SpriteStudioInternalPlayer : IDisposable
     {
         // ネイティブコンテキスト（ポインタ管理を委譲）
-        private SpriteStudioNativeContext _nativeContext;
-        private SsPlayerHandle _handle => _nativeContext.Handle;
+        internal SpriteStudioNativeContext _nativeContext;
+        internal SsPlayerHandle _handle => _nativeContext.Handle;
         private unsafe void* _resourceHandle => _nativeContext.ResourceHandle;
-
-        // 実行中の Burst Job のハンドル（破棄時や次フレーム更新時の同期に必須）
-        private JobHandle _updateJobHandle;
-
 
         public delegate byte[] AssetResolver(uint packHash, uint nameHash);
         private AssetResolver _assetResolver;
 
+        internal SpriteStudioGeometryBuilder _geometryBuilder;
 
-        // 前回ビルドした整数フレーム (subFrame 無効時のフレーム重複スキップ判定用、未ビルドは NaN)。
-        private float _lastBuiltDrawFrameNo = float.NaN;
-        // PrepareFrameData が確定した描画フレーム番号。並列 get_frame_data / ConsumeFrameData が共有する。
-        private float _pendingDrawFrame;
-        // 直近の ScheduleMeshUpdate が再構築を省いたか。ApplyToMesh が再アップロード可否に使う。
-        private bool _frameSkipped;
-
-        public JobHandle CurrentUpdateJobHandle => _updateJobHandle;
+        public JobHandle CurrentUpdateJobHandle => _geometryBuilder != null ? _geometryBuilder.CurrentUpdateJobHandle : default;
+        public int VertexCount => _geometryBuilder != null ? _geometryBuilder.VertexCount : 0;
+        public int IndexCount => _geometryBuilder != null ? _geometryBuilder.IndexCount : 0;
+        public int SubmeshCount => _geometryBuilder != null ? _geometryBuilder.SubmeshCount : 0;
+        public NativeArray<SpriteStudioGeometryBuilder.SubmeshInfo> Submeshes => _geometryBuilder != null ? _geometryBuilder.Submeshes : default;
+        public uint GetSubmeshTextureHash(int index) => _geometryBuilder.GetSubmeshTextureHash(index);
+        public byte GetSubmeshBlendType(int index) => _geometryBuilder.GetSubmeshBlendType(index);
+        public NativeArray<SsVertex> MeshVertices => _geometryBuilder.MeshVertices;
+        public NativeArray<uint> MeshIndices => _geometryBuilder.MeshIndices;
 
         /// <summary>
         /// 頂点位置に掛ける一様スケール (= 1 / PixelsPerUnit)。既定 1 (= ピクセル等倍)。
@@ -53,9 +51,48 @@ namespace SpriteStudio.Runtime
             }
         }
 
+        
+        // --- Moved from Partial Classes ---
+
+        internal struct EffectSlotState { public System.IntPtr EffectSlot; }
+        internal EffectSlotState[] _effectSlots;
+        internal int[] _effectPartIndices;
+        internal int _effectPartCount;
+        internal bool _hasEffectParts;
+
+internal struct MaskPartData
+        {
+            public bool IsMaskPart;        // part_type == PartTypeMask
+            public bool DrawAsMask;        // unified pure-mask flag (shape/text/nines mask)
+            public bool MaskWrite;         // clipping writer flag
+            public bool MaskInfluence;     // writer OP (false=increment / true=invert); on a drawn target = mask opt-in
+            public bool VisibleInsideMask; // target polarity (draw where masked == VisibleInsideMask)
+            // Derived (static), mirroring _build_mask_writers:
+            public bool PureMask;          // IsMaskPart || DrawAsMask: draws no colour, masks parts drawn BEFORE it
+            public bool Writes;            // PureMask || MaskWrite: contributes stencil coverage
+            public bool IsClipping;        // MaskWrite && !PureMask: draws normally, masks parts drawn AFTER it
+            // Geometry kind the mesh job uses to build this part's stencil-write geometry. PartTypeMask
+            // has no colour batch, so it is built as a Normal quad from local vertices (like Godot's
+            // _render_mask_coverage, which routes Mask through _build_normal).
+            public byte DrawKind;          // SsDrawBatchKind: Normal / Shape / Mesh
+        }
+        // Per-part static mask metadata (index-aligned with ssab parts). Null until SetupSlots runs.
+        internal MaskPartData[] _maskPartData;
+        // True when this ssab has at least one mask writer (pure mask or clipping). When false the
+        // whole mask path is skipped, like _build_mask_writers returning empty.
+        internal bool _hasMaskParts;
+
+        internal struct InstanceChildState { public System.IntPtr InstanceSlot; public SpriteStudioInternalPlayer Player; public float PreviousFrame; }
+        internal InstanceChildState[] _instanceChildren;
+        internal int[] _instancePartIndices;
+        internal int _instancePartCount;
+        internal bool _hasInstanceParts;
+
+        // ----------------------------------
         public SpriteStudioInternalPlayer()
         {
             _nativeContext = new SpriteStudioNativeContext();
+            _geometryBuilder = new SpriteStudioGeometryBuilder(this);
         }
 
         /// <summary>
@@ -90,7 +127,7 @@ namespace SpriteStudio.Runtime
             _maskPartData = null;
             _effectPartCount = 0;
             _instancePartCount = 0;
-            _lastBuiltDrawFrameNo = float.NaN; // 再ロード時は必ず再構築する
+            _geometryBuilder._lastBuiltDrawFrameNo = float.NaN; // 再ロード時は必ず再構築する
             unsafe
             {
                 if (_effectSlots != null)
@@ -304,7 +341,7 @@ namespace SpriteStudio.Runtime
         public void Tick(float deltaTime, bool subFrameEnabled)
         {
             // 前回フレームで投げた Job が終わるのを確実に待機する (純粋なゼロコピーパイプラインのため)
-            _updateJobHandle.Complete();
+            _geometryBuilder?.CurrentUpdateJobHandle.Complete();
 
             if (!_handle.IsValid) return;
 
@@ -326,7 +363,7 @@ namespace SpriteStudio.Runtime
 
             // 【最重要】ネイティブポインタを解放したりNativeArrayを破棄する直前に、
             // 必ず実行中の Burst Job を同期（完了待機）してセグフォールトを防ぐ。
-            _updateJobHandle.Complete();
+            _geometryBuilder?.CurrentUpdateJobHandle.Complete();
 
             if (_nativeContext != null)
             {
@@ -364,24 +401,14 @@ namespace SpriteStudio.Runtime
                 }
             }
             
-            if (_effectPlans.IsCreated) _effectPlans.Dispose();
-            if (_effectCommands.IsCreated) _effectCommands.Dispose();
-            if (_effectVerts.IsCreated) _effectVerts.Dispose();
-            if (_effectUvs.IsCreated) _effectUvs.Dispose();
-            if (_effectColors.IsCreated) _effectColors.Dispose();
-            if (_effectIndices.IsCreated) _effectIndices.Dispose();
-            if (_instanceMeshes.IsCreated) _instanceMeshes.Dispose();
-            if (_childHandles.IsCreated) _childHandles.Dispose();
-            if (_meshVertices.IsCreated) _meshVertices.Dispose();
-            if (_meshIndices.IsCreated) _meshIndices.Dispose();
-            if (_drawBatches.IsCreated) _drawBatches.Dispose();
-            if (_drawOrder.IsCreated) _drawOrder.Dispose();
-            if (_partStates.IsCreated) _partStates.Dispose();
-            if (_partColors.IsCreated) _partColors.Dispose();
-            if (_submeshDescriptors.IsCreated) _submeshDescriptors.Dispose();
-            if (_meshBounds.IsCreated) _meshBounds.Dispose();
+            _geometryBuilder?.Dispose();
         }
 
         // エフェクト draw_plan (FlatBuffers, ネイティブ) を frame-data と同じ流儀で読み、
+
+        public void PrepareFrameData(float deltaTime, bool advance, out System.IntPtr handle, out float drawFrame) => _geometryBuilder.PrepareFrameData(deltaTime, advance, out handle, out drawFrame);
+        public void ScheduleMeshUpdate(float deltaTime) => _geometryBuilder.ScheduleMeshUpdate(deltaTime);
+        public void ConsumeFrameData(System.IntPtr frameDataPtrRaw, int len, float deltaTime) => _geometryBuilder.ConsumeFrameData(frameDataPtrRaw, len, deltaTime);
+        public void ApplyToMesh(UnityEngine.Mesh targetMesh, bool perBatchSubmesh = false) => _geometryBuilder.ApplyToMesh(targetMesh, perBatchSubmesh);
     }
 }
