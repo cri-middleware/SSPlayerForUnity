@@ -387,6 +387,9 @@ namespace SpriteStudio.Runtime
         public void SetLoop(int count) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_loop(_handle.ptr, count); } }
         public int GetLoop() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_loops(_handle.ptr) : 0; } }
 
+        // skip_frames (実時間追従) は Rust 側 (PlaybackController.is_skip_frames) が状態を保持する。
+        // ここは薄いパススルー。Rust の setup() は他の再生パラメータ (loop/style/speed) と同様に
+        // skip_frames を既定 (true) へ戻すため、望ましい値の再適用は PlaybackCore.Play 側でまとめて行う。
         public void SetSkipFrames(bool skip) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_skip_frames(_handle.ptr, skip); } }
         public bool IsSkipFrames() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_get_skip_frames(_handle.ptr); } }
 

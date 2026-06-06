@@ -46,15 +46,15 @@ namespace SpriteStudio.Runtime
             set => _autoPlay = value;
         }
 
-        [Tooltip("ループ再生を有効にするか")]
-        [SerializeField] private bool _loop = true;
-        public bool Loop
+        [Tooltip("ループ回数。-1 = 無限ループ / 1 = 1回再生 / n = n回再生")]
+        [SerializeField] private int _loopCount = -1;
+        public int LoopCount
         {
-            get => _loop;
+            get => _loopCount;
             set
             {
-                _loop = value;
-                _core.Internal?.SetLoop(_loop ? -1 : 1);
+                _loopCount = value;
+                _core.Internal?.SetLoop(value);
             }
         }
 
@@ -82,13 +82,25 @@ namespace SpriteStudio.Runtime
             }
         }
 
+        [Tooltip("実時間追従 (timed)。ON: 負荷でフレームが落ちても経過時間ぶん進める。OFF (fixed): 毎 update で必ず 1 フレームずつ進める (コマ送り)。")]
+        [SerializeField] private bool _skipFrames = true;
+        public bool SkipFrames
+        {
+            get => _core.Internal != null ? _core.Internal.IsSkipFrames() : _skipFrames;
+            set
+            {
+                _skipFrames = value;
+                _core.Internal?.SetSkipFrames(value);
+            }
+        }
+
         /// <summary>
         /// 指定したアニメーションの再生を開始します。
         /// </summary>
         public void Play(string animName)
         {
             _animationName = animName;
-            _core.Play(_animationName, _loop, _speedScale, "SpriteStudioGraphic");
+            _core.Play(_animationName, _loopCount, _speedScale, _skipFrames, "SpriteStudioGraphic");
         }
 
         protected override void Start()
@@ -125,6 +137,12 @@ namespace SpriteStudio.Runtime
             SpriteStudioUpdateManager.Unregister(this);
             _core.Dispose();
 
+            // クローン所有マテリアルを破棄し、次回有効化時に再解決させるためシグネチャを無効化する。
+            DestroyOwnedMaterials();
+            _canvasMaterials.Clear();
+            _lastMaterialSignature = 0;
+            _hasWriteSubmesh = false;
+
             if (_sharedMesh != null)
             {
                 if (Application.isPlaying)
@@ -144,6 +162,21 @@ namespace SpriteStudio.Runtime
             ApplyAndRender();
         }
 
+#if UNITY_EDITOR
+        // インスペクタはシリアライズ済みフィールドを直接書き換え、プロパティの setter を呼ばない。
+        // 再生中のインスペクタ変更をランタイム (Rust) へ反映するにはここで同期する。Graphic.OnValidate は
+        // UNITY_EDITOR 内のみで定義されるため override も #if UNITY_EDITOR で囲む。(アニメ名切替は対象外)
+        protected override void OnValidate()
+        {
+            base.OnValidate();
+            if (_core.Internal == null) return;
+            _core.Internal.SetSpeed(_speedScale);
+            _core.Internal.SetLoop(_loopCount);
+            _core.Internal.SetSkipFrames(_skipFrames);
+            _core.Internal.SubFrameEnabled = _subFrameEnabled;
+        }
+#endif
+
         // --- ISpriteStudioRenderable (SpriteStudioUpdateManager から駆動される) ---
 
         public void PrepareFrame(float deltaTime, out System.IntPtr handle, out float drawFrame)
@@ -162,9 +195,120 @@ namespace SpriteStudio.Runtime
         {
             if (_core.Internal == null || _sharedMesh == null) return;
 
-            // uGUI は単一 SubMesh (CanvasRenderer は 1 マテリアルのみ)
-            _core.Internal.ApplyToMesh(_sharedMesh, false);
+            // バッチ単位に SubMesh を分割し、テクスチャ/ブレンド/マスクごとに別マテリアルを当てる
+            // (Mesh 版 SpriteStudioPlayer と同等)。CanvasRenderer は materialCount + SetMaterial で
+            // SubMesh と 1:1 にマテリアルを対応づけられる。
+            _core.Internal.ApplyToMesh(_sharedMesh, true);
+            UpdateCanvasMaterials();
             canvasRenderer.SetMesh(_sharedMesh);
+        }
+
+        // --- SubMesh ごとのマテリアル解決 (マルチテクスチャ / ブレンド / マスク) ---
+        // 解決規則は SpriteStudioPlayer.UpdateSubmeshMaterials と同一。相違点は 2 つ:
+        //   1) MeshRenderer.SetSharedMaterials の代わりに CanvasRenderer.materialCount + SetMaterial を使う。
+        //   2) CanvasRenderer は MaterialPropertyBlock 非対応なので、マスク書込 SubMesh の per-frame 閾値
+        //      (_MaskThreshold) はクローンした所有マテリアルへ直接書き込む。
+        private readonly System.Collections.Generic.List<Material> _canvasMaterials = new System.Collections.Generic.List<Material>();
+        // Write SubMesh 用にクローンして所有するマテリアル (閾値書込のため)。OnDisable / 再構築時に破棄する。
+        private readonly System.Collections.Generic.List<Material> _ownedMaterialInstances = new System.Collections.Generic.List<Material>();
+        private uint _lastMaterialSignature;
+        private bool _hasWriteSubmesh;
+
+        private void UpdateCanvasMaterials()
+        {
+            if (_animeAsset == null || _core.Internal == null) return;
+
+            int subCount = _core.Internal.SubmeshCount;
+            if (subCount <= 0) return;
+
+            var submeshes = _core.Internal.Submeshes;
+
+            // 構成シグネチャ。threshold は per-frame 可変なのでここには含めず、書込マテリアルへ別途設定する。
+            uint signature = (uint)subCount;
+            bool hasWrite = false;
+            for (int s = 0; s < subCount; s++)
+            {
+                var info = submeshes[s];
+                signature = signature * 31u + info.TextureHash;
+                signature = signature * 31u + info.BlendType;
+                signature = signature * 31u + (uint)info.Role;
+                signature = signature * 31u + info.StencilOp;
+                signature = signature * 31u + info.StencilComp;
+                if (info.Role == SpriteStudioInternalPlayer.StencilRole.Write) hasWrite = true;
+            }
+
+            if (signature != _lastMaterialSignature || _canvasMaterials.Count != subCount)
+            {
+                _lastMaterialSignature = signature;
+                DestroyOwnedMaterials();
+                _canvasMaterials.Clear();
+
+                var mats = _animeAsset.Materials;
+                Material fallback = (mats != null && mats.Count > 0) ? mats[0] : null;
+
+                for (int s = 0; s < subCount; s++)
+                {
+                    var info = submeshes[s];
+                    Material mat;
+                    switch (info.Role)
+                    {
+                        case SpriteStudioInternalPlayer.StencilRole.Write:
+                            mat = _animeAsset.ResolveMaskWriteMaterial(info.TextureHash, info.StencilOp);
+                            break;
+                        case SpriteStudioInternalPlayer.StencilRole.Test:
+                            mat = _animeAsset.ResolveTestMaterial(info.TextureHash, info.BlendType, info.StencilComp);
+                            break;
+                        default:
+                            mat = _animeAsset.ResolveMaterial(info.TextureHash, info.BlendType);
+                            break;
+                    }
+                    if (mat == null)
+                    {
+                        Debug.LogError($"[SpriteStudioGraphic] TextureHash {info.TextureHash} not resolved (Submesh {s}, role {info.Role}). Falling back to material 0.");
+                        mat = fallback;
+                    }
+                    // Write SubMesh は閾値を毎フレーム書き換えるため、共有マテリアル (解決値/フォールバック共に)
+                    // を汚さないようインスタンス化して所有する。CanvasRenderer は MPB 非対応のための回避策。
+                    if (info.Role == SpriteStudioInternalPlayer.StencilRole.Write && mat != null)
+                    {
+                        mat = new Material(mat);
+                        _ownedMaterialInstances.Add(mat);
+                    }
+                    _canvasMaterials.Add(mat);
+                }
+
+                // CanvasRenderer へ SubMesh と 1:1 でマテリアルを反映する。
+                canvasRenderer.materialCount = subCount;
+                for (int s = 0; s < subCount; s++)
+                {
+                    canvasRenderer.SetMaterial(_canvasMaterials[s], s);
+                }
+                _hasWriteSubmesh = hasWrite;
+            }
+
+            // マスク書込 SubMesh の cutout 閾値は per-frame でアニメーションし得るので、所有インスタンスへ毎フレーム設定する。
+            if (_hasWriteSubmesh)
+            {
+                for (int s = 0; s < subCount; s++)
+                {
+                    var info = submeshes[s];
+                    if (info.Role != SpriteStudioInternalPlayer.StencilRole.Write) continue;
+                    var mat = _canvasMaterials[s];
+                    if (mat != null) mat.SetFloat(SpriteStudioMaterial.IdMaskThreshold, info.MaskThreshold);
+                }
+            }
+        }
+
+        private void DestroyOwnedMaterials()
+        {
+            for (int i = 0; i < _ownedMaterialInstances.Count; i++)
+            {
+                var m = _ownedMaterialInstances[i];
+                if (m == null) continue;
+                if (Application.isPlaying) Destroy(m);
+                else DestroyImmediate(m);
+            }
+            _ownedMaterialInstances.Clear();
         }
 
         // --- Canvas の Rebuild フローとの衝突回避 ---

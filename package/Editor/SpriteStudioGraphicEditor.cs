@@ -15,6 +15,12 @@ namespace SpriteStudio.Editor
         private SerializedProperty _loopProp;
         private SerializedProperty _speedScaleProp;
         private SerializedProperty _subFrameEnabledProp;
+        private SerializedProperty _skipFramesProp;
+
+        private static readonly GUIContent _frameSkippingLabel = new GUIContent("Frame Skipping",
+            "ON: 負荷でフレームが落ちても経過時間ぶん進める (実時間追従)。OFF: 毎 update で必ず 1 フレームずつ進める (コマ送り)。");
+        private static readonly GUIContent _subFrameInterpolationLabel = new GUIContent("Sub-Frame Interpolation",
+            "ON: フレーム間を補間して滑らかに描画 (高FPS でヌルヌル)。OFF: キーフレームにスナップ (コマ感)。");
 
         protected override void OnEnable()
         {
@@ -22,9 +28,10 @@ namespace SpriteStudio.Editor
             _animeAssetProp = serializedObject.FindProperty("_animeAsset");
             _animationNameProp = serializedObject.FindProperty("_animationName");
             _autoPlayProp = serializedObject.FindProperty("_autoPlay");
-            _loopProp = serializedObject.FindProperty("_loop");
+            _loopProp = serializedObject.FindProperty("_loopCount");
             _speedScaleProp = serializedObject.FindProperty("_speedScale");
             _subFrameEnabledProp = serializedObject.FindProperty("_subFrameEnabled");
+            _skipFramesProp = serializedObject.FindProperty("_skipFrames");
         }
 
         public override void OnInspectorGUI()
@@ -37,8 +44,10 @@ namespace SpriteStudio.Editor
 
             EditorGUILayout.PropertyField(_autoPlayProp);
             EditorGUILayout.PropertyField(_loopProp);
-            EditorGUILayout.PropertyField(_speedScaleProp);
-            EditorGUILayout.PropertyField(_subFrameEnabledProp);
+            EditorGUILayout.Slider(_speedScaleProp, 0f, 4f);
+            // 順番: Frame Skipping (実時間追従) → Sub-Frame Interpolation (フレーム間補間)。
+            EditorGUILayout.PropertyField(_skipFramesProp, _frameSkippingLabel);
+            EditorGUILayout.PropertyField(_subFrameEnabledProp, _subFrameInterpolationLabel);
 
             EditorGUILayout.Space();
             AppearanceControlsGUI();
