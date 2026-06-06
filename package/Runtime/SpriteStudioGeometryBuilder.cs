@@ -17,25 +17,10 @@ namespace SpriteStudio.Runtime
 
         // effect/instance スロットを持つパーツ index の疎なリスト (SetupSlots で確定)。
 
-        // --- Moved from Mask.cs ---
-internal struct MaskWriter
-        {
-            public int PartIndex;
-            public ushort DrawRank;  // index into draw_order: the writer's scope pivot
-            public bool OpInvert;    // false = increment / true = invert (PartData.MaskInfluence)
-            public bool IsClipping;  // true = masks parts drawn AFTER (rank > self) / false (pure) = BEFORE
-            public float Threshold;  // (255 - PartState.Mask)/255; texel.a <= threshold is discarded
-        }
-        // Mask writers for the current frame (rebuilt by BuildMaskWriters). Managed: consumed on the
-        // main thread when assigning stencil-write submeshes / materials.
-        private NativeArray<MaskWriter> _maskWriters;
-        private int _maskWriterCount;
-        // Per-part (texture hash, blend) for the current frame, harvested from the draw batches so the
-        // mask path can resolve a writer's texture (Mask twins carry texture 0; the part's colour batch
-        // carries the real one). Index-aligned with parts; only filled when _player._hasMaskParts.
-        private NativeArray<uint> _maskPartTexHash;
-        private NativeArray<byte> _maskPartBlend;
-        // --- Moved from Instance.cs ---
+        // --- Mask: writer 一覧 / パーツ毎 (texHash,blend) / vc-ic 算出は MaskPlanner が所有する ---
+        // (実際の draw batch / submesh 発行 = EmitMaskStep / Phase A/B は共有状態を触るためビルダーに残す)
+        private readonly SpriteStudioMaskPlanner _maskPlanner = new SpriteStudioMaskPlanner();
+        // --- Instance ---
 internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         // Instance 子の UpdateMeshJob ハンドルを束ねる依存配列。永続 grow-only (A3: 毎フレ Temp 確保を回避)。
         internal NativeArray<JobHandle> _childHandles;
@@ -66,9 +51,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             if (_meshBounds.IsCreated) _meshBounds.Dispose();
             if (_submeshes.IsCreated) _submeshes.Dispose();
             _meshUploader.Dispose();
-            if (_maskWriters.IsCreated) _maskWriters.Dispose();
-            if (_maskPartTexHash.IsCreated) _maskPartTexHash.Dispose();
-            if (_maskPartBlend.IsCreated) _maskPartBlend.Dispose();
+            _maskPlanner.Dispose();
         }
 
         public unsafe struct DrawFrame
@@ -457,7 +440,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 // Masking emits per-part submeshes (no batch merge) plus extra write/restore steps, so
                 // grow the batch/submesh budget. Each part contributes up to ~2 steps (test+write or
                 // colour-suppressed restore); the pre-write phase adds at most one per writer.
-                if (_player._hasMaskParts) maxBatches += partsLength * 2 + _maskWriterCount;
+                if (_player._hasMaskParts) maxBatches += partsLength * 2 + _maskPlanner.WriterCount;
 
                 // 永続バッファを grow-only で確保 (毎フレーム new しない)
                 SpriteStudioNativeBuffers.EnsureCapacity(ref _drawBatches, maxBatches);
@@ -492,7 +475,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 // Build the per-frame mask writer list (mirrors _build_mask_writers). Behaviour-neutral
                 // until the stencil submesh pipeline consumes it.
-                BuildMaskWriters(frameData, drawOrderLength, partsLength);
+                _maskPlanner.BuildWriters(frameData, _drawOrder, _player._hasMaskParts, _player._maskPartData, drawOrderLength, partsLength);
 
                 int totalVertices = 0;
                 int totalIndices = 0;
@@ -505,19 +488,18 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 // lower-priority parts" scope (mirrors SS6PU's pre-draw + slot decrement).
                 if (_player._hasMaskParts)
                 {
-                    BuildMaskPartLookup(frameData, drawBatchesLength, drawOrderLength, partsLength);
-                    for (int wi = 0; wi < _maskWriterCount; wi++)
+                    _maskPlanner.BuildPartLookup(frameData, _drawOrder, drawBatchesLength, drawOrderLength, partsLength);
+                    for (int wi = 0; wi < _maskPlanner.WriterCount; wi++)
                     {
-                        var pWriters = (MaskWriter*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskWriters);
-                        var w = pWriters[wi];
+                        var w = _maskPlanner.GetWriter(wi);
                         if (w.IsClipping) continue; // clipping writes at its own rank (Phase B), not pre-written
                         int wp = w.PartIndex;
                         if (wp < 0 || wp >= partsLength) continue;
                         var md = _player._maskPartData[wp];
-                        if (!MaskPartVcIc(wp, md.DrawKind, frame, out int wvc, out int wic)) continue;
+                        if (!_maskPlanner.MaskPartVcIc(wp, md.DrawKind, frame, _partStates, out int wvc, out int wic)) continue;
                         byte op = w.OpInvert ? StencilOpInvert : StencilOpIncr;
                         float threshold = md.DrawKind == SsDrawBatchKind.Shape ? -1f : w.Threshold;
-                        EmitMaskStep(md.DrawKind, w.DrawRank, wvc, wic, ((uint*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskPartTexHash))[wp], ((byte*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskPartBlend))[wp],
+                        EmitMaskStep(md.DrawKind, w.DrawRank, wvc, wic, _maskPlanner.GetPartTexHash(wp), _maskPlanner.GetPartBlend(wp),
                             StencilRole.Write, op, 0, threshold, ref totalVertices, ref totalIndices);
                     }
                 }
@@ -668,7 +650,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                                 int rank = b.StartRank + k;
                                 int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
                                 if (p_idx < 0 || p_idx >= partsLength) continue;
-                                if (!MaskPartVcIc(p_idx, kind, frame, out int pvc, out int pic)) continue;
+                                if (!_maskPlanner.MaskPartVcIc(p_idx, kind, frame, _partStates, out int pvc, out int pic)) continue;
                                 var md = _player._maskPartData[p_idx];
                                 if (md.PureMask)
                                 {
@@ -770,7 +752,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                             if (p_idx < 0 || p_idx >= partsLength) continue;
                             var md = _player._maskPartData[p_idx];
                             if (!md.IsMaskPart) continue;
-                            if (!MaskPartVcIc(p_idx, SsDrawBatchKind.Normal, frame, out int mvc, out int mic)) continue;
+                            if (!_maskPlanner.MaskPartVcIc(p_idx, SsDrawBatchKind.Normal, frame, _partStates, out int mvc, out int mic)) continue;
                             byte rop = md.MaskInfluence ? StencilOpInvert : StencilOpDecr;
                             float th = (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
                             EmitMaskStep(SsDrawBatchKind.Normal, rank, mvc, mic, b.TextureHash, (byte)b.BlendType,
@@ -897,108 +879,12 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 _submeshes, _submeshCount, _topologySignature, _meshBounds));
         }
 
-private unsafe void BuildMaskWriters(ss.runtime.FrameData frameData, int drawOrderLength, int partsLength)
-        {
-            _maskWriterCount = 0;
-            if (!_player._hasMaskParts || _player._maskPartData == null) return;
-            SpriteStudioNativeBuffers.EnsureCapacity(ref _maskWriters, drawOrderLength < 1 ? 1 : drawOrderLength);
-            for (int rank = 0; rank < drawOrderLength; rank++)
-            {
-                int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
-                if (p_idx < 0 || p_idx >= partsLength || p_idx >= _player._maskPartData.Length) continue;
-                var md = _player._maskPartData[p_idx];
-                if (!md.Writes) continue;
-                var ps = frameData.Parts(p_idx);
-                if (!ps.HasValue) continue;
-                var pWriter = (MaskWriter*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskWriters);
-                pWriter[_maskWriterCount++] = new MaskWriter
-                {
-                    PartIndex = p_idx,
-                    DrawRank = (ushort)rank,
-                    OpInvert = md.MaskInfluence,
-                    IsClipping = md.IsClipping,
-                    Threshold = (255f - ps.Value.Mask) / 255f,
-                };
-            }
-        }
-
         // Stencil op / compare values used by the mask path (UnityEngine.Rendering enums as bytes).
         private const byte StencilOpIncr = (byte)UnityEngine.Rendering.StencilOp.IncrementWrap;   // 7
         private const byte StencilOpDecr = (byte)UnityEngine.Rendering.StencilOp.DecrementWrap;   // 8
         private const byte StencilOpInvert = (byte)UnityEngine.Rendering.StencilOp.Invert;        // 5
         private const byte StencilCompEqual = (byte)UnityEngine.Rendering.CompareFunction.Equal;       // 3 (draw outside mask)
         private const byte StencilCompNotEqual = (byte)UnityEngine.Rendering.CompareFunction.NotEqual; // 6 (draw inside mask)
-
-        /// <summary>
-        /// Harvest each part's (texture hash, blend) for the current frame from the draw batches.
-        /// A Mask twin carries texture 0; the part's colour batch (emitted after the twin) carries the
-        /// real texture and overwrites it. PartTypeMask parts have only a Mask batch (real texture).
-        /// </summary>
-        private unsafe void BuildMaskPartLookup(ss.runtime.FrameData frameData, int drawBatchesLength, int drawOrderLength, int partsLength)
-        {
-            if (!_maskPartTexHash.IsCreated || _maskPartTexHash.Length < partsLength)
-            {
-                SpriteStudioNativeBuffers.EnsureCapacity(ref _maskPartTexHash, partsLength < 1 ? 1 : partsLength);
-                SpriteStudioNativeBuffers.EnsureCapacity(ref _maskPartBlend, partsLength < 1 ? 1 : partsLength);
-            }
-            Unity.Collections.LowLevel.Unsafe.UnsafeUtility.MemClear(
-                Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskPartTexHash),
-                (long)partsLength * sizeof(uint));
-            Unity.Collections.LowLevel.Unsafe.UnsafeUtility.MemClear(
-                Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskPartBlend),
-                (long)partsLength * sizeof(byte));
-
-            for (int bi = 0; bi < drawBatchesLength; bi++)
-            {
-                var b = frameData.DrawBatches(bi).Value;
-                var k = b.Kind;
-                if (k != ss.runtime.DrawBatchKind.Normal && k != ss.runtime.DrawBatchKind.Shape
-                    && k != ss.runtime.DrawBatchKind.Mesh && k != ss.runtime.DrawBatchKind.Mask) continue;
-                for (int j = 0; j < b.Count; j++)
-                {
-                    int rank = b.StartRank + j;
-                    if (rank < 0 || rank >= drawOrderLength) continue;
-                    int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
-                    if (p_idx < 0 || p_idx >= partsLength) continue;
-                    _maskPartTexHash[p_idx] = b.TextureHash;
-                    _maskPartBlend[p_idx] = (byte)b.BlendType;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Vertex / index count a part contributes for the given mesh-job kind, matching the job's
-        /// builders exactly (Normal: 4/5 with centre, Shape: fan, Mesh: CSR slice). False = degenerate.
-        /// </summary>
-        private unsafe bool MaskPartVcIc(int p_idx, byte kind, in DrawFrame frame, out int vc, out int ic)
-        {
-            vc = 0; ic = 0;
-            if (kind == SsDrawBatchKind.Normal)
-            {
-                bool needsCenter = (_partStates[p_idx].UpdateFlag & SsUpdateFlag.NeedsCenterMask) != 0;
-                vc = needsCenter ? 5 : 4;
-                ic = needsCenter ? 12 : 6;
-                return true;
-            }
-            if (kind == SsDrawBatchKind.Shape)
-            {
-                int svc = frame.ShapeVertexCounts[p_idx];
-                if (svc < 3) return false;
-                vc = svc; ic = (svc - 2) * 3;
-                return true;
-            }
-            if (kind == SsDrawBatchKind.Mesh)
-            {
-                uint v0 = frame.MeshVertexOffsets[p_idx];
-                uint v1 = frame.MeshVertexOffsets[p_idx + 1];
-                uint i0 = frame.MeshIndexOffsets[p_idx];
-                uint i1 = frame.MeshIndexOffsets[p_idx + 1];
-                if (!(v1 > v0 && i1 > i0 && (i1 - i0) % 3 == 0)) return false;
-                vc = (int)(v1 - v0); ic = (int)(i1 - i0);
-                return true;
-            }
-            return false;
-        }
 
         /// <summary>
         /// Emit one mask render step: a single-part geometry batch (built by the mesh job) plus a

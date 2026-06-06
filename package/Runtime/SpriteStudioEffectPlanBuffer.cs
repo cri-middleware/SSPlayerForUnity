@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using SpriteStudio.SsRuntime;
@@ -36,13 +37,16 @@ namespace SpriteStudio.Runtime
         private int _effectIndexCount;
 
         /// <summary>結合ジオメトリ (Burst Job が読む)。</summary>
-        public NativeArray<float> Verts => _effectVerts;
-        public NativeArray<float> Uvs => _effectUvs;
-        public NativeArray<float> Colors => _effectColors;
-        public NativeArray<int> Indices => _effectIndices;
+        public NativeArray<float> Verts { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => _effectVerts; }
+        public NativeArray<float> Uvs { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => _effectUvs; }
+        public NativeArray<float> Colors { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => _effectColors; }
+        public NativeArray<int> Indices { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => _effectIndices; }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public EffectDrawPlanData GetPlan(int partIndex) => _effectPlans[partIndex];
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetPlan(int partIndex, EffectDrawPlanData plan) => _effectPlans[partIndex] = plan;
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public EffectDrawCommandData GetCommand(int index) => _effectCommands[index];
 
         /// <summary>
