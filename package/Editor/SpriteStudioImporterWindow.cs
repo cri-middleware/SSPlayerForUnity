@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEditor;
 using System.IO;
+using System.Text;
 using System.Collections.Generic;
 
 namespace SpriteStudio.Editor
@@ -12,6 +13,9 @@ namespace SpriteStudio.Editor
         private const string DEFAULT_OUTPUT_PATH = "Assets/ssab_generated";
 
         private Vector2 scrollPosition;
+
+        // libssconverter のバージョン文字列。FFI 取得は重く OnGUI は毎フレーム走るため OnEnable で一度だけ取得してキャッシュする。
+        private string converterVersion;
 
         [MenuItem("Window/SpriteStudio/Importer")]
         public static void ShowWindow()
@@ -33,6 +37,8 @@ namespace SpriteStudio.Editor
                 AssetDatabase.CreateFolder("Assets", "ssab_generated");
             }
             outputFolder = AssetDatabase.LoadAssetAtPath<DefaultAsset>(savedPath);
+
+            converterVersion = LoadConverterVersion();
         }
 
         private void OnGUI()
@@ -42,6 +48,7 @@ namespace SpriteStudio.Editor
             DrawDropArea();
             EditorGUILayout.Space();
             DrawRecentFilesSection();
+            DrawFooter();
         }
 
         private void DrawOutputSection()
@@ -175,6 +182,44 @@ namespace SpriteStudio.Editor
             }
 
             GUILayout.EndScrollView();
+        }
+
+        // ウィンドウ下部に libssconverter のバージョンを表示する (Godot の ss_import_dock フッターと同等)。
+        private void DrawFooter()
+        {
+            GUILayout.BeginHorizontal(EditorStyles.helpBox);
+            GUILayout.Label("converter:", EditorStyles.miniLabel, GUILayout.Width(60));
+            EditorGUILayout.SelectableLabel(converterVersion, EditorStyles.miniLabel, GUILayout.Height(EditorGUIUtility.singleLineHeight));
+            GUILayout.EndHorizontal();
+        }
+
+        /// <summary>
+        /// libssconverter から FFI でバージョン文字列を取得する。
+        /// ネイティブは CString を into_raw() で返すため、必ず ss_converter_version_free で解放する。
+        /// </summary>
+        private static unsafe string LoadConverterVersion()
+        {
+            try
+            {
+                byte* p = SpriteStudio.SsConverter.NativeMethods.ss_converter_version();
+                if (p == null) return "unknown";
+                string version = PtrToStringUtf8(p);
+                SpriteStudio.SsConverter.NativeMethods.ss_converter_version_free(p);
+                return string.IsNullOrEmpty(version) ? "unknown" : version;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"[SSPlayer] Failed to query libssconverter version: {e.Message}");
+                return "unavailable";
+            }
+        }
+
+        private static unsafe string PtrToStringUtf8(byte* p)
+        {
+            if (p == null) return null;
+            int len = 0;
+            while (p[len] != 0) len++;
+            return len == 0 ? string.Empty : Encoding.UTF8.GetString(p, len);
         }
 
         private void OpenSSPJ(string path)

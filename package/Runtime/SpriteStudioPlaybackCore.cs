@@ -42,7 +42,7 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>指定アニメーションの再生を開始する。logContext は警告メッセージのタグ。</summary>
-        public void Play(string animationName, bool loop, float speedScale, string logContext)
+        public void Play(string animationName, int loopCount, float speedScale, bool skipFrames, string logContext)
         {
             if (Internal == null || string.IsNullOrEmpty(animationName)) return;
 
@@ -50,8 +50,10 @@ namespace SpriteStudio.Runtime
             {
                 // FFI 契約: direction 0=Forward / 非0=Backward, style 0=Normal / 非0=PingPong
                 Internal.SetPlaybackStyle(0, 0); // Forward, Normal
-                Internal.SetLoop(loop ? -1 : 1);  // -1 = 無限ループ, 1 = 1回
+                Internal.SetLoop(loopCount);  // -1 = 無限ループ / 1 = 1回 / n = n回
                 Internal.SetSpeed(speedScale);
+                // skip_frames も Rust の setup() が既定 (true) へ戻すため、loop/speed と同じくここで再適用する。
+                Internal.SetSkipFrames(skipFrames);
                 Internal.Play();
             }
             else

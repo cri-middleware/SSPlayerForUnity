@@ -68,15 +68,15 @@ namespace SpriteStudio.Runtime
             set => _autoPlay = value;
         }
 
-        [Tooltip("ループ再生を有効にするか")]
-        [SerializeField] private bool _loop = true;
-        public bool Loop
+        [Tooltip("ループ回数。-1 = 無限ループ / 1 = 1回再生 / n = n回再生")]
+        [SerializeField] private int _loopCount = -1;
+        public int LoopCount
         {
-            get => _loop;
+            get => _loopCount;
             set
             {
-                _loop = value;
-                _core.Internal?.SetLoop(_loop ? -1 : 1);
+                _loopCount = value;
+                _core.Internal?.SetLoop(value);
             }
         }
 
@@ -101,6 +101,18 @@ namespace SpriteStudio.Runtime
             {
                 _subFrameEnabled = value;
                 if (_core.Internal != null) _core.Internal.SubFrameEnabled = value;
+            }
+        }
+
+        [Tooltip("実時間追従 (timed)。ON: 負荷でフレームが落ちても経過時間ぶん進める。OFF (fixed): 毎 update で必ず 1 フレームずつ進める (コマ送り)。")]
+        [SerializeField] private bool _skipFrames = true;
+        public bool SkipFrames
+        {
+            get => _core.Internal != null ? _core.Internal.IsSkipFrames() : _skipFrames;
+            set
+            {
+                _skipFrames = value;
+                _core.Internal?.SetSkipFrames(value);
             }
         }
 
@@ -130,7 +142,7 @@ namespace SpriteStudio.Runtime
         public void Play(string animName)
         {
             _animationName = animName;
-            _core.Play(_animationName, _loop, _speedScale, "SpriteStudioPlayer");
+            _core.Play(_animationName, _loopCount, _speedScale, _skipFrames, "SpriteStudioPlayer");
         }
 
         private void Start()
@@ -173,6 +185,9 @@ namespace SpriteStudio.Runtime
         {
             SpriteStudioUpdateManager.Unregister(this);
             _core.Dispose();
+            // Internal を破棄したので Timeline 制御状態もリセットする。これをしないと再有効化時に
+            // 新しい (アニメ未 setup の) ネイティブハンドルへ「同名なので setup 不要」と誤判定し描画が破綻する。
+            ReleaseTimelineControl();
         }
 
         private void OnDestroy()
@@ -186,6 +201,28 @@ namespace SpriteStudio.Runtime
                 _sharedMesh = null;
             }
         }
+
+#if UNITY_EDITOR
+        // インスペクタはシリアライズ済みフィールドを直接書き換え、プロパティの setter を呼ばない。
+        // そのため再生中のインスペクタ変更をランタイム (Rust) へ反映するにはここで同期する。
+        // OnValidate は Editor 専用コールバック (ビルドでは呼ばれない) なので #if UNITY_EDITOR で囲む。
+        // (Internal 未生成時 = デシリアライズ中等は何もしない。アニメ名の切替は破壊的なので対象外。)
+        private void OnValidate()
+        {
+            if (_core.Internal != null)
+            {
+                _core.Internal.SetSpeed(_speedScale);
+                _core.Internal.SetLoop(_loopCount);
+                _core.Internal.SetSkipFrames(_skipFrames);
+                _core.Internal.SubFrameEnabled = _subFrameEnabled;
+            }
+            if (_meshRenderer != null)
+            {
+                _meshRenderer.sortingLayerName = _sortingLayerName;
+                _meshRenderer.sortingOrder = _sortingOrder;
+            }
+        }
+#endif
 
         // --- ISpriteStudioRenderable (SpriteStudioUpdateManager から駆動される) ---
 
@@ -327,6 +364,44 @@ namespace SpriteStudio.Runtime
         public void OnControlTimeStop()
         {
             _timelineControlled = false;
+        }
+
+        #endregion
+
+        #region SpriteStudioTrack (専用 Timeline トラック) 連携
+
+        // 専用トラックが現在セットアップしているアニメ名。変化時のみ SetupAnimation し直す。
+        private string _timelineCurrentAnim;
+
+        /// <summary>
+        /// SpriteStudioTrack の mixer がクリップ評価時に呼ぶ。指定アニメへ (変化時のみ) 切替え、
+        /// クリップローカル時間 (秒) のフレームへシークする。状態は Rust が時刻基準で一括計算するため、
+        /// シークバーを前後にどれだけ動かしても決定論的で破綻しない。
+        /// NOTE: play モード専用 (SpriteStudioPlayer は非 ExecuteAlways のため edit モードでは Internal/
+        /// Mesh が未生成で描画されない)。edit モードのシークプレビューは今後の課題。
+        /// </summary>
+        public void EvaluateTimelineClip(string animationName, double clipLocalTime)
+        {
+            if (_core.Internal == null) return;
+            _timelineControlled = true;
+
+            if (!string.IsNullOrEmpty(animationName) && animationName != _timelineCurrentAnim)
+            {
+                if (_core.Internal.SetupAnimation(animationName))
+                    _timelineCurrentAnim = animationName;
+            }
+
+            int fps = _core.Internal.GetFrameRate();
+            if (fps <= 0) fps = 60;
+            _core.Internal.SetFrame((float)(clipLocalTime * fps));
+            // 描画は UpdateManager が PrepareFrame(advance=false)→ApplyAndRender で行う (SetTime と同じ経路)。
+        }
+
+        /// <summary>Timeline 制御を解除する (mixer のグラフ破棄/トラック非アクティブ時)。</summary>
+        public void ReleaseTimelineControl()
+        {
+            _timelineControlled = false;
+            _timelineCurrentAnim = null;
         }
 
         #endregion
