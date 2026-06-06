@@ -9,7 +9,7 @@ namespace SpriteStudio.Runtime.Tests
 {
     public class SpriteStudioRingoPlaybackTests
     {
-        private const string RingoSsabDir = "package/Tests/Runtime/Resources/Ringo";
+        private const string RingoSsabDir = "../../package/Tests/Runtime/Resources/Ringo";
         private const string RingoSsabPath = RingoSsabDir + "/Ringo.ssab";
         private const string RingoAssetPath = "Ringo/Ringo"; // for Resources.Load
 
@@ -21,7 +21,7 @@ namespace SpriteStudio.Runtime.Tests
             if (!File.Exists(absoluteSsabPath))
             {
 #if UNITY_EDITOR
-                string sspjPath = Path.GetFullPath("SpriteStudio7-SDK/tests/Ringo/Ringo.sspj");
+                string sspjPath = Path.GetFullPath("../../SpriteStudio7-SDK/tests/Ringo/Ringo.sspj");
                 string outDir = Path.GetFullPath(RingoSsabDir);
                 Directory.CreateDirectory(outDir);
 
