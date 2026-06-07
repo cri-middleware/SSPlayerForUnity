@@ -148,7 +148,7 @@ internal struct MaskPartData
                     }
                     _effectSlots = null;
                 }
-                
+
                 if (_instanceChildren != null)
                 {
                     for (int i = 0; i < _instanceChildren.Length; i++)
@@ -157,10 +157,9 @@ internal struct MaskPartData
                         {
                             NativeMethods.ss_instance_slot_destroy((void*)_instanceChildren[i].InstanceSlot);
                         }
-                        if (_instanceChildren[i].Player != null)
-                        {
-                            _instanceChildren[i].Player.Dispose();
-                        }
+                        // 子の Dispose は再帰 managed で例外を投げ得るため隔離し、兄弟の解放を止めない。
+                        try { _instanceChildren[i].Player?.Dispose(); }
+                        catch (Exception e) { Debug.LogException(e); }
                     }
                     _instanceChildren = null;
                 }
@@ -384,14 +383,10 @@ internal struct MaskPartData
                 {
                     for (int i = 0; i < _effectSlots.Length; i++)
                     {
-                        try
+                        if (_effectSlots[i].EffectSlot != System.IntPtr.Zero)
                         {
-                            if (_effectSlots[i].EffectSlot != System.IntPtr.Zero)
-                            {
-                                NativeMethods.ss_effect_slot_destroy((void*)_effectSlots[i].EffectSlot);
-                            }
+                            NativeMethods.ss_effect_slot_destroy((void*)_effectSlots[i].EffectSlot);
                         }
-                        catch (Exception e) { Debug.LogException(e); }
                     }
                     _effectSlots = null;
                 }
@@ -400,15 +395,12 @@ internal struct MaskPartData
                 {
                     for (int i = 0; i < _instanceChildren.Length; i++)
                     {
-                        // Each child is independent: a throw freeing one slot/child must not skip the rest.
-                        try
+                        if (_instanceChildren[i].InstanceSlot != System.IntPtr.Zero)
                         {
-                            if (_instanceChildren[i].InstanceSlot != System.IntPtr.Zero)
-                            {
-                                NativeMethods.ss_instance_slot_destroy((void*)_instanceChildren[i].InstanceSlot);
-                            }
-                            _instanceChildren[i].Player?.Dispose();
+                            NativeMethods.ss_instance_slot_destroy((void*)_instanceChildren[i].InstanceSlot);
                         }
+                        // 子の Dispose は再帰 managed で例外を投げ得るため隔離し、兄弟の解放を止めない。
+                        try { _instanceChildren[i].Player?.Dispose(); }
                         catch (Exception e) { Debug.LogException(e); }
                     }
                     _instanceChildren = null;
