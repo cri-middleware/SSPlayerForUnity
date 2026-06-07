@@ -32,6 +32,7 @@ A Unity Engine integration for SpriteStudio 7, designed for extreme performance.
 *   **Canvas Rebuild Bypass:** For `SpriteStudioGraphic` (uGUI), standard `OnPopulateMesh` and Vertex/Material dirty flags must be bypassed/overridden to prevent Unity from automatically destroying and re-allocating canvas meshes.
 *   **Geometry Builder Separation:** `SpriteStudioInternalPlayer` owns native lifecycle, FFI calls, and `IDisposable`; all per-frame geometry/mesh construction (frame-data decode, effect/instance/mask batching, Burst job scheduling, mesh upload) is delegated to `SpriteStudioGeometryBuilder` and `SpriteStudioMeshJob`. When adding rendering features, keep them in the geometry builder / mesh job rather than swelling the player, and preserve the struct layouts required for Burst and FFI. (Reality check: the builder is currently ~1300 lines and still reaches into the player's `internal` fields — further decomposition into focused collaborators, e.g. frame-data reader / mask planner / mesh uploader, is encouraged but must keep the Burst/FFI struct layouts intact.)
 *   **Update Loop Consistency:** Components are batch-updated via `SpriteStudioUpdateManager`. To prevent `NullReferenceException`s during dynamic instantiation/destruction, always iterate over the securely snapshotted `_tickCount` instead of the raw active list.
+*   **Testing:** When modifying core logic or the `GeometryBuilder`, always ensure you do not break the existing UnitTests in `package/Tests/`. Since running tests requires the Unity Editor, ask the user to run the Unity Test Runner to verify your changes before finalizing them.
 
 ## Verification
 
@@ -39,3 +40,4 @@ A Unity Engine integration for SpriteStudio 7, designed for extreme performance.
 |---|---|
 | Build Runtime/Bindings | `./scripts/build-runtime.sh` (POSIX) / `.\scripts\build-runtime.ps1` (Win) |
 | Setup FlatBuffers | `./scripts/download-flatbuffers.sh` |
+| Run Unit Tests | Ask the user to run tests via **Unity Test Runner**, or run headless: `Unity -batchmode -runTests -projectPath . -testResults results.xml` |
