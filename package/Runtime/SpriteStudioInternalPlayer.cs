@@ -82,6 +82,35 @@ internal struct MaskPartData
         // whole mask path is skipped, like _build_mask_writers returning empty.
         internal bool _hasMaskParts;
 
+        // When true (the Canvas/uGUI path), SpriteStudio internal masking is suppressed and the stencil
+        // buffer is left to uGUI's own Mask/RectMask2D. The world (MeshRenderer) path leaves it false.
+        internal bool _suppressInternalMask;
+
+        // True when the asset has mask writers and this player is not suppressing them (Canvas suppresses).
+        internal bool MaskActive => _hasMaskParts && !_suppressInternalMask;
+
+        /// <summary>
+        /// Suppress SpriteStudio internal masking for this player and (recursively) its instance
+        /// children. Set true on the Canvas path; left false for the world path. Propagates so an
+        /// instance child's own internal masks are also dropped on Canvas instead of writing stencil.
+        /// </summary>
+        public bool SuppressInternalMask
+        {
+            get => _suppressInternalMask;
+            set
+            {
+                _suppressInternalMask = value;
+                if (_instanceChildren != null)
+                {
+                    for (int i = 0; i < _instanceChildren.Length; i++)
+                    {
+                        var c = _instanceChildren[i].Player;
+                        if (c != null) c.SuppressInternalMask = value;
+                    }
+                }
+            }
+        }
+
         internal struct InstanceChildState { public System.IntPtr InstanceSlot; public SpriteStudioInternalPlayer Player; public float PreviousFrame; }
         internal InstanceChildState[] _instanceChildren;
         internal int[] _instancePartIndices;
@@ -244,6 +273,9 @@ internal struct MaskPartData
                         }
 
                         var childPlayer = new SpriteStudioInternalPlayer { SubFrameEnabled = SubFrameEnabled };
+                        // Inherit the parent's suppression so children (re)created on load match the
+                        // Canvas/world choice; the public setter also propagates to existing children.
+                        childPlayer._suppressInternalMask = _suppressInternalMask;
                         childPlayer.LoadSsabInternal(childSsab, _assetResolver, _instanceDepth + 1);
 
                         if (!childPlayer.SetupAnimationByHash(nameHash))
@@ -416,6 +448,6 @@ internal struct MaskPartData
         public void PrepareFrameData(float deltaTime, bool advance, out System.IntPtr handle, out float drawFrame) => _geometryBuilder.PrepareFrameData(deltaTime, advance, out handle, out drawFrame);
         public void ScheduleMeshUpdate(float deltaTime) => _geometryBuilder.ScheduleMeshUpdate(deltaTime);
         public void ConsumeFrameData(System.IntPtr frameDataPtrRaw, int len, float deltaTime) => _geometryBuilder.ConsumeFrameData(frameDataPtrRaw, len, deltaTime);
-        public void ApplyToMesh(UnityEngine.Mesh targetMesh, bool perBatchSubmesh = false) => _geometryBuilder.ApplyToMesh(targetMesh, perBatchSubmesh);
+        public void ApplyToMesh(UnityEngine.Mesh targetMesh, bool perBatchSubmesh = false, bool use16BitIndices = false) => _geometryBuilder.ApplyToMesh(targetMesh, perBatchSubmesh, use16BitIndices);
     }
 }

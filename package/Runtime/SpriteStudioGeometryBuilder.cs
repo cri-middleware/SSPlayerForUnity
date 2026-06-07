@@ -379,7 +379,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 // reflects all of them before any body part is drawn. Each pure mask's coverage is
                 // removed again at its own rank in the main loop (Phase B), yielding the "mask affects
                 // lower-priority parts" scope (mirrors SS6PU's pre-draw + slot decrement).
-                if (_player._hasMaskParts)
+                if (_player.MaskActive)
                 {
                     _maskPlanner.BuildPartLookup(frameData, _drawOrder, drawBatchesLength, drawOrderLength, partsLength);
                     for (int wi = 0; wi < _maskPlanner.WriterCount; wi++)
@@ -413,7 +413,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     {
                         ProcessNormalShapeMeshBatch(b, partsLength, ref frame, frameData, ref totalVertices, ref totalIndices);
                     }
-                    else if (b.Kind == ss.runtime.DrawBatchKind.Mask && _player._hasMaskParts)
+                    else if (b.Kind == ss.runtime.DrawBatchKind.Mask && _player.MaskActive)
                     {
                         ProcessMaskBatch(b, partsLength, ref frame, frameData, ref totalVertices, ref totalIndices);
                     }
@@ -492,12 +492,14 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         /// 実際のアップロード (頂点/index/submesh/bounds と再送スキップのキャッシュ) は
         /// <see cref="SpriteStudioMeshUploader"/> へ委譲する。
         /// </summary>
-        public void ApplyToMesh(UnityEngine.Mesh targetMesh, bool perBatchSubmesh = false)
+        /// <param name="use16BitIndices">Canvas path: route to the high-level 16-bit upload
+        /// (CanvasRenderer rejects the low-level mesh on Windows/D3D12 -> device removed). World path = false.</param>
+        public void ApplyToMesh(UnityEngine.Mesh targetMesh, bool perBatchSubmesh = false, bool use16BitIndices = false)
         {
             // Mesh に適用する前に Job の完了を待機 (Job はビルダーが所有)。
             _updateJobHandle.Complete();
 
-            _meshUploader.Apply(targetMesh, perBatchSubmesh, new SpriteStudioMeshUploader.UploadData(
+            _meshUploader.Apply(targetMesh, perBatchSubmesh, use16BitIndices, new SpriteStudioMeshUploader.UploadData(
                 _frameSkipped, _vertexCount, _indexCount, _meshVertices, _meshIndices,
                 _batchBuilder.Submeshes, _batchBuilder.SubmeshCount, _topologySignature, _meshBounds));
         }
@@ -622,7 +624,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                     StencilRole instRole = StencilRole.None;
                     byte instComp = 0;
-                    if (_player._hasMaskParts)
+                    if (_player.MaskActive)
                     {
                         var imd = _player._maskPartData[p_idx];
                         if (imd.MaskInfluence || imd.MaskWrite)
@@ -666,7 +668,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 StencilRole effRole = StencilRole.None;
                 byte effComp = 0;
-                if (_player._hasMaskParts)
+                if (_player.MaskActive)
                 {
                     var emd = _player._maskPartData[p_idx];
                     if (emd.MaskInfluence || emd.MaskWrite)
@@ -711,6 +713,14 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     if (p_idx < 0 || p_idx >= partsLength) continue;
                     if (!_maskPlanner.MaskPartVcIc(p_idx, kind, frame, _partStates, out int pvc, out int pic)) continue;
                     var md = _player._maskPartData[p_idx];
+                    if (!_player.MaskActive)
+                    {
+                        // Canvas suppression: drop pure masks (no colour), draw everything else unmasked.
+                        if (md.PureMask) continue;
+                        _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                            StencilRole.None, 0, 0, 0f, ref totalVertices, ref totalIndices);
+                        continue;
+                    }
                     if (md.PureMask)
                     {
                         byte rop = md.MaskInfluence ? StencilOpInvert : StencilOpDecr;

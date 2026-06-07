@@ -38,6 +38,9 @@ namespace SpriteStudio.Runtime
         public int VertexCount;
         public int IndexCount;
         public byte Kind;
+        // ssab draw BlendType (0..7) for Normal/Shape/Mesh. Carried per batch so the mesh job can pack
+        // a per-vertex "is additive" flag for the Canvas single-material PMA path (a=0 trick).
+        public byte BlendType;
         public byte EffectBlend;
         public uint EffectParticleOffset;
         public uint EffectQuadCount;
@@ -169,17 +172,18 @@ namespace SpriteStudio.Runtime
                     int p_idx = DrawOrder[rank];
                     if (p_idx < 0 || p_idx >= PartCount) continue;
 
+                    float isAdditive = (batch.BlendType == 2) ? 1f : 0f; // Add(2) -> a=0 PMA trick (Canvas)
                     if (batch.Kind == SsDrawBatchKind.Normal)
                     {
-                        BuildNormal(p_idx, ref vbase, ref ibase);
+                        BuildNormal(p_idx, isAdditive, ref vbase, ref ibase);
                     }
                     else if (batch.Kind == SsDrawBatchKind.Shape)
                     {
-                        BuildShape(p_idx, ref vbase, ref ibase);
+                        BuildShape(p_idx, isAdditive, ref vbase, ref ibase);
                     }
                     else if (batch.Kind == SsDrawBatchKind.Mesh)
                     {
-                        BuildMesh(p_idx, ref vbase, ref ibase);
+                        BuildMesh(p_idx, isAdditive, ref vbase, ref ibase);
                     }
                 }
             }
@@ -225,6 +229,8 @@ namespace SpriteStudio.Runtime
 
             // ss.format.BlendType: Mix=0, Add=2 (シェーダ texcoord1.y)
             int blend_idx = batch.EffectBlend == 1 ? 2 : 0;
+            // Per-vertex additive flag (TexCoord1.w) for the Canvas single-material a=0 trick.
+            float isAdditive = batch.EffectBlend == 1 ? 1f : 0f;
 
             for (int q = 0; q < qc; q++)
             {
@@ -254,7 +260,7 @@ namespace SpriteStudio.Runtime
                             0f),
                         Color = new Color32(r, g, b, a),
                         TexCoord0 = new Vector2(ux, uy),
-                        TexCoord1 = new Vector4(0f, blend_idx, 1f, 0f) // x=rate(0=tex), y=blend_idx, z=1(normalized)
+                        TexCoord1 = new Vector4(0f, blend_idx, 1f, isAdditive) // x=rate(0=tex), y=blend_idx, z=1(normalized), w=isAdditive
                     };
                 }
 
@@ -308,7 +314,7 @@ namespace SpriteStudio.Runtime
             ibase += ic;
         }
 
-        private void BuildNormal(int p_idx, ref int vbase, ref int ibase)
+        private void BuildNormal(int p_idx, float isAdditive, ref int vbase, ref int ibase)
         {
             var part = PartStates[p_idx];
             bool needsCenter = (part.UpdateFlag & SsUpdateFlag.NeedsCenterMask) != 0;
@@ -355,7 +361,7 @@ namespace SpriteStudio.Runtime
                         0f),
                     Color = corner_colors[i],
                     TexCoord0 = new Vector2(part_uvs[i * 2], part_uvs[i * 2 + 1]),
-                    TexCoord1 = new Vector4(corner_rates[i], blend_idx, 0f, 0f)
+                    TexCoord1 = new Vector4(corner_rates[i], blend_idx, 0f, isAdditive)
                 };
             }
 
@@ -373,7 +379,7 @@ namespace SpriteStudio.Runtime
                         (byte)((corner_colors[0].b + corner_colors[1].b + corner_colors[2].b + corner_colors[3].b) / 4),
                         (byte)((corner_colors[0].a + corner_colors[1].a + corner_colors[2].a + corner_colors[3].a) / 4)),
                     TexCoord0 = new Vector2(part_uvs[8], part_uvs[9]),
-                    TexCoord1 = new Vector4((corner_rates[0] + corner_rates[1] + corner_rates[2] + corner_rates[3]) * 0.25f, blend_idx, 0f, 0f)
+                    TexCoord1 = new Vector4((corner_rates[0] + corner_rates[1] + corner_rates[2] + corner_rates[3]) * 0.25f, blend_idx, 0f, isAdditive)
                 };
 
                 // Pentagon indices: 0,1,4, 1,3,4, 3,2,4, 2,0,4
@@ -392,7 +398,7 @@ namespace SpriteStudio.Runtime
             vbase += vertCount;
         }
 
-        private void BuildShape(int p_idx, ref int vbase, ref int ibase)
+        private void BuildShape(int p_idx, float isAdditive, ref int vbase, ref int ibase)
         {
             int part_shape_count = ShapeVertexCounts[p_idx];
             if (part_shape_count < 3) return;
@@ -456,7 +462,7 @@ namespace SpriteStudio.Runtime
                         0f),
                     Color = new Color32(r, g, b, a),
                     TexCoord0 = new Vector2(0f, 0f),
-                    TexCoord1 = new Vector4(v_rate, blend_idx, 0f, 0f)
+                    TexCoord1 = new Vector4(v_rate, blend_idx, 0f, isAdditive)
                 };
             }
 
@@ -472,7 +478,7 @@ namespace SpriteStudio.Runtime
             ibase += tri_count * 3;
         }
 
-        private void BuildMesh(int p_idx, ref int vbase, ref int ibase)
+        private void BuildMesh(int p_idx, float isAdditive, ref int vbase, ref int ibase)
         {
             uint v0 = MeshVertexOffsets[p_idx];
             uint v1 = MeshVertexOffsets[p_idx + 1];
@@ -510,7 +516,7 @@ namespace SpriteStudio.Runtime
                     Position = new Vector3(MeshVerticesX[srcIdx] * InvScale, MeshVerticesY[srcIdx] * InvScale, 0f),
                     Color = meshColor,
                     TexCoord0 = new Vector2(MeshUvs[srcIdx * 2], MeshUvs[srcIdx * 2 + 1]),
-                    TexCoord1 = new Vector4(meshRate, blendIdx, 0f, 0f)
+                    TexCoord1 = new Vector4(meshRate, blendIdx, 0f, isAdditive)
                 };
             }
 
