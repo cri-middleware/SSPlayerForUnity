@@ -64,7 +64,7 @@ float4 ss_canvas_sample(ss_canvas_v2f IN, out float rate, out float blendIdx, ou
     rate         = IN.texcoord1.x;
     blendIdx     = IN.texcoord1.y; // 0=Mix,1=Mul,2=Add,3=Sub (part-color blend kind)
     isNormalized = IN.texcoord1.z; // 1 = effect part / 0 = normal part
-    return ss_input_texture(_MainTex, IN.texcoord, _InputPMA);
+    return ss_input_mediate(tex2D(_MainTex, IN.texcoord), _InputPMA);
 }
 
 // Default SpriteStudio RGB composition: effect parts tint by vertex colour; normal parts apply the

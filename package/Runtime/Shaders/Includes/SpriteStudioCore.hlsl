@@ -14,14 +14,14 @@
 #ifndef SPRITESTUDIO_CORE_INCLUDED
 #define SPRITESTUDIO_CORE_INCLUDED
 
-// [input mediation point] Sample the texture and, in Linear color space, un-premultiply for the
-//  blends that request it. Mirrors SS6PU's PixelSolveColorspaceInput, which is gated on color space:
-//  in Gamma color space it is a no-op, so we must NOT touch the input there either (otherwise the
-//  InputPMA modes - Mix/Mul/Mulalpha/Invert - brighten and shift at antialiased edges).
+// [input mediation point] Un-premultiply the sampled texel in Linear color space for the blends
+//  that request it. Sampling itself is done by the caller (RP-specific: tex2D on Built-in,
+//  SAMPLE_TEXTURE2D on URP) so this stays render-pipeline agnostic. Mirrors SS6PU's
+//  PixelSolveColorspaceInput, gated on color space: in Gamma it is a no-op (touching the input there
+//  brightens/shifts the InputPMA modes - Mix/Mul/Mulalpha/Invert - at antialiased edges).
 //  TODO(linear): also port SS6PU's pow(1/2.2) input / pow(2.2) output adjust when validating Linear.
-float4 ss_input_texture(sampler2D tex, float2 uv, float inputPMA)
+float4 ss_input_mediate(float4 c, float inputPMA)
 {
-    float4 c = tex2D(tex, uv);
 #if !defined(UNITY_COLORSPACE_GAMMA)
     if (inputPMA > 0.5 && c.a > (1.0 / 255.0))
     {
