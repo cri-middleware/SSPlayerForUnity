@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.Timeline;
 
 namespace SpriteStudio.Runtime
@@ -154,6 +155,40 @@ namespace SpriteStudio.Runtime
         }
 
         private readonly SpriteStudioPlaybackCore _core = new SpriteStudioPlaybackCore();
+
+        public event System.Action OnAnimationFinished
+        {
+            add => _core.OnAnimationFinished += value;
+            remove => _core.OnAnimationFinished -= value;
+        }
+        public event System.Action OnAnimationLooped
+        {
+            add => _core.OnAnimationLooped += value;
+            remove => _core.OnAnimationLooped -= value;
+        }
+        public event System.Action<SpriteStudioUserData> OnUserData
+        {
+            add => _core.OnUserData += value;
+            remove => _core.OnUserData -= value;
+        }
+        public event System.Action<SpriteStudioSignal> OnSignal
+        {
+            add => _core.OnSignal += value;
+            remove => _core.OnSignal -= value;
+        }
+        public event System.Action<SpriteStudioAudio> OnAudio
+        {
+            add => _core.OnAudio += value;
+            remove => _core.OnAudio -= value;
+        }
+
+        [Header("Events")]
+        public UnityEvent OnAnimationFinishedEvent = new UnityEvent();
+        public UnityEvent OnAnimationLoopedEvent = new UnityEvent();
+        public UserDataUnityEvent OnUserDataEvent = new UserDataUnityEvent();
+        public SignalUnityEvent OnSignalEvent = new SignalUnityEvent();
+        public AudioUnityEvent OnAudioEvent = new AudioUnityEvent();
+
         private MeshFilter _meshFilter;
         private MeshRenderer _meshRenderer;
         private Mesh _sharedMesh;
@@ -179,11 +214,30 @@ namespace SpriteStudio.Runtime
             _core.EnsureCreated(_animeAsset, _subFrameEnabled);
             ApplyPixelsPerUnit();
             SpriteStudioUpdateManager.Register(this);
+
+            _core.OnAnimationFinished += InvokeAnimationFinished;
+            _core.OnAnimationLooped += InvokeAnimationLooped;
+            _core.OnUserData += InvokeUserData;
+            _core.OnSignal += InvokeSignal;
+            _core.OnAudio += InvokeAudio;
         }
+
+        private void InvokeAnimationFinished() => OnAnimationFinishedEvent?.Invoke();
+        private void InvokeAnimationLooped() => OnAnimationLoopedEvent?.Invoke();
+        private void InvokeUserData(SpriteStudioUserData data) => OnUserDataEvent?.Invoke(data);
+        private void InvokeSignal(SpriteStudioSignal data) => OnSignalEvent?.Invoke(data);
+        private void InvokeAudio(SpriteStudioAudio data) => OnAudioEvent?.Invoke(data);
 
         private void OnDisable()
         {
             SpriteStudioUpdateManager.Unregister(this);
+
+            _core.OnAnimationFinished -= InvokeAnimationFinished;
+            _core.OnAnimationLooped -= InvokeAnimationLooped;
+            _core.OnUserData -= InvokeUserData;
+            _core.OnSignal -= InvokeSignal;
+            _core.OnAudio -= InvokeAudio;
+
             _core.Dispose();
             // Internal を破棄したので Timeline 制御状態もリセットする。これをしないと再有効化時に
             // 新しい (アニメ未 setup の) ネイティブハンドルへ「同名なので setup 不要」と誤判定し描画が破綻する。

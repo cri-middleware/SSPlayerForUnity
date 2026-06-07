@@ -167,6 +167,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             if (advance)
             {
                 unsafe { NativeMethods.ss_runtime_update(_player._handle.ptr, deltaTime * 1000.0f); }
+                _player.PollEvents();
             }
 
             drawFrame = _player.SubFrameEnabled ? _player.GetFrame() : UnityEngine.Mathf.Floor(_player.GetFrame());

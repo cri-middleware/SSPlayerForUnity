@@ -13,15 +13,32 @@ namespace SpriteStudio.Runtime
         /// <summary>内部プレイヤー (FFI コンテキスト)。未生成/破棄後は null。</summary>
         public SpriteStudioInternalPlayer Internal { get; private set; }
 
+        public event System.Action OnAnimationFinished;
+        public event System.Action OnAnimationLooped;
+        public event System.Action<SpriteStudioUserData> OnUserData;
+        public event System.Action<SpriteStudioSignal> OnSignal;
+        public event System.Action<SpriteStudioAudio> OnAudio;
+
         public void EnsureCreated(SpriteStudioAnimeAsset asset, bool subFrameEnabled)
         {
             if (Internal != null) return;
 
             Internal = new SpriteStudioInternalPlayer { SubFrameEnabled = subFrameEnabled };
+            HookEvents();
             if (asset != null && asset.SsabData != null)
             {
                 Internal.LoadSsab(asset.SsabData, asset.ResolveExternalSsab);
             }
+        }
+
+        private void HookEvents()
+        {
+            if (Internal == null) return;
+            Internal.OnAnimationFinished += () => OnAnimationFinished?.Invoke();
+            Internal.OnAnimationLooped += () => OnAnimationLooped?.Invoke();
+            Internal.OnUserData += (user) => OnUserData?.Invoke(user);
+            Internal.OnSignal += (sig) => OnSignal?.Invoke(sig);
+            Internal.OnAudio += (audio) => OnAudio?.Invoke(audio);
         }
 
         public void ReloadAsset(SpriteStudioAnimeAsset asset)

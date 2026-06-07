@@ -102,6 +102,15 @@ internal struct MaskPartData
         private const int MaxInstanceDepth = 16;
         private int _instanceDepth;
 
+        public event Action OnAnimationFinished;
+        public event Action OnAnimationLooped;
+        public event Action<SpriteStudioUserData> OnUserData;
+        public event Action<SpriteStudioSignal> OnSignal;
+        public event Action<SpriteStudioAudio> OnAudio;
+
+        private ss.format.SsAnimeBinary? _ssab;
+        private ss.format.AnimationData? _currentAnimation;
+
         public void LoadSsab(byte[] ssabData, AssetResolver resolver = null)
         {
             LoadSsabInternal(ssabData, resolver, 0);
@@ -122,8 +131,8 @@ internal struct MaskPartData
             _nativeContext.LoadSsab(ssabData);
             
             var bb = new Google.FlatBuffers.ByteBuffer(ssabData);
-            var ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
-            SetupSlots(ssab);
+            _ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
+            SetupSlots(_ssab.Value);
         }
 
         private void SetupSlots(ss.format.SsAnimeBinary binary)
@@ -273,7 +282,22 @@ internal struct MaskPartData
             if (!_handle.IsValid) return false;
             unsafe
             {
-                return NativeMethods.ss_runtime_setup_animation_by_hash(_handle.ptr, animationNameHash);
+                bool ok = NativeMethods.ss_runtime_setup_animation_by_hash(_handle.ptr, animationNameHash);
+                if (ok && _ssab.HasValue)
+                {
+                    _currentAnimation = null;
+                    var binary = _ssab.Value;
+                    for (int i = 0; i < binary.AnimationsLength; i++)
+                    {
+                        var anim = binary.Animations(i);
+                        if (anim.HasValue && anim.Value.NameHash == animationNameHash)
+                        {
+                            _currentAnimation = anim;
+                            break;
+                        }
+                    }
+                }
+                return ok;
             }
         }
 
@@ -329,7 +353,22 @@ internal struct MaskPartData
                 var bytes = System.Text.Encoding.UTF8.GetBytes(animationName + "\0");
                 fixed (byte* p = bytes)
                 {
-                    return NativeMethods.ss_runtime_setup_animation(_handle.ptr, p);
+                    bool ok = NativeMethods.ss_runtime_setup_animation(_handle.ptr, p);
+                    if (ok && _ssab.HasValue)
+                    {
+                        _currentAnimation = null;
+                        var binary = _ssab.Value;
+                        for (int i = 0; i < binary.AnimationsLength; i++)
+                        {
+                            var anim = binary.Animations(i);
+                            if (anim.HasValue && anim.Value.Name == animationName)
+                            {
+                                _currentAnimation = anim;
+                                break;
+                            }
+                        }
+                    }
+                    return ok;
                 }
             }
         }
@@ -357,6 +396,107 @@ internal struct MaskPartData
                 // ss_runtime_update は delta を「ミリ秒」で受け取る (update_interval = 1000/fps)。
                 // Unity の Time.deltaTime は秒なので 1000 倍する (Godot 実装も delta_seconds * 1000)。
                 NativeMethods.ss_runtime_update(_handle.ptr, deltaTime * 1000.0f);
+                PollEvents();
+            }
+        }
+
+        /// <summary>
+        /// Rust ランタイムに蓄積されたイベントを取り出し、C# 側のイベントとして発火する。
+        /// ss_runtime_update の直後に呼ばれる必要がある。
+        /// </summary>
+        public void PollEvents()
+        {
+            if (!_handle.IsValid) return;
+
+            unsafe
+            {
+                if (NativeMethods.ss_runtime_is_end_frame_reached(_handle.ptr))
+                {
+                    OnAnimationFinished?.Invoke();
+                }
+                if (NativeMethods.ss_runtime_is_looped(_handle.ptr))
+                {
+                    OnAnimationLooped?.Invoke();
+                }
+
+                int eventCount = NativeMethods.ss_runtime_get_passed_event_count(_handle.ptr);
+                if (eventCount > 0 && _currentAnimation.HasValue)
+                {
+                    var anim = _currentAnimation.Value;
+                    for (int i = 0; i < eventCount; i++)
+                    {
+                        int eventIdx = NativeMethods.ss_runtime_get_passed_event_index(_handle.ptr, i);
+                        var eventsObj = anim.Events(eventIdx);
+                        if (!eventsObj.HasValue) continue;
+                        var events = eventsObj.Value;
+
+                        if (OnUserData != null && events.UsersLength > 0)
+                        {
+                            for (int j = 0; j < events.UsersLength; j++)
+                            {
+                                var userOpt = events.Users(j);
+                                if (!userOpt.HasValue || !userOpt.Value.Value.HasValue) continue;
+                                var user = userOpt.Value;
+                                var val = user.Value.Value;
+
+                                var ev = new SpriteStudioUserData
+                                {
+                                    PartIndex = user.PartIndex,
+                                    PartName = (_ssab.HasValue && _ssab.Value.PartsLength > user.PartIndex) ? _ssab.Value.Parts(user.PartIndex)?.Name : null,
+                                    HasInt = val.Integer.HasValue,
+                                    IntValue = val.Integer.HasValue ? val.Integer.Value.Value : 0,
+                                    HasString = val.Str != null,
+                                    StringValue = val.Str,
+                                    HasRect = val.Rect.HasValue,
+                                    RectValue = val.Rect.HasValue ? new UnityEngine.Rect(val.Rect.Value.X1, val.Rect.Value.Y1, val.Rect.Value.X2 - val.Rect.Value.X1, val.Rect.Value.Y2 - val.Rect.Value.Y1) : default,
+                                    HasPoint = val.Point.HasValue,
+                                    PointValue = val.Point.HasValue ? new UnityEngine.Vector2(val.Point.Value.V1, val.Point.Value.V2) : default
+                                };
+                                OnUserData.Invoke(ev);
+                            }
+                        }
+
+                        if (OnSignal != null && events.SignalsLength > 0)
+                        {
+                            for (int j = 0; j < events.SignalsLength; j++)
+                            {
+                                var sigOpt = events.Signals(j);
+                                if (!sigOpt.HasValue || !sigOpt.Value.Value.HasValue) continue;
+                                var sig = sigOpt.Value;
+                                var val = sig.Value.Value;
+                                var ev = new SpriteStudioSignal
+                                {
+                                    PartIndex = sig.PartIndex,
+                                    PartName = (_ssab.HasValue && _ssab.Value.PartsLength > sig.PartIndex) ? _ssab.Value.Parts(sig.PartIndex)?.Name : null,
+                                    Active = val.Active,
+                                    CommandId = val.CommandId
+                                };
+                                OnSignal.Invoke(ev);
+                            }
+                        }
+
+                        if (OnAudio != null && events.AudiosLength > 0)
+                        {
+                            for (int j = 0; j < events.AudiosLength; j++)
+                            {
+                                var audioOpt = events.Audios(j);
+                                if (!audioOpt.HasValue || !audioOpt.Value.Value.HasValue) continue;
+                                var audio = audioOpt.Value;
+                                var val = audio.Value.Value;
+                                var ev = new SpriteStudioAudio
+                                {
+                                    PartIndex = audio.PartIndex,
+                                    PartName = (_ssab.HasValue && _ssab.Value.PartsLength > audio.PartIndex) ? _ssab.Value.Parts(audio.PartIndex)?.Name : null,
+                                    SoundListNameHash = val.SoundListNameHash,
+                                    SoundNameHash = val.SoundNameHash,
+                                    SoundName = val.SoundName,
+                                    LoopNum = val.LoopNum
+                                };
+                                OnAudio.Invoke(ev);
+                            }
+                        }
+                    }
+                }
             }
         }
 
