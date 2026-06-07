@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Jobs;
 using UnityEngine;
@@ -110,6 +111,9 @@ internal struct MaskPartData
 
         private ss.format.SsAnimeBinary? _ssab;
         private ss.format.AnimationData? _currentAnimation;
+
+        // OnAnimationFinished のエッジ検出用 (!is_playing && is_end_frame_reached の前回値)。
+        private bool _prevFinished;
 
         public void LoadSsab(byte[] ssabData, AssetResolver resolver = null)
         {
@@ -410,10 +414,20 @@ internal struct MaskPartData
 
             unsafe
             {
-                if (NativeMethods.ss_runtime_is_end_frame_reached(_handle.ptr))
+                // is_end_frame_reached は終端到達フラグで、(1) 最終フレーム着地時 (再生継続中) と
+                // (2) 終端超過で停止した時の最大 2 update で true になり、停止後も true が貼り付く。
+                // OnAnimationFinished は「再生が終了して停止した瞬間」に 1 度だけ通知したいので、
+                // !is_playing && is_end_frame_reached の立ち上がり (false→true) でのみ発火する。
+                bool finished = !NativeMethods.ss_runtime_is_playing(_handle.ptr)
+                                && NativeMethods.ss_runtime_is_end_frame_reached(_handle.ptr);
+                if (finished && !_prevFinished)
                 {
                     OnAnimationFinished?.Invoke();
                 }
+                _prevFinished = finished;
+
+                // is_looped は update() ごとに false へリセットされ、ループ境界を跨いだ update でのみ
+                // true になる (1 update 1 パルス) ため、そのまま発火してよい。
                 if (NativeMethods.ss_runtime_is_looped(_handle.ptr))
                 {
                     OnAnimationLooped?.Invoke();
@@ -464,12 +478,40 @@ internal struct MaskPartData
                                 if (!sigOpt.HasValue || !sigOpt.Value.Value.HasValue) continue;
                                 var sig = sigOpt.Value;
                                 var val = sig.Value.Value;
+                                // 非アクティブ signal は通知しない (Godot / 移植ドキュメントと同じ)。
+                                if (!val.Active) continue;
+
+                                // command パラメータ (union: Bool/Index/Integer/Floating/Text) を展開。
+                                Dictionary<string, object> paramsMap = null;
+                                int paramCount = val.ParamsLength;
+                                for (int k = 0; k < paramCount; k++)
+                                {
+                                    var paramOpt = val.Params(k);
+                                    if (!paramOpt.HasValue) continue;
+                                    var param = paramOpt.Value;
+                                    var paramId = param.ParamId;
+                                    if (paramId == null) continue;
+
+                                    object boxed;
+                                    switch (param.ValueType)
+                                    {
+                                        case ss.format.SignalCommandParamValue.Bool:     boxed = param.ValueAsBool().Value; break;
+                                        case ss.format.SignalCommandParamValue.Index:    boxed = param.ValueAsIndex().Value; break;
+                                        case ss.format.SignalCommandParamValue.Integer:  boxed = param.ValueAsInteger().Value; break;
+                                        case ss.format.SignalCommandParamValue.Floating: boxed = param.ValueAsFloating().Value; break;
+                                        case ss.format.SignalCommandParamValue.Text:     boxed = param.ValueAsText().Value; break;
+                                        default: continue;
+                                    }
+                                    (paramsMap ??= new Dictionary<string, object>())[paramId] = boxed;
+                                }
+
                                 var ev = new SpriteStudioSignal
                                 {
                                     PartIndex = sig.PartIndex,
                                     PartName = (_ssab.HasValue && _ssab.Value.PartsLength > sig.PartIndex) ? _ssab.Value.Parts(sig.PartIndex)?.Name : null,
                                     Active = val.Active,
-                                    CommandId = val.CommandId
+                                    CommandId = val.CommandId,
+                                    Params = paramsMap
                                 };
                                 OnSignal.Invoke(ev);
                             }

@@ -42,6 +42,10 @@ namespace SpriteStudio.Editor
 
         private static int Concurrency => Mathf.Clamp(SystemInfo.processorCount - 1, 1, 8);
 
+        /// <summary>実行待ち・実行中のジョブが無く、全変換の後処理 (ProcessFinished) まで完了している状態。
+        /// テスト等で「変換が完全に終わってから出力ディレクトリを削除する」ために待機判定に使う。</summary>
+        public static bool IsIdle => _pending.Count == 0 && _active.Count == 0;
+
         /// <summary>変換ジョブを 1 件キューに積む。スロットが空いていれば即実行を開始する。</summary>
         public static void Enqueue(string sspjPath, string outputDir)
         {
