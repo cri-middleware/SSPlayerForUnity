@@ -177,10 +177,9 @@ namespace SpriteStudio.Runtime
         [System.NonSerialized] private Shader _maskWriteShader;
 
         // Canvas (uGUI) material cache. The Canvas path uses the SpriteStudio/Canvas shader (uGUI
-        // stencil scaffolding) instead of SpriteStudio/Default, but the same per-blend variants and a
-        // white base for cell-less parts. Internal masking is suppressed on Canvas, so there are no
-        // mask-test / mask-write Canvas variants. Cleared with the others in OnDisable.
-        [System.NonSerialized] private Dictionary<SpriteStudioMaterialKey, Material> _canvasVariants;
+        // stencil scaffolding) instead of SpriteStudio/Default. It is single-material (MIX/ADD are
+        // folded in the shader via the a=0 trick), so there are no per-blend variants - only a
+        // per-texture base and a white base for cell-less parts. Cleared with the others in OnDisable.
         [System.NonSerialized] private Dictionary<uint, Material> _canvasBaseByHash;
         [System.NonSerialized] private Material _canvasWhiteBase;
         [System.NonSerialized] private Shader _canvasShader;
@@ -391,16 +390,6 @@ namespace SpriteStudio.Runtime
                     if (Application.isPlaying) Destroy(m); else DestroyImmediate(m);
                 }
                 _canvasBaseByHash.Clear();
-            }
-            if (_canvasVariants != null)
-            {
-                foreach (var kv in _canvasVariants)
-                {
-                    var m = kv.Value;
-                    if (m == null) continue;
-                    if (Application.isPlaying) Destroy(m); else DestroyImmediate(m);
-                }
-                _canvasVariants.Clear();
             }
         }
 
