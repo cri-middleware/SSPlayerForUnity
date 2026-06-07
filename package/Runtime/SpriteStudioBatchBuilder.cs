@@ -115,9 +115,13 @@ namespace SpriteStudio.Runtime
                 Count = 1,
                 VertexCount = vc,
                 IndexCount = ic,
-                Kind = kind
+                Kind = kind,
+                // Carry the draw BlendType so the mesh job can pack the per-vertex isAdditive flag
+                // (TexCoord1.w) for the Canvas single-material a=0 trick. Without this, ADD parts on
+                // the Canvas path render as MIX.
+                BlendType = blend
             };
-            
+
             EmitSubmesh(totalIndices, ic, texHash, blend, role, stencilOp, stencilComp, 0,
                 SpriteStudioMaterial.MaskStencilMask,
                 role == StencilRole.Write ? SpriteStudioMaterial.MaskStencilMask : (byte)0, threshold);
@@ -163,7 +167,11 @@ namespace SpriteStudio.Runtime
                 Count = count,
                 VertexCount = vc,
                 IndexCount = ic,
-                Kind = kind
+                Kind = kind,
+                // Carry the draw BlendType so the mesh job can pack the per-vertex isAdditive flag
+                // (TexCoord1.w) for the Canvas single-material a=0 trick. Without this, ADD parts on
+                // the Canvas path render as MIX.
+                BlendType = blendType
             };
             EmitSubmesh(totalIndices, ic, textureHash, blendType);
             totalVertices += vc;
