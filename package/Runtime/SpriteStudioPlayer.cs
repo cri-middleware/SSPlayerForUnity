@@ -278,7 +278,7 @@ namespace SpriteStudio.Runtime
                 signature = signature * 31u + (uint)info.Role;
                 signature = signature * 31u + info.StencilOp;
                 signature = signature * 31u + info.StencilComp;
-                if (info.Role == SpriteStudioGeometryBuilder.StencilRole.Write) hasWrite = true;
+                if (info.Role == StencilRole.Write) hasWrite = true;
             }
 
             if (signature != _lastMaterialSignature || _submeshMaterials.Count != subCount)
@@ -301,10 +301,10 @@ namespace SpriteStudio.Runtime
                     Material mat;
                     switch (info.Role)
                     {
-                        case SpriteStudioGeometryBuilder.StencilRole.Write:
+                        case StencilRole.Write:
                             mat = _animeAsset.ResolveMaskWriteMaterial(info.TextureHash, info.StencilOp);
                             break;
-                        case SpriteStudioGeometryBuilder.StencilRole.Test:
+                        case StencilRole.Test:
                             mat = _animeAsset.ResolveTestMaterial(info.TextureHash, info.BlendType, info.StencilComp);
                             break;
                         default:
@@ -314,7 +314,10 @@ namespace SpriteStudio.Runtime
                     }
                     if (mat == null)
                     {
-                        Debug.LogError($"[SpriteStudioPlayer] TextureHash {info.TextureHash} not resolved (Submesh {s}, role {info.Role}). Falling back to material 0.");
+                        // 回復可能なフォールバック (アセットにマテリアル/テクスチャが未割当 or 未解決)。
+                        // ここは signature 変化時のみ通るのでスパムにはならない。視覚的には壊れるが
+                        // 実行は継続できるため、severity は Warning (設定不備の通知) が適切。
+                        Debug.LogWarning($"[SpriteStudioPlayer] TextureHash {info.TextureHash} not resolved (Submesh {s}, role {info.Role}). Falling back to material 0.");
                         mat = fallback;
                     }
                     _submeshMaterials.Add(mat);
@@ -329,7 +332,7 @@ namespace SpriteStudio.Runtime
                 for (int s = 0; s < subCount; s++)
                 {
                     var info = submeshes[s];
-                    if (info.Role != SpriteStudioGeometryBuilder.StencilRole.Write) continue;
+                    if (info.Role != StencilRole.Write) continue;
                     if (_maskMpb == null) _maskMpb = new MaterialPropertyBlock();
                     _meshRenderer.GetPropertyBlock(_maskMpb, s);
                     _maskMpb.SetFloat(SpriteStudioMaterial.IdMaskThreshold, info.MaskThreshold);

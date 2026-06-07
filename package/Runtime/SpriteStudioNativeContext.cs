@@ -38,6 +38,15 @@ namespace SpriteStudio.Runtime
             if (!_isDisposed && (_handle.IsValid || _ssabPin.IsAllocated))
             {
                 Debug.LogError("[SpriteStudioNativeContext] Memory leak detected! Dispose() was not called before the object was garbage collected.");
+
+                // ネイティブハンドル (ss_runtime_destroy 等) はファイナライザスレッドから解放しない
+                // (誤ったスレッド + Job 未同期でクラッシュしうる)。ただし pin した GCHandle だけは
+                // ファイナライザから安全に Free でき、放置すると managed byte[] を永久に固定し続けて
+                // 確実なマネージドリークになるため、ここで必ず解放する。
+                if (_ssabPin.IsAllocated)
+                {
+                    _ssabPin.Free();
+                }
             }
         }
 
@@ -45,21 +54,28 @@ namespace SpriteStudio.Runtime
         {
             if (!_handle.IsValid || ssabData == null || ssabData.Length == 0) return;
 
-            if (_ssabPin.IsAllocated)
-            {
-                _ssabPin.Free();
-            }
-
-            // バイト配列のメモリを固定して Rust 側へ Borrow させる（ゼロコピー）
-            _ssabPin = GCHandle.Alloc(ssabData, GCHandleType.Pinned);
-
             unsafe
             {
+                // 解放順序が重要: 旧 _resourceHandle と runtime は「旧 pin のアドレス」を borrow して
+                // いる。先に旧 pin を Free すると borrow が dangling になるため、必ず
+                //   旧リソース破棄 → 旧 pin Free → 新 pin Alloc → 新リソース作成 → runtime へ load
+                // の順で行う。なおこの経路は再ロード (実行時のアセット差し替え) でも呼ばれるので、
+                // 呼び出し側 (SpriteStudioInternalPlayer.LoadSsabInternal) で in-flight Job を
+                // Complete() 済みであることが前提 (旧バッファを読む Job が走っていないこと)。
                 if (_resourceHandle != null)
                 {
                     NativeMethods.ss_resource_destroy(_resourceHandle);
                     _resourceHandle = null;
                 }
+
+                if (_ssabPin.IsAllocated)
+                {
+                    _ssabPin.Free();
+                }
+
+                // バイト配列のメモリを固定して Rust 側へ Borrow させる（ゼロコピー）
+                _ssabPin = GCHandle.Alloc(ssabData, GCHandleType.Pinned);
+
                 byte* ptr = (byte*)_ssabPin.AddrOfPinnedObject();
                 _resourceHandle = NativeMethods.ss_resource_create_borrow(ptr, (nuint)ssabData.Length);
                 NativeMethods.ss_runtime_load_ssab_borrow(_handle.ptr, ptr, (nuint)ssabData.Length);
@@ -72,24 +88,32 @@ namespace SpriteStudio.Runtime
             _isDisposed = true;
             GC.SuppressFinalize(this);
 
-            if (_handle.IsValid)
+            try
             {
                 unsafe
                 {
-                    NativeMethods.ss_runtime_destroy(_handle.ptr);
-                    _handle.ptr = null;
+                    // LoadSsab と同じ不変条件: pin した buffer を borrow している resource / runtime を
+                    // 先に破棄し、最後に pin を Free する (借用中に pin を解放して dangling にしない)。
+                    // in-flight Job の完了待ちは呼び出し側 (InternalPlayer.Dispose) で実施済み前提。
+                    if (_resourceHandle != null)
+                    {
+                        NativeMethods.ss_resource_destroy(_resourceHandle);
+                        _resourceHandle = null;
+                    }
+                    if (_handle.IsValid)
+                    {
+                        NativeMethods.ss_runtime_destroy(_handle.ptr);
+                        _handle.ptr = null;
+                    }
                 }
             }
-            if (_ssabPin.IsAllocated)
+            finally
             {
-                _ssabPin.Free();
-            }
-            unsafe
-            {
-                if (_resourceHandle != null)
+                // pin は managed GCHandle。借用元 (resource/runtime) を破棄した後に、かつ上で例外が出ても
+                // 必ず Free する。漏らすと borrow 対象の managed byte[] を永久に固定し続け確実なリークになる。
+                if (_ssabPin.IsAllocated)
                 {
-                    NativeMethods.ss_resource_destroy(_resourceHandle);
-                    _resourceHandle = null;
+                    _ssabPin.Free();
                 }
             }
         }

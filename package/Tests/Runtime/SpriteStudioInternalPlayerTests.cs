@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using SpriteStudio.Runtime;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace SpriteStudio.Runtime.Tests
 {
@@ -25,6 +26,28 @@ namespace SpriteStudio.Runtime.Tests
             {
                 Assert.DoesNotThrow(() => player.ConsumeFrameData(System.IntPtr.Zero, 0, 0.016f));
             }
+        }
+
+        [Test]
+        public void Dispose_CalledTwice_DoesNotThrow()
+        {
+            // Dispose は冪等であること (二重 Dispose で native の二重解放やクラッシュを起こさない)。
+            var player = new SpriteStudioInternalPlayer();
+            Assert.DoesNotThrow(() =>
+            {
+                player.Dispose();
+                player.Dispose();
+            });
+        }
+
+        [Test]
+        public void Dispose_DoesNotLogLeakError()
+        {
+            // 正常に Dispose すれば、ファイナライザのリーク検出ログ ("Memory leak detected") も
+            // その他の Error ログも出ない。Dispose 経路 (解放順序変更含む) が綺麗であることを確認。
+            var player = new SpriteStudioInternalPlayer();
+            player.Dispose();
+            LogAssert.NoUnexpectedReceived();
         }
     }
 }

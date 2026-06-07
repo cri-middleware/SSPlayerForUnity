@@ -28,7 +28,7 @@ namespace SpriteStudio.Runtime
         public int VertexCount => _geometryBuilder != null ? _geometryBuilder.VertexCount : 0;
         public int IndexCount => _geometryBuilder != null ? _geometryBuilder.IndexCount : 0;
         public int SubmeshCount => _geometryBuilder != null ? _geometryBuilder.SubmeshCount : 0;
-        public NativeArray<SpriteStudioGeometryBuilder.SubmeshInfo> Submeshes => _geometryBuilder != null ? _geometryBuilder.Submeshes : default;
+        public NativeArray<SubmeshInfo> Submeshes => _geometryBuilder != null ? _geometryBuilder.Submeshes : default;
         public uint GetSubmeshTextureHash(int index) => _geometryBuilder.GetSubmeshTextureHash(index);
         public byte GetSubmeshBlendType(int index) => _geometryBuilder.GetSubmeshBlendType(index);
         public NativeArray<SsVertex> MeshVertices => _geometryBuilder.MeshVertices;
@@ -88,6 +88,11 @@ internal struct MaskPartData
         // internal masking. See project_unity_canvas_plan.
         internal bool _suppressInternalMask;
 
+        // Internal masking is active only when the asset has mask writers AND this player is not
+        // suppressing them. Canvas/uGUI suppresses (project_unity_canvas_plan); the world path keeps it.
+        // Single source of truth so the geometry builder's per-batch gates cannot drift apart.
+        internal bool MaskActive => _hasMaskParts && !_suppressInternalMask;
+
         /// <summary>
         /// Suppress SpriteStudio internal masking for this player and (recursively) its instance
         /// children. Set true on the Canvas path; left false for the world path. Propagates so an
@@ -140,6 +145,13 @@ internal struct MaskPartData
         {
             _assetResolver = resolver;
             _instanceDepth = depth;
+
+            // 再ロード (実行時のアセット差し替え) では、旧 ssab バッファを borrow している
+            // in-flight な Burst Job が残っている可能性がある。ネイティブリソースを破棄/再 borrow
+            // する前に必ず Job を完了させ、解放済みメモリ参照によるセグフォールトを防ぐ。
+            // 初回ロード時は Job 未投入なので default ハンドルへの Complete() で no-op。
+            _geometryBuilder?.CurrentUpdateJobHandle.Complete();
+
             _nativeContext.LoadSsab(ssabData);
             
             var bb = new Google.FlatBuffers.ByteBuffer(ssabData);
@@ -169,7 +181,7 @@ internal struct MaskPartData
                     }
                     _effectSlots = null;
                 }
-                
+
                 if (_instanceChildren != null)
                 {
                     for (int i = 0; i < _instanceChildren.Length; i++)
@@ -178,10 +190,9 @@ internal struct MaskPartData
                         {
                             NativeMethods.ss_instance_slot_destroy((void*)_instanceChildren[i].InstanceSlot);
                         }
-                        if (_instanceChildren[i].Player != null)
-                        {
-                            _instanceChildren[i].Player.Dispose();
-                        }
+                        // 子の Dispose は再帰 managed で例外を投げ得るため隔離し、兄弟の解放を止めない。
+                        try { _instanceChildren[i].Player?.Dispose(); }
+                        catch (Exception e) { Debug.LogException(e); }
                     }
                     _instanceChildren = null;
                 }
@@ -394,12 +405,13 @@ internal struct MaskPartData
 
             // 【最重要】ネイティブポインタを解放したりNativeArrayを破棄する直前に、
             // 必ず実行中の Burst Job を同期（完了待機）してセグフォールトを防ぐ。
-            _geometryBuilder?.CurrentUpdateJobHandle.Complete();
+            try { _geometryBuilder?.CurrentUpdateJobHandle.Complete(); }
+            catch (Exception e) { Debug.LogException(e); }
 
-            if (_nativeContext != null)
-            {
-                _nativeContext.Dispose();
-            }
+            // 以降の解放グループは互いに独立。1 つが例外を投げても残りを必ず解放できるよう各々隔離する
+            // (ネイティブハンドルにはファイナライザ側の回収手段が無いため、ここで漏らすと永久リーク)。
+            try { _nativeContext?.Dispose(); }
+            catch (Exception e) { Debug.LogException(e); }
             
             unsafe
             {
@@ -414,7 +426,7 @@ internal struct MaskPartData
                     }
                     _effectSlots = null;
                 }
-                
+
                 if (_instanceChildren != null)
                 {
                     for (int i = 0; i < _instanceChildren.Length; i++)
@@ -423,16 +435,16 @@ internal struct MaskPartData
                         {
                             NativeMethods.ss_instance_slot_destroy((void*)_instanceChildren[i].InstanceSlot);
                         }
-                        if (_instanceChildren[i].Player != null)
-                        {
-                            _instanceChildren[i].Player.Dispose();
-                        }
+                        // 子の Dispose は再帰 managed で例外を投げ得るため隔離し、兄弟の解放を止めない。
+                        try { _instanceChildren[i].Player?.Dispose(); }
+                        catch (Exception e) { Debug.LogException(e); }
                     }
                     _instanceChildren = null;
                 }
             }
-            
-            _geometryBuilder?.Dispose();
+
+            try { _geometryBuilder?.Dispose(); }
+            catch (Exception e) { Debug.LogException(e); }
         }
 
         // エフェクト draw_plan (FlatBuffers, ネイティブ) を frame-data と同じ流儀で読み、

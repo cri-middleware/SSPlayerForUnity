@@ -126,15 +126,33 @@ namespace SpriteStudio.Editor
 
             if (asset == null)
             {
-                string[] guids = AssetDatabase.FindAssets(Path.GetFileNameWithoutExtension(filename) + " t:SpriteStudioAnimeAsset");
-                if (guids.Length > 0)
+                // 直下に無い場合のフォールバック: プロジェクト全体から同名 .ssab を探す。
+                // FindAssets の名前検索は「部分一致 + 順序非保証」なので、そのまま guids[0] を採ると
+                // 同名/類似名アセットがあるとマシンやインポート順で結果が変わる (非決定的インポート)。
+                // (a) ファイル名が厳密一致するものだけに絞り、(b) パスでソートして決定的に選ぶ。
+                // (c) 複数該当はグローバル状態依存の曖昧ケースなので警告する。
+                string stem = Path.GetFileNameWithoutExtension(filename);
+                string[] guids = AssetDatabase.FindAssets(stem + " t:SpriteStudioAnimeAsset");
+                var matches = new List<string>();
+                foreach (var g in guids)
                 {
-                    path = AssetDatabase.GUIDToAssetPath(guids[0]);
+                    string p = AssetDatabase.GUIDToAssetPath(g);
+                    if (string.Equals(Path.GetFileName(p), filename, StringComparison.OrdinalIgnoreCase))
+                        matches.Add(p);
+                }
+                matches.Sort(StringComparer.Ordinal);
+                if (matches.Count > 0)
+                {
+                    if (matches.Count > 1)
+                    {
+                        Debug.LogWarning($"[SSPlayer] Anime pack '{animePackName}' は複数候補に一致しました ({matches.Count} 件: {string.Join(", ", matches)})。決定的に '{matches[0]}' を使用します。参照元アセットの隣に .ssab を置くと曖昧さを避けられます。");
+                    }
+                    path = matches[0];
                     onDependency?.Invoke(path);
                     asset = AssetDatabase.LoadAssetAtPath<SpriteStudioAnimeAsset>(path);
                 }
             }
-            
+
             return path;
         }
 
