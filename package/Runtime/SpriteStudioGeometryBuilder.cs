@@ -3,6 +3,7 @@ using Unity.Collections;
 using Unity.Jobs;
 using UnityEngine;
 using SpriteStudio.SsRuntime;
+using System.Runtime.InteropServices;
 
 namespace SpriteStudio.Runtime
 {
@@ -30,6 +31,11 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         public JobHandle _updateJobHandle;
 
         public JobHandle CurrentUpdateJobHandle => _updateJobHandle;
+
+        // FrameData の vtable offset (parts / parts_color フィールド)。生成コードの Parts(j)=__offset(4) /
+        // PartsColor(j)=__offset(8) と一致。fill とレイアウト検証 (SpriteStudioRawLayoutCheck) の単一ソース。
+        internal const int PartsVtoff = 4;
+        internal const int PartsColorVtoff = 8;
 
         public SpriteStudioGeometryBuilder(SpriteStudioInternalPlayer player)
         {
@@ -247,6 +253,11 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 var frameData = ss.runtime.FrameData.GetRootAsFrameData(_frameDataByteBuffer);
 
+                // FrameData テーブルの Table ビュー。parts / parts_color / draw_order の連続 vector の先頭位置
+                // (tFrame.__vector(vtoff)) を取り、生ポインタ直読みと既存 drawOrder コピーで共用する。
+                var tFrame = new Google.FlatBuffers.Table(
+                    _frameDataByteBuffer.GetInt(_frameDataByteBuffer.Position) + _frameDataByteBuffer.Position, _frameDataByteBuffer);
+
                 DrawFrame frame = new DrawFrame
                 {
                     FrameNo = drawFrameNo,
@@ -333,22 +344,27 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 // PartState を先に充填し、下のバッチ集計 (Normal の needsCenter 判定) が
                 // UpdateFlag を FlatBuffer から再デコードせず _partStates から読めるようにする。
                 var pStates = (PartStateData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_partStates);
-                for (int i = 0; i < partsLength; i++)
+                // per-element accessor (frameData.Parts(i)) を撲滅し、parts の連続 struct-vector
+                // (vtable offset 4・144B stride の固定 struct) を RawPartState ミラーで直読みする。
+                int partsVecOff = tFrame.__offset(PartsVtoff);
+                if (partsVecOff != 0)
                 {
-                    var p = frameData.Parts(i).Value;
-                    pStates[i] = new PartStateData
+                    RawPartState* rawParts = (RawPartState*)(frameDataPtr + tFrame.__vector(partsVecOff));
+                    for (int i = 0; i < partsLength; i++)
                     {
-                        UpdateFlag = (ulong)p.UpdateFlag,
-                        Alpha = p.Alpha,
-                        PartColorIndex = p.PartColor
-                    };
+                        ref readonly RawPartState p = ref rawParts[i];
+                        pStates[i] = new PartStateData
+                        {
+                            UpdateFlag = p.UpdateFlag,
+                            Alpha = p.Alpha,
+                            PartColorIndex = p.PartColor
+                        };
+                    }
                 }
 
                 // DrawOrder ([ushort] vector) も先に充填し、バッチ集計ループは _drawOrder から読む。
                 // 連続 scalar vector なので per-element でなく一括 memcpy する (effect ジオメトリと同様)。
                 // draw_order は FrameData の field 6 → vtable offset 16。
-                var tFrame = new Google.FlatBuffers.Table(
-                    _frameDataByteBuffer.GetInt(_frameDataByteBuffer.Position) + _frameDataByteBuffer.Position, _frameDataByteBuffer);
                 SpriteStudioNativeBuffers.CopyFbVector(tFrame, 16, frameDataPtr, _drawOrder, 0, drawOrderLength);
 
                 // Build the per-frame mask writer list (mirrors _build_mask_writers). Behaviour-neutral
@@ -402,8 +418,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         ProcessMaskBatch(b, partsLength, ref frame, frameData, ref totalVertices, ref totalIndices);
                     }
                 }
-
-                FillPartColors(frameData, partsColorLength);
+                FillPartColors(frameDataPtr, tFrame, partsColorLength);
 
                 if (totalVertices == 0 || totalIndices == 0)
                 {
@@ -547,18 +562,24 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         }
 
         /// <summary>frameData の PartsColor から _partColors を充填する (4 隅の頂点カラー)。</summary>
-        private void FillPartColors(ss.runtime.FrameData frameData, int partsColorLength)
+        private unsafe void FillPartColors(byte* frameDataPtr, Google.FlatBuffers.Table tFrame, int partsColorLength)
         {
+            // per-element 入れ子 accessor (frameData.PartsColor(i)) を撲滅し、parts_color の連続
+            // struct-vector (vtable offset 8・36B stride) を RawPartColor ミラーで直読みする。
+            // U8Rect は ARGB バイト順なので Color32(R,G,B,A) へ並べ替える (従来挙動と同一)。
+            int vecOff = tFrame.__offset(PartsColorVtoff);
+            if (vecOff == 0) return;
+            RawPartColor* raw = (RawPartColor*)(frameDataPtr + tFrame.__vector(vecOff));
             for (int i = 0; i < partsColorLength; i++)
             {
-                var pc = frameData.PartsColor(i).Value;
+                ref readonly RawPartColor pc = ref raw[i];
                 _partColors[i] = new PartColorData
                 {
-                    BlendType = (byte)pc.BlendType,
-                    Lt = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Lt.Rgba.R, pc.Lt.Rgba.G, pc.Lt.Rgba.B, pc.Lt.Rgba.A), Rate = pc.Lt.Rate },
-                    Rt = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Rt.Rgba.R, pc.Rt.Rgba.G, pc.Rt.Rgba.B, pc.Rt.Rgba.A), Rate = pc.Rt.Rate },
-                    Lb = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Lb.Rgba.R, pc.Lb.Rgba.G, pc.Lb.Rgba.B, pc.Lb.Rgba.A), Rate = pc.Lb.Rate },
-                    Rb = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Rb.Rgba.R, pc.Rb.Rgba.G, pc.Rb.Rgba.B, pc.Rb.Rgba.A), Rate = pc.Rb.Rate }
+                    BlendType = pc.BlendType,
+                    Lt = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Lt.R, pc.Lt.G, pc.Lt.B, pc.Lt.A), Rate = pc.Lt.Rate },
+                    Rt = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Rt.R, pc.Rt.G, pc.Rt.B, pc.Rt.A), Rate = pc.Rt.Rate },
+                    Lb = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Lb.R, pc.Lb.G, pc.Lb.B, pc.Lb.A), Rate = pc.Lb.Rate },
+                    Rb = new CornerColorData { Rgba = new UnityEngine.Color32(pc.Rb.R, pc.Rb.G, pc.Rb.B, pc.Rb.A), Rate = pc.Rb.Rate }
                 };
             }
         }
@@ -782,5 +803,123 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         }
 
         
+    }
+
+    // === FlatBuffer の固定 struct-vector を per-element accessor 無しで直読みするための生レイアウトミラー ===
+    // framedata_generated.cs の PartState(144B) / PartAttributePartColor(36B) / U8Rect とバイト互換。
+    // ⚠ .fbs を再生成してレイアウトが変わったらここも更新する (起動時 sizeof assert で総量 drift を検出)。
+    [StructLayout(LayoutKind.Explicit, Size = 8)]
+    internal struct RawCorner   // U8Rect(ARGB) + Rate (SsAttributePartColorKeyValueColor)
+    {
+        [FieldOffset(0)] public byte A;
+        [FieldOffset(1)] public byte R;
+        [FieldOffset(2)] public byte G;
+        [FieldOffset(3)] public byte B;
+        [FieldOffset(4)] public float Rate;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 36)]
+    internal struct RawPartColor   // PartAttributePartColor
+    {
+        [FieldOffset(0)]  public byte BlendType;
+        [FieldOffset(4)]  public RawCorner Lt;
+        [FieldOffset(12)] public RawCorner Rt;
+        [FieldOffset(20)] public RawCorner Lb;
+        [FieldOffset(28)] public RawCorner Rb;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 144)]
+    internal struct RawPartState   // PartState (使用フィールドのみ宣言・残りは Size で確保)
+    {
+        [FieldOffset(0)]   public ulong UpdateFlag;
+        [FieldOffset(48)]  public float Alpha;
+        [FieldOffset(128)] public short PartColor;
+    }
+
+    internal static class SpriteStudioRawLayoutCheck
+    {
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        static unsafe void Validate()
+        {
+            // (1) 総量 drift (フィールド増減) を捕捉。
+            UnityEngine.Debug.Assert(Unity.Collections.LowLevel.Unsafe.UnsafeUtility.SizeOf<RawPartState>() == 144,
+                "RawPartState size != 144: framedata PartState layout changed - update the mirror struct");
+            UnityEngine.Debug.Assert(Unity.Collections.LowLevel.Unsafe.UnsafeUtility.SizeOf<RawPartColor>() == 36,
+                "RawPartColor size != 36: framedata PartAttributePartColor layout changed - update the mirror struct");
+            UnityEngine.Debug.Assert(Unity.Collections.LowLevel.Unsafe.UnsafeUtility.SizeOf<RawCorner>() == 8,
+                "RawCorner size != 8: framedata color-corner layout changed - update the mirror struct");
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            // (2) 同サイズの並べ替え等も捕捉する roundtrip: 生成ビルダーで既知の sentinel struct を書き、
+            //     生成 accessor とミラーの両方で同一バッファを読んで一致を確認する。.fbs を再生成して
+            //     field offset / vtable offset がズレた瞬間にここが赤くなる (= サイレント drift の自動検出)。
+            var b = new Google.FlatBuffers.FlatBufferBuilder(256);
+
+            ss.runtime.FrameData.StartPartsVector(b, 1);
+            ss.runtime.PartState.CreatePartState(b,
+                (ss.runtime.UpdateAttributeFlags)0x1122334455667788UL, // UpdateFlag (sentinel)
+                0,0,0,0,0, 0,0,0,0,0,                                  // PositionX..LocalScaleY
+                0.5f,                                                  // Alpha (sentinel)
+                0,0,0,0,0, 0,0,0,0,0, 0,0,0,0,0, 0,0,                  // LocalAlpha..SkewY
+                0,                                                     // Texture
+                0,0,                                                   // PartIndex, Cell
+                (short)0x4321,                                         // PartColor (sentinel)
+                0,0,0,                                                 // Shader, Vertex, Deform
+                false,false,false,false,false);                       // FlipH..ImgFlipV
+            var partsVec = b.EndVector();
+
+            ss.runtime.FrameData.StartPartsColorVector(b, 1);
+            ss.runtime.PartAttributePartColor.CreatePartAttributePartColor(b,
+                (ss.runtime.BlendType)3,
+                1,2,3,4, 0.5f,      // Lt: A,R,G,B,Rate
+                5,6,7,8, 1.5f,      // Rt
+                9,10,11,12, 2.5f,   // Lb
+                13,14,15,16, 3.5f); // Rb
+            var pcVec = b.EndVector();
+
+            // FrameData の required フィールド (draw_order / draw_batches / mask_indices) を空ベクタで満たす
+            // (EndFrameData が presence を要求する。中身は本検証では未使用)。
+            ss.runtime.FrameData.StartDrawOrderVector(b, 0);
+            var drawOrderVec = b.EndVector();
+            ss.runtime.FrameData.StartDrawBatchesVector(b, 0);
+            var drawBatchesVec = b.EndVector();
+            ss.runtime.FrameData.StartMaskIndicesVector(b, 0);
+            var maskIndicesVec = b.EndVector();
+
+            ss.runtime.FrameData.StartFrameData(b);
+            ss.runtime.FrameData.AddParts(b, partsVec);
+            ss.runtime.FrameData.AddPartsColor(b, pcVec);
+            ss.runtime.FrameData.AddDrawOrder(b, drawOrderVec);
+            ss.runtime.FrameData.AddDrawBatches(b, drawBatchesVec);
+            ss.runtime.FrameData.AddMaskIndices(b, maskIndicesVec);
+            b.Finish(ss.runtime.FrameData.EndFrameData(b).Value);
+
+            byte[] arr = b.DataBuffer.ToSizedArray();
+            var bb = new Google.FlatBuffers.ByteBuffer(arr);
+            var fd = ss.runtime.FrameData.GetRootAsFrameData(bb);
+            var pAcc = fd.Parts(0).Value;
+            var cAcc = fd.PartsColor(0).Value;
+
+            fixed (byte* basePtr = arr)
+            {
+                var t = new Google.FlatBuffers.Table(bb.GetInt(bb.Position) + bb.Position, bb);
+
+                RawPartState* mp = (RawPartState*)(basePtr + t.__vector(t.__offset(SpriteStudioGeometryBuilder.PartsVtoff)));
+                UnityEngine.Debug.Assert(
+                    mp->UpdateFlag == (ulong)pAcc.UpdateFlag && mp->Alpha == pAcc.Alpha && mp->PartColor == pAcc.PartColor,
+                    "RawPartState field offsets do not match the framedata PartState accessor - verify UpdateFlag@0/Alpha@48/PartColor@128 and update the mirror struct");
+
+                RawPartColor* mc = (RawPartColor*)(basePtr + t.__vector(t.__offset(SpriteStudioGeometryBuilder.PartsColorVtoff)));
+                bool colorOk =
+                    mc->BlendType == (byte)cAcc.BlendType &&
+                    mc->Lt.A == cAcc.Lt.Rgba.A && mc->Lt.R == cAcc.Lt.Rgba.R && mc->Lt.G == cAcc.Lt.Rgba.G && mc->Lt.B == cAcc.Lt.Rgba.B && mc->Lt.Rate == cAcc.Lt.Rate &&
+                    mc->Rt.A == cAcc.Rt.Rgba.A && mc->Rt.R == cAcc.Rt.Rgba.R && mc->Rt.G == cAcc.Rt.Rgba.G && mc->Rt.B == cAcc.Rt.Rgba.B && mc->Rt.Rate == cAcc.Rt.Rate &&
+                    mc->Lb.A == cAcc.Lb.Rgba.A && mc->Lb.R == cAcc.Lb.Rgba.R && mc->Lb.G == cAcc.Lb.Rgba.G && mc->Lb.B == cAcc.Lb.Rgba.B && mc->Lb.Rate == cAcc.Lb.Rate &&
+                    mc->Rb.A == cAcc.Rb.Rgba.A && mc->Rb.R == cAcc.Rb.Rgba.R && mc->Rb.G == cAcc.Rb.Rgba.G && mc->Rb.B == cAcc.Rb.Rgba.B && mc->Rb.Rate == cAcc.Rb.Rate;
+                UnityEngine.Debug.Assert(colorOk,
+                    "RawPartColor field offsets do not match the framedata PartAttributePartColor accessor - verify BlendType@0/Lt@4/Rt@12/Lb@20/Rb@28 and U8Rect A@0/R@1/G@2/B@3+Rate@4, then update the mirror struct");
+            }
+#endif
+        }
     }
 }
