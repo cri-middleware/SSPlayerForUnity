@@ -21,6 +21,97 @@ Shader "SpriteStudio/MaskWrite"
         _StencilReadMask  ("Stencil Read Mask",  Float) = 255
     }
 
+    // === URP (Universal Render Pipeline) SubShader ===
+    // Mirrors the Built-in SubShader below; only the engine API layer differs (URP include,
+    // TransformObjectToHClip, SAMPLE_TEXTURE2D, CBUFFER for SRP Batcher). The property-driven Stencil
+    // write and ColorMask 0 are identical. URP selects this via the RenderPipeline tag.
+    SubShader
+    {
+        Tags
+        {
+            "RenderPipeline"="UniversalPipeline"
+            "Queue"="Transparent"
+            "IgnoreProjector"="True"
+            "RenderType"="Transparent"
+        }
+
+        Cull Off
+        ZWrite Off
+        ZTest LEqual
+        ColorMask 0
+        Blend SrcAlpha OneMinusSrcAlpha
+
+        Stencil
+        {
+            Ref [_StencilRef]
+            Comp Always
+            Pass [_StencilOp]
+            ReadMask [_StencilReadMask]
+            WriteMask [_StencilWriteMask]
+        }
+
+        Pass
+        {
+            Tags { "LightMode"="UniversalForward" }
+            HLSLPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+            struct appdata_t
+            {
+                float4 vertex   : POSITION;
+                float4 color    : COLOR;
+                float2 texcoord : TEXCOORD0;
+                float4 texcoord1: TEXCOORD1; // [rate, blend_idx, isNormalized, reserved]
+            };
+
+            struct v2f
+            {
+                float4 vertex   : SV_POSITION;
+                float2 texcoord : TEXCOORD0;
+            };
+
+            TEXTURE2D(_MainTex);
+            SAMPLER(sampler_MainTex);
+
+            CBUFFER_START(UnityPerMaterial)
+                float4 _MainTex_ST;
+                float4 _MainTex_TexelSize;
+                float _MaskThreshold;
+                float _StencilRef;
+                float _StencilOp;
+                float _StencilWriteMask;
+                float _StencilReadMask;
+            CBUFFER_END
+
+            v2f vert(appdata_t IN)
+            {
+                v2f OUT;
+                OUT.vertex = TransformObjectToHClip(IN.vertex.xyz);
+                float isNormalized = IN.texcoord1.z;
+                float2 texelSizeMultiplier = lerp(_MainTex_TexelSize.xy, float2(1.0, 1.0), isNormalized);
+                OUT.texcoord = IN.texcoord * texelSizeMultiplier;
+                OUT.texcoord.y = 1.0 - OUT.texcoord.y;
+                return OUT;
+            }
+
+            half4 frag(v2f IN) : SV_Target
+            {
+                // Cutout: only texels above the threshold contribute to the stencil coverage.
+                float a = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, IN.texcoord).a;
+                if (a <= _MaskThreshold)
+                {
+                    discard;
+                }
+                // ColorMask 0 makes the colour output irrelevant; only the stencil op runs.
+                return half4(0.0, 0.0, 0.0, 0.0);
+            }
+            ENDHLSL
+        }
+    }
+
+    // === Built-in Render Pipeline SubShader ===
     SubShader
     {
         Tags
