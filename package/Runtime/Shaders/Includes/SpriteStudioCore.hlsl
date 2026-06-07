@@ -2,14 +2,14 @@
 // mediation. The single source of truth, #included by both the Built-in hand-written
 // HLSL shaders and URP (Shader Graph Custom Function).
 //
-// Policy (project_unity_shader_strategy):
+// Policy:
 //  - SS6PU expressed the equivalent logic with #define macros gated by #if defined(PS_*)
 //    keywords. Keywords cause shader-variant explosion / device "pink shader" stripping,
 //    so here we replace them with "functions instead of macros" and
 //    "material-float uniform branches instead of keywords".
 //  - PMA in/out (_InputPMA / _OutputPMA) and discard (_NotDiscard) are passed in by the
 //    shader as material properties. The per-blend (ssab BlendType) values are set by the
-//    C# MaterialKey side, following the B-table in project_blend_mapping_truth.
+//    C# MaterialKey side, following the per-blend blend-factor table.
 
 #ifndef SPRITESTUDIO_CORE_INCLUDED
 #define SPRITESTUDIO_CORE_INCLUDED
@@ -35,7 +35,7 @@ float4 ss_input_texture(sampler2D tex, float2 uv, float inputPMA)
 //  the per-part blend kind and rate.
 //  blendIdx: 0=Mix / 1=Mul / 2=Add / 3=Sub (lower 4 of ss.format.BlendType).
 //  The 4-corner colors are already mediated on the CPU and folded into the vertex color,
-//  then interpolated by the rasterizer (project_partcolor_mediation_rules). This only
+//  then interpolated by the rasterizer. This only
 //  applies the result; it never re-implements the mediation math.
 float3 ss_partcolor_blend(float3 texRGB, float3 ovColorRGB, float rate, float blendIdx)
 {

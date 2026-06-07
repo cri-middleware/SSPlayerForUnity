@@ -4,7 +4,7 @@ Shader "SpriteStudio/Default"
     {
         _MainTex ("Sprite Texture", 2D) = "white" {}
 
-        // --- Blend state (set by the C# MaterialKey per the B-table in project_blend_mapping_truth) ---
+        // --- Blend state (set by the C# MaterialKey per the per-blend blend-factor table) ---
         // Defaults are Mix + PMA output = equivalent to the previous behavior. The MaterialKey
         // overrides these per ssab BlendType.
         [Enum(UnityEngine.Rendering.BlendMode)] _SrcBlend ("Src Blend", Float) = 1   // One
@@ -137,7 +137,7 @@ Shader "SpriteStudio/Default"
 
                 // TODO(MaterialKey): effect additive is currently passed through via the a=0 trick.
                 //   Once the C# side assigns an Add-blend material to effect Add submeshes, remove
-                //   this special case and rely solely on the blend state (project_blend_mapping_truth).
+                //   this special case and rely solely on the blend state.
                 if (isNormalized > 0.5 && abs(blendIdx - 2.0) < 0.5)
                 {
                     col.a = 0.0;

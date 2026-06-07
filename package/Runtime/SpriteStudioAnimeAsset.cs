@@ -208,7 +208,7 @@ namespace SpriteStudio.Runtime
         /// <summary>
         /// Resolve the material for a (textureHash, blendType) pair. Mix (0) returns the base
         /// material directly (it is authored as Mix + PMA); other blend types return a cached clone
-        /// with the blend state applied (see SpriteStudioMaterial / project_blend_mapping_truth).
+        /// with the blend state applied (see SpriteStudioMaterial).
         /// TextureHash 0 (cell-less, e.g. Shape) resolves to a white-textured base. Returns null
         /// only when even that cannot be created.
         /// </summary>

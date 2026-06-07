@@ -39,7 +39,7 @@ namespace SpriteStudio.Runtime
 
     /// <summary>
     /// Maps each ssab BlendType (0..7) to a GPU blend state plus the PMA / discard policy the
-    /// SpriteStudio shader needs (project_blend_mapping_truth).
+    /// SpriteStudio shader needs.
     ///
     /// Factors are the SDK OpenGL canonical table, keyed by the ssab enum value. The target we
     /// match is the SS authoring tool / SDK output, which uses STRAIGHT (non-premultiplied) alpha,
