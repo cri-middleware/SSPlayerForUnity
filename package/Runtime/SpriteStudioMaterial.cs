@@ -111,10 +111,14 @@ namespace SpriteStudio.Runtime
         public static readonly int IdMaskThreshold = Shader.PropertyToID("_MaskThreshold");
         static readonly int IdMainTex = Shader.PropertyToID("_MainTex");
 
-        // Mask stencil bit isolation: the coverage counter lives in the low 5 bits (0x1F => nesting
-        // depth up to 31). The low bits are required because IncrementWrap's carry lands in bit 0;
-        // Forward rendering (BRP + URP Forward) leaves them free. Adjust if the pipeline reserves them.
-        public const byte MaskStencilMask = 0x1F;
+        // Mask stencil bit isolation: the coverage counter lives in the low 4 bits (0x0F => nesting
+        // depth up to 15). These are URP's user-reserved bits (URP StencilUsage: bits 0-3 = UserMask;
+        // bit 4 = light stencil, bits 5-6 = material type, bit 7 reserved), so confining the SS mask to
+        // 0x0F coexists with every URP feature (Decals / Rendering Layers / SSAO / camera stacking /
+        // deferred). ReadMask/WriteMask isolate these bits; an IncrementWrap carry into bit 4 is dropped
+        // by the write mask, protecting URP's light bit. Built-in shares the same layout. Caution: do
+        // not widen past 0x0F or the mask will corrupt (and be corrupted by) URP's reserved bits.
+        public const byte MaskStencilMask = 0x0F;
 
         /// <summary>
         /// Clone the base material and apply the blend state for the given ssab BlendType. The clone
