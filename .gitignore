@@ -1579,3 +1579,9 @@ package/Tests/Runtime/Resources/TestConvertOut/
 package/Runtime/Bindings/*.g.cs.meta
 package/Editor/Bindings/*.g.cs.meta
 
+
+# Test Results
+*test-results.xml
+*test-run.log
+tmp.xml
+tmp.log

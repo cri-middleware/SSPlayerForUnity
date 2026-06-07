@@ -63,7 +63,7 @@ Shader "SpriteStudio/Default"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "UnityCG.cginc"
             #include "Includes/SpriteStudioCore.hlsl"
 
             struct appdata_t
@@ -82,11 +82,11 @@ Shader "SpriteStudio/Default"
                 float4 texcoord1: TEXCOORD1;
             };
 
-            TEXTURE2D(_MainTex);
-            SAMPLER(sampler_MainTex);
+            sampler2D _MainTex;
 
             // SRP Batcher: every per-material property lives in UnityPerMaterial (textures excluded).
-            CBUFFER_START(UnityPerMaterial)
+            cbuffer UnityPerMaterial
+            {
                 float4 _MainTex_ST;
                 float4 _MainTex_TexelSize;
                 float _InputPMA;
@@ -100,12 +100,12 @@ Shader "SpriteStudio/Default"
                 float _StencilPass;
                 float _StencilReadMask;
                 float _StencilWriteMask;
-            CBUFFER_END
+            };
 
             v2f vert(appdata_t IN)
             {
                 v2f OUT;
-                OUT.vertex = TransformObjectToHClip(IN.vertex.xyz);
+                OUT.vertex = UnityObjectToClipPos(IN.vertex);
                 // Normal parts carry pixel coordinates; effect parts carry normalized coordinates
                 // (texcoord1.z = 1).
                 float isNormalized = IN.texcoord1.z;
@@ -120,7 +120,7 @@ Shader "SpriteStudio/Default"
 
             half4 frag(v2f IN) : SV_Target
             {
-                float4 tex = ss_input_mediate(SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, IN.texcoord), _InputPMA);
+                float4 tex = ss_input_mediate(tex2D(_MainTex, IN.texcoord), _InputPMA);
 
                 float rate         = IN.texcoord1.x;
                 float blendIdx     = IN.texcoord1.y;

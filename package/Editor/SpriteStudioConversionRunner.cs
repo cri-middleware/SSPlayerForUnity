@@ -40,6 +40,9 @@ namespace SpriteStudio.Editor
         private static int _completed;
         private static bool _canceled;
 
+        /// <summary>True if a conversion is currently running or pending.</summary>
+        public static bool IsProcessing => _polling || _pending.Count > 0 || _active.Count > 0;
+
         private static int Concurrency => Mathf.Clamp(SystemInfo.processorCount - 1, 1, 8);
 
         /// <summary>変換ジョブを 1 件キューに積む。スロットが空いていれば即実行を開始する。</summary>

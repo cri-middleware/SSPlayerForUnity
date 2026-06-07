@@ -40,4 +40,4 @@ A Unity Engine integration for SpriteStudio 7, designed for extreme performance.
 |---|---|
 | Build Runtime/Bindings | `./scripts/build-runtime.sh` (POSIX) / `.\scripts\build-runtime.ps1` (Win) |
 | Setup FlatBuffers | `./scripts/download-flatbuffers.sh` |
-| Run Unit Tests | Ask the user to run tests via **Unity Test Runner**, or run headless: `Unity -batchmode -runTests -projectPath . -testResults results.xml` |
+| Run Unit Tests | **If Unity Editor is open:** Ask the user to run tests via **Unity Test Runner**. **If headless:** Run `./scripts/run-tests.sh` (POSIX) / `.\scripts\run-tests.ps1` (Win). Do NOT attempt to run headless scripts while the Editor is open to avoid project lock errors. |
