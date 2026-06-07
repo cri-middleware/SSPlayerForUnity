@@ -156,5 +156,36 @@ namespace SpriteStudio.Runtime.Tests
 
             LogAssert.NoUnexpectedReceived();
         }
+        [UnityTest]
+        public IEnumerator PlayRingo_VariousAnimations_DoesNotCrash()
+        {
+            var animeAsset = Resources.Load<SpriteStudioAnimeAsset>(RingoAssetPath);
+            bool createdAsset = false;
+
+            if (animeAsset == null || animeAsset.SsabData == null || animeAsset.SsabData.Length == 0)
+            {
+                string absoluteSsabPath = Path.GetFullPath(RingoSsabPath);
+                Assert.IsTrue(File.Exists(absoluteSsabPath), "Ringo.ssab must exist for this test.");
+                byte[] ssabBytes = File.ReadAllBytes(absoluteSsabPath);
+                animeAsset = ScriptableObject.CreateInstance<SpriteStudioAnimeAsset>();
+                animeAsset.SsabData = ssabBytes;
+                createdAsset = true;
+            }
+
+            var go = new GameObject("RingoTest");
+            var player = go.AddComponent<SpriteStudioPlayer>();
+            player.AnimeAsset = animeAsset;
+
+            string[] animations = { "walk", "run", "dance", "attack1" };
+            foreach (var anim in animations)
+            {
+                Assert.DoesNotThrow(() => player.Play(anim), $"Playing {anim} failed");
+                yield return null;
+                yield return null; // wait for job complete
+            }
+
+            Object.DestroyImmediate(go);
+            if (createdAsset) Object.DestroyImmediate(animeAsset);
+        }
     }
 }

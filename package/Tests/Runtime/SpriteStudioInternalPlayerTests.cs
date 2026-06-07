@@ -49,5 +49,17 @@ namespace SpriteStudio.Runtime.Tests
             player.Dispose();
             LogAssert.NoUnexpectedReceived();
         }
+
+        [Test]
+        public void Setters_WithoutAnimation_DoesNotThrow()
+        {
+            using (var player = new SpriteStudioInternalPlayer())
+            {
+                Assert.DoesNotThrow(() => player.SetSpeed(1.5f));
+                Assert.DoesNotThrow(() => player.SetLoop(2));
+                Assert.DoesNotThrow(() => player.SetSkipFrames(false));
+                Assert.DoesNotThrow(() => player.SubFrameEnabled = true);
+            }
+        }
     }
 }

@@ -48,6 +48,27 @@ namespace SpriteStudio.Runtime.Tests
             Assert.AreEqual(1f, graphic.SpeedScale);
             Assert.AreEqual(-1, graphic.LoopCount);
             Assert.IsTrue(graphic.AutoPlay);
+            Assert.IsTrue(graphic.SkipFrames);
+            Assert.IsFalse(graphic.SubFrameEnabled);
+        }
+
+        [Test]
+        public void SettingProperties_ReflectsValues()
+        {
+            var graphic = _go.AddComponent<SpriteStudioGraphic>();
+            graphic.AnimationName = "TestAnimUI";
+            graphic.AutoPlay = false;
+            graphic.LoopCount = 5;
+            graphic.SpeedScale = 2.0f;
+            graphic.SubFrameEnabled = true;
+            graphic.SkipFrames = false;
+
+            Assert.AreEqual("TestAnimUI", graphic.AnimationName);
+            Assert.AreEqual(false, graphic.AutoPlay);
+            Assert.AreEqual(5, graphic.LoopCount);
+            Assert.AreEqual(2.0f, graphic.SpeedScale);
+            Assert.AreEqual(true, graphic.SubFrameEnabled);
+            Assert.AreEqual(false, graphic.SkipFrames);
         }
     }
 }
