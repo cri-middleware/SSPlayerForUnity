@@ -541,10 +541,15 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 if (step.visible)
                 {
+                    // 独立インスタンスは Rust 側 controller が唯一のフレーム真実で、SetFrame(=set_frame_no) は
+                    // その controller を直接書き換える。次フレームの child_ctx.update() は書き戻された現在フレーム
+                    // から delta 進めるため、ここで Floor/Clamp 済みの値を書き戻すと 1tick<1frame で進む独立子の
+                    // 小数進行が毎フレーム切り捨てられ、整数フレームを跨げず凍結する。よって controller には生の
+                    // child_frame_no を書き戻す (非独立は set_frame_relative で parent_frame から再計算するため無関係)。
+                    // 表示用のフレーム範囲クランプは子自身の PrepareFrameData が get_frame_data 前に行うので不要。
                     float childDrawFrame = childPlayer.SubFrameEnabled ? step.child_frame_no : UnityEngine.Mathf.Floor(step.child_frame_no);
-                    childDrawFrame = UnityEngine.Mathf.Clamp(childDrawFrame, childPlayer.GetAnimationSectionStart(), childPlayer.GetAnimationSectionEnd());
                     _player._instanceChildren[i].PreviousFrame = childDrawFrame;
-                    childPlayer.SetFrame(childDrawFrame);
+                    childPlayer.SetFrame(step.child_frame_no);
                     childPlayer.ScheduleMeshUpdate(deltaTime);
 
                     _childHandles[childHandleCount++] = childPlayer.CurrentUpdateJobHandle;
