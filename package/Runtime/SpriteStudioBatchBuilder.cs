@@ -90,10 +90,25 @@ namespace SpriteStudio.Runtime
             };
         }
 
+        // The draw-batch buffer is pre-sized by BeginFrame(maxBatches), but maxBatches is only a
+        // hand-computed estimate (drawBatches + effect command counts + per-instance submeshes +
+        // mask write/restore steps). Self-grow here so an under-estimate can never overrun the
+        // unchecked GetUnsafeBufferPointerWithoutChecks writes below. Mirrors EmitSubmesh; growth
+        // preserves the batches already emitted this frame.
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        private void EnsureDrawBatchCapacity()
+        {
+            if (_drawBatches.IsCreated && _drawBatchCount < _drawBatches.Length) return;
+            int newSize = !_drawBatches.IsCreated ? 8 : _drawBatches.Length * 2;
+            if (newSize < _drawBatchCount + 1) newSize = _drawBatchCount + 1;
+            SpriteStudioNativeBuffers.EnsureCapacityPreserve(ref _drawBatches, newSize);
+        }
+
         public unsafe void EmitMaskStep(byte kind, int rank, int vc, int ic, uint texHash, byte blend,
             StencilRole role, byte stencilOp, byte stencilComp, float threshold,
             ref int totalVertices, ref int totalIndices)
         {
+            EnsureDrawBatchCapacity();
             ((DrawBatchData*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
             {
                 StartRank = (ushort)rank,
@@ -112,6 +127,7 @@ namespace SpriteStudio.Runtime
 
         public unsafe void EmitInstanceBatch(int partIndex, int vertexCount, int indexCount)
         {
+            EnsureDrawBatchCapacity();
             ((DrawBatchData*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
             {
                 Kind = SsDrawBatchKind.Instance,
@@ -123,6 +139,7 @@ namespace SpriteStudio.Runtime
 
         public unsafe void EmitEffectBatch(int cmdVc, int cmdIc, byte blend, uint quadBase, uint particleOffset, uint quadCount, int partIndex)
         {
+            EnsureDrawBatchCapacity();
             ((DrawBatchData*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
             {
                 StartRank = 0,
@@ -139,6 +156,7 @@ namespace SpriteStudio.Runtime
 
         public unsafe void EmitDrawBatch(ushort startRank, ushort count, int vc, int ic, byte kind, uint textureHash, byte blendType, ref int totalVertices, ref int totalIndices)
         {
+            EnsureDrawBatchCapacity();
             ((DrawBatchData*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
             {
                 StartRank = startRank,
