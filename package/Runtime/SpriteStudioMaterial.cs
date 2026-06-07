@@ -112,9 +112,8 @@ namespace SpriteStudio.Runtime
         static readonly int IdMainTex = Shader.PropertyToID("_MainTex");
 
         // Mask stencil bit isolation: the coverage counter lives in the low 5 bits (0x1F => nesting
-        // depth up to 31, covering the requested 16). The low bits are required because IncrementWrap's
-        // carry lands in bit 0; Forward rendering (BRP + URP Forward, no deferred/decals) leaves them
-        // free. See project_unity_mask_port_plan. Adjust here if the target pipeline reserves them.
+        // depth up to 31). The low bits are required because IncrementWrap's carry lands in bit 0;
+        // Forward rendering (BRP + URP Forward) leaves them free. Adjust if the pipeline reserves them.
         public const byte MaskStencilMask = 0x1F;
 
         /// <summary>

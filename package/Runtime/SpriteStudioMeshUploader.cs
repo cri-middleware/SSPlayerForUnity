@@ -65,15 +65,12 @@ namespace SpriteStudio.Runtime
         private int _uploadedIndexCount;
         private bool _uploadedPerBatchSubmesh;
 
-        // --- Canvas (uGUI) high-level upload scratch (see ApplyCanvas) ---
-        // CanvasRenderer cannot consume a low-level SetVertexBufferData mesh on Windows/D3D12 (invalid
-        // GPU draw -> device removed), so the Canvas path de-interleaves the packed SsVertex stream into
-        // per-channel arrays and uploads via SetVertices/SetColors/SetUVs. Reused (grow-only) = zero alloc.
+        // Canvas (uGUI) high-level upload scratch (see ApplyCanvas). De-interleaved channels + 16-bit
+        // indices, reused grow-only.
         private NativeArray<Vector3> _canvasPositions;
         private NativeArray<Color32> _canvasColors;
         private NativeArray<Vector2> _canvasUv0;
         private NativeArray<Vector4> _canvasUv1;
-        // 16-bit index copy for CanvasRenderer (which rejects 32-bit index meshes).
         private NativeArray<ushort> _meshIndices16;
         private bool _warned16BitOverflow;
 
@@ -93,8 +90,7 @@ namespace SpriteStudio.Runtime
                 return;
             }
 
-            // Canvas/uGUI: CanvasRenderer rejects the low-level SetVertexBufferData mesh on Windows/D3D12,
-            // so upload via the high-level Mesh API (16-bit indices). Bypasses the low-level topo cache.
+            // Canvas path: high-level 16-bit upload (CanvasRenderer rejects the low-level mesh on D3D12).
             if (use16BitIndices)
             {
                 ApplyCanvas(targetMesh, data);
@@ -176,13 +172,10 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// Canvas (uGUI) upload. CanvasRenderer does not reliably consume a mesh built with the low-level
-        /// SetVertexBufferData path on Windows/D3D12 — it issues an invalid GPU draw that removes the device.
-        /// The high-level Mesh API produces the same layout uGUI's VertexHelper.FillMesh uses, which
-        /// CanvasRenderer accepts. The packed SsVertex stream is de-interleaved into reused scratch channels
-        /// (zero managed alloc) and indices are narrowed to 16-bit (CanvasRenderer rejects 32-bit index
-        /// meshes). A full rebuild runs each call — UI geometry animates per frame anyway — so the low-level
-        /// topology cache is bypassed and invalidated.
+        /// Canvas (uGUI) upload via the high-level Mesh API. Caution: CanvasRenderer rejects a low-level
+        /// SetVertexBufferData mesh on Windows/D3D12 (invalid GPU draw -> device removed). De-interleaves
+        /// the packed SsVertex stream into per-channel scratch and narrows indices to 16-bit. Full rebuild
+        /// each call (UI animates per frame); the low-level topology cache is bypassed.
         /// </summary>
         private unsafe void ApplyCanvas(Mesh targetMesh, in UploadData data)
         {

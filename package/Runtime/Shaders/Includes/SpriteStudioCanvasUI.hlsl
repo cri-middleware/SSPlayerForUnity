@@ -1,11 +1,6 @@
-// Canvas (uGUI) scaffolding for SpriteStudio shaders. This factors the reusable vertex stage,
-// texture sampling, and the SpriteStudio colour finalize (discard + PMA + the effect a=0 trick)
-// out of the shader source so a custom Canvas shader reduces to: the fixed ShaderLab stencil block
-// (the only part ShaderLab cannot #include) + this include + a short fragment.
-//
-// Pixel mediation lives in SpriteStudioCore.hlsl (the single source of truth). #include is a
-// compile-time text inline with ZERO runtime cost — the compiled program is identical to inline
-// code and dead helpers are stripped, so sharing this carries no GPU penalty.
+// Canvas (uGUI) scaffolding for SpriteStudio shaders: the reusable vertex stage, texture sampling,
+// and colour finalize, so a custom Canvas shader reduces to the fixed ShaderLab stencil block +
+// this include + a short fragment. Pixel mediation lives in SpriteStudioCore.hlsl.
 //
 // Contract for a Canvas-compatible custom shader (so a parent uGUI Mask can clip it read-only via
 // StencilMaterial.Add / MaskableGraphic): declare these properties + render state in ShaderLab —

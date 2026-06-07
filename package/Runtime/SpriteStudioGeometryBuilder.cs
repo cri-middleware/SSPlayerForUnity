@@ -379,8 +379,6 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 // reflects all of them before any body part is drawn. Each pure mask's coverage is
                 // removed again at its own rank in the main loop (Phase B), yielding the "mask affects
                 // lower-priority parts" scope (mirrors SS6PU's pre-draw + slot decrement).
-                // Suppressed (Canvas/uGUI) players skip the pre-write entirely: pure masks draw nothing
-                // and everything else draws unmasked (handled per-part in ProcessNormalShapeMeshBatch).
                 if (_player.MaskActive)
                 {
                     _maskPlanner.BuildPartLookup(frameData, _drawOrder, drawBatchesLength, drawOrderLength, partsLength);
@@ -494,12 +492,8 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         /// 実際のアップロード (頂点/index/submesh/bounds と再送スキップのキャッシュ) は
         /// <see cref="SpriteStudioMeshUploader"/> へ委譲する。
         /// </summary>
-        /// <param name="use16BitIndices">
-        /// Canvas/uGUI path: upload via the high-level Mesh API with 16-bit indices. CanvasRenderer
-        /// rejects the low-level SetVertexBufferData mesh on Windows/D3D12 (it issues an invalid GPU
-        /// draw that removes the device). The world (MeshRenderer) path leaves this false for the fast
-        /// low-level upload. See SpriteStudioMeshUploader and project_canvas_single_material_resume.
-        /// </param>
+        /// <param name="use16BitIndices">Canvas path: route to the high-level 16-bit upload
+        /// (CanvasRenderer rejects the low-level mesh on Windows/D3D12 -> device removed). World path = false.</param>
         public void ApplyToMesh(UnityEngine.Mesh targetMesh, bool perBatchSubmesh = false, bool use16BitIndices = false)
         {
             // Mesh に適用する前に Job の完了を待機 (Job はビルダーが所有)。
@@ -721,9 +715,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     var md = _player._maskPartData[p_idx];
                     if (!_player.MaskActive)
                     {
-                        // Canvas/uGUI suppression: a pure mask contributes no colour (drop it); every
-                        // other part draws as plain colour (Role None, merged downstream by EmitSubmesh).
-                        // The stencil buffer is left to uGUI's own Mask/RectMask2D. See project_unity_canvas_plan.
+                        // Canvas suppression: drop pure masks (no colour), draw everything else unmasked.
                         if (md.PureMask) continue;
                         _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
                             StencilRole.None, 0, 0, 0f, ref totalVertices, ref totalIndices);

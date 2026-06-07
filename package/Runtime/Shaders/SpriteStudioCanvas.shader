@@ -1,27 +1,15 @@
 Shader "SpriteStudio/Canvas"
 {
-    // Canvas (uGUI) variant of SpriteStudio/Default, and the canonical template for custom
-    // SpriteStudio Canvas shaders. The SpriteStudio colour core (part-color composition, PMA,
-    // discard) and the property-driven blend state are identical to the world shader, so per-blend
-    // multi-material resolution works the same way. The difference is the stencil scaffolding:
-    // instead of the world path's SpriteStudio *internal* mask (which contends with uGUI's own
-    // Mask/RectMask2D), this shader carries the uGUI-standard stencil properties so a parent uGUI
-    // Mask can drive a READ-ONLY stencil test via StencilMaterial.Add (MaskableGraphic). SpriteStudio
-    // internal masks are intentionally dropped on the Canvas path (project_unity_canvas_plan); use
-    // the world (MeshRenderer) player for full internal masking. RectMask2D needs no shader support —
-    // MaskableGraphic clips it through CanvasRenderer.EnableRectClipping (hardware rect clipping).
-    //
-    // To author a custom Canvas shader: copy this shell, keep the Properties + Stencil/ColorMask/ZTest
-    // render state verbatim (the uGUI clip contract; ShaderLab cannot #include render state), then edit
-    // only the fragment between ss_canvas_sample and ss_canvas_finalize (see SpriteStudioCanvasUI.hlsl).
+    // Canvas (uGUI) variant of SpriteStudio/Default and the template for custom Canvas shaders.
+    // To author one: copy this shell, keep the Properties + Stencil/ColorMask/ZTest render state
+    // verbatim (the uGUI clip contract; ShaderLab cannot #include render state), then edit only the
+    // fragment between ss_canvas_sample and ss_canvas_finalize (see SpriteStudioCanvasUI.hlsl).
     Properties
     {
         _MainTex ("Sprite Texture", 2D) = "white" {}
 
-        // Single-material Canvas: ONE fixed PMA blend (One, OneMinusSrcAlpha) hardcoded in the SubShader.
-        // MIX and ADD are distinguished per-vertex (TEXCOORD1.w = isAdditive) via the a=0 trick; every
-        // other ssab blend collapses to MIX (the deliberate uGUI simplification). The PMA/discard policy
-        // is fixed by the C# Canvas material resolution: straight input, premultiplied output, discard on.
+        // Single fixed PMA blend (One, OneMinusSrcAlpha); MIX vs ADD chosen per-vertex via the a=0
+        // trick (TEXCOORD1.w), all other ssab blends collapse to MIX.
         _InputPMA   ("Input PMA",   Float) = 0
         _OutputPMA  ("Output PMA",  Float) = 1
         _NotDiscard ("Not Discard", Float) = 0

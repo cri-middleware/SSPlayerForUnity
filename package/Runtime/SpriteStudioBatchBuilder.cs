@@ -116,9 +116,8 @@ namespace SpriteStudio.Runtime
                 VertexCount = vc,
                 IndexCount = ic,
                 Kind = kind,
-                // Carry the draw BlendType so the mesh job can pack the per-vertex isAdditive flag
-                // (TexCoord1.w) for the Canvas single-material a=0 trick. Without this, ADD parts on
-                // the Canvas path render as MIX.
+                // Caution: the mesh job reads BlendType to set the per-vertex isAdditive flag; omit it
+                // and ADD parts render as MIX on the Canvas path.
                 BlendType = blend
             };
 
@@ -168,9 +167,8 @@ namespace SpriteStudio.Runtime
                 VertexCount = vc,
                 IndexCount = ic,
                 Kind = kind,
-                // Carry the draw BlendType so the mesh job can pack the per-vertex isAdditive flag
-                // (TexCoord1.w) for the Canvas single-material a=0 trick. Without this, ADD parts on
-                // the Canvas path render as MIX.
+                // Caution: the mesh job reads BlendType to set the per-vertex isAdditive flag; omit it
+                // and ADD parts render as MIX on the Canvas path.
                 BlendType = blendType
             };
             EmitSubmesh(totalIndices, ic, textureHash, blendType);

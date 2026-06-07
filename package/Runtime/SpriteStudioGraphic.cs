@@ -133,10 +133,8 @@ namespace SpriteStudio.Runtime
             }
 
             _core.EnsureCreated(_animeAsset, _subFrameEnabled);
-            // Canvas path: drop SpriteStudio internal masking and leave the stencil buffer to uGUI's
-            // own Mask/RectMask2D (project_unity_canvas_plan). Pure-mask parts then draw nothing and
-            // the rest draw unmasked; a parent uGUI Mask clips this graphic read-only via the per-
-            // submesh stencil wrap below.
+            // Canvas path: drop SpriteStudio internal masking; a parent uGUI Mask/RectMask2D clips this
+            // graphic read-only via the per-submesh stencil wrap below.
             if (_core.Internal != null) _core.Internal.SuppressInternalMask = true;
             _canvasMaterialDirty = true;
             SpriteStudioUpdateManager.Register(this);
@@ -253,12 +251,9 @@ namespace SpriteStudio.Runtime
 
             var submeshes = _core.Internal.Submeshes;
 
-            // Multi-texture (multi-atlas) is intentionally NOT supported on the Canvas path for now. A single
-            // CanvasRenderer draws one mesh with one material, and multi-material on one CanvasRenderer was
-            // rejected by design (draw-order / batching). Interim guard: draw the whole graphic with the FIRST
-            // atlas only and warn once; parts belonging to other atlases sample the wrong texture but never
-            // crash. Real multi-atlas support (child-CanvasRenderer split, or import-time atlas merge) is
-            // deferred. See memory project_canvas_single_material_resume.
+            // Multi-atlas is not supported on the Canvas path: one CanvasRenderer = one mesh + one
+            // material. Interim guard: draw with the first atlas only and warn once (other atlases
+            // sample the wrong texture but never crash).
             if (!_warnedMultiTexture && _animeAsset.Textures != null && _animeAsset.Textures.Count > 1)
             {
                 Debug.LogWarning($"[SpriteStudioGraphic] '{_animeAsset.name}' uses {_animeAsset.Textures.Count} atlases. " +

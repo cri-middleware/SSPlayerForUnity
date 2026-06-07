@@ -82,15 +82,11 @@ internal struct MaskPartData
         // whole mask path is skipped, like _build_mask_writers returning empty.
         internal bool _hasMaskParts;
 
-        // When true, SpriteStudio internal masking is suppressed (the Canvas/uGUI path): pure-mask
-        // parts draw nothing and every other part draws unmasked, leaving the stencil buffer to
-        // uGUI's own Mask/RectMask2D. The world (MeshRenderer) player leaves this false to keep full
-        // internal masking. See project_unity_canvas_plan.
+        // When true (the Canvas/uGUI path), SpriteStudio internal masking is suppressed and the stencil
+        // buffer is left to uGUI's own Mask/RectMask2D. The world (MeshRenderer) path leaves it false.
         internal bool _suppressInternalMask;
 
-        // Internal masking is active only when the asset has mask writers AND this player is not
-        // suppressing them. Canvas/uGUI suppresses (project_unity_canvas_plan); the world path keeps it.
-        // Single source of truth so the geometry builder's per-batch gates cannot drift apart.
+        // True when the asset has mask writers and this player is not suppressing them (Canvas suppresses).
         internal bool MaskActive => _hasMaskParts && !_suppressInternalMask;
 
         /// <summary>
