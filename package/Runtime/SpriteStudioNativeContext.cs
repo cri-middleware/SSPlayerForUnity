@@ -88,25 +88,33 @@ namespace SpriteStudio.Runtime
             _isDisposed = true;
             GC.SuppressFinalize(this);
 
-            unsafe
+            try
             {
-                // LoadSsab と同じ不変条件: pin した buffer を borrow している resource / runtime を
-                // 先に破棄し、最後に pin を Free する (借用中に pin を解放して dangling にしない)。
-                // in-flight Job の完了待ちは呼び出し側 (InternalPlayer.Dispose) で実施済み前提。
-                if (_resourceHandle != null)
+                unsafe
                 {
-                    NativeMethods.ss_resource_destroy(_resourceHandle);
-                    _resourceHandle = null;
-                }
-                if (_handle.IsValid)
-                {
-                    NativeMethods.ss_runtime_destroy(_handle.ptr);
-                    _handle.ptr = null;
+                    // LoadSsab と同じ不変条件: pin した buffer を borrow している resource / runtime を
+                    // 先に破棄し、最後に pin を Free する (借用中に pin を解放して dangling にしない)。
+                    // in-flight Job の完了待ちは呼び出し側 (InternalPlayer.Dispose) で実施済み前提。
+                    if (_resourceHandle != null)
+                    {
+                        NativeMethods.ss_resource_destroy(_resourceHandle);
+                        _resourceHandle = null;
+                    }
+                    if (_handle.IsValid)
+                    {
+                        NativeMethods.ss_runtime_destroy(_handle.ptr);
+                        _handle.ptr = null;
+                    }
                 }
             }
-            if (_ssabPin.IsAllocated)
+            finally
             {
-                _ssabPin.Free();
+                // pin は managed GCHandle。借用元 (resource/runtime) を破棄した後に、かつ上で例外が出ても
+                // 必ず Free する。漏らすと borrow 対象の managed byte[] を永久に固定し続け確実なリークになる。
+                if (_ssabPin.IsAllocated)
+                {
+                    _ssabPin.Free();
+                }
             }
         }
     }

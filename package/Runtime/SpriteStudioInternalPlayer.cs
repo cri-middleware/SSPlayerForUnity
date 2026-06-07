@@ -148,7 +148,7 @@ internal struct MaskPartData
                     }
                     _effectSlots = null;
                 }
-                
+
                 if (_instanceChildren != null)
                 {
                     for (int i = 0; i < _instanceChildren.Length; i++)
@@ -157,10 +157,9 @@ internal struct MaskPartData
                         {
                             NativeMethods.ss_instance_slot_destroy((void*)_instanceChildren[i].InstanceSlot);
                         }
-                        if (_instanceChildren[i].Player != null)
-                        {
-                            _instanceChildren[i].Player.Dispose();
-                        }
+                        // 子の Dispose は再帰 managed で例外を投げ得るため隔離し、兄弟の解放を止めない。
+                        try { _instanceChildren[i].Player?.Dispose(); }
+                        catch (Exception e) { Debug.LogException(e); }
                     }
                     _instanceChildren = null;
                 }
@@ -370,12 +369,13 @@ internal struct MaskPartData
 
             // 【最重要】ネイティブポインタを解放したりNativeArrayを破棄する直前に、
             // 必ず実行中の Burst Job を同期（完了待機）してセグフォールトを防ぐ。
-            _geometryBuilder?.CurrentUpdateJobHandle.Complete();
+            try { _geometryBuilder?.CurrentUpdateJobHandle.Complete(); }
+            catch (Exception e) { Debug.LogException(e); }
 
-            if (_nativeContext != null)
-            {
-                _nativeContext.Dispose();
-            }
+            // 以降の解放グループは互いに独立。1 つが例外を投げても残りを必ず解放できるよう各々隔離する
+            // (ネイティブハンドルにはファイナライザ側の回収手段が無いため、ここで漏らすと永久リーク)。
+            try { _nativeContext?.Dispose(); }
+            catch (Exception e) { Debug.LogException(e); }
             
             unsafe
             {
@@ -390,7 +390,7 @@ internal struct MaskPartData
                     }
                     _effectSlots = null;
                 }
-                
+
                 if (_instanceChildren != null)
                 {
                     for (int i = 0; i < _instanceChildren.Length; i++)
@@ -399,16 +399,16 @@ internal struct MaskPartData
                         {
                             NativeMethods.ss_instance_slot_destroy((void*)_instanceChildren[i].InstanceSlot);
                         }
-                        if (_instanceChildren[i].Player != null)
-                        {
-                            _instanceChildren[i].Player.Dispose();
-                        }
+                        // 子の Dispose は再帰 managed で例外を投げ得るため隔離し、兄弟の解放を止めない。
+                        try { _instanceChildren[i].Player?.Dispose(); }
+                        catch (Exception e) { Debug.LogException(e); }
                     }
                     _instanceChildren = null;
                 }
             }
-            
-            _geometryBuilder?.Dispose();
+
+            try { _geometryBuilder?.Dispose(); }
+            catch (Exception e) { Debug.LogException(e); }
         }
 
         // エフェクト draw_plan (FlatBuffers, ネイティブ) を frame-data と同じ流儀で読み、
