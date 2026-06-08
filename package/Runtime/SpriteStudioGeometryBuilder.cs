@@ -796,7 +796,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
             if (vc > 0 && ic > 0)
             {
-                _batchBuilder.EmitDrawBatch((ushort)b.StartRank, (ushort)b.Count, vc, ic, (byte)b.Kind, b.TextureHash, (byte)b.BlendType, ref totalVertices, ref totalIndices);
+                _batchBuilder.EmitDrawBatch((ushort)b.StartRank, (ushort)b.Count, vc, ic, (byte)b.Kind, b.TextureHash, (byte)b.BlendType, 0u, ref totalVertices, ref totalIndices);
             }
         }
 

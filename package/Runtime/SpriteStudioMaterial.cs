@@ -16,25 +16,32 @@ namespace SpriteStudio.Runtime
         // Stencil compare for the mask-test variant (UnityEngine.Rendering.CompareFunction). 0 =
         // Disabled = a plain colour material with no stencil test (the default / non-masked case).
         public readonly byte StencilComp;
+        // Per-part AddOn shader id hash (FrameData PartAttributeShader.IdHash). 0 = the shared default
+        // shader (SpriteStudio/Default). Non-zero selects an AddOn shader variant from the catalog.
+        public readonly uint ShaderHash;
 
         public SpriteStudioMaterialKey(uint textureHash, byte blendType)
-            : this(textureHash, blendType, 0) { }
+            : this(textureHash, blendType, 0, 0) { }
 
         public SpriteStudioMaterialKey(uint textureHash, byte blendType, byte stencilComp)
+            : this(textureHash, blendType, stencilComp, 0) { }
+
+        public SpriteStudioMaterialKey(uint textureHash, byte blendType, byte stencilComp, uint shaderHash)
         {
             TextureHash = textureHash;
             BlendType = blendType;
             StencilComp = stencilComp;
+            ShaderHash = shaderHash;
         }
 
         public bool Equals(SpriteStudioMaterialKey other)
-            => TextureHash == other.TextureHash && BlendType == other.BlendType && StencilComp == other.StencilComp;
+            => TextureHash == other.TextureHash && BlendType == other.BlendType && StencilComp == other.StencilComp && ShaderHash == other.ShaderHash;
 
         public override bool Equals(object obj)
             => obj is SpriteStudioMaterialKey k && Equals(k);
 
         public override int GetHashCode()
-            => unchecked((((int)TextureHash * 397) ^ BlendType) * 397 ^ StencilComp);
+            => unchecked(((((int)TextureHash * 397) ^ BlendType) * 397 ^ StencilComp) * 397 ^ (int)ShaderHash);
     }
 
     /// <summary>
@@ -135,6 +142,20 @@ namespace SpriteStudio.Runtime
             m.SetFloat(IdInputPMA, state.InputPMA);
             m.SetFloat(IdOutputPMA, state.OutputPMA);
             m.SetFloat(IdNotDiscard, state.NotDiscard);
+            return m;
+        }
+
+        /// <summary>
+        /// Build a per-part AddOn colour variant: clone the texture base (carries _MainTex + the import
+        /// props), apply the per-blend state, then swap to the AddOn shader. Matching property names
+        /// (_MainTex, blend / stencil props) carry over by name across the shader swap; the AddOn's own
+        /// params (_SsParam0..) keep their defaults until the per-part dispatch sets them per frame.
+        /// The clone is HideAndDontSave (runtime-only); the owner destroys it on disable.
+        /// </summary>
+        public static Material CreateAddOnVariant(Material textureBase, Shader addonShader, byte blendType)
+        {
+            var m = CreateVariant(textureBase, blendType);
+            if (addonShader != null) m.shader = addonShader;
             return m;
         }
 

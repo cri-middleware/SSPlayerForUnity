@@ -18,6 +18,10 @@ namespace SpriteStudio.Runtime
         public int IndexStart;
         public int IndexCount;
         public uint TextureHash;
+        // Per-part AddOn shader id hash (FrameData PartAttributeShader.IdHash). 0 = the shared default
+        // path (SpriteStudio/Default). Non-zero = an individual per-part draw whose material uses the
+        // AddOn shader resolved from the SpriteStudioShaderCatalog.
+        public uint ShaderHash;
         public byte BlendType;
         // Stencil state (only meaningful when Role != None). Op/Comp hold the corresponding
         // UnityEngine.Rendering.StencilOp / CompareFunction values; the masks/ref are the
@@ -55,13 +59,15 @@ namespace SpriteStudio.Runtime
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         public unsafe void EmitSubmesh(int indexStart, int indexCount, uint textureHash, byte blendType,
             StencilRole role = StencilRole.None, byte stencilOp = 0, byte stencilComp = 0, byte stencilRef = 0,
-            byte stencilReadMask = 0, byte stencilWriteMask = 0, float maskThreshold = 0f)
+            byte stencilReadMask = 0, byte stencilWriteMask = 0, float maskThreshold = 0f, uint shaderHash = 0)
         {
             if (role == StencilRole.None && _submeshCount > 0)
             {
                 var pSub = (SubmeshInfo*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_submeshes);
                 ref var last = ref pSub[_submeshCount - 1];
-                if (last.Role == StencilRole.None && last.TextureHash == textureHash && last.BlendType == blendType)
+                // Only merge runs that share the same texture, blend AND AddOn shader (a per-part AddOn
+                // part must stay its own submesh so it can carry its own material/params).
+                if (last.Role == StencilRole.None && last.TextureHash == textureHash && last.BlendType == blendType && last.ShaderHash == shaderHash)
                 {
                     last.IndexCount += indexCount;
                     return;
@@ -79,6 +85,7 @@ namespace SpriteStudio.Runtime
                 IndexStart = indexStart,
                 IndexCount = indexCount,
                 TextureHash = textureHash,
+                ShaderHash = shaderHash,
                 BlendType = blendType,
                 Role = role,
                 StencilOp = stencilOp,
@@ -157,7 +164,7 @@ namespace SpriteStudio.Runtime
             };
         }
 
-        public unsafe void EmitDrawBatch(ushort startRank, ushort count, int vc, int ic, byte kind, uint textureHash, byte blendType, ref int totalVertices, ref int totalIndices)
+        public unsafe void EmitDrawBatch(ushort startRank, ushort count, int vc, int ic, byte kind, uint textureHash, byte blendType, uint shaderHash, ref int totalVertices, ref int totalIndices)
         {
             EnsureDrawBatchCapacity();
             ((DrawBatchData*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
@@ -171,7 +178,7 @@ namespace SpriteStudio.Runtime
                 // and ADD parts render as MIX on the Canvas path.
                 BlendType = blendType
             };
-            EmitSubmesh(totalIndices, ic, textureHash, blendType);
+            EmitSubmesh(totalIndices, ic, textureHash, blendType, shaderHash: shaderHash);
             totalVertices += vc;
             totalIndices += ic;
         }
@@ -195,6 +202,9 @@ namespace SpriteStudio.Runtime
             {
                 var s = _submeshes[i];
                 sig = (sig ^ ((ulong)(uint)s.IndexStart | ((ulong)(uint)s.IndexCount << 32))) * prime;
+                // Include the AddOn shader axis so the material list re-resolves when a part's shader
+                // assignment changes (the per-frame params are set separately, like the mask threshold).
+                sig = (sig ^ (ulong)s.ShaderHash) * prime;
             }
             sig = (sig ^ (ulong)(uint)indexCount) * prime;
             sig = (sig ^ (ulong)(uint)vertexCount) * prime;
