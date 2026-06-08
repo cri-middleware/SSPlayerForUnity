@@ -127,6 +127,8 @@ namespace SpriteStudio.Runtime
         static readonly int IdSsParam5 = Shader.PropertyToID("_SsParam5");
         static readonly int IdSsParam6 = Shader.PropertyToID("_SsParam6");
         static readonly int IdSsParam7 = Shader.PropertyToID("_SsParam7");
+        // Per-part cell rectangle (pixel UVs lt.u/lt.v/rb.u/rb.v) for cell-rect AddOns (circle / spot).
+        static readonly int IdSsCellRect = Shader.PropertyToID("_SsCellRect");
 
         /// <summary>
         /// Push a submesh's per-part AddOn params (P0..P7) onto its material. Setting a property the
@@ -143,6 +145,8 @@ namespace SpriteStudio.Runtime
             m.SetFloat(IdSsParam5, info.P5);
             m.SetFloat(IdSsParam6, info.P6);
             m.SetFloat(IdSsParam7, info.P7);
+            // Cell rect (a no-op for AddOns that do not declare _SsCellRect, e.g. sepia).
+            m.SetVector(IdSsCellRect, new Vector4(info.CellL, info.CellT, info.CellR, info.CellB));
         }
 
         // Mask stencil bit isolation: the coverage counter lives in the low 4 bits (0x0F => nesting

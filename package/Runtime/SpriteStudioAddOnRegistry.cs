@@ -43,8 +43,10 @@ namespace SpriteStudio.Runtime
             new Builtin("ss-wave", "SpriteStudio/AddOn/Wave", true),
             new Builtin("ss-move", "SpriteStudio/AddOn/Move", true),
             new Builtin("ss-scatter", "SpriteStudio/AddOn/Scatter", true),
+            new Builtin("ss-circle", "SpriteStudio/AddOn/Circle", true), // uses _SsCellRect
+            new Builtin("ss-spot", "SpriteStudio/AddOn/Spot", true),     // uses _SsCellRect
             new Builtin("TestStub", "SpriteStudio/AddOn/TestStub", true), // dev dispatch check
-            // ss-circle / ss-spot need ss_cell_rect (per-part cell rectangle) -> a later step.
+            // All 13 SS6 standard AddOns are ported. Custom user shaders go through SpriteStudioShaderCatalog.
         };
 
         private struct Entry

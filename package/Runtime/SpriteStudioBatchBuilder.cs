@@ -36,6 +36,10 @@ namespace SpriteStudio.Runtime
         // Per-part AddOn shader params (FrameData PartAttributeShader.Param0..7), only meaningful when
         // ShaderHash != 0. The player sets these on the part's own AddOn material instance each frame.
         public float P0, P1, P2, P3, P4, P5, P6, P7;
+        // Per-part cell rectangle in PIXEL UVs (lt.u, lt.v, rb.u, rb.v), for cell-rect AddOns
+        // (ss-circle / ss-spot). Set on _SsCellRect; the shader converts to its UV space. 0 for parts
+        // with no cell (Shape / Mesh) -> those AddOns degenerate (discard).
+        public float CellL, CellT, CellR, CellB;
     }
 
     internal sealed class SpriteStudioBatchBuilder : IDisposable
@@ -110,6 +114,15 @@ namespace SpriteStudio.Runtime
             if (_submeshCount == 0) return;
             ref var s = ref ((SubmeshInfo*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_submeshes))[_submeshCount - 1];
             s.P0 = p0; s.P1 = p1; s.P2 = p2; s.P3 = p3; s.P4 = p4; s.P5 = p5; s.P6 = p6; s.P7 = p7;
+        }
+
+        // Stamp the per-part cell rectangle (pixel UVs) onto the most recently emitted submesh.
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public unsafe void SetLastSubmeshCellRect(float l, float t, float r, float b)
+        {
+            if (_submeshCount == 0) return;
+            ref var s = ref ((SubmeshInfo*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_submeshes))[_submeshCount - 1];
+            s.CellL = l; s.CellT = t; s.CellR = r; s.CellB = b;
         }
 
         // The draw-batch buffer is pre-sized by BeginFrame(maxBatches), but maxBatches is only a
