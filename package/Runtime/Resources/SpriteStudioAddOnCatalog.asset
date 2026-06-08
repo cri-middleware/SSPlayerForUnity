@@ -1,0 +1,67 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bc78ee4739db4bfd8f07d31970b5ff45, type: 3}
+  m_Name: SpriteStudioAddOnCatalog
+  m_EditorClassIdentifier:
+  Entries:
+  - IdName: ss-sepia
+    Shader: {fileID: 4800000, guid: 3bf65b4847604f5d81bbf5937ffd8db6, type: 3}
+    IsPerPart: 1
+    CanvasShader: {fileID: 0}
+  - IdName: ss-hsb
+    Shader: {fileID: 4800000, guid: e8dad4fc6dcc46f4b1a26818b11295b2, type: 3}
+    IsPerPart: 1
+    CanvasShader: {fileID: 0}
+  - IdName: ss-step
+    Shader: {fileID: 4800000, guid: 48d3691062924a6397f63b964a4313a2, type: 3}
+    IsPerPart: 1
+    CanvasShader: {fileID: 0}
+  - IdName: ss-bmask
+    Shader: {fileID: 4800000, guid: b6ebca8da16d4d4397b1a2bc7c5c29d2, type: 3}
+    IsPerPart: 1
+    CanvasShader: {fileID: 0}
+  - IdName: ss-outline
+    Shader: {fileID: 4800000, guid: ab4e0412221f48248e9e30935d4c6150, type: 3}
+    IsPerPart: 1
+    CanvasShader: {fileID: 0}
+  - IdName: ss-blur
+    Shader: {fileID: 4800000, guid: 64d5574814d54aa39fee6dc85e75137a, type: 3}
+    IsPerPart: 1
+    CanvasShader: {fileID: 0}
+  - IdName: ss-pix
+    Shader: {fileID: 4800000, guid: 63c1bc48912f4fab8f950259fdeda253, type: 3}
+    IsPerPart: 1
+    CanvasShader: {fileID: 0}
+  - IdName: ss-noise
+    Shader: {fileID: 4800000, guid: f9062cc345f4401880e2fecbb88ba1e3, type: 3}
+    IsPerPart: 1
+    CanvasShader: {fileID: 0}
+  - IdName: ss-wave
+    Shader: {fileID: 4800000, guid: 9994d9a0432e4dc580ef684e6cde9843, type: 3}
+    IsPerPart: 1
+    CanvasShader: {fileID: 0}
+  - IdName: ss-move
+    Shader: {fileID: 4800000, guid: 95f980b525f842a6bbcf20ffe4cd08bd, type: 3}
+    IsPerPart: 1
+    CanvasShader: {fileID: 0}
+  - IdName: ss-scatter
+    Shader: {fileID: 4800000, guid: 3a9b9d2321f746398d3b6bdfae769546, type: 3}
+    IsPerPart: 1
+    CanvasShader: {fileID: 0}
+  - IdName: ss-circle
+    Shader: {fileID: 4800000, guid: d493124e9a384c5ba1e941aa140b353d, type: 3}
+    IsPerPart: 1
+    CanvasShader: {fileID: 0}
+  - IdName: ss-spot
+    Shader: {fileID: 4800000, guid: f4663f1837d0407e8d43d78fe7e8330d, type: 3}
+    IsPerPart: 1
+    CanvasShader: {fileID: 0}

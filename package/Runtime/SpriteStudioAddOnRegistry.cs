@@ -49,6 +49,15 @@ namespace SpriteStudio.Runtime
             // All 13 SS6 standard AddOns are ported. Custom user shaders go through SpriteStudioShaderCatalog.
         };
 
+        // Built-in table accessor for the editor that generates the default catalog .asset (Resources).
+        // Keeping one source (s_builtins) -> the generated .asset can never drift from it.
+        public static int BuiltinCount => s_builtins.Length;
+        public static void GetBuiltin(int i, out string idName, out string shaderName, out bool isPerPart)
+        {
+            var b = s_builtins[i];
+            idName = b.IdName; shaderName = b.ShaderName; isPerPart = b.IsPerPart;
+        }
+
         private struct Entry
         {
             public string ShaderName;
@@ -71,6 +80,26 @@ namespace SpriteStudio.Runtime
             }
         }
 
+        // The package-shipped default catalog (Resources/SpriteStudioAddOnCatalog.asset). It both resolves
+        // the built-in AddOns AND, by hard-referencing their shaders, anchors them against build stripping
+        // (a Resources asset and everything it references is always included in the player). Loaded once;
+        // null in the editor before the asset is generated -> resolution falls back to the C# table below.
+        public const string DefaultCatalogResourceName = "SpriteStudioAddOnCatalog";
+        private static SpriteStudioShaderCatalog s_defaultCatalog;
+        private static bool s_defaultCatalogTried;
+        private static SpriteStudioShaderCatalog DefaultCatalog
+        {
+            get
+            {
+                if (!s_defaultCatalogTried)
+                {
+                    s_defaultCatalog = Resources.Load<SpriteStudioShaderCatalog>(DefaultCatalogResourceName);
+                    s_defaultCatalogTried = true;
+                }
+                return s_defaultCatalog;
+            }
+        }
+
         /// <summary>
         /// Lightweight resolve for the geometry-builder carve decision: does this shader id hash map to
         /// a registered per-part AddOn? Consults the user catalog first, then the built-in table. No
@@ -79,6 +108,8 @@ namespace SpriteStudio.Runtime
         public static bool TryGetIsPerPart(uint idHash, SpriteStudioShaderCatalog userCatalog, out bool isPerPart)
         {
             if (userCatalog != null && userCatalog.TryResolve(idHash, out _, out isPerPart)) return true;
+            var def = DefaultCatalog;
+            if (def != null && def.TryResolve(idHash, out _, out isPerPart)) return true;
             EnsureMap();
             if (s_byHash.TryGetValue(idHash, out var e)) { isPerPart = e.IsPerPart; return true; }
             isPerPart = false;
@@ -93,6 +124,8 @@ namespace SpriteStudio.Runtime
         public static bool TryResolveShader(uint idHash, SpriteStudioShaderCatalog userCatalog, out Shader shader, out bool isPerPart)
         {
             if (userCatalog != null && userCatalog.TryResolve(idHash, out shader, out isPerPart)) return true;
+            var def = DefaultCatalog;
+            if (def != null && def.TryResolve(idHash, out shader, out isPerPart)) return true;
             EnsureMap();
             if (s_byHash.TryGetValue(idHash, out var e))
             {
