@@ -16,8 +16,9 @@
 #include "UnityCG.cginc"
 #include "SpriteStudioCore.hlsl"
 
-// Vertex input/output. TEXCOORD1 = [rate, blend_idx, isNormalized(effect), reserved], matching the
-// vertex layout the geometry builder emits (shared with SpriteStudio/Default).
+// Vertex input/output. Appdata TEXCOORD1 = [rate, blend_idx, isNormalized(effect), isAdditive],
+// matching the vertex layout the geometry builder emits (shared with SpriteStudio/Default). The v2f
+// carries the per-vertex-resolved PartColor `varg` instead, so the fragment stays branchless.
 struct ss_canvas_appdata
 {
     float4 vertex   : POSITION;
@@ -28,10 +29,10 @@ struct ss_canvas_appdata
 
 struct ss_canvas_v2f
 {
-    float4 vertex   : SV_POSITION;
-    half4  color    : COLOR;
-    float2 texcoord : TEXCOORD0;
-    float4 texcoord1: TEXCOORD1;
+    float4 vertex        : SV_POSITION;
+    half4  color         : COLOR;
+    float2 texcoord      : TEXCOORD0;
+    float4 partcolorVarg : TEXCOORD1; // xyz = PartColor varg (branchless), w = output alpha multiplier
 };
 
 // Standard SpriteStudio Canvas uniforms. A custom shader gets these by including this file; it only
@@ -43,44 +44,49 @@ float _OutputPMA;
 float _NotDiscard;
 
 // Standard vertex stage: clip-space transform, pixel/normalized UV resolve, SS top-left -> Unity
-// bottom-left V flip. Reference it with `#pragma vertex ss_canvas_vert`.
+// bottom-left V flip, and the PartColor coefficient packing (so the fragment needs no per-blend
+// branch). Reference it with `#pragma vertex ss_canvas_vert`.
 ss_canvas_v2f ss_canvas_vert(ss_canvas_appdata IN)
 {
     ss_canvas_v2f OUT;
     OUT.vertex = UnityObjectToClipPos(IN.vertex);
-    // Normal parts carry pixel coordinates; effect parts carry normalized coordinates (z == 1).
+    float rate         = IN.texcoord1.x;
+    float blendIdx     = IN.texcoord1.y;
     float isNormalized = IN.texcoord1.z;
+    float isAdditive   = IN.texcoord1.w;
+    // Normal parts carry pixel coordinates; effect parts carry normalized coordinates (z == 1).
     float2 texelSizeMultiplier = lerp(_MainTex_TexelSize.xy, float2(1.0, 1.0), isNormalized);
     OUT.texcoord = IN.texcoord * texelSizeMultiplier;
     OUT.texcoord.y = 1.0 - OUT.texcoord.y;
     OUT.color = IN.color;
-    OUT.texcoord1 = IN.texcoord1;
+    // PartColor: resolve the branchless varg in the vertex stage (effect tint folded in).
+    float3 varg = ss_partcolor_varg(rate, blendIdx, isNormalized);
+    // Canvas single-material a=0 trick: ANY additive (ADD) part collapses to alpha 0 so the fixed PMA
+    // blend (One, OneMinusSrcAlpha) becomes additive; all other blends keep their alpha (MIX).
+    OUT.partcolorVarg = float4(varg, 1.0 - isAdditive);
     return OUT;
 }
 
-// Sample the texture (un-premultiplying when requested) and unpack the SS per-vertex channels.
-float4 ss_canvas_sample(ss_canvas_v2f IN, out float rate, out float blendIdx, out float isNormalized)
+// Sample the texture (un-premultiplying when requested). The SS per-vertex PartColor channels are
+// resolved into IN.partcolorVarg in the vertex stage; a custom shader reads `tex` here.
+float4 ss_canvas_sample(ss_canvas_v2f IN)
 {
-    rate         = IN.texcoord1.x;
-    blendIdx     = IN.texcoord1.y; // 0=Mix,1=Mul,2=Add,3=Sub (part-color blend kind)
-    isNormalized = IN.texcoord1.z; // 1 = effect part / 0 = normal part
     return ss_input_mediate(tex2D(_MainTex, IN.texcoord), _InputPMA);
 }
 
-// Default SpriteStudio RGB composition: effect parts tint by vertex colour; normal parts apply the
-// already-mediated part-color. A custom shader can ignore this and compute its own rgb instead.
-float3 ss_canvas_default_rgb(float4 tex, ss_canvas_v2f IN, float rate, float blendIdx, float isNormalized)
+// Default SpriteStudio RGB composition (branchless; effect tint is already folded into varg). A custom
+// shader can ignore this and compute its own rgb, then call
+// `ss_partcolor_blend(rgb, IN.color.rgb, IN.partcolorVarg)` the same way.
+float3 ss_canvas_default_rgb(float4 tex, ss_canvas_v2f IN)
 {
-    if (isNormalized > 0.5)
-        return tex.rgb * IN.color.rgb;
-    return ss_partcolor_blend(tex.rgb, IN.color.rgb, rate, blendIdx);
+    return ss_partcolor_blend(tex.rgb, IN.color.rgb, IN.partcolorVarg);
 }
 
 // Finalize a composed (rgb, alpha) into the output colour: discard test, PMA finalize, and the
-// additive a=0 pass-through. The Canvas path uses a single fixed PMA blend (One, OneMinusSrcAlpha);
-// ADD parts (and effect-additive) emit alpha 0 so the blend becomes additive (src + dst). All other
-// blends collapse to MIX. isAdditive is the per-vertex flag the mesh job packs into TEXCOORD1.w.
-float4 ss_canvas_finalize(float3 rgb, float alpha, float isAdditive)
+// per-vertex additive alpha multiplier. The Canvas path uses a single fixed PMA blend (One,
+// OneMinusSrcAlpha); ADD parts carry alphaMul 0 so the blend becomes additive (src + dst), all other
+// blends carry 1 (MIX). alphaMul is IN.partcolorVarg.w, resolved in the vertex stage.
+float4 ss_canvas_finalize(float3 rgb, float alpha, float alphaMul)
 {
     float4 col = float4(rgb, alpha);
     if (ss_should_discard(col.a, 0.0, _NotDiscard))
@@ -88,10 +94,7 @@ float4 ss_canvas_finalize(float3 rgb, float alpha, float isAdditive)
         discard;
     }
     col = ss_output_color(col, _OutputPMA);
-    if (isAdditive > 0.5)
-    {
-        col.a = 0.0;
-    }
+    col.a *= alphaMul;
     return col;
 }
 

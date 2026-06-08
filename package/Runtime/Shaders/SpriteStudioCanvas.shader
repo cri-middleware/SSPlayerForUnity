@@ -63,14 +63,13 @@ Shader "SpriteStudio/Canvas"
 
             half4 frag(ss_canvas_v2f IN) : SV_Target
             {
-                float rate, blendIdx, isNormalized;
-                float4 tex = ss_canvas_sample(IN, rate, blendIdx, isNormalized);
+                float4 tex = ss_canvas_sample(IN);
                 // --- Custom shaders replace only this colour composition ---
-                float3 rgb = ss_canvas_default_rgb(tex, IN, rate, blendIdx, isNormalized);
+                float3 rgb = ss_canvas_default_rgb(tex, IN);
                 float alpha = tex.a * IN.color.a;
                 // -----------------------------------------------------------
-                // TEXCOORD1.w = per-vertex isAdditive (ADD -> a=0 PMA trick); others collapse to MIX.
-                return ss_canvas_finalize(rgb, alpha, IN.texcoord1.w);
+                // additive a=0 PMA trick (ADD parts -> alphaMul 0); others collapse to MIX.
+                return ss_canvas_finalize(rgb, alpha, IN.partcolorVarg.w);
             }
             ENDHLSL
         }
