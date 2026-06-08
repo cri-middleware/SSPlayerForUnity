@@ -85,4 +85,71 @@ bool ss_addon_bmask_keep(float3 rgb, float brightness)
     return b > abs(brightness);
 }
 
+// =========================================================================
+// Neighbour / UV sampling AddOns. These read the texture themselves (plain tex2D, matching ForGodot's
+// ss_input_texture); `texelSize` is _MainTex_TexelSize.xy. They operate on straight-alpha SS textures,
+// so no inverse-PMA mediation is applied (a no-op there). The shader still finalizes via ss_world_finalize.
+// =========================================================================
+
+// ---- ss-outline: 4-neighbour alpha-edge outline (ss_param0=threshold signed) ----
+// Returns the outline intensity v (0..1); the shader feeds it as both rgb and alpha then discards v<=0.
+float ss_addon_outline(sampler2D tex, float2 uv, float2 texelSize, float threshold)
+{
+    float ratio = abs(threshold);
+    float e = 1.0e-5;
+    float lo = 0.0;
+    lo += step(tex2D(tex, uv + float2(-texelSize.x, 0.0)).a, ratio);
+    lo += step(tex2D(tex, uv + float2(+texelSize.x, 0.0)).a, ratio);
+    lo += step(tex2D(tex, uv + float2(0.0, -texelSize.y)).a, ratio);
+    lo += step(tex2D(tex, uv + float2(0.0, +texelSize.y)).a, ratio);
+    float hi = step(ratio + e, tex2D(tex, uv).a);
+    return min(hi * lo, 1.0);
+}
+
+// ---- ss-blur: 9-tap box blur (ss_param0=focus). Returns the averaged texel. ----
+// NOTE: ss-blur is the documented multiply-only PartColor exception (see SS6/ForGodot); the shader
+// multiplies this by the vertex colour instead of calling ss_partcolor_blend.
+float4 ss_addon_blur(sampler2D tex, float2 uv, float2 texelSize, float focus)
+{
+    float2 d = float2(focus * texelSize.x * 16.0, focus * texelSize.y * 16.0);
+    float4 sum = tex2D(tex, uv);
+    sum += tex2D(tex, float2(uv.x + d.x, uv.y + d.y));
+    sum += tex2D(tex, float2(uv.x + d.x, uv.y));
+    sum += tex2D(tex, float2(uv.x,       uv.y + d.y));
+    sum += tex2D(tex, float2(uv.x - d.x, uv.y - d.y));
+    sum += tex2D(tex, float2(uv.x + d.x, uv.y - d.y));
+    sum += tex2D(tex, float2(uv.x - d.x, uv.y + d.y));
+    sum += tex2D(tex, float2(uv.x - d.x, uv.y));
+    sum += tex2D(tex, float2(uv.x,       uv.y - d.y));
+    return sum / 9.0;
+}
+
+// ---- ss-pix: UV-quantise pixelation (ss_param0=power). Returns the quantised texel. ----
+float4 ss_addon_pix(sampler2D tex, float2 uv, float2 texelSize, float power)
+{
+    float v = 1.0 + 96.0 * power;
+    float2 stepUv = float2(v * texelSize.x, v * texelSize.y);
+    float2 coord = floor(uv / stepUv) * stepUv;
+    return tex2D(tex, coord);
+}
+
+// ---- ss-noise: per-texel pseudo-random noise (ss_param0=power, 1=colour, 2=phase) ----
+float ss_addon_noise_rand(float2 p)
+{
+    return frac(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453);
+}
+
+float4 ss_addon_noise(sampler2D tex, float2 uv, float2 texelSize, float power, float colorAmt, float phase)
+{
+    float2 u = floor(uv / texelSize) * texelSize;
+    float4 pixel = tex2D(tex, uv);
+    float2 t = u + float2(phase, phase);
+    float3 c;
+    c.r = ss_addon_noise_rand(t);
+    c.g = lerp(c.r, ss_addon_noise_rand(t * c.r), colorAmt);
+    c.b = lerp(c.g, ss_addon_noise_rand(t * c.g), colorAmt);
+    pixel.rgb = clamp(lerp(pixel.rgb, c, power), 0.0, 1.0);
+    return pixel;
+}
+
 #endif // SPRITESTUDIO_ADDON_INCLUDED

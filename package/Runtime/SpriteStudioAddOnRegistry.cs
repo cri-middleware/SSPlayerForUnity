@@ -36,9 +36,13 @@ namespace SpriteStudio.Runtime
             new Builtin("ss-hsb", "SpriteStudio/AddOn/Hsb", true),
             new Builtin("ss-step", "SpriteStudio/AddOn/Step", true),
             new Builtin("ss-bmask", "SpriteStudio/AddOn/Bmask", true),
+            new Builtin("ss-outline", "SpriteStudio/AddOn/Outline", true),
+            new Builtin("ss-blur", "SpriteStudio/AddOn/Blur", true),
+            new Builtin("ss-pix", "SpriteStudio/AddOn/Pix", true),
+            new Builtin("ss-noise", "SpriteStudio/AddOn/Noise", true),
             new Builtin("TestStub", "SpriteStudio/AddOn/TestStub", true), // dev dispatch check
-            // ss-outline / ss-blur / ss-wave / ss-noise / ss-pix / ss-move / ss-scatter (neighbour /
-            // UV sampling) and ss-circle / ss-spot (need ss_cell_rect) land here as they are ported.
+            // ss-wave / ss-move / ss-scatter (UV sampling) and ss-circle / ss-spot (need ss_cell_rect)
+            // land here as they are ported.
         };
 
         private struct Entry
