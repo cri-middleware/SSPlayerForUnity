@@ -759,6 +759,76 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 return;
             }
 
+            // Per-part AddOn shader dispatch (non-mask path). When the frame carries shader attributes
+            // and a catalog is bound, parts whose shader id resolves to an is-per-part AddOn are carved
+            // out as their own Count=1 submesh (stamped with the shader id hash); the rest accumulate
+            // into shared rank-runs, mirroring the mask per-part split. Vertex order is unchanged, so the
+            // mesh job fills exactly the same geometry — only the submesh granularity differs.
+            if (frameData.ShadersLength > 0)
+            {
+                // Built-in AddOns resolve with no project setup; the (optional) user catalog overrides.
+                var userCatalog = _player.ShaderCatalog;
+                byte sKind = (byte)b.Kind;
+                int runStart = b.StartRank;   // first rank of the current shared run (rank-span based)
+                int runVc = 0, runIc = 0;
+                for (int k = 0; k < b.Count; k++)
+                {
+                    int rank = b.StartRank + k;
+                    int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
+                    int pvc = 0, pic = 0;
+                    bool valid = p_idx >= 0 && p_idx < partsLength
+                                 && _maskPlanner.MaskPartVcIc(p_idx, sKind, frame, _partStates, out pvc, out pic);
+                    if (!valid) continue; // skipped parts add no geometry; their rank stays in the run span
+
+                    uint shaderHash = 0;
+                    float ap0 = 0, ap1 = 0, ap2 = 0, ap3 = 0, ap4 = 0, ap5 = 0, ap6 = 0, ap7 = 0;
+                    var ps = frameData.Parts(p_idx);
+                    if (ps.HasValue)
+                    {
+                        int sIdx = ps.Value.Shader;
+                        if (sIdx >= 0 && sIdx < frameData.ShadersLength)
+                        {
+                            var shAttr = frameData.Shaders(sIdx).Value;
+                            uint idHash = shAttr.IdHash;
+                            if (idHash != 0 && SpriteStudioAddOnRegistry.TryGetIsPerPart(idHash, userCatalog, out bool isPerPart) && isPerPart)
+                            {
+                                shaderHash = idHash;
+                                ap0 = shAttr.Param0; ap1 = shAttr.Param1; ap2 = shAttr.Param2; ap3 = shAttr.Param3;
+                                ap4 = shAttr.Param4; ap5 = shAttr.Param5; ap6 = shAttr.Param6; ap7 = shAttr.Param7;
+                            }
+                        }
+                    }
+
+                    if (shaderHash != 0)
+                    {
+                        // Flush the pending shared run [runStart, rank), then emit this part on its own.
+                        int runCount = rank - runStart;
+                        if (runCount > 0 && runIc > 0)
+                            _batchBuilder.EmitDrawBatch((ushort)runStart, (ushort)runCount, runVc, runIc, sKind, b.TextureHash, (byte)b.BlendType, 0u, ref totalVertices, ref totalIndices);
+                        _batchBuilder.EmitDrawBatch((ushort)rank, 1, pvc, pic, sKind, b.TextureHash, (byte)b.BlendType, shaderHash, ref totalVertices, ref totalIndices);
+                        _batchBuilder.SetLastSubmeshAddOnParams(ap0, ap1, ap2, ap3, ap4, ap5, ap6, ap7);
+                        // Cell rectangle (pixel UVs) for cell-rect AddOns (ss-circle / ss-spot). Only Normal
+                        // parts carry a cell quad in LocalUvs (layout [lt.u,lt.v, rt, lb, rb.u@6,rb.v@7, center]);
+                        // Shape/Mesh leave it 0 so those AddOns degenerate (discard).
+                        if (sKind == SsDrawBatchKind.Normal && frame.LocalUvs != null && (p_idx * 10 + 7) < (int)frame.LocalUvsLen)
+                        {
+                            float* uvp = frame.LocalUvs + p_idx * 10;
+                            _batchBuilder.SetLastSubmeshCellRect(uvp[0], uvp[1], uvp[6], uvp[7]);
+                        }
+                        runStart = rank + 1; runVc = 0; runIc = 0;
+                    }
+                    else
+                    {
+                        runVc += pvc; runIc += pic;
+                    }
+                }
+                // Flush the trailing shared run [runStart, batchEnd).
+                int tailCount = (b.StartRank + b.Count) - runStart;
+                if (tailCount > 0 && runIc > 0)
+                    _batchBuilder.EmitDrawBatch((ushort)runStart, (ushort)tailCount, runVc, runIc, sKind, b.TextureHash, (byte)b.BlendType, 0u, ref totalVertices, ref totalIndices);
+                return;
+            }
+
             for (int k = 0; k < b.Count; k++)
             {
                 int rank = b.StartRank + k;
@@ -796,7 +866,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
             if (vc > 0 && ic > 0)
             {
-                _batchBuilder.EmitDrawBatch((ushort)b.StartRank, (ushort)b.Count, vc, ic, (byte)b.Kind, b.TextureHash, (byte)b.BlendType, ref totalVertices, ref totalIndices);
+                _batchBuilder.EmitDrawBatch((ushort)b.StartRank, (ushort)b.Count, vc, ic, (byte)b.Kind, b.TextureHash, (byte)b.BlendType, 0u, ref totalVertices, ref totalIndices);
             }
         }
 

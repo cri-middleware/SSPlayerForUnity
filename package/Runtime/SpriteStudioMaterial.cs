@@ -16,25 +16,32 @@ namespace SpriteStudio.Runtime
         // Stencil compare for the mask-test variant (UnityEngine.Rendering.CompareFunction). 0 =
         // Disabled = a plain colour material with no stencil test (the default / non-masked case).
         public readonly byte StencilComp;
+        // Per-part AddOn shader id hash (FrameData PartAttributeShader.IdHash). 0 = the shared default
+        // shader (SpriteStudio/Default). Non-zero selects an AddOn shader variant from the catalog.
+        public readonly uint ShaderHash;
 
         public SpriteStudioMaterialKey(uint textureHash, byte blendType)
-            : this(textureHash, blendType, 0) { }
+            : this(textureHash, blendType, 0, 0) { }
 
         public SpriteStudioMaterialKey(uint textureHash, byte blendType, byte stencilComp)
+            : this(textureHash, blendType, stencilComp, 0) { }
+
+        public SpriteStudioMaterialKey(uint textureHash, byte blendType, byte stencilComp, uint shaderHash)
         {
             TextureHash = textureHash;
             BlendType = blendType;
             StencilComp = stencilComp;
+            ShaderHash = shaderHash;
         }
 
         public bool Equals(SpriteStudioMaterialKey other)
-            => TextureHash == other.TextureHash && BlendType == other.BlendType && StencilComp == other.StencilComp;
+            => TextureHash == other.TextureHash && BlendType == other.BlendType && StencilComp == other.StencilComp && ShaderHash == other.ShaderHash;
 
         public override bool Equals(object obj)
             => obj is SpriteStudioMaterialKey k && Equals(k);
 
         public override int GetHashCode()
-            => unchecked((((int)TextureHash * 397) ^ BlendType) * 397 ^ StencilComp);
+            => unchecked(((((int)TextureHash * 397) ^ BlendType) * 397 ^ StencilComp) * 397 ^ (int)ShaderHash);
     }
 
     /// <summary>
@@ -111,6 +118,37 @@ namespace SpriteStudio.Runtime
         public static readonly int IdMaskThreshold = Shader.PropertyToID("_MaskThreshold");
         static readonly int IdMainTex = Shader.PropertyToID("_MainTex");
 
+        // Per-part AddOn shader params (_SsParam0.._SsParam7), set on the part's own material each frame.
+        static readonly int IdSsParam0 = Shader.PropertyToID("_SsParam0");
+        static readonly int IdSsParam1 = Shader.PropertyToID("_SsParam1");
+        static readonly int IdSsParam2 = Shader.PropertyToID("_SsParam2");
+        static readonly int IdSsParam3 = Shader.PropertyToID("_SsParam3");
+        static readonly int IdSsParam4 = Shader.PropertyToID("_SsParam4");
+        static readonly int IdSsParam5 = Shader.PropertyToID("_SsParam5");
+        static readonly int IdSsParam6 = Shader.PropertyToID("_SsParam6");
+        static readonly int IdSsParam7 = Shader.PropertyToID("_SsParam7");
+        // Per-part cell rectangle (pixel UVs lt.u/lt.v/rb.u/rb.v) for cell-rect AddOns (circle / spot).
+        static readonly int IdSsCellRect = Shader.PropertyToID("_SsCellRect");
+
+        /// <summary>
+        /// Push a submesh's per-part AddOn params (P0..P7) onto its material. Setting a property the
+        /// shader does not declare is a harmless no-op in Unity, so an AddOn that uses only _SsParam0
+        /// (e.g. sepia) ignores the rest. Material (not MaterialPropertyBlock) so SRP Batcher is kept.
+        /// </summary>
+        public static void ApplyAddOnParams(Material m, in SubmeshInfo info)
+        {
+            m.SetFloat(IdSsParam0, info.P0);
+            m.SetFloat(IdSsParam1, info.P1);
+            m.SetFloat(IdSsParam2, info.P2);
+            m.SetFloat(IdSsParam3, info.P3);
+            m.SetFloat(IdSsParam4, info.P4);
+            m.SetFloat(IdSsParam5, info.P5);
+            m.SetFloat(IdSsParam6, info.P6);
+            m.SetFloat(IdSsParam7, info.P7);
+            // Cell rect (a no-op for AddOns that do not declare _SsCellRect, e.g. sepia).
+            m.SetVector(IdSsCellRect, new Vector4(info.CellL, info.CellT, info.CellR, info.CellB));
+        }
+
         // Mask stencil bit isolation: the coverage counter lives in the low 4 bits (0x0F => nesting
         // depth up to 15). These are URP's user-reserved bits (URP StencilUsage: bits 0-3 = UserMask;
         // bit 4 = light stencil, bits 5-6 = material type, bit 7 reserved), so confining the SS mask to
@@ -135,6 +173,20 @@ namespace SpriteStudio.Runtime
             m.SetFloat(IdInputPMA, state.InputPMA);
             m.SetFloat(IdOutputPMA, state.OutputPMA);
             m.SetFloat(IdNotDiscard, state.NotDiscard);
+            return m;
+        }
+
+        /// <summary>
+        /// Build a per-part AddOn colour variant: clone the texture base (carries _MainTex + the import
+        /// props), apply the per-blend state, then swap to the AddOn shader. Matching property names
+        /// (_MainTex, blend / stencil props) carry over by name across the shader swap; the AddOn's own
+        /// params (_SsParam0..) keep their defaults until the per-part dispatch sets them per frame.
+        /// The clone is HideAndDontSave (runtime-only); the owner destroys it on disable.
+        /// </summary>
+        public static Material CreateAddOnVariant(Material textureBase, Shader addonShader, byte blendType)
+        {
+            var m = CreateVariant(textureBase, blendType);
+            if (addonShader != null) m.shader = addonShader;
             return m;
         }
 

@@ -230,6 +230,47 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
+        /// Resolve a per-part AddOn colour material for a (shaderHash, textureHash, blendType) triple.
+        /// The AddOn Shader is resolved by the caller (the player, via SpriteStudioShaderCatalog) and
+        /// passed in. Cached per key like the per-blend variants; falls back to the default material when
+        /// no AddOn shader is supplied. NOTE: this returns a SHARED cached material, correct for AddOns
+        /// without per-frame params (e.g. TestStub). Param-carrying AddOns need a per-instance pool
+        /// (added in the next step) so concurrent parts do not stomp each other's params.
+        /// </summary>
+        public Material ResolveAddOnMaterial(Shader addonShader, uint shaderHash, uint textureHash, byte blendType)
+        {
+            if (addonShader == null || shaderHash == 0) return ResolveMaterial(textureHash, blendType);
+
+            var baseMat = (textureHash == 0) ? GetWhiteBaseMaterial() : ResolveMaterialForHash(textureHash);
+            if (baseMat == null) return null;
+
+            var key = new SpriteStudioMaterialKey(textureHash, blendType, 0, shaderHash);
+            if (_materialVariants != null && _materialVariants.TryGetValue(key, out var cached) && cached != null)
+            {
+                return cached;
+            }
+
+            if (_materialVariants == null) _materialVariants = new Dictionary<SpriteStudioMaterialKey, Material>();
+            var variant = SpriteStudioMaterial.CreateAddOnVariant(baseMat, addonShader, blendType);
+            _materialVariants[key] = variant;
+            return variant;
+        }
+
+        /// <summary>
+        /// Create a FRESH (non-cached) per-part AddOn material instance for the (shader, texture, blend)
+        /// combination. Unlike ResolveAddOnMaterial this never shares: the caller (player) owns the
+        /// instance, sets its per-part params each frame, and destroys it. Used for the bounded per-part
+        /// pool so concurrent parts with different params do not stomp each other. HideAndDontSave.
+        /// </summary>
+        public Material CreatePerPartMaterialInstance(Shader addonShader, uint textureHash, byte blendType)
+        {
+            if (addonShader == null) return null;
+            var baseMat = (textureHash == 0) ? GetWhiteBaseMaterial() : ResolveMaterialForHash(textureHash);
+            if (baseMat == null) return null;
+            return SpriteStudioMaterial.CreateAddOnVariant(baseMat, addonShader, blendType);
+        }
+
+        /// <summary>
         /// Resolve a mask-test colour material for a (textureHash, blendType) pair: the per-blend
         /// colour material plus a stencil test. <paramref name="stencilComp"/> is a
         /// UnityEngine.Rendering.CompareFunction (NotEqual = draw inside the mask, Equal = outside).
