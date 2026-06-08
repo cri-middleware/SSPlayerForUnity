@@ -152,4 +152,44 @@ float4 ss_addon_noise(sampler2D tex, float2 uv, float2 texelSize, float power, f
     return pixel;
 }
 
+// ---- ss-wave: sinusoidal horizontal warp (ss_param0=width, 1=height, 2=phase) ----
+// PI -> UNITY_PI (UnityCG.cginc, included by the shader before this file).
+float4 ss_addon_wave(sampler2D tex, float2 uv, float2 texelSize, float width, float height, float phase)
+{
+    float l = 384.0 * height * 0.5;
+    float s = l * sin(uv.y * 384.0 * width * 0.5 + UNITY_PI * 2.0 * phase) * texelSize.x;
+    return tex2D(tex, float2(uv.x + s, uv.y));
+}
+
+// ---- ss-move: directional motion-blur smear (ss_param0=distance signed, 1=direction, 2=power) ----
+// Accumulates back-traced samples along (sin,cos)(direction*PI). The loop bound is dynamic but capped
+// at 128 (matching ForGodot); [loop] keeps it a real loop rather than an unbounded unroll.
+float4 ss_addon_move(sampler2D tex, float2 uv, float2 texelSize, float dist, float direction, float power)
+{
+    int count = (int)floor(abs(dist) * 96.0);
+    if (count > 128) count = 128;
+    float2 vel = float2(sin(direction * UNITY_PI) * texelSize.x, cos(direction * UNITY_PI) * texelSize.y) * sign(dist);
+    float2 coord = uv + vel * (float)count;
+    coord -= vel;
+    float4 pixel = tex2D(tex, coord);
+    [loop]
+    for (int i = 1; i < count; i++)
+    {
+        coord -= vel;
+        pixel = lerp(tex2D(tex, coord), pixel, 0.96 * abs(power));
+    }
+    return pixel;
+}
+
+// ---- ss-scatter: per-cell directional UV scatter (ss_param0=power, 1=ratio, 2=phase) ----
+float4 ss_addon_scatter(sampler2D tex, float2 uv, float2 texelSize, float power, float ratio, float phase)
+{
+    float2 u = floor(uv / texelSize) * texelSize;
+    float2 t = u + float2(phase, phase);
+    float r = ss_addon_noise_rand(t) * UNITY_PI * 2.0 - UNITY_PI;
+    float r2 = step(ss_addon_noise_rand(t * r), ratio);
+    float2 v = float2(sin(r), cos(r)) * texelSize * 96.0 * power * r2;
+    return tex2D(tex, uv + v);
+}
+
 #endif // SPRITESTUDIO_ADDON_INCLUDED

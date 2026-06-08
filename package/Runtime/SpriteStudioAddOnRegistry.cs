@@ -40,9 +40,11 @@ namespace SpriteStudio.Runtime
             new Builtin("ss-blur", "SpriteStudio/AddOn/Blur", true),
             new Builtin("ss-pix", "SpriteStudio/AddOn/Pix", true),
             new Builtin("ss-noise", "SpriteStudio/AddOn/Noise", true),
+            new Builtin("ss-wave", "SpriteStudio/AddOn/Wave", true),
+            new Builtin("ss-move", "SpriteStudio/AddOn/Move", true),
+            new Builtin("ss-scatter", "SpriteStudio/AddOn/Scatter", true),
             new Builtin("TestStub", "SpriteStudio/AddOn/TestStub", true), // dev dispatch check
-            // ss-wave / ss-move / ss-scatter (UV sampling) and ss-circle / ss-spot (need ss_cell_rect)
-            // land here as they are ported.
+            // ss-circle / ss-spot need ss_cell_rect (per-part cell rectangle) -> a later step.
         };
 
         private struct Entry
