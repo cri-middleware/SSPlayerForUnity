@@ -249,6 +249,11 @@ namespace SpriteStudio.Runtime
         {
             if (Application.isPlaying) return;
             if (!_editPreviewDirty) return;
+            // Self-heal if the .ssab was still importing when OnEnable ran (Editor restart race): keep
+            // retrying while the runtime has no ssab yet, and only clear the dirty flag (build once) once
+            // it is ready. A setup failure after that is a config error, not a race, so we do not loop.
+            _core.EnsureCreated(_animeAsset, _subFrameEnabled);
+            if (_core.Internal == null || !_core.Internal.HasSsab) return;
             _editPreviewDirty = false;
             BuildEditPreview();
         }

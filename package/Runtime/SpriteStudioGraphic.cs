@@ -177,7 +177,11 @@ namespace SpriteStudio.Runtime
             // setup → 開始フレーム固定し、進行させず毎フレーム再構築/再アサートする (CanvasRenderer のメッシュが
             // uGUI にクリアされても出続けるよう dirty-once ではなく毎フレーム ApplyAndRender する)。
             if (Application.isPlaying) return;
-            if (_core.Internal == null) return;
+            // Self-heal if the .ssab was still importing when OnEnable ran (Editor restart race): pick the
+            // ssab up once it is available (EnsureCreated is a no-op once loaded). Without this an empty
+            // Internal created at OnEnable would never get its ssab, so SetupAnimation fails forever.
+            _core.EnsureCreated(_animeAsset, _subFrameEnabled);
+            if (_core.Internal == null || !_core.Internal.HasSsab) return;
             if (_editPreviewNeedsSetup)
             {
                 if (string.IsNullOrEmpty(_animationName) || !_core.Internal.SetupAnimation(_animationName)) return;
