@@ -195,6 +195,10 @@ namespace SpriteStudio.Runtime
         private void OnDisable()
         {
             SpriteStudioUpdateManager.Unregister(this);
+            // Release the per-part AddOn material instances and force a material-list rebuild on
+            // re-enable (the cleared list count no longer matches the submesh count).
+            DestroyAddOnInstances();
+            _submeshMaterials.Clear();
             _core.Dispose();
             // Internal を破棄したので Timeline 制御状態もリセットする。これをしないと再有効化時に
             // 新しい (アニメ未 setup の) ネイティブハンドルへ「同名なので setup 不要」と誤判定し描画が破綻する。
@@ -310,6 +314,7 @@ namespace SpriteStudio.Runtime
             // 構成シグネチャ。threshold は per-frame 可変なのでここには含めず MPB で渡す。
             uint signature = (uint)subCount;
             bool hasWrite = false;
+            bool hasAddOn = false;
             for (int s = 0; s < subCount; s++)
             {
                 var info = submeshes[s];
@@ -320,12 +325,16 @@ namespace SpriteStudio.Runtime
                 signature = signature * 31u + info.StencilOp;
                 signature = signature * 31u + info.StencilComp;
                 if (info.Role == StencilRole.Write) hasWrite = true;
+                if (info.ShaderHash != 0) hasAddOn = true;
             }
 
             if (signature != _lastMaterialSignature || _submeshMaterials.Count != subCount)
             {
                 _lastMaterialSignature = signature;
                 _submeshMaterials.Clear();
+                // Per-part AddOn material instances are owned by this player; recreate them when the
+                // submesh layout changes (rare). Destroy the previous set first so they do not leak.
+                DestroyAddOnInstances();
                 if (_submeshMaterials.Capacity < subCount)
                 {
                     _submeshMaterials.Capacity = subCount;
@@ -352,8 +361,12 @@ namespace SpriteStudio.Runtime
                             if (info.ShaderHash != 0
                                 && SpriteStudioAddOnRegistry.TryResolveShader(info.ShaderHash, _shaderCatalog, out var addonShader, out _))
                             {
-                                // Per-part AddOn: resolve the built-in/catalog shader, then a (shader, texture, blend) material.
-                                mat = _animeAsset.ResolveAddOnMaterial(addonShader, info.ShaderHash, info.TextureHash, info.BlendType);
+                                // Per-part AddOn: its own material instance (so its per-frame params do
+                                // not stomp other parts'), tracked for destruction. Params are pushed in
+                                // the per-frame pass below.
+                                mat = _animeAsset.CreatePerPartMaterialInstance(addonShader, info.TextureHash, info.BlendType);
+                                if (mat != null) _addOnInstances.Add(mat);
+                                else mat = _animeAsset.ResolveMaterial(info.TextureHash, info.BlendType);
                             }
                             else
                             {
@@ -389,6 +402,38 @@ namespace SpriteStudio.Runtime
                     _meshRenderer.SetPropertyBlock(_maskMpb, s);
                 }
             }
+
+            // Per-part AddOn params: pushed onto each part's own material instance every frame (the
+            // params animate), independent of the signature-cached material list. Set on the Material
+            // (not a MaterialPropertyBlock) so the per-part draws stay SRP Batcher compatible.
+            if (hasAddOn)
+            {
+                for (int s = 0; s < subCount; s++)
+                {
+                    var info = submeshes[s];
+                    if (info.ShaderHash == 0) continue;
+                    if (s < _submeshMaterials.Count)
+                    {
+                        var m = _submeshMaterials[s];
+                        if (m != null) SpriteStudioMaterial.ApplyAddOnParams(m, info);
+                    }
+                }
+            }
+        }
+
+        private readonly System.Collections.Generic.List<Material> _addOnInstances = new System.Collections.Generic.List<Material>();
+
+        // Destroy the per-part AddOn material instances this player owns (created per submesh-layout
+        // change). The clones are HideAndDontSave, so nothing else releases them.
+        private void DestroyAddOnInstances()
+        {
+            for (int i = 0; i < _addOnInstances.Count; i++)
+            {
+                var m = _addOnInstances[i];
+                if (m == null) continue;
+                if (Application.isPlaying) Destroy(m); else DestroyImmediate(m);
+            }
+            _addOnInstances.Clear();
         }
 
         #region ITimeControl (Timeline 連携)

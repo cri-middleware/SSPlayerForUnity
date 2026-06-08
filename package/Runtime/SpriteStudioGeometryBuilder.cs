@@ -781,15 +781,21 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     if (!valid) continue; // skipped parts add no geometry; their rank stays in the run span
 
                     uint shaderHash = 0;
+                    float ap0 = 0, ap1 = 0, ap2 = 0, ap3 = 0, ap4 = 0, ap5 = 0, ap6 = 0, ap7 = 0;
                     var ps = frameData.Parts(p_idx);
                     if (ps.HasValue)
                     {
                         int sIdx = ps.Value.Shader;
                         if (sIdx >= 0 && sIdx < frameData.ShadersLength)
                         {
-                            uint idHash = frameData.Shaders(sIdx).Value.IdHash;
+                            var shAttr = frameData.Shaders(sIdx).Value;
+                            uint idHash = shAttr.IdHash;
                             if (idHash != 0 && SpriteStudioAddOnRegistry.TryGetIsPerPart(idHash, userCatalog, out bool isPerPart) && isPerPart)
+                            {
                                 shaderHash = idHash;
+                                ap0 = shAttr.Param0; ap1 = shAttr.Param1; ap2 = shAttr.Param2; ap3 = shAttr.Param3;
+                                ap4 = shAttr.Param4; ap5 = shAttr.Param5; ap6 = shAttr.Param6; ap7 = shAttr.Param7;
+                            }
                         }
                     }
 
@@ -800,6 +806,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         if (runCount > 0 && runIc > 0)
                             _batchBuilder.EmitDrawBatch((ushort)runStart, (ushort)runCount, runVc, runIc, sKind, b.TextureHash, (byte)b.BlendType, 0u, ref totalVertices, ref totalIndices);
                         _batchBuilder.EmitDrawBatch((ushort)rank, 1, pvc, pic, sKind, b.TextureHash, (byte)b.BlendType, shaderHash, ref totalVertices, ref totalIndices);
+                        _batchBuilder.SetLastSubmeshAddOnParams(ap0, ap1, ap2, ap3, ap4, ap5, ap6, ap7);
                         runStart = rank + 1; runVc = 0; runIc = 0;
                     }
                     else

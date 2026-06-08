@@ -33,6 +33,9 @@ namespace SpriteStudio.Runtime
         public byte StencilReadMask;
         public byte StencilWriteMask;
         public float MaskThreshold;
+        // Per-part AddOn shader params (FrameData PartAttributeShader.Param0..7), only meaningful when
+        // ShaderHash != 0. The player sets these on the part's own AddOn material instance each frame.
+        public float P0, P1, P2, P3, P4, P5, P6, P7;
     }
 
     internal sealed class SpriteStudioBatchBuilder : IDisposable
@@ -65,9 +68,11 @@ namespace SpriteStudio.Runtime
             {
                 var pSub = (SubmeshInfo*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_submeshes);
                 ref var last = ref pSub[_submeshCount - 1];
-                // Only merge runs that share the same texture, blend AND AddOn shader (a per-part AddOn
-                // part must stay its own submesh so it can carry its own material/params).
-                if (last.Role == StencilRole.None && last.TextureHash == textureHash && last.BlendType == blendType && last.ShaderHash == shaderHash)
+                // Only merge shared (non-AddOn) runs. A per-part AddOn part (shaderHash != 0) must stay
+                // its own submesh so it carries its own material instance and params — even two adjacent
+                // parts using the same AddOn shader can have different params, so they must not merge.
+                if (last.Role == StencilRole.None && shaderHash == 0 && last.ShaderHash == 0
+                    && last.TextureHash == textureHash && last.BlendType == blendType)
                 {
                     last.IndexCount += indexCount;
                     return;
@@ -95,6 +100,16 @@ namespace SpriteStudio.Runtime
                 StencilWriteMask = stencilWriteMask,
                 MaskThreshold = maskThreshold
             };
+        }
+
+        // Stamp the per-part AddOn params onto the most recently emitted submesh (called right after the
+        // per-part EmitDrawBatch, which always creates a fresh submesh since AddOn parts never merge).
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public unsafe void SetLastSubmeshAddOnParams(float p0, float p1, float p2, float p3, float p4, float p5, float p6, float p7)
+        {
+            if (_submeshCount == 0) return;
+            ref var s = ref ((SubmeshInfo*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_submeshes))[_submeshCount - 1];
+            s.P0 = p0; s.P1 = p1; s.P2 = p2; s.P3 = p3; s.P4 = p4; s.P5 = p5; s.P6 = p6; s.P7 = p7;
         }
 
         // The draw-batch buffer is pre-sized by BeginFrame(maxBatches), but maxBatches is only a

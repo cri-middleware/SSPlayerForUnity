@@ -118,6 +118,33 @@ namespace SpriteStudio.Runtime
         public static readonly int IdMaskThreshold = Shader.PropertyToID("_MaskThreshold");
         static readonly int IdMainTex = Shader.PropertyToID("_MainTex");
 
+        // Per-part AddOn shader params (_SsParam0.._SsParam7), set on the part's own material each frame.
+        static readonly int IdSsParam0 = Shader.PropertyToID("_SsParam0");
+        static readonly int IdSsParam1 = Shader.PropertyToID("_SsParam1");
+        static readonly int IdSsParam2 = Shader.PropertyToID("_SsParam2");
+        static readonly int IdSsParam3 = Shader.PropertyToID("_SsParam3");
+        static readonly int IdSsParam4 = Shader.PropertyToID("_SsParam4");
+        static readonly int IdSsParam5 = Shader.PropertyToID("_SsParam5");
+        static readonly int IdSsParam6 = Shader.PropertyToID("_SsParam6");
+        static readonly int IdSsParam7 = Shader.PropertyToID("_SsParam7");
+
+        /// <summary>
+        /// Push a submesh's per-part AddOn params (P0..P7) onto its material. Setting a property the
+        /// shader does not declare is a harmless no-op in Unity, so an AddOn that uses only _SsParam0
+        /// (e.g. sepia) ignores the rest. Material (not MaterialPropertyBlock) so SRP Batcher is kept.
+        /// </summary>
+        public static void ApplyAddOnParams(Material m, in SubmeshInfo info)
+        {
+            m.SetFloat(IdSsParam0, info.P0);
+            m.SetFloat(IdSsParam1, info.P1);
+            m.SetFloat(IdSsParam2, info.P2);
+            m.SetFloat(IdSsParam3, info.P3);
+            m.SetFloat(IdSsParam4, info.P4);
+            m.SetFloat(IdSsParam5, info.P5);
+            m.SetFloat(IdSsParam6, info.P6);
+            m.SetFloat(IdSsParam7, info.P7);
+        }
+
         // Mask stencil bit isolation: the coverage counter lives in the low 4 bits (0x0F => nesting
         // depth up to 15). These are URP's user-reserved bits (URP StencilUsage: bits 0-3 = UserMask;
         // bit 4 = light stencil, bits 5-6 = material type, bit 7 reserved), so confining the SS mask to
