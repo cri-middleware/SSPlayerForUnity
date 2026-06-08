@@ -15,10 +15,17 @@ namespace SpriteStudio.Runtime
 
         public void EnsureCreated(SpriteStudioAnimeAsset asset, bool subFrameEnabled)
         {
-            if (Internal != null) return;
+            if (Internal == null)
+            {
+                Internal = new SpriteStudioInternalPlayer { SubFrameEnabled = subFrameEnabled };
+            }
 
-            Internal = new SpriteStudioInternalPlayer { SubFrameEnabled = subFrameEnabled };
-            if (asset != null && asset.SsabData != null)
+            // Self-heal: load the ssab as soon as the asset is actually available. On an Editor restart
+            // the referenced .ssab can still be re-importing when OnEnable first runs (asset / SsabData
+            // momentarily null); the previous `if (Internal != null) return` guard then left the empty
+            // Internal stuck forever. Calling EnsureCreated again (the edit-preview retry, or the next
+            // reload) now picks the ssab up once it is ready. LoadSsab is safe to call repeatedly.
+            if (!Internal.HasSsab && asset != null && asset.SsabData != null)
             {
                 Internal.LoadSsab(asset.SsabData, asset.ResolveExternalSsab);
             }

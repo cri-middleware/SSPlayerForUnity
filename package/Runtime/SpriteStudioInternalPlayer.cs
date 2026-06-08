@@ -136,6 +136,12 @@ internal struct MaskPartData
         private const int MaxInstanceDepth = 16;
         private int _instanceDepth;
 
+        // True once an ssab has been loaded into the native runtime. Lets the owner (PlaybackCore /
+        // player) detect "Internal created but ssab not yet loaded" — which happens when OnEnable runs
+        // before the .ssab finishes importing on an Editor restart — and self-heal by loading it later.
+        public bool HasSsab => _hasSsab;
+        private bool _hasSsab;
+
         public void LoadSsab(byte[] ssabData, AssetResolver resolver = null)
         {
             LoadSsabInternal(ssabData, resolver, 0);
@@ -158,6 +164,7 @@ internal struct MaskPartData
             var bb = new Google.FlatBuffers.ByteBuffer(ssabData);
             var ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
             SetupSlots(ssab);
+            _hasSsab = true;
         }
 
         private void SetupSlots(ss.format.SsAnimeBinary binary)
