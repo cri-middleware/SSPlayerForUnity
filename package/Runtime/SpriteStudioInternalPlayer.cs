@@ -82,6 +82,11 @@ internal struct MaskPartData
         // whole mask path is skipped, like _build_mask_writers returning empty.
         internal bool _hasMaskParts;
 
+        // Per-part AddOn shader catalog (set by the owning world player each frame before the build).
+        // null = no per-part shader dispatch (the Canvas/Graphic path leaves this null). The geometry
+        // builder consults it to carve out is-per-part shader parts; the player resolves their material.
+        public SpriteStudioShaderCatalog ShaderCatalog;
+
         // When true (the Canvas/uGUI path), SpriteStudio internal masking is suppressed and the stencil
         // buffer is left to uGUI's own Mask/RectMask2D. The world (MeshRenderer) path leaves it false.
         internal bool _suppressInternalMask;

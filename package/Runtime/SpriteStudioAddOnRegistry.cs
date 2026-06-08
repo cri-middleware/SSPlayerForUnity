@@ -1,0 +1,103 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace SpriteStudio.Runtime
+{
+    /// <summary>
+    /// Built-in per-part AddOn registry: the SpriteStudio standard AddOn shader ids (ss-sepia,
+    /// ss-outline, ...) hardcoded in C# so they dispatch with zero project setup, mirroring
+    /// SSPlayerForGodot's EMBEDDED_SHADERS. The optional user-authored <see cref="SpriteStudioShaderCatalog"/>
+    /// is consulted first (so a project can override or add custom shaders); the built-in table is the
+    /// fallback.
+    ///
+    /// Only AddOns whose shader has actually been ported are listed here; ids not in the table (nor in
+    /// the user catalog) fold to the shared default path. The shader is located by name with Shader.Find
+    /// and cached. NOTE: in a player build, Shader.Find only finds shaders kept in the build — the AddOn
+    /// shaders still need a build-inclusion anchor (Always Included Shaders or a referencing asset);
+    /// that is a separate packaging step (TODO) and does not affect the editor.
+    /// </summary>
+    public static class SpriteStudioAddOnRegistry
+    {
+        private readonly struct Builtin
+        {
+            public readonly string IdName;
+            public readonly string ShaderName;
+            public readonly bool IsPerPart;
+            public Builtin(string idName, string shaderName, bool isPerPart)
+            {
+                IdName = idName; ShaderName = shaderName; IsPerPart = isPerPart;
+            }
+        }
+
+        // Add an entry here when an AddOn shader is ported (id string must match the SpriteStudio editor).
+        private static readonly Builtin[] s_builtins =
+        {
+            new Builtin("ss-sepia", "SpriteStudio/AddOn/Sepia", true),
+            new Builtin("TestStub", "SpriteStudio/AddOn/TestStub", true), // dev dispatch check
+            // ss-outline / ss-blur / ss-hsb / ss-step / ss-wave / ss-noise / ss-pix / ss-bmask /
+            // ss-move / ss-scatter / ss-circle / ss-spot land here as their shaders are ported.
+        };
+
+        private struct Entry
+        {
+            public string ShaderName;
+            public bool IsPerPart;
+            public Shader Shader;
+            public bool ShaderResolved;
+        }
+
+        private static Dictionary<uint, Entry> s_byHash;
+
+        private static void EnsureMap()
+        {
+            if (s_byHash != null) return;
+            s_byHash = new Dictionary<uint, Entry>(s_builtins.Length);
+            for (int i = 0; i < s_builtins.Length; i++)
+            {
+                var b = s_builtins[i];
+                uint h = SpriteStudioShaderCatalog.HashId(b.IdName);
+                s_byHash[h] = new Entry { ShaderName = b.ShaderName, IsPerPart = b.IsPerPart };
+            }
+        }
+
+        /// <summary>
+        /// Lightweight resolve for the geometry-builder carve decision: does this shader id hash map to
+        /// a registered per-part AddOn? Consults the user catalog first, then the built-in table. No
+        /// Shader.Find (so it stays cheap on the per-frame build path).
+        /// </summary>
+        public static bool TryGetIsPerPart(uint idHash, SpriteStudioShaderCatalog userCatalog, out bool isPerPart)
+        {
+            if (userCatalog != null && userCatalog.TryResolve(idHash, out _, out isPerPart)) return true;
+            EnsureMap();
+            if (s_byHash.TryGetValue(idHash, out var e)) { isPerPart = e.IsPerPart; return true; }
+            isPerPart = false;
+            return false;
+        }
+
+        /// <summary>
+        /// Full resolve for material assignment: the AddOn Shader (Shader.Find, cached) and its dispatch
+        /// class. User catalog first, then the built-in table. Returns false when unresolved or the
+        /// shader cannot be found (the caller then folds to the default material).
+        /// </summary>
+        public static bool TryResolveShader(uint idHash, SpriteStudioShaderCatalog userCatalog, out Shader shader, out bool isPerPart)
+        {
+            if (userCatalog != null && userCatalog.TryResolve(idHash, out shader, out isPerPart)) return true;
+            EnsureMap();
+            if (s_byHash.TryGetValue(idHash, out var e))
+            {
+                if (!e.ShaderResolved)
+                {
+                    e.Shader = Shader.Find(e.ShaderName);
+                    e.ShaderResolved = true;
+                    s_byHash[idHash] = e; // cache the resolved shader
+                }
+                shader = e.Shader;
+                isPerPart = e.IsPerPart;
+                return shader != null;
+            }
+            shader = null;
+            isPerPart = false;
+            return false;
+        }
+    }
+}

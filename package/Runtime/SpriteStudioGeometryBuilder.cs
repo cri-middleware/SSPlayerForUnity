@@ -759,6 +759,61 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 return;
             }
 
+            // Per-part AddOn shader dispatch (non-mask path). When the frame carries shader attributes
+            // and a catalog is bound, parts whose shader id resolves to an is-per-part AddOn are carved
+            // out as their own Count=1 submesh (stamped with the shader id hash); the rest accumulate
+            // into shared rank-runs, mirroring the mask per-part split. Vertex order is unchanged, so the
+            // mesh job fills exactly the same geometry — only the submesh granularity differs.
+            if (frameData.ShadersLength > 0)
+            {
+                // Built-in AddOns resolve with no project setup; the (optional) user catalog overrides.
+                var userCatalog = _player.ShaderCatalog;
+                byte sKind = (byte)b.Kind;
+                int runStart = b.StartRank;   // first rank of the current shared run (rank-span based)
+                int runVc = 0, runIc = 0;
+                for (int k = 0; k < b.Count; k++)
+                {
+                    int rank = b.StartRank + k;
+                    int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
+                    int pvc = 0, pic = 0;
+                    bool valid = p_idx >= 0 && p_idx < partsLength
+                                 && _maskPlanner.MaskPartVcIc(p_idx, sKind, frame, _partStates, out pvc, out pic);
+                    if (!valid) continue; // skipped parts add no geometry; their rank stays in the run span
+
+                    uint shaderHash = 0;
+                    var ps = frameData.Parts(p_idx);
+                    if (ps.HasValue)
+                    {
+                        int sIdx = ps.Value.Shader;
+                        if (sIdx >= 0 && sIdx < frameData.ShadersLength)
+                        {
+                            uint idHash = frameData.Shaders(sIdx).Value.IdHash;
+                            if (idHash != 0 && SpriteStudioAddOnRegistry.TryGetIsPerPart(idHash, userCatalog, out bool isPerPart) && isPerPart)
+                                shaderHash = idHash;
+                        }
+                    }
+
+                    if (shaderHash != 0)
+                    {
+                        // Flush the pending shared run [runStart, rank), then emit this part on its own.
+                        int runCount = rank - runStart;
+                        if (runCount > 0 && runIc > 0)
+                            _batchBuilder.EmitDrawBatch((ushort)runStart, (ushort)runCount, runVc, runIc, sKind, b.TextureHash, (byte)b.BlendType, 0u, ref totalVertices, ref totalIndices);
+                        _batchBuilder.EmitDrawBatch((ushort)rank, 1, pvc, pic, sKind, b.TextureHash, (byte)b.BlendType, shaderHash, ref totalVertices, ref totalIndices);
+                        runStart = rank + 1; runVc = 0; runIc = 0;
+                    }
+                    else
+                    {
+                        runVc += pvc; runIc += pic;
+                    }
+                }
+                // Flush the trailing shared run [runStart, batchEnd).
+                int tailCount = (b.StartRank + b.Count) - runStart;
+                if (tailCount > 0 && runIc > 0)
+                    _batchBuilder.EmitDrawBatch((ushort)runStart, (ushort)tailCount, runVc, runIc, sKind, b.TextureHash, (byte)b.BlendType, 0u, ref totalVertices, ref totalIndices);
+                return;
+            }
+
             for (int k = 0; k < b.Count; k++)
             {
                 int rank = b.StartRank + k;

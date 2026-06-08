@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text;
 using UnityEditor;
 using UnityEngine;
@@ -77,6 +78,70 @@ namespace SpriteStudio.Editor
                     "\nMISMATCH -> ss_runtime_hash_string is NOT the converter's name hash. " +
                     "Fall back to per-asset baking from PartAttributeShader.Id strings (approach B).\n" + sb);
             }
+        }
+
+        private const string DumpMenuPath = "Assets/SpriteStudio/Dump Per-Part Shader Ids";
+
+        [MenuItem(DumpMenuPath, true)]
+        private static bool ValidateDump() => Selection.activeObject is SpriteStudioAnimeAsset;
+
+        // Enumerate every per-part shader id used by the selected asset (initial + animated attributes)
+        // and log each unique (id string, id hash). Use this to learn exactly which id names a part uses
+        // so the AddOn catalog / built-in registry can map them. An id printed here that resolves to a
+        // registered, is-per-part AddOn is what the dispatch will draw with.
+        [MenuItem(DumpMenuPath, false, 2001)]
+        private static void DumpShaderIds()
+        {
+            var asset = Selection.activeObject as SpriteStudioAnimeAsset;
+            if (asset == null) { Debug.LogWarning("[SS-ShaderDump] Select a SpriteStudioAnimeAsset first."); return; }
+            if (asset.SsabData == null || asset.SsabData.Length == 0) { Debug.LogWarning($"[SS-ShaderDump] '{asset.name}' has no .ssab data."); return; }
+
+            var bb = new Google.FlatBuffers.ByteBuffer(asset.SsabData);
+            var ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
+
+            var seen = new Dictionary<uint, string>();
+            int animLen = ssab.AnimationsLength;
+            for (int a = 0; a < animLen; a++)
+            {
+                var animOpt = ssab.Animations(a);
+                if (!animOpt.HasValue) continue;
+                var anim = animOpt.Value;
+
+                int ipaLen = anim.PartsInitialAttributesLength;
+                for (int j = 0; j < ipaLen; j++)
+                {
+                    var ipa = anim.PartsInitialAttributes(j);
+                    if (!ipa.HasValue) continue;
+                    var sh = ipa.Value.Shader;
+                    if (sh.HasValue && !string.IsNullOrEmpty(sh.Value.Id)) seen[sh.Value.IdHash] = sh.Value.Id;
+                }
+
+                int padLen = anim.PartsAnimationDataLength;
+                for (int j = 0; j < padLen; j++)
+                {
+                    var pad = anim.PartsAnimationData(j);
+                    if (!pad.HasValue) continue;
+                    int saLen = pad.Value.ShaderArrayLength;
+                    for (int k = 0; k < saLen; k++)
+                    {
+                        var sds = pad.Value.ShaderArray(k);
+                        if (!sds.HasValue) continue;
+                        var sh = sds.Value.Value; // PartAnimationDataShader.Value -> PartAttributeShader
+                        if (sh.HasValue && !string.IsNullOrEmpty(sh.Value.Id)) seen[sh.Value.IdHash] = sh.Value.Id;
+                    }
+                }
+            }
+
+            if (seen.Count == 0)
+            {
+                Debug.Log($"[SS-ShaderDump] '{asset.name}': no per-part shader attributes found (this asset has no AddOn/custom-shader parts).");
+                return;
+            }
+
+            var sb = new StringBuilder($"[SS-ShaderDump] '{asset.name}': {seen.Count} per-part shader id(s) used:\n");
+            foreach (var kv in seen)
+                sb.AppendLine($"  id=\"{kv.Value}\"  hash=0x{kv.Key:X8}  (register this IdName in the catalog, isPerPart=true)");
+            Debug.Log(sb.ToString());
         }
     }
 }

@@ -20,6 +20,10 @@ namespace SpriteStudio.Runtime
         [Tooltip("描画対象となるコンバート済みの ssab アセット")]
         [SerializeField] private SpriteStudioAnimeAsset _animeAsset;
 
+        [Tooltip("Per-part AddOn / custom shader catalog. Optional: leave empty to disable per-part " +
+                 "shader dispatch. The built-in AddOns ship pre-registered in the package catalog.")]
+        [SerializeField] private SpriteStudioShaderCatalog _shaderCatalog;
+
         public SpriteStudioAnimeAsset AnimeAsset
         {
             get => _animeAsset;
@@ -276,6 +280,10 @@ namespace SpriteStudio.Runtime
         {
             if (_core.Internal == null) return;
 
+            // Bind the per-part shader catalog before the build so the geometry builder can carve out
+            // is-per-part AddOn parts (cheap reference assignment; null = no per-part dispatch).
+            _core.Internal.ShaderCatalog = _shaderCatalog;
+
             // バッチ単位に SubMesh を分割し、テクスチャごとに別マテリアルを適用する
             _core.Internal.ApplyToMesh(_sharedMesh, true);
             UpdateSubmeshMaterials();
@@ -306,6 +314,7 @@ namespace SpriteStudio.Runtime
             {
                 var info = submeshes[s];
                 signature = signature * 31u + info.TextureHash;
+                signature = signature * 31u + info.ShaderHash;
                 signature = signature * 31u + info.BlendType;
                 signature = signature * 31u + (uint)info.Role;
                 signature = signature * 31u + info.StencilOp;
@@ -340,8 +349,17 @@ namespace SpriteStudio.Runtime
                             mat = _animeAsset.ResolveTestMaterial(info.TextureHash, info.BlendType, info.StencilComp);
                             break;
                         default:
-                            // Resolve self -> Instance external reference, then apply the per-blend material variant.
-                            mat = _animeAsset.ResolveMaterial(info.TextureHash, info.BlendType);
+                            if (info.ShaderHash != 0
+                                && SpriteStudioAddOnRegistry.TryResolveShader(info.ShaderHash, _shaderCatalog, out var addonShader, out _))
+                            {
+                                // Per-part AddOn: resolve the built-in/catalog shader, then a (shader, texture, blend) material.
+                                mat = _animeAsset.ResolveAddOnMaterial(addonShader, info.ShaderHash, info.TextureHash, info.BlendType);
+                            }
+                            else
+                            {
+                                // Resolve self -> Instance external reference, then apply the per-blend material variant.
+                                mat = _animeAsset.ResolveMaterial(info.TextureHash, info.BlendType);
+                            }
                             break;
                     }
                     if (mat == null)
