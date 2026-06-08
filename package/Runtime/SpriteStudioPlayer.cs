@@ -10,7 +10,10 @@ namespace SpriteStudio.Runtime
     /// SpriteStudioUpdateManager が「全 Schedule → 全 Apply」でまとめて行います (Job 並列化)。
     /// </summary>
     [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
-    // NOTE: [ExecuteAlways] は無効。Play モードでのみ再生・描画する (編集モードは静止)。
+    // [ExecuteAlways]: edit モードでも OnEnable/LateUpdate を回し、シーン設置時に「開始フレームの
+    // 静止プレビュー」を1回だけ構築する (再生はしない)。Play モードの毎フレーム駆動は従来どおり
+    // SpriteStudioUpdateManager が集中管理する (edit モードでは manager は動かない)。
+    [ExecuteAlways]
     public class SpriteStudioPlayer : MonoBehaviour, ITimeControl, ISpriteStudioRenderable
     {
         [Header("SpriteStudio Asset")]
@@ -179,6 +182,10 @@ namespace SpriteStudio.Runtime
             _core.EnsureCreated(_animeAsset, _subFrameEnabled);
             ApplyPixelsPerUnit();
             SpriteStudioUpdateManager.Register(this);
+#if UNITY_EDITOR
+            // edit モードでは設置直後に開始フレームの静止プレビューを1回構築する (LateUpdate で消化)。
+            if (!Application.isPlaying) _editPreviewDirty = true;
+#endif
         }
 
         private void OnDisable()
@@ -221,6 +228,31 @@ namespace SpriteStudio.Runtime
                 _meshRenderer.sortingLayerName = _sortingLayerName;
                 _meshRenderer.sortingOrder = _sortingOrder;
             }
+            // インスペクタ変更 (アニメ名・PPU 等) で edit プレビューを組み直す。
+            if (!Application.isPlaying) _editPreviewDirty = true;
+        }
+
+        // edit モードの静止プレビュー。[ExecuteAlways] により LateUpdate は毎エディタフレーム呼ばれるが、
+        // _editPreviewDirty が立っているときだけ「開始フレームを1回構築」して静止させる (再生はしない)。
+        // Play モードは SpriteStudioUpdateManager が駆動するためここでは何もしない。
+        private bool _editPreviewDirty;
+
+        private void LateUpdate()
+        {
+            if (Application.isPlaying) return;
+            if (!_editPreviewDirty) return;
+            _editPreviewDirty = false;
+            BuildEditPreview();
+        }
+
+        private void BuildEditPreview()
+        {
+            if (_core.Internal == null || _animeAsset == null || string.IsNullOrEmpty(_animationName)) return;
+            if (!_core.Internal.SetupAnimation(_animationName)) return;
+            // 開始フレームに固定し、進行させず 1 フレームだけ同期構築する (ScheduleMeshUpdate は advance=false)。
+            _core.Internal.SetFrame(_core.Internal.GetAnimationSectionStart());
+            _core.Internal.ScheduleMeshUpdate(0f);
+            ApplyAndRender();
         }
 #endif
 

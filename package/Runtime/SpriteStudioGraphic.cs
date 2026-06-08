@@ -138,6 +138,8 @@ namespace SpriteStudio.Runtime
             if (_core.Internal != null) _core.Internal.SuppressInternalMask = true;
             _canvasMaterialDirty = true;
             SpriteStudioUpdateManager.Register(this);
+            // edit モードでは設置直後に開始フレームの静止プレビューを構築する (LateUpdate で setup を消化)。
+            _editPreviewNeedsSetup = true;
         }
 
         protected override void OnDisable()
@@ -164,12 +166,25 @@ namespace SpriteStudio.Runtime
             }
         }
 
+        // edit モードプレビューで一度だけ SetupAnimation すべきかのフラグ (OnEnable / OnValidate で立てる)。
+        private bool _editPreviewNeedsSetup;
+
         private void LateUpdate()
         {
             // play モードは SpriteStudioUpdateManager が集中管理する。
-            // edit モード (ExecuteAlways) のプレビューのみここで自前更新する (直列・並列経路とは分離)。
+            // edit モード (ExecuteAlways) の静止プレビューのみここで自前更新する。Start() は edit モードでは
+            // 走らず SetupAnimation がされないため、設置直後は空フレームを組んで「一瞬出て消える」。明示的に
+            // setup → 開始フレーム固定し、進行させず毎フレーム再構築/再アサートする (CanvasRenderer のメッシュが
+            // uGUI にクリアされても出続けるよう dirty-once ではなく毎フレーム ApplyAndRender する)。
             if (Application.isPlaying) return;
-            _core.TickAndSchedule(Time.deltaTime, SubFrameEnabled);
+            if (_core.Internal == null) return;
+            if (_editPreviewNeedsSetup)
+            {
+                if (string.IsNullOrEmpty(_animationName) || !_core.Internal.SetupAnimation(_animationName)) return;
+                _core.Internal.SetFrame(_core.Internal.GetAnimationSectionStart());
+                _editPreviewNeedsSetup = false;
+            }
+            _core.Internal.ScheduleMeshUpdate(0f); // 静止: 開始フレームを advance なしで構築
             ApplyAndRender();
         }
 
@@ -180,6 +195,8 @@ namespace SpriteStudio.Runtime
         protected override void OnValidate()
         {
             base.OnValidate();
+            // インスペクタ変更 (アニメ名等) で edit プレビューを setup から組み直す。
+            _editPreviewNeedsSetup = true;
             if (_core.Internal == null) return;
             _core.Internal.SetSpeed(_speedScale);
             _core.Internal.SetLoop(_loopCount);
