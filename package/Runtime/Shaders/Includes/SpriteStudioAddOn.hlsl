@@ -33,4 +33,56 @@ float3 ss_addon_sepia(float3 rgb, float power)
     return lerp(rgb, toned, abs(power));
 }
 
+// ---- ss-hsb: hue / saturation / brightness shift (ss_param0/1/2, signed) ----
+// RGB<->HSB helpers ported verbatim from the SS6 SDK (ss-hsb.fs); alpha passes through unchanged so
+// these operate on rgb only (GLSL mix/fract -> HLSL lerp/frac).
+float3 ss_addon_rgb_to_hsb(float3 c)
+{
+    float4 K = float4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+    float4 p = lerp(float4(c.bg, K.wz), float4(c.gb, K.xy), step(c.b, c.g));
+    float4 q = lerp(float4(p.xyw, c.r), float4(c.r, p.yzx), step(p.x, c.r));
+    float d = q.x - min(q.w, q.y);
+    float e = 1.0e-10;
+    return float3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+}
+
+float3 ss_addon_hsb_to_rgb(float3 hsb)
+{
+    float4 K = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    float3 p = abs(frac(hsb.xxx + K.xyz) * 6.0 - K.www);
+    return hsb.z * lerp(K.xxx, clamp(p - K.xxx, 0.0, 1.0), hsb.y);
+}
+
+float3 ss_addon_hsb(float3 rgb, float hue, float saturation, float brightness)
+{
+    float3 hsb = ss_addon_rgb_to_hsb(rgb);
+    hsb.x += hue;
+    hsb.y = clamp(hsb.y + saturation, 0.0, 1.0);
+    hsb.z = clamp(hsb.z + brightness, 0.0, 1.0);
+    if (hsb.x < 0.0) hsb.x += 1.0;
+    if (hsb.x > 1.0) hsb.x -= 1.0;
+    return ss_addon_hsb_to_rgb(hsb);
+}
+
+// ---- ss-step: brightness-driven posterise (ss_param0=threshold signed, 1=stages, 2=colour mix) ----
+// Ported from the SS6 SDK (ss-step.fs).
+float3 ss_addon_step(float3 rgb, float threshold, float stage, float colorMix)
+{
+    float d = 1.0 + 255.0 * abs(stage);
+    float e = 1.0e-10;
+    float t = abs(threshold);
+    float b = abs(step(threshold, 0.0) - max(rgb.r, max(rgb.g, rgb.b)));
+    float r = clamp(floor((b - t) / (t + e) * 256.0 / d) * d / 256.0, 0.0, 1.0);
+    float c = step(t, b) * r;
+    return lerp(float3(c, c, c), rgb * c, colorMix);
+}
+
+// ---- ss-bmask: brightness-threshold mask (ss_param0=brightness signed) ----
+// Ported from the SS6 SDK (ss-bmask.fs). Returns true to KEEP the pixel; the shader discards otherwise.
+bool ss_addon_bmask_keep(float3 rgb, float brightness)
+{
+    float b = abs(step(brightness, 0.0) - max(rgb.r, max(rgb.g, rgb.b)));
+    return b > abs(brightness);
+}
+
 #endif // SPRITESTUDIO_ADDON_INCLUDED

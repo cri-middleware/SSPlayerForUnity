@@ -33,9 +33,12 @@ namespace SpriteStudio.Runtime
         private static readonly Builtin[] s_builtins =
         {
             new Builtin("ss-sepia", "SpriteStudio/AddOn/Sepia", true),
+            new Builtin("ss-hsb", "SpriteStudio/AddOn/Hsb", true),
+            new Builtin("ss-step", "SpriteStudio/AddOn/Step", true),
+            new Builtin("ss-bmask", "SpriteStudio/AddOn/Bmask", true),
             new Builtin("TestStub", "SpriteStudio/AddOn/TestStub", true), // dev dispatch check
-            // ss-outline / ss-blur / ss-hsb / ss-step / ss-wave / ss-noise / ss-pix / ss-bmask /
-            // ss-move / ss-scatter / ss-circle / ss-spot land here as their shaders are ported.
+            // ss-outline / ss-blur / ss-wave / ss-noise / ss-pix / ss-move / ss-scatter (neighbour /
+            // UV sampling) and ss-circle / ss-spot (need ss_cell_rect) land here as they are ported.
         };
 
         private struct Entry
