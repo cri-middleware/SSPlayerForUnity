@@ -18,6 +18,7 @@ namespace SpriteStudio.Editor
         private SerializedProperty _skipFramesProp;
         private SerializedProperty _sortingLayerNameProp;
         private SerializedProperty _sortingOrderProp;
+        private SerializedProperty _partTrackersProp;
 
         private static readonly GUIContent _frameSkippingLabel = new GUIContent("Frame Skipping",
             "ON: 負荷でフレームが落ちても経過時間ぶん進める (実時間追従)。OFF: 毎 update で必ず 1 フレームずつ進める (コマ送り)。");
@@ -35,6 +36,7 @@ namespace SpriteStudio.Editor
             _skipFramesProp = serializedObject.FindProperty("_skipFrames");
             _sortingLayerNameProp = serializedObject.FindProperty("_sortingLayerName");
             _sortingOrderProp = serializedObject.FindProperty("_sortingOrder");
+            _partTrackersProp = serializedObject.FindProperty("_partTrackers");
         }
 
         public override void OnInspectorGUI()
@@ -55,6 +57,9 @@ namespace SpriteStudio.Editor
             EditorGUILayout.Space();
             EditorGUILayout.PropertyField(_sortingLayerNameProp);
             EditorGUILayout.PropertyField(_sortingOrderProp);
+
+            EditorGUILayout.Space();
+            EditorGUILayout.PropertyField(_partTrackersProp, true);
 
             serializedObject.ApplyModifiedProperties();
         }
