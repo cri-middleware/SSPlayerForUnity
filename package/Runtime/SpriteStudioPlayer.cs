@@ -39,6 +39,9 @@ namespace SpriteStudio.Runtime
                 _core.ReloadAsset(_animeAsset);
                 // The part set (and thus name->index mapping) may have changed: re-resolve trackers.
                 MarkPartTrackersDirty();
+#if UNITY_EDITOR
+                _appliedAsset = _animeAsset;
+#endif
             }
         }
 
@@ -158,6 +161,10 @@ namespace SpriteStudio.Runtime
         {
             _animationName = animName;
             _core.Play(_animationName, _loopCount, _speedScale, _skipFrames, "SpriteStudioPlayer");
+#if UNITY_EDITOR
+            // Keep the OnValidate baseline in sync so a later unrelated inspector edit does not restart.
+            _appliedAnimation = _animationName;
+#endif
         }
 
         private void Start()
@@ -195,6 +202,10 @@ namespace SpriteStudio.Runtime
             ApplyPixelsPerUnit();
             SpriteStudioUpdateManager.Register(this);
 #if UNITY_EDITOR
+            // Baseline so the first in-play OnValidate (e.g. tweaking speed) is not mistaken for an
+            // asset/animation change and does not restart playback.
+            _appliedAsset = _animeAsset;
+            _appliedAnimation = _animationName;
             // edit モードでは設置直後に開始フレームの静止プレビューを1回構築する (LateUpdate で消化)。
             if (!Application.isPlaying) _editPreviewDirty = true;
 #endif
@@ -226,12 +237,18 @@ namespace SpriteStudio.Runtime
         }
 
 #if UNITY_EDITOR
+        // Baseline of the core settings (asset / animation) currently applied to the runtime, so OnValidate
+        // can tell an actual asset/animation change apart from tweaking speed etc. Editor-only; rebuilt on
+        // play entry by OnEnable. NonSerialized so it never persists.
+        [System.NonSerialized] private SpriteStudioAnimeAsset _appliedAsset;
+        [System.NonSerialized] private string _appliedAnimation;
+
         // インスペクタはシリアライズ済みフィールドを直接書き換え、プロパティの setter を呼ばない。
         // そのため再生中のインスペクタ変更をランタイム (Rust) へ反映するにはここで同期する。
         // OnValidate は Editor 専用コールバック (ビルドでは呼ばれない) なので #if UNITY_EDITOR で囲む。
-        // (Internal 未生成時 = デシリアライズ中等は何もしない。アニメ名の切替は破壊的なので対象外。)
         private void OnValidate()
         {
+            // Live-tunable params (do not restart playback).
             if (_core.Internal != null)
             {
                 _core.Internal.SetSpeed(_speedScale);
@@ -244,8 +261,42 @@ namespace SpriteStudio.Runtime
                 _meshRenderer.sortingLayerName = _sortingLayerName;
                 _meshRenderer.sortingOrder = _sortingOrder;
             }
-            // インスペクタ変更 (アニメ名・PPU 等) で edit プレビューを組み直す。
-            if (!Application.isPlaying) _editPreviewDirty = true;
+
+            // Fundamental settings: changing the asset or animation in the inspector must refresh the
+            // runtime (the serialized fields are written directly, bypassing the property setters).
+            bool assetChanged = !ReferenceEquals(_appliedAsset, _animeAsset);
+            bool animChanged = _appliedAnimation != _animationName;
+            if (assetChanged)
+            {
+                // New part set: trackers must re-resolve their names.
+                MarkPartTrackersDirty();
+            }
+
+            if (Application.isPlaying)
+            {
+                // Reflect changes live during play. Reload the ssab on an asset swap, then (re)start the
+                // animation from the head when the asset or animation changed.
+                if (_core.Internal != null)
+                {
+                    if (assetChanged)
+                    {
+                        _core.EnsureCreated(_animeAsset, _subFrameEnabled);
+                        ApplyPixelsPerUnit();
+                    }
+                    if ((assetChanged || animChanged) && !string.IsNullOrEmpty(_animationName))
+                    {
+                        Play(_animationName);
+                    }
+                }
+            }
+            else
+            {
+                // edit モードはプレビューを組み直す (EnsureCreated がアセット変更時に ssab を再ロードする)。
+                _editPreviewDirty = true;
+            }
+
+            _appliedAsset = _animeAsset;
+            _appliedAnimation = _animationName;
         }
 
         // edit モードの静止プレビュー。[ExecuteAlways] により LateUpdate は毎エディタフレーム呼ばれるが、
