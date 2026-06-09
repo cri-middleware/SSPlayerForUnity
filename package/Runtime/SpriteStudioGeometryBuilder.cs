@@ -103,6 +103,10 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         }
 
         private Google.FlatBuffers.ByteBuffer _frameDataByteBuffer;
+        // Last consumed frame's FrameData view, retained so part tracking can read per-part PartState
+        // (hide / localScale) at ApplyAndRender time. Valid until the next ConsumeFrameData.
+        private ss.runtime.FrameData _lastFrameData;
+        private bool _hasFrameData;
 #if ENABLE_SPAN_T && UNSAFE_BYTEBUFFER
         // ゼロコピー: per-context の frame_data ネイティブバッファを直接 ByteBuffer に載せる。
         private NativeByteBufferAllocator _frameDataAllocator;
@@ -149,6 +153,25 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         public byte GetSubmeshBlendType(int index) => _batchBuilder.Submeshes[index].BlendType;
 
         /// <summary>
+        /// Per-part state for the last consumed frame (used by part tracking). Returns false if no frame
+        /// has been consumed yet or the index is out of range; outputs default to visible / unit scale.
+        /// </summary>
+        public bool TryGetPartState(int partIndex, out bool hidden, out float localScaleX, out float localScaleY)
+        {
+            hidden = false;
+            localScaleX = 1f;
+            localScaleY = 1f;
+            if (!_hasFrameData || partIndex < 0 || partIndex >= _lastFrameData.PartsLength) return false;
+            var p = _lastFrameData.Parts(partIndex);
+            if (!p.HasValue) return false;
+            var ps = p.Value;
+            hidden = ps.Hide;
+            localScaleX = ps.LocalScaleX;
+            localScaleY = ps.LocalScaleY;
+            return true;
+        }
+
+        /// <summary>
         /// 前フレームの Job 完了を待ち、advance 指定時は 1 フレーム進め、
         /// 描画フレーム番号と frame-skip を確定する。out handle が Zero のときは、このフレームは
         /// このプレイヤーを並列 get_frame_data / ConsumeFrameData の対象から外す (ハンドル無効、または skip)。
@@ -191,6 +214,15 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         }
 
         /// <summary>
+        /// Invalidate the frame-skip cache so the next PrepareFrameData rebuilds geometry even when the draw
+        /// frame number is unchanged. Must be called after setup_animation: that resets the native world
+        /// matrices to identity, so a new animation whose start frame number matches the last built frame
+        /// would otherwise be skipped, leaving matrices/geometry stale (seen as part trackers snapping to
+        /// the local origin, and a stale mesh preview).
+        /// </summary>
+        public void InvalidateFrameCache() => _lastBuiltDrawFrameNo = float.NaN;
+
+        /// <summary>
         /// 直列の便宜ラッパ。advance せず get_frame_data を同期取得してメッシュ構築まで 1 メソッドで行う。
         /// 子 Instance (frame 駆動) と編集モードプレビューが使う。Play モードのトップレベルは
         /// SpriteStudioUpdateManager が PrepareFrameData → 並列 get_frame_data → ConsumeFrameData に分割する。
@@ -215,6 +247,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         /// </summary>
         public void ConsumeFrameData(System.IntPtr frameDataPtrRaw, int len, float deltaTime)
         {
+            _hasFrameData = false;
             if (!_player._handle.IsValid) return;
 
             unsafe
@@ -252,6 +285,8 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 #endif
 
                 var frameData = ss.runtime.FrameData.GetRootAsFrameData(_frameDataByteBuffer);
+                _lastFrameData = frameData;
+                _hasFrameData = true;
 
                 // FrameData テーブルの Table ビュー。parts / parts_color / draw_order の連続 vector の先頭位置
                 // (tFrame.__vector(vtoff)) を取り、生ポインタ直読みと既存 drawOrder コピーで共用する。
