@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Timeline;
 
@@ -24,6 +25,11 @@ namespace SpriteStudio.Runtime
                  "shader dispatch. The built-in AddOns ship pre-registered in the package catalog.")]
         [SerializeField] private SpriteStudioShaderCatalog _shaderCatalog;
 
+        [Header("Part Tracking")]
+        [Tooltip("指定パーツに追従させるユーザー所有 Transform の登録リスト。プレーヤーは GameObject を生成せず、" +
+                 "登録された Transform を毎フレーム駆動するだけ (constraint 方式)。")]
+        [SerializeField] private List<SpriteStudioPartTracker> _partTrackers = new List<SpriteStudioPartTracker>();
+
         public SpriteStudioAnimeAsset AnimeAsset
         {
             get => _animeAsset;
@@ -31,6 +37,8 @@ namespace SpriteStudio.Runtime
             {
                 _animeAsset = value;
                 _core.ReloadAsset(_animeAsset);
+                // The part set (and thus name->index mapping) may have changed: re-resolve trackers.
+                MarkPartTrackersDirty();
             }
         }
 
@@ -296,6 +304,131 @@ namespace SpriteStudio.Runtime
             // バッチ単位に SubMesh を分割し、テクスチャごとに別マテリアルを適用する
             _core.Internal.ApplyToMesh(_sharedMesh, true);
             UpdateSubmeshMaterials();
+
+            // After the frame's world matrices are final, drive any registered part trackers. Done here
+            // (LateUpdate, before the render phase) so attached renderers update in the same frame.
+            MirrorTrackers();
+        }
+
+        /// <summary>
+        /// Drive each registered tracker's target Transform from its part's frame for this frame.
+        /// Writes local TRS in the target's parent space, so a target parented under the player matches the
+        /// part exactly (scale included) while a target placed elsewhere gets the exact world pose
+        /// (scale approximate only when its parent is rotated + non-uniformly scaled). Position/rotation
+        /// are always exact. Scale is written only when driveScale is on (localScale divided out).
+        /// </summary>
+        private void MirrorTrackers()
+        {
+            if (_partTrackers == null || _partTrackers.Count == 0) return;
+            var internalPlayer = _core.Internal;
+            if (internalPlayer == null) return;
+
+            Matrix4x4 rootToWorld = transform.localToWorldMatrix;
+
+            for (int i = 0; i < _partTrackers.Count; i++)
+            {
+                var tracker = _partTrackers[i];
+                if (tracker == null || tracker.target == null) continue;
+
+                // Resolve part index (cached; rebuilt on asset reload via MarkPartTrackersDirty).
+                if (tracker.ResolvedIndex == SpriteStudioPartTracker.ResolveDirty)
+                    tracker.ResolvedIndex = internalPlayer.ResolvePartIndex(tracker.partName);
+                int partIndex = tracker.ResolvedIndex;
+
+                if (partIndex < 0)
+                {
+                    // Part absent from this animation: nothing to follow, so deactivate the target.
+                    if (tracker.target.gameObject.activeSelf) tracker.target.gameObject.SetActive(false);
+                    continue;
+                }
+
+                // A hidden part still has a valid matrix, so FollowAlways keeps tracking it; Deactivate hides.
+                bool hasState = internalPlayer.TryGetPartState(partIndex, out bool hidden, out float lsx, out float lsy);
+                if (hidden && tracker.onHide == SpriteStudioPartTrackerHide.Deactivate)
+                {
+                    if (tracker.target.gameObject.activeSelf) tracker.target.gameObject.SetActive(false);
+                    continue;
+                }
+
+                if (!internalPlayer.TryGetPartLocalMatrix(partIndex, out Matrix4x4 partLocal)) continue;
+
+                // Re-activate if it was auto-deactivated (absent / hidden) on a previous frame.
+                if (!tracker.target.gameObject.activeSelf) tracker.target.gameObject.SetActive(true);
+
+                // Remove the part's own localScale (it scales the basis columns) so only the inherited
+                // scale drives the target. Exact; a degenerate (~0) localScale axis is left untouched.
+                if (tracker.driveScale && hasState)
+                {
+                    if (Mathf.Abs(lsx) > 1e-6f) partLocal.SetColumn(0, partLocal.GetColumn(0) / lsx);
+                    if (Mathf.Abs(lsy) > 1e-6f) partLocal.SetColumn(1, partLocal.GetColumn(1) / lsy);
+                }
+
+                // Express the desired world pose in the target's parent-local space, then write local TRS.
+                Matrix4x4 desiredWorld = rootToWorld * partLocal;
+                Transform parent = tracker.target.parent;
+                Matrix4x4 local = parent != null ? parent.worldToLocalMatrix * desiredWorld : desiredWorld;
+
+                tracker.target.localPosition = local.GetColumn(3);
+                tracker.target.localRotation = local.rotation;
+                if (tracker.driveScale)
+                {
+                    // 2D player: drive X/Y, preserve the target's own Z scale.
+                    Vector3 s = local.lossyScale;
+                    Vector3 cur = tracker.target.localScale;
+                    tracker.target.localScale = new Vector3(s.x, s.y, cur.z);
+                }
+            }
+        }
+
+        // --- Part tracking public API ---
+
+        /// <summary>Register a part tracker at runtime. Returns the created entry.</summary>
+        public SpriteStudioPartTracker RegisterPartTracker(string partName, Transform target,
+            bool driveScale = false, SpriteStudioPartTrackerHide onHide = SpriteStudioPartTrackerHide.FollowAlways)
+        {
+            if (_partTrackers == null) _partTrackers = new List<SpriteStudioPartTracker>();
+            var tracker = new SpriteStudioPartTracker
+            {
+                partName = partName,
+                target = target,
+                driveScale = driveScale,
+                onHide = onHide,
+            };
+            _partTrackers.Add(tracker);
+            return tracker;
+        }
+
+        /// <summary>Remove all trackers whose target is the given Transform. Returns the number removed.</summary>
+        public int UnregisterPartTracker(Transform target)
+        {
+            if (_partTrackers == null) return 0;
+            return _partTrackers.RemoveAll(t => t != null && t.target == target);
+        }
+
+        /// <summary>Is the named part hidden on the current frame? False if the part is unknown / absent.</summary>
+        public bool TryGetPartHidden(string partName, out bool hidden)
+        {
+            hidden = false;
+            if (_core.Internal == null) return false;
+            int idx = _core.Internal.ResolvePartIndex(partName);
+            return idx >= 0 && _core.Internal.TryGetPartState(idx, out hidden, out _, out _);
+        }
+
+        /// <summary>Player-local matrix (1/PPU folded) of the named part for the current frame. False if unknown.</summary>
+        public bool TryGetPartLocalMatrix(string partName, out Matrix4x4 matrix)
+        {
+            matrix = Matrix4x4.identity;
+            if (_core.Internal == null) return false;
+            int idx = _core.Internal.ResolvePartIndex(partName);
+            return idx >= 0 && _core.Internal.TryGetPartLocalMatrix(idx, out matrix);
+        }
+
+        /// <summary>Force part trackers to re-resolve their part index (call after the asset/part set changes).</summary>
+        private void MarkPartTrackersDirty()
+        {
+            if (_partTrackers == null) return;
+            for (int i = 0; i < _partTrackers.Count; i++)
+                if (_partTrackers[i] != null) _partTrackers[i].ResolvedIndex = SpriteStudioPartTracker.ResolveDirty;
         }
 
         private readonly System.Collections.Generic.List<Material> _submeshMaterials = new System.Collections.Generic.List<Material>();

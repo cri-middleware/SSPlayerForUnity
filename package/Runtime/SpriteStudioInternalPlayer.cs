@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Jobs;
 using UnityEngine;
@@ -78,6 +79,9 @@ internal struct MaskPartData
         }
         // Per-part static mask metadata (index-aligned with ssab parts). Null until SetupSlots runs.
         internal MaskPartData[] _maskPartData;
+
+        // Part name -> part index (into the world-matrix array). Built in SetupSlots; used by part tracking.
+        private Dictionary<string, int> _partNameToIndex;
         // True when this ssab has at least one mask writer (pure mask or clipping). When false the
         // whole mask path is skipped, like _build_mask_writers returning empty.
         internal bool _hasMaskParts;
@@ -216,11 +220,21 @@ internal struct MaskPartData
                 _instancePartIndices = new int[partsLength];
                 _maskPartData = new MaskPartData[partsLength];
 
+                // Part-name -> index map for part tracking (resolve user-specified part names to the
+                // index used by the world-matrix array). Built once per load; static for the asset.
+                if (_partNameToIndex == null) _partNameToIndex = new Dictionary<string, int>(partsLength);
+                else _partNameToIndex.Clear();
+
                 for (int i = 0; i < partsLength; i++)
                 {
                     var pObj = binary.Parts(i);
                     if (!pObj.HasValue) continue;
                     var p = pObj.Value;
+
+                    // Register the part name so trackers can resolve it. First occurrence wins on the
+                    // (unexpected) chance of duplicate names.
+                    if (!string.IsNullOrEmpty(p.Name) && !_partNameToIndex.ContainsKey(p.Name))
+                        _partNameToIndex[p.Name] = i;
 
                     // Cache the static mask flags for every part (any Normal/Mesh/Shape/Mask part can
                     // be a writer or a target). Derivation mirrors _build_mask_writers exactly.
@@ -317,7 +331,10 @@ internal struct MaskPartData
             if (!_handle.IsValid) return false;
             unsafe
             {
-                return NativeMethods.ss_runtime_setup_animation_by_hash(_handle.ptr, animationNameHash);
+                bool ok = NativeMethods.ss_runtime_setup_animation_by_hash(_handle.ptr, animationNameHash);
+                // setup_animation resets the native world matrices to identity; force a geometry rebuild.
+                if (ok) _geometryBuilder?.InvalidateFrameCache();
+                return ok;
             }
         }
 
@@ -349,6 +366,61 @@ internal struct MaskPartData
         public int GetAnimationSectionStart() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_start_frame(_handle.ptr) : 0; } }
         public int GetAnimationSectionEnd() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_end_frame(_handle.ptr) : 0; } }
 
+        // --- Part tracking support ---
+
+        /// <summary>Resolve a part name to its index, or -1 if the part is not present in this animation.</summary>
+        public int ResolvePartIndex(string partName)
+        {
+            if (string.IsNullOrEmpty(partName) || _partNameToIndex == null) return -1;
+            return _partNameToIndex.TryGetValue(partName, out int idx) ? idx : -1;
+        }
+
+        /// <summary>
+        /// Player-local transform of the given part for the current frame, matching what the mesh draws:
+        /// (1/PPU) * draw_m. Column-major; the draw matrix already folds in inherited Scale and the part's
+        /// own localScale (callers that want to ignore localScale divide it out from the extracted scale).
+        /// Returns false if the handle is invalid or the index is out of range.
+        /// </summary>
+        public bool TryGetPartLocalMatrix(int partIndex, out Matrix4x4 matrix)
+        {
+            matrix = Matrix4x4.identity;
+            if (partIndex < 0) return false;
+            unsafe
+            {
+                if (!_handle.IsValid) return false;
+                float* data = null;
+                nuint len = 0;
+                NativeMethods.ss_runtime_get_world_matrices(_handle.ptr, &data, &len);
+                if (data == null) return false;
+                int baseIndex = partIndex * 16;
+                if ((long)baseIndex + 16 > (long)len) return false;
+
+                // Native layout is column-major 4x4 (draw_m[0..3]=col0 ... [12..15]=col3), which matches
+                // Unity Matrix4x4's linear indexer (index = row + column*4).
+                var m = new Matrix4x4();
+                for (int e = 0; e < 16; e++) m[e] = data[baseIndex + e];
+
+                // Fold in the same uniform 1/PPU scale the mesh job applies to vertex positions, so the
+                // tracked frame is pixel-aligned with the rendered part (premultiply by uniform scale).
+                float s = VertexScale;
+                matrix = Matrix4x4.Scale(new Vector3(s, s, s)) * m;
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Per-part hide / localScale for the current frame (for part tracking). False if unavailable;
+        /// outputs default to visible / unit scale.
+        /// </summary>
+        public bool TryGetPartState(int partIndex, out bool hidden, out float localScaleX, out float localScaleY)
+        {
+            hidden = false;
+            localScaleX = 1f;
+            localScaleY = 1f;
+            return _geometryBuilder != null
+                && _geometryBuilder.TryGetPartState(partIndex, out hidden, out localScaleX, out localScaleY);
+        }
+
         public void SetPlaybackDirection(int direction, int style) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_playback_direction(_handle.ptr, direction, style); } }
         public int GetPlaybackDirection() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_playback_direction(_handle.ptr) : 0; } }
         public int GetPlaybackStyle() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_playback_style(_handle.ptr) : 0; } }
@@ -373,7 +445,11 @@ internal struct MaskPartData
                 var bytes = System.Text.Encoding.UTF8.GetBytes(animationName + "\0");
                 fixed (byte* p = bytes)
                 {
-                    return NativeMethods.ss_runtime_setup_animation(_handle.ptr, p);
+                    bool ok = NativeMethods.ss_runtime_setup_animation(_handle.ptr, p);
+                    // setup_animation resets the native world matrices to identity; force a geometry rebuild
+                    // so a same-numbered start frame is not skipped (otherwise trackers read identity = origin).
+                    if (ok) _geometryBuilder?.InvalidateFrameCache();
+                    return ok;
                 }
             }
         }

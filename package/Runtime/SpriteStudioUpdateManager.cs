@@ -206,6 +206,10 @@ namespace SpriteStudio.Runtime
     }
 
     /// <summary>UpdateManager を毎フレーム駆動するための隠し MonoBehaviour (play モード時に1つだけ生成)。</summary>
+    // Run early so the per-frame tick (Update/Schedule) and the apply + part-tracker mirror (LateUpdate)
+    // complete before default-order user scripts: a user script reading a tracked Transform in its own
+    // LateUpdate then sees this frame's value, not a stale one.
+    [DefaultExecutionOrder(-100)]
     [AddComponentMenu("")]
     internal sealed class SpriteStudioUpdateRunner : MonoBehaviour
     {
