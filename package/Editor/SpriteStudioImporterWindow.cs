@@ -140,6 +140,14 @@ namespace SpriteStudio.Editor
             }
             else
             {
+                // Base the row on miniButton: a flat clickable button at roughly the dropdown-field
+                // brightness, but without the popup's baked-in dropdown arrow. Left-aligned.
+                GUIStyle rowStyle = new GUIStyle(EditorStyles.miniButton) { alignment = TextAnchor.MiddleLeft };
+                rowStyle.fixedHeight = 0;	// based on font-size
+                rowStyle.padding.left += 8;
+                rowStyle.padding.top += 3;
+                rowStyle.padding.bottom += 3;
+
                 foreach (string file in recent)
                 {
                     if (!File.Exists(file)) continue;
@@ -148,36 +156,35 @@ namespace SpriteStudio.Editor
                     string parentDir = new DirectoryInfo(file).Parent.Name;
                     string label = $"{fileName}  ·  {parentDir}";
 
-                    GUILayout.BeginHorizontal();
+                    Rect rect = GUILayoutUtility.GetRect(new GUIContent(label), rowStyle, GUILayout.ExpandWidth(true));
 
-                    // Invisible button covering the whole row for right click / left click
-                    Rect rect = GUILayoutUtility.GetRect(new GUIContent(label), EditorStyles.label, GUILayout.ExpandWidth(true));
-                    GUI.Label(rect, label);
-
+                    // Right click -> Context Menu. GUI.Button consumes the MouseDown of *any* button,
+                    // so handle (and consume) the context click ourselves BEFORE the button sees it.
                     Event e = Event.current;
-                    if (rect.Contains(e.mousePosition))
+                    if (rect.Contains(e.mousePosition) &&
+                        (e.type == EventType.ContextClick || (e.type == EventType.MouseDown && e.button == 1)))
                     {
-                        if (e.type == EventType.MouseDown && e.button == 0)
-                        {
-                            // Left click -> Reconvert
-                            RunConvert(file);
-                            e.Use();
-                        }
-                        else if (e.type == EventType.ContextClick || (e.type == EventType.MouseDown && e.button == 1))
-                        {
-                            // Right click -> Context Menu
-                            string captured = file;
-                            GenericMenu menu = new GenericMenu();
-                            menu.AddItem(new GUIContent("Open SSPJ"), false, () => OpenSSPJ(captured));
-                            menu.AddItem(new GUIContent("Reconvert"), false, () => RunConvert(captured));
-                            menu.AddItem(new GUIContent("Reveal"), false, () => EditorUtility.RevealInFinder(captured));
-                            menu.AddSeparator("");
-                            menu.AddItem(new GUIContent("Remove from Recent"), false, () => SpriteStudioRecentFiles.Remove(captured));
-                            menu.ShowAsContext();
-                            e.Use();
-                        }
+                        string captured = file;
+                        GenericMenu menu = new GenericMenu();
+                        menu.AddItem(new GUIContent("Open SSPJ"), false, () => OpenSSPJ(captured));
+                        menu.AddItem(new GUIContent("Reconvert"), false, () => RunConvert(captured));
+                        menu.AddItem(new GUIContent("Reveal"), false, () => EditorUtility.RevealInFinder(captured));
+                        menu.AddSeparator("");
+                        menu.AddItem(new GUIContent("Remove from Recent"), false, () => SpriteStudioRecentFiles.Remove(captured));
+                        menu.ShowAsContext();
+                        e.Use();
                     }
-                    GUILayout.EndHorizontal();
+
+                    // Left click -> Reconvert (the button reports the press directly).
+                    // Dim the row background a little (0.9x) so it sits below the default brightness.
+                    Color prevBg = GUI.backgroundColor;
+                    GUI.backgroundColor = prevBg * 0.85f;
+                    bool clicked = GUI.Button(rect, label, rowStyle);
+                    GUI.backgroundColor = prevBg;
+                    if (clicked)
+                    {
+                        RunConvert(file);
+                    }
                 }
             }
 
