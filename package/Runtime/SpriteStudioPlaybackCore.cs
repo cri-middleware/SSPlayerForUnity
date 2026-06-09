@@ -13,6 +13,10 @@ namespace SpriteStudio.Runtime
         /// <summary>内部プレイヤー (FFI コンテキスト)。未生成/破棄後は null。</summary>
         public SpriteStudioInternalPlayer Internal { get; private set; }
 
+        // The asset whose ssab is currently loaded into Internal. Used to detect an inspector asset swap so
+        // EnsureCreated reloads (the inspector writes the serialized field directly, bypassing the setter).
+        private SpriteStudioAnimeAsset _loadedAsset;
+
         public void EnsureCreated(SpriteStudioAnimeAsset asset, bool subFrameEnabled)
         {
             if (Internal == null)
@@ -20,14 +24,16 @@ namespace SpriteStudio.Runtime
                 Internal = new SpriteStudioInternalPlayer { SubFrameEnabled = subFrameEnabled };
             }
 
-            // Self-heal: load the ssab as soon as the asset is actually available. On an Editor restart
-            // the referenced .ssab can still be re-importing when OnEnable first runs (asset / SsabData
-            // momentarily null); the previous `if (Internal != null) return` guard then left the empty
-            // Internal stuck forever. Calling EnsureCreated again (the edit-preview retry, or the next
-            // reload) now picks the ssab up once it is ready. LoadSsab is safe to call repeatedly.
-            if (!Internal.HasSsab && asset != null && asset.SsabData != null)
+            // Load the ssab when (a) none is loaded yet, or (b) the referenced asset changed. (a) is the
+            // self-heal case: on an Editor restart the referenced .ssab can still be re-importing when
+            // OnEnable first runs (asset / SsabData momentarily null), so we retry until it is ready.
+            // (b) handles an inspector asset swap, which bypasses the C# property setter. LoadSsab is safe
+            // to call repeatedly.
+            if (asset != null && asset.SsabData != null
+                && (!Internal.HasSsab || !ReferenceEquals(asset, _loadedAsset)))
             {
                 Internal.LoadSsab(asset.SsabData, asset.ResolveExternalSsab);
+                _loadedAsset = asset;
             }
         }
 
@@ -36,6 +42,7 @@ namespace SpriteStudio.Runtime
             if (Internal != null && asset != null && asset.SsabData != null)
             {
                 Internal.LoadSsab(asset.SsabData, asset.ResolveExternalSsab);
+                _loadedAsset = asset;
             }
         }
 
@@ -46,6 +53,7 @@ namespace SpriteStudio.Runtime
                 Internal.Dispose();
                 Internal = null;
             }
+            _loadedAsset = null;
         }
 
         /// <summary>指定アニメーションの再生を開始する。logContext は警告メッセージのタグ。</summary>
