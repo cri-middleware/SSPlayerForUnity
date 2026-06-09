@@ -44,15 +44,34 @@ namespace SpriteStudio.Runtime
             }
         }
 
+        // Relay the Internal player's events to this core's events. Named methods (not lambdas) so they can
+        // be unsubscribed in Dispose before the Internal is torn down — keeping subscriptions paired even if
+        // the Internal is later recreated.
         private void HookEvents()
         {
             if (Internal == null) return;
-            Internal.OnAnimationFinished += () => OnAnimationFinished?.Invoke();
-            Internal.OnAnimationLooped += () => OnAnimationLooped?.Invoke();
-            Internal.OnUserData += (user) => OnUserData?.Invoke(user);
-            Internal.OnSignal += (sig) => OnSignal?.Invoke(sig);
-            Internal.OnAudio += (audio) => OnAudio?.Invoke(audio);
+            Internal.OnAnimationFinished += RelayAnimationFinished;
+            Internal.OnAnimationLooped += RelayAnimationLooped;
+            Internal.OnUserData += RelayUserData;
+            Internal.OnSignal += RelaySignal;
+            Internal.OnAudio += RelayAudio;
         }
+
+        private void UnhookEvents()
+        {
+            if (Internal == null) return;
+            Internal.OnAnimationFinished -= RelayAnimationFinished;
+            Internal.OnAnimationLooped -= RelayAnimationLooped;
+            Internal.OnUserData -= RelayUserData;
+            Internal.OnSignal -= RelaySignal;
+            Internal.OnAudio -= RelayAudio;
+        }
+
+        private void RelayAnimationFinished() => OnAnimationFinished?.Invoke();
+        private void RelayAnimationLooped() => OnAnimationLooped?.Invoke();
+        private void RelayUserData(SpriteStudioUserData user) => OnUserData?.Invoke(user);
+        private void RelaySignal(SpriteStudioSignal sig) => OnSignal?.Invoke(sig);
+        private void RelayAudio(SpriteStudioAudio audio) => OnAudio?.Invoke(audio);
 
         public void ReloadAsset(SpriteStudioAnimeAsset asset)
         {
@@ -67,6 +86,7 @@ namespace SpriteStudio.Runtime
         {
             if (Internal != null)
             {
+                UnhookEvents();
                 Internal.Dispose();
                 Internal = null;
             }
