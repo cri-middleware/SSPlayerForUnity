@@ -65,11 +65,20 @@ namespace SpriteStudio.Runtime
         private int _uploadedIndexCount;
         private bool _uploadedPerBatchSubmesh;
 
+        // Canvas (uGUI) high-level upload scratch (see ApplyCanvas). De-interleaved channels + 16-bit
+        // indices, reused grow-only.
+        private NativeArray<Vector3> _canvasPositions;
+        private NativeArray<Color32> _canvasColors;
+        private NativeArray<Vector2> _canvasUv0;
+        private NativeArray<Vector4> _canvasUv1;
+        private NativeArray<ushort> _meshIndices16;
+        private bool _warned16BitOverflow;
+
         /// <summary>
         /// 構築済みジオメトリを <paramref name="targetMesh"/> へ反映する。Job の完了待ちは呼び出し側
         /// (ビルダー) が済ませている前提。frame-skip 時は前回の Mesh が正しいので何もしない。
         /// </summary>
-        public void Apply(Mesh targetMesh, bool perBatchSubmesh, in UploadData data)
+        public void Apply(Mesh targetMesh, bool perBatchSubmesh, bool use16BitIndices, in UploadData data)
         {
             // ScheduleMeshUpdate が再構築を省いたフレームは Mesh が前回のまま正しいので、再アップロードも省く。
             if (data.FrameSkipped) return;
@@ -78,6 +87,13 @@ namespace SpriteStudio.Runtime
             {
                 targetMesh.Clear();
                 _meshUploaded = false; // 次回はフルアップロード (キャッシュ無効化)
+                return;
+            }
+
+            // Canvas path: high-level 16-bit upload (CanvasRenderer rejects the low-level mesh on D3D12).
+            if (use16BitIndices)
+            {
+                ApplyCanvas(targetMesh, data);
                 return;
             }
 
@@ -155,6 +171,56 @@ namespace SpriteStudio.Runtime
             targetMesh.bounds = new Bounds((mn + mx) * 0.5f, mx - mn);
         }
 
+        /// <summary>
+        /// Canvas (uGUI) upload via the high-level Mesh API. Caution: CanvasRenderer rejects a low-level
+        /// SetVertexBufferData mesh on Windows/D3D12 (invalid GPU draw -> device removed). De-interleaves
+        /// the packed SsVertex stream into per-channel scratch and narrows indices to 16-bit. Full rebuild
+        /// each call (UI animates per frame); the low-level topology cache is bypassed.
+        /// </summary>
+        private unsafe void ApplyCanvas(Mesh targetMesh, in UploadData data)
+        {
+            // Index VALUES must fit in ushort, i.e. vertexCount <= 65535 (the index COUNT is unconstrained).
+            if (data.VertexCount > 65535 && !_warned16BitOverflow)
+            {
+                Debug.LogWarning("[SpriteStudio] Canvas mesh exceeds 65535 vertices; CanvasRenderer requires 16-bit indices so geometry will wrap. Reduce part/particle count or use the world (MeshRenderer) player.");
+                _warned16BitOverflow = true;
+            }
+
+            SpriteStudioNativeBuffers.EnsureCapacity(ref _canvasPositions, data.VertexCount);
+            SpriteStudioNativeBuffers.EnsureCapacity(ref _canvasColors, data.VertexCount);
+            SpriteStudioNativeBuffers.EnsureCapacity(ref _canvasUv0, data.VertexCount);
+            SpriteStudioNativeBuffers.EnsureCapacity(ref _canvasUv1, data.VertexCount);
+            SpriteStudioNativeBuffers.EnsureCapacity(ref _meshIndices16, data.IndexCount);
+
+            var src = (SsVertex*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(data.Vertices);
+            var pos = (Vector3*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_canvasPositions);
+            var col = (Color32*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_canvasColors);
+            var uv0 = (Vector2*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_canvasUv0);
+            var uv1 = (Vector4*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_canvasUv1);
+            for (int i = 0; i < data.VertexCount; i++)
+            {
+                var v = src[i];
+                pos[i] = v.Position;
+                col[i] = v.Color;
+                uv0[i] = v.TexCoord0;
+                uv1[i] = v.TexCoord1;
+            }
+            var si = (uint*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(data.Indices);
+            var di = (ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_meshIndices16);
+            for (int i = 0; i < data.IndexCount; i++) di[i] = (ushort)si[i];
+
+            // High-level upload (per channel). SetVertices first so the colour/uv channels size to it.
+            targetMesh.indexFormat = IndexFormat.UInt16;
+            targetMesh.SetVertices(_canvasPositions, 0, data.VertexCount);
+            targetMesh.SetColors(_canvasColors, 0, data.VertexCount);
+            targetMesh.SetUVs(0, _canvasUv0, 0, data.VertexCount);
+            targetMesh.SetUVs(1, _canvasUv1, 0, data.VertexCount);
+            targetMesh.SetIndices(_meshIndices16, 0, data.IndexCount, MeshTopology.Triangles, 0, false);
+            ApplyJobComputedBounds(targetMesh, data.Bounds);
+
+            _meshUploaded = false; // Canvas path bypasses the low-level topology cache.
+        }
+
         private void EnsureDescriptors(int needed)
         {
             if (_submeshDescriptors.IsCreated && _submeshDescriptors.Length >= needed) return;
@@ -166,6 +232,11 @@ namespace SpriteStudio.Runtime
         public void Dispose()
         {
             if (_submeshDescriptors.IsCreated) _submeshDescriptors.Dispose();
+            if (_canvasPositions.IsCreated) _canvasPositions.Dispose();
+            if (_canvasColors.IsCreated) _canvasColors.Dispose();
+            if (_canvasUv0.IsCreated) _canvasUv0.Dispose();
+            if (_canvasUv1.IsCreated) _canvasUv1.Dispose();
+            if (_meshIndices16.IsCreated) _meshIndices16.Dispose();
             _meshUploaded = false;
         }
     }

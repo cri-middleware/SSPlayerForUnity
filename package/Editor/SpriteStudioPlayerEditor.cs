@@ -18,6 +18,7 @@ namespace SpriteStudio.Editor
         private SerializedProperty _skipFramesProp;
         private SerializedProperty _sortingLayerNameProp;
         private SerializedProperty _sortingOrderProp;
+        private SerializedProperty _partTrackersProp;
 
         private SerializedProperty _onAnimationFinishedEventProp;
         private SerializedProperty _onAnimationLoopedEventProp;
@@ -41,6 +42,7 @@ namespace SpriteStudio.Editor
             _skipFramesProp = serializedObject.FindProperty("_skipFrames");
             _sortingLayerNameProp = serializedObject.FindProperty("_sortingLayerName");
             _sortingOrderProp = serializedObject.FindProperty("_sortingOrder");
+            _partTrackersProp = serializedObject.FindProperty("_partTrackers");
 
             _onAnimationFinishedEventProp = serializedObject.FindProperty("OnAnimationFinishedEvent");
             _onAnimationLoopedEventProp = serializedObject.FindProperty("OnAnimationLoopedEvent");
@@ -67,6 +69,9 @@ namespace SpriteStudio.Editor
             EditorGUILayout.Space();
             EditorGUILayout.PropertyField(_sortingLayerNameProp);
             EditorGUILayout.PropertyField(_sortingOrderProp);
+
+            EditorGUILayout.Space();
+            EditorGUILayout.PropertyField(_partTrackersProp, true);
 
             EditorGUILayout.Space();
             EditorGUILayout.PropertyField(_onAnimationFinishedEventProp);

@@ -79,9 +79,46 @@ internal struct MaskPartData
         }
         // Per-part static mask metadata (index-aligned with ssab parts). Null until SetupSlots runs.
         internal MaskPartData[] _maskPartData;
+
+        // Part name -> part index (into the world-matrix array). Built in SetupSlots; used by part tracking.
+        private Dictionary<string, int> _partNameToIndex;
         // True when this ssab has at least one mask writer (pure mask or clipping). When false the
         // whole mask path is skipped, like _build_mask_writers returning empty.
         internal bool _hasMaskParts;
+
+        // Per-part AddOn shader catalog (set by the owning world player each frame before the build).
+        // null = no per-part shader dispatch (the Canvas/Graphic path leaves this null). The geometry
+        // builder consults it to carve out is-per-part shader parts; the player resolves their material.
+        public SpriteStudioShaderCatalog ShaderCatalog;
+
+        // When true (the Canvas/uGUI path), SpriteStudio internal masking is suppressed and the stencil
+        // buffer is left to uGUI's own Mask/RectMask2D. The world (MeshRenderer) path leaves it false.
+        internal bool _suppressInternalMask;
+
+        // True when the asset has mask writers and this player is not suppressing them (Canvas suppresses).
+        internal bool MaskActive => _hasMaskParts && !_suppressInternalMask;
+
+        /// <summary>
+        /// Suppress SpriteStudio internal masking for this player and (recursively) its instance
+        /// children. Set true on the Canvas path; left false for the world path. Propagates so an
+        /// instance child's own internal masks are also dropped on Canvas instead of writing stencil.
+        /// </summary>
+        public bool SuppressInternalMask
+        {
+            get => _suppressInternalMask;
+            set
+            {
+                _suppressInternalMask = value;
+                if (_instanceChildren != null)
+                {
+                    for (int i = 0; i < _instanceChildren.Length; i++)
+                    {
+                        var c = _instanceChildren[i].Player;
+                        if (c != null) c.SuppressInternalMask = value;
+                    }
+                }
+            }
+        }
 
         internal struct InstanceChildState { public System.IntPtr InstanceSlot; public SpriteStudioInternalPlayer Player; public float PreviousFrame; }
         internal InstanceChildState[] _instanceChildren;
@@ -115,6 +152,12 @@ internal struct MaskPartData
         // OnAnimationFinished のエッジ検出用 (!is_playing && is_end_frame_reached の前回値)。
         private bool _prevFinished;
 
+        // True once an ssab has been loaded into the native runtime. Lets the owner (PlaybackCore /
+        // player) detect "Internal created but ssab not yet loaded" — which happens when OnEnable runs
+        // before the .ssab finishes importing on an Editor restart — and self-heal by loading it later.
+        public bool HasSsab => _hasSsab;
+        private bool _hasSsab;
+
         public void LoadSsab(byte[] ssabData, AssetResolver resolver = null)
         {
             LoadSsabInternal(ssabData, resolver, 0);
@@ -137,6 +180,7 @@ internal struct MaskPartData
             var bb = new Google.FlatBuffers.ByteBuffer(ssabData);
             _ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
             SetupSlots(_ssab.Value);
+            _hasSsab = true;
         }
 
         private void SetupSlots(ss.format.SsAnimeBinary binary)
@@ -188,11 +232,21 @@ internal struct MaskPartData
                 _instancePartIndices = new int[partsLength];
                 _maskPartData = new MaskPartData[partsLength];
 
+                // Part-name -> index map for part tracking (resolve user-specified part names to the
+                // index used by the world-matrix array). Built once per load; static for the asset.
+                if (_partNameToIndex == null) _partNameToIndex = new Dictionary<string, int>(partsLength);
+                else _partNameToIndex.Clear();
+
                 for (int i = 0; i < partsLength; i++)
                 {
                     var pObj = binary.Parts(i);
                     if (!pObj.HasValue) continue;
                     var p = pObj.Value;
+
+                    // Register the part name so trackers can resolve it. First occurrence wins on the
+                    // (unexpected) chance of duplicate names.
+                    if (!string.IsNullOrEmpty(p.Name) && !_partNameToIndex.ContainsKey(p.Name))
+                        _partNameToIndex[p.Name] = i;
 
                     // Cache the static mask flags for every part (any Normal/Mesh/Shape/Mask part can
                     // be a writer or a target). Derivation mirrors _build_mask_writers exactly.
@@ -257,6 +311,9 @@ internal struct MaskPartData
                         }
 
                         var childPlayer = new SpriteStudioInternalPlayer { SubFrameEnabled = SubFrameEnabled };
+                        // Inherit the parent's suppression so children (re)created on load match the
+                        // Canvas/world choice; the public setter also propagates to existing children.
+                        childPlayer._suppressInternalMask = _suppressInternalMask;
                         childPlayer.LoadSsabInternal(childSsab, _assetResolver, _instanceDepth + 1);
 
                         if (!childPlayer.SetupAnimationByHash(nameHash))
@@ -287,17 +344,23 @@ internal struct MaskPartData
             unsafe
             {
                 bool ok = NativeMethods.ss_runtime_setup_animation_by_hash(_handle.ptr, animationNameHash);
-                if (ok && _ssab.HasValue)
+                if (ok)
                 {
-                    _currentAnimation = null;
-                    var binary = _ssab.Value;
-                    for (int i = 0; i < binary.AnimationsLength; i++)
+                    // setup_animation resets the native world matrices to identity; force a geometry rebuild.
+                    _geometryBuilder?.InvalidateFrameCache();
+
+                    if (_ssab.HasValue)
                     {
-                        var anim = binary.Animations(i);
-                        if (anim.HasValue && anim.Value.NameHash == animationNameHash)
+                        _currentAnimation = null;
+                        var binary = _ssab.Value;
+                        for (int i = 0; i < binary.AnimationsLength; i++)
                         {
-                            _currentAnimation = anim;
-                            break;
+                            var anim = binary.Animations(i);
+                            if (anim.HasValue && anim.Value.NameHash == animationNameHash)
+                            {
+                                _currentAnimation = anim;
+                                break;
+                            }
                         }
                     }
                 }
@@ -333,6 +396,61 @@ internal struct MaskPartData
         public int GetAnimationSectionStart() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_start_frame(_handle.ptr) : 0; } }
         public int GetAnimationSectionEnd() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_end_frame(_handle.ptr) : 0; } }
 
+        // --- Part tracking support ---
+
+        /// <summary>Resolve a part name to its index, or -1 if the part is not present in this animation.</summary>
+        public int ResolvePartIndex(string partName)
+        {
+            if (string.IsNullOrEmpty(partName) || _partNameToIndex == null) return -1;
+            return _partNameToIndex.TryGetValue(partName, out int idx) ? idx : -1;
+        }
+
+        /// <summary>
+        /// Player-local transform of the given part for the current frame, matching what the mesh draws:
+        /// (1/PPU) * draw_m. Column-major; the draw matrix already folds in inherited Scale and the part's
+        /// own localScale (callers that want to ignore localScale divide it out from the extracted scale).
+        /// Returns false if the handle is invalid or the index is out of range.
+        /// </summary>
+        public bool TryGetPartLocalMatrix(int partIndex, out Matrix4x4 matrix)
+        {
+            matrix = Matrix4x4.identity;
+            if (partIndex < 0) return false;
+            unsafe
+            {
+                if (!_handle.IsValid) return false;
+                float* data = null;
+                nuint len = 0;
+                NativeMethods.ss_runtime_get_world_matrices(_handle.ptr, &data, &len);
+                if (data == null) return false;
+                int baseIndex = partIndex * 16;
+                if ((long)baseIndex + 16 > (long)len) return false;
+
+                // Native layout is column-major 4x4 (draw_m[0..3]=col0 ... [12..15]=col3), which matches
+                // Unity Matrix4x4's linear indexer (index = row + column*4).
+                var m = new Matrix4x4();
+                for (int e = 0; e < 16; e++) m[e] = data[baseIndex + e];
+
+                // Fold in the same uniform 1/PPU scale the mesh job applies to vertex positions, so the
+                // tracked frame is pixel-aligned with the rendered part (premultiply by uniform scale).
+                float s = VertexScale;
+                matrix = Matrix4x4.Scale(new Vector3(s, s, s)) * m;
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Per-part hide / localScale for the current frame (for part tracking). False if unavailable;
+        /// outputs default to visible / unit scale.
+        /// </summary>
+        public bool TryGetPartState(int partIndex, out bool hidden, out float localScaleX, out float localScaleY)
+        {
+            hidden = false;
+            localScaleX = 1f;
+            localScaleY = 1f;
+            return _geometryBuilder != null
+                && _geometryBuilder.TryGetPartState(partIndex, out hidden, out localScaleX, out localScaleY);
+        }
+
         public void SetPlaybackDirection(int direction, int style) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_playback_direction(_handle.ptr, direction, style); } }
         public int GetPlaybackDirection() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_playback_direction(_handle.ptr) : 0; } }
         public int GetPlaybackStyle() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_playback_style(_handle.ptr) : 0; } }
@@ -358,17 +476,25 @@ internal struct MaskPartData
                 fixed (byte* p = bytes)
                 {
                     bool ok = NativeMethods.ss_runtime_setup_animation(_handle.ptr, p);
-                    if (ok && _ssab.HasValue)
+                    if (ok)
                     {
-                        _currentAnimation = null;
-                        var binary = _ssab.Value;
-                        for (int i = 0; i < binary.AnimationsLength; i++)
+                        // setup_animation resets the native world matrices to identity; force a geometry
+                        // rebuild so a same-numbered start frame is not skipped (otherwise trackers read
+                        // identity = origin).
+                        _geometryBuilder?.InvalidateFrameCache();
+
+                        if (_ssab.HasValue)
                         {
-                            var anim = binary.Animations(i);
-                            if (anim.HasValue && anim.Value.Name == animationName)
+                            _currentAnimation = null;
+                            var binary = _ssab.Value;
+                            for (int i = 0; i < binary.AnimationsLength; i++)
                             {
-                                _currentAnimation = anim;
-                                break;
+                                var anim = binary.Animations(i);
+                                if (anim.HasValue && anim.Value.Name == animationName)
+                                {
+                                    _currentAnimation = anim;
+                                    break;
+                                }
                             }
                         }
                     }
@@ -598,6 +724,6 @@ internal struct MaskPartData
         public void PrepareFrameData(float deltaTime, bool advance, out System.IntPtr handle, out float drawFrame) => _geometryBuilder.PrepareFrameData(deltaTime, advance, out handle, out drawFrame);
         public void ScheduleMeshUpdate(float deltaTime) => _geometryBuilder.ScheduleMeshUpdate(deltaTime);
         public void ConsumeFrameData(System.IntPtr frameDataPtrRaw, int len, float deltaTime) => _geometryBuilder.ConsumeFrameData(frameDataPtrRaw, len, deltaTime);
-        public void ApplyToMesh(UnityEngine.Mesh targetMesh, bool perBatchSubmesh = false) => _geometryBuilder.ApplyToMesh(targetMesh, perBatchSubmesh);
+        public void ApplyToMesh(UnityEngine.Mesh targetMesh, bool perBatchSubmesh = false, bool use16BitIndices = false) => _geometryBuilder.ApplyToMesh(targetMesh, perBatchSubmesh, use16BitIndices);
     }
 }

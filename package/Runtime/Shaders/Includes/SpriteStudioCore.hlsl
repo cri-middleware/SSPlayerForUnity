@@ -2,26 +2,26 @@
 // mediation. The single source of truth, #included by both the Built-in hand-written
 // HLSL shaders and URP (Shader Graph Custom Function).
 //
-// Policy (project_unity_shader_strategy):
+// Policy:
 //  - SS6PU expressed the equivalent logic with #define macros gated by #if defined(PS_*)
 //    keywords. Keywords cause shader-variant explosion / device "pink shader" stripping,
 //    so here we replace them with "functions instead of macros" and
 //    "material-float uniform branches instead of keywords".
 //  - PMA in/out (_InputPMA / _OutputPMA) and discard (_NotDiscard) are passed in by the
 //    shader as material properties. The per-blend (ssab BlendType) values are set by the
-//    C# MaterialKey side, following the B-table in project_blend_mapping_truth.
+//    C# MaterialKey side, following the per-blend blend-factor table.
 
 #ifndef SPRITESTUDIO_CORE_INCLUDED
 #define SPRITESTUDIO_CORE_INCLUDED
 
-// [input mediation point] Sample the texture and, in Linear color space, un-premultiply for the
-//  blends that request it. Mirrors SS6PU's PixelSolveColorspaceInput, which is gated on color space:
-//  in Gamma color space it is a no-op, so we must NOT touch the input there either (otherwise the
-//  InputPMA modes - Mix/Mul/Mulalpha/Invert - brighten and shift at antialiased edges).
+// [input mediation point] Un-premultiply the sampled texel in Linear color space for the blends
+//  that request it. Sampling itself is done by the caller (RP-specific: tex2D on Built-in,
+//  SAMPLE_TEXTURE2D on URP) so this stays render-pipeline agnostic. Mirrors SS6PU's
+//  PixelSolveColorspaceInput, gated on color space: in Gamma it is a no-op (touching the input there
+//  brightens/shifts the InputPMA modes - Mix/Mul/Mulalpha/Invert - at antialiased edges).
 //  TODO(linear): also port SS6PU's pow(1/2.2) input / pow(2.2) output adjust when validating Linear.
-float4 ss_input_texture(sampler2D tex, float2 uv, float inputPMA)
+float4 ss_input_mediate(float4 c, float inputPMA)
 {
-    float4 c = tex2D(tex, uv);
 #if !defined(UNITY_COLORSPACE_GAMMA)
     if (inputPMA > 0.5 && c.a > (1.0 / 255.0))
     {
@@ -31,22 +31,42 @@ float4 ss_input_texture(sampler2D tex, float2 uv, float inputPMA)
     return c;
 }
 
-// [part-color composition] Overlay the vertex (overlay) color onto the texture color using
-//  the per-part blend kind and rate.
-//  blendIdx: 0=Mix / 1=Mul / 2=Add / 3=Sub (lower 4 of ss.format.BlendType).
-//  The 4-corner colors are already mediated on the CPU and folded into the vertex color,
-//  then interpolated by the rasterizer (project_partcolor_mediation_rules). This only
-//  applies the result; it never re-implements the mediation math.
-float3 ss_partcolor_blend(float3 texRGB, float3 ovColorRGB, float rate, float blendIdx)
+// [part-color coefficient table] Per-blend coefficients (Mix/Mul/Add/Sub), mirroring SSPlayerForGodot
+//  (ss_library_vs.glsl `_PartColorCoef`) and the SS6 SDK reference. The vertex stage resolves these
+//  into `varg`; the fragment then composites with a single branchless formula (ss_partcolor_blend).
+//  Keeping the implementation method identical to ForGodot (vertex-resolved table + branchless pixel
+//  formula) avoids per-platform spec drift before the all-platform release.
+static const float4 _SsPartColorCoef[4] =
 {
-    if (blendIdx < 0.5)        // Mix
-        return texRGB * (1.0 - rate) + ovColorRGB * rate;
-    else if (blendIdx < 1.5)   // Mul
-        return texRGB * (1.0 - rate) + (texRGB * ovColorRGB) * rate;
-    else if (blendIdx < 2.5)   // Add
-        return saturate(texRGB + ovColorRGB * rate);
-    else                       // Sub
-        return saturate(texRGB - ovColorRGB * rate);
+    float4(-1.0,  1.0, 0.0, 0.0), // Mix
+    float4(-1.0,  1.0, 1.0, 0.0), // Mul
+    float4( 0.0,  1.0, 0.0, 0.0), // Add
+    float4( 0.0, -1.0, 0.0, 0.0)  // Sub
+};
+
+// [part-color coefficient resolve | VERTEX stage] Pack the per-part blend kind + rate into the
+//  branchless `varg` consumed by ss_partcolor_blend (no per-blend branch in the fragment).
+//  blendIdx: 0=Mix / 1=Mul / 2=Add / 3=Sub (lower 4 of ss.format.BlendType).
+//  Effect parts (isNormalized > 0.5) tint by the vertex colour (pixel * color); that is the generic
+//  formula with coefficients (0, 1, 1), so the fragment stays branchless for effects too. Mirrors
+//  SSPlayerForGodot default.vs.
+float3 ss_partcolor_varg(float rate, float blendIdx, float isNormalized)
+{
+    int idx = clamp((int)(blendIdx + 0.5), 0, 3);
+    float4 c = _SsPartColorCoef[idx];
+    float3 varg = float3(1.0 + c.x * rate, c.y * rate, c.z);
+    return lerp(varg, float3(0.0, 1.0, 1.0), step(0.5, isNormalized));
+}
+
+// [part-color composition | PIXEL stage] Branchless generic compositing. `varg.xyz` is resolved per
+//  vertex by ss_partcolor_varg (the .w slot is unused here; callers reuse it as an alpha carrier).
+//  Mirrors SSPlayerForGodot (ss_library_fs.glsl): pixel*varg.x + lerp(1, pixel, varg.z)*color*varg.y.
+//  Reproduces Mix/Mul/Add/Sub exactly. NOTE: Add/Sub are intentionally NOT saturated, matching
+//  ForGodot (the previous Unity implementation saturated them). The 4-corner colours are already
+//  mediated on the CPU and folded into the vertex colour; this only applies the result.
+float3 ss_partcolor_blend(float3 pixelRGB, float3 colorRGB, float4 varg)
+{
+    return pixelRGB * varg.x + lerp(float3(1.0, 1.0, 1.0), pixelRGB, varg.z) * colorRGB * varg.y;
 }
 
 // [discard test] Whether to discard the pixel at an alpha threshold. Blends with

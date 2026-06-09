@@ -103,6 +103,10 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         }
 
         private Google.FlatBuffers.ByteBuffer _frameDataByteBuffer;
+        // Last consumed frame's FrameData view, retained so part tracking can read per-part PartState
+        // (hide / localScale) at ApplyAndRender time. Valid until the next ConsumeFrameData.
+        private ss.runtime.FrameData _lastFrameData;
+        private bool _hasFrameData;
 #if ENABLE_SPAN_T && UNSAFE_BYTEBUFFER
         // ゼロコピー: per-context の frame_data ネイティブバッファを直接 ByteBuffer に載せる。
         private NativeByteBufferAllocator _frameDataAllocator;
@@ -149,6 +153,25 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         public byte GetSubmeshBlendType(int index) => _batchBuilder.Submeshes[index].BlendType;
 
         /// <summary>
+        /// Per-part state for the last consumed frame (used by part tracking). Returns false if no frame
+        /// has been consumed yet or the index is out of range; outputs default to visible / unit scale.
+        /// </summary>
+        public bool TryGetPartState(int partIndex, out bool hidden, out float localScaleX, out float localScaleY)
+        {
+            hidden = false;
+            localScaleX = 1f;
+            localScaleY = 1f;
+            if (!_hasFrameData || partIndex < 0 || partIndex >= _lastFrameData.PartsLength) return false;
+            var p = _lastFrameData.Parts(partIndex);
+            if (!p.HasValue) return false;
+            var ps = p.Value;
+            hidden = ps.Hide;
+            localScaleX = ps.LocalScaleX;
+            localScaleY = ps.LocalScaleY;
+            return true;
+        }
+
+        /// <summary>
         /// 前フレームの Job 完了を待ち、advance 指定時は 1 フレーム進め、
         /// 描画フレーム番号と frame-skip を確定する。out handle が Zero のときは、このフレームは
         /// このプレイヤーを並列 get_frame_data / ConsumeFrameData の対象から外す (ハンドル無効、または skip)。
@@ -192,6 +215,15 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         }
 
         /// <summary>
+        /// Invalidate the frame-skip cache so the next PrepareFrameData rebuilds geometry even when the draw
+        /// frame number is unchanged. Must be called after setup_animation: that resets the native world
+        /// matrices to identity, so a new animation whose start frame number matches the last built frame
+        /// would otherwise be skipped, leaving matrices/geometry stale (seen as part trackers snapping to
+        /// the local origin, and a stale mesh preview).
+        /// </summary>
+        public void InvalidateFrameCache() => _lastBuiltDrawFrameNo = float.NaN;
+
+        /// <summary>
         /// 直列の便宜ラッパ。advance せず get_frame_data を同期取得してメッシュ構築まで 1 メソッドで行う。
         /// 子 Instance (frame 駆動) と編集モードプレビューが使う。Play モードのトップレベルは
         /// SpriteStudioUpdateManager が PrepareFrameData → 並列 get_frame_data → ConsumeFrameData に分割する。
@@ -216,6 +248,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         /// </summary>
         public void ConsumeFrameData(System.IntPtr frameDataPtrRaw, int len, float deltaTime)
         {
+            _hasFrameData = false;
             if (!_player._handle.IsValid) return;
 
             unsafe
@@ -253,6 +286,8 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 #endif
 
                 var frameData = ss.runtime.FrameData.GetRootAsFrameData(_frameDataByteBuffer);
+                _lastFrameData = frameData;
+                _hasFrameData = true;
 
                 // FrameData テーブルの Table ビュー。parts / parts_color / draw_order の連続 vector の先頭位置
                 // (tFrame.__vector(vtoff)) を取り、生ポインタ直読みと既存 drawOrder コピーで共用する。
@@ -380,7 +415,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 // reflects all of them before any body part is drawn. Each pure mask's coverage is
                 // removed again at its own rank in the main loop (Phase B), yielding the "mask affects
                 // lower-priority parts" scope (mirrors SS6PU's pre-draw + slot decrement).
-                if (_player._hasMaskParts)
+                if (_player.MaskActive)
                 {
                     _maskPlanner.BuildPartLookup(frameData, _drawOrder, drawBatchesLength, drawOrderLength, partsLength);
                     for (int wi = 0; wi < _maskPlanner.WriterCount; wi++)
@@ -414,7 +449,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     {
                         ProcessNormalShapeMeshBatch(b, partsLength, ref frame, frameData, ref totalVertices, ref totalIndices);
                     }
-                    else if (b.Kind == ss.runtime.DrawBatchKind.Mask && _player._hasMaskParts)
+                    else if (b.Kind == ss.runtime.DrawBatchKind.Mask && _player.MaskActive)
                     {
                         ProcessMaskBatch(b, partsLength, ref frame, frameData, ref totalVertices, ref totalIndices);
                     }
@@ -493,12 +528,14 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         /// 実際のアップロード (頂点/index/submesh/bounds と再送スキップのキャッシュ) は
         /// <see cref="SpriteStudioMeshUploader"/> へ委譲する。
         /// </summary>
-        public void ApplyToMesh(UnityEngine.Mesh targetMesh, bool perBatchSubmesh = false)
+        /// <param name="use16BitIndices">Canvas path: route to the high-level 16-bit upload
+        /// (CanvasRenderer rejects the low-level mesh on Windows/D3D12 -> device removed). World path = false.</param>
+        public void ApplyToMesh(UnityEngine.Mesh targetMesh, bool perBatchSubmesh = false, bool use16BitIndices = false)
         {
             // Mesh に適用する前に Job の完了を待機 (Job はビルダーが所有)。
             _updateJobHandle.Complete();
 
-            _meshUploader.Apply(targetMesh, perBatchSubmesh, new SpriteStudioMeshUploader.UploadData(
+            _meshUploader.Apply(targetMesh, perBatchSubmesh, use16BitIndices, new SpriteStudioMeshUploader.UploadData(
                 _frameSkipped, _vertexCount, _indexCount, _meshVertices, _meshIndices,
                 _batchBuilder.Submeshes, _batchBuilder.SubmeshCount, _topologySignature, _meshBounds));
         }
@@ -542,10 +579,15 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 if (step.visible)
                 {
+                    // 独立インスタンスは Rust 側 controller が唯一のフレーム真実で、SetFrame(=set_frame_no) は
+                    // その controller を直接書き換える。次フレームの child_ctx.update() は書き戻された現在フレーム
+                    // から delta 進めるため、ここで Floor/Clamp 済みの値を書き戻すと 1tick<1frame で進む独立子の
+                    // 小数進行が毎フレーム切り捨てられ、整数フレームを跨げず凍結する。よって controller には生の
+                    // child_frame_no を書き戻す (非独立は set_frame_relative で parent_frame から再計算するため無関係)。
+                    // 表示用のフレーム範囲クランプは子自身の PrepareFrameData が get_frame_data 前に行うので不要。
                     float childDrawFrame = childPlayer.SubFrameEnabled ? step.child_frame_no : UnityEngine.Mathf.Floor(step.child_frame_no);
-                    childDrawFrame = UnityEngine.Mathf.Clamp(childDrawFrame, childPlayer.GetAnimationSectionStart(), childPlayer.GetAnimationSectionEnd());
                     _player._instanceChildren[i].PreviousFrame = childDrawFrame;
-                    childPlayer.SetFrame(childDrawFrame);
+                    childPlayer.SetFrame(step.child_frame_no);
                     childPlayer.ScheduleMeshUpdate(deltaTime);
 
                     _childHandles[childHandleCount++] = childPlayer.CurrentUpdateJobHandle;
@@ -623,7 +665,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                     StencilRole instRole = StencilRole.None;
                     byte instComp = 0;
-                    if (_player._hasMaskParts)
+                    if (_player.MaskActive)
                     {
                         var imd = _player._maskPartData[p_idx];
                         if (imd.MaskInfluence || imd.MaskWrite)
@@ -667,7 +709,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 StencilRole effRole = StencilRole.None;
                 byte effComp = 0;
-                if (_player._hasMaskParts)
+                if (_player.MaskActive)
                 {
                     var emd = _player._maskPartData[p_idx];
                     if (emd.MaskInfluence || emd.MaskWrite)
@@ -712,6 +754,14 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     if (p_idx < 0 || p_idx >= partsLength) continue;
                     if (!_maskPlanner.MaskPartVcIc(p_idx, kind, frame, _partStates, out int pvc, out int pic)) continue;
                     var md = _player._maskPartData[p_idx];
+                    if (!_player.MaskActive)
+                    {
+                        // Canvas suppression: drop pure masks (no colour), draw everything else unmasked.
+                        if (md.PureMask) continue;
+                        _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                            StencilRole.None, 0, 0, 0f, ref totalVertices, ref totalIndices);
+                        continue;
+                    }
                     if (md.PureMask)
                     {
                         byte rop = md.MaskInfluence ? StencilOpInvert : StencilOpDecr;
@@ -742,6 +792,76 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         }
                     }
                 }
+                return;
+            }
+
+            // Per-part AddOn shader dispatch (non-mask path). When the frame carries shader attributes
+            // and a catalog is bound, parts whose shader id resolves to an is-per-part AddOn are carved
+            // out as their own Count=1 submesh (stamped with the shader id hash); the rest accumulate
+            // into shared rank-runs, mirroring the mask per-part split. Vertex order is unchanged, so the
+            // mesh job fills exactly the same geometry — only the submesh granularity differs.
+            if (frameData.ShadersLength > 0)
+            {
+                // Built-in AddOns resolve with no project setup; the (optional) user catalog overrides.
+                var userCatalog = _player.ShaderCatalog;
+                byte sKind = (byte)b.Kind;
+                int runStart = b.StartRank;   // first rank of the current shared run (rank-span based)
+                int runVc = 0, runIc = 0;
+                for (int k = 0; k < b.Count; k++)
+                {
+                    int rank = b.StartRank + k;
+                    int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
+                    int pvc = 0, pic = 0;
+                    bool valid = p_idx >= 0 && p_idx < partsLength
+                                 && _maskPlanner.MaskPartVcIc(p_idx, sKind, frame, _partStates, out pvc, out pic);
+                    if (!valid) continue; // skipped parts add no geometry; their rank stays in the run span
+
+                    uint shaderHash = 0;
+                    float ap0 = 0, ap1 = 0, ap2 = 0, ap3 = 0, ap4 = 0, ap5 = 0, ap6 = 0, ap7 = 0;
+                    var ps = frameData.Parts(p_idx);
+                    if (ps.HasValue)
+                    {
+                        int sIdx = ps.Value.Shader;
+                        if (sIdx >= 0 && sIdx < frameData.ShadersLength)
+                        {
+                            var shAttr = frameData.Shaders(sIdx).Value;
+                            uint idHash = shAttr.IdHash;
+                            if (idHash != 0 && SpriteStudioAddOnRegistry.TryGetIsPerPart(idHash, userCatalog, out bool isPerPart) && isPerPart)
+                            {
+                                shaderHash = idHash;
+                                ap0 = shAttr.Param0; ap1 = shAttr.Param1; ap2 = shAttr.Param2; ap3 = shAttr.Param3;
+                                ap4 = shAttr.Param4; ap5 = shAttr.Param5; ap6 = shAttr.Param6; ap7 = shAttr.Param7;
+                            }
+                        }
+                    }
+
+                    if (shaderHash != 0)
+                    {
+                        // Flush the pending shared run [runStart, rank), then emit this part on its own.
+                        int runCount = rank - runStart;
+                        if (runCount > 0 && runIc > 0)
+                            _batchBuilder.EmitDrawBatch((ushort)runStart, (ushort)runCount, runVc, runIc, sKind, b.TextureHash, (byte)b.BlendType, 0u, ref totalVertices, ref totalIndices);
+                        _batchBuilder.EmitDrawBatch((ushort)rank, 1, pvc, pic, sKind, b.TextureHash, (byte)b.BlendType, shaderHash, ref totalVertices, ref totalIndices);
+                        _batchBuilder.SetLastSubmeshAddOnParams(ap0, ap1, ap2, ap3, ap4, ap5, ap6, ap7);
+                        // Cell rectangle (pixel UVs) for cell-rect AddOns (ss-circle / ss-spot). Only Normal
+                        // parts carry a cell quad in LocalUvs (layout [lt.u,lt.v, rt, lb, rb.u@6,rb.v@7, center]);
+                        // Shape/Mesh leave it 0 so those AddOns degenerate (discard).
+                        if (sKind == SsDrawBatchKind.Normal && frame.LocalUvs != null && (p_idx * 10 + 7) < (int)frame.LocalUvsLen)
+                        {
+                            float* uvp = frame.LocalUvs + p_idx * 10;
+                            _batchBuilder.SetLastSubmeshCellRect(uvp[0], uvp[1], uvp[6], uvp[7]);
+                        }
+                        runStart = rank + 1; runVc = 0; runIc = 0;
+                    }
+                    else
+                    {
+                        runVc += pvc; runIc += pic;
+                    }
+                }
+                // Flush the trailing shared run [runStart, batchEnd).
+                int tailCount = (b.StartRank + b.Count) - runStart;
+                if (tailCount > 0 && runIc > 0)
+                    _batchBuilder.EmitDrawBatch((ushort)runStart, (ushort)tailCount, runVc, runIc, sKind, b.TextureHash, (byte)b.BlendType, 0u, ref totalVertices, ref totalIndices);
                 return;
             }
 
@@ -782,7 +902,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
             if (vc > 0 && ic > 0)
             {
-                _batchBuilder.EmitDrawBatch((ushort)b.StartRank, (ushort)b.Count, vc, ic, (byte)b.Kind, b.TextureHash, (byte)b.BlendType, ref totalVertices, ref totalIndices);
+                _batchBuilder.EmitDrawBatch((ushort)b.StartRank, (ushort)b.Count, vc, ic, (byte)b.Kind, b.TextureHash, (byte)b.BlendType, 0u, ref totalVertices, ref totalIndices);
             }
         }
 

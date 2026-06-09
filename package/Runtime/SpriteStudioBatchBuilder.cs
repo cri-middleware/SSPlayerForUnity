@@ -18,6 +18,10 @@ namespace SpriteStudio.Runtime
         public int IndexStart;
         public int IndexCount;
         public uint TextureHash;
+        // Per-part AddOn shader id hash (FrameData PartAttributeShader.IdHash). 0 = the shared default
+        // path (SpriteStudio/Default). Non-zero = an individual per-part draw whose material uses the
+        // AddOn shader resolved from the SpriteStudioShaderCatalog.
+        public uint ShaderHash;
         public byte BlendType;
         // Stencil state (only meaningful when Role != None). Op/Comp hold the corresponding
         // UnityEngine.Rendering.StencilOp / CompareFunction values; the masks/ref are the
@@ -29,6 +33,13 @@ namespace SpriteStudio.Runtime
         public byte StencilReadMask;
         public byte StencilWriteMask;
         public float MaskThreshold;
+        // Per-part AddOn shader params (FrameData PartAttributeShader.Param0..7), only meaningful when
+        // ShaderHash != 0. The player sets these on the part's own AddOn material instance each frame.
+        public float P0, P1, P2, P3, P4, P5, P6, P7;
+        // Per-part cell rectangle in PIXEL UVs (lt.u, lt.v, rb.u, rb.v), for cell-rect AddOns
+        // (ss-circle / ss-spot). Set on _SsCellRect; the shader converts to its UV space. 0 for parts
+        // with no cell (Shape / Mesh) -> those AddOns degenerate (discard).
+        public float CellL, CellT, CellR, CellB;
     }
 
     internal sealed class SpriteStudioBatchBuilder : IDisposable
@@ -55,13 +66,17 @@ namespace SpriteStudio.Runtime
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         public unsafe void EmitSubmesh(int indexStart, int indexCount, uint textureHash, byte blendType,
             StencilRole role = StencilRole.None, byte stencilOp = 0, byte stencilComp = 0, byte stencilRef = 0,
-            byte stencilReadMask = 0, byte stencilWriteMask = 0, float maskThreshold = 0f)
+            byte stencilReadMask = 0, byte stencilWriteMask = 0, float maskThreshold = 0f, uint shaderHash = 0)
         {
             if (role == StencilRole.None && _submeshCount > 0)
             {
                 var pSub = (SubmeshInfo*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_submeshes);
                 ref var last = ref pSub[_submeshCount - 1];
-                if (last.Role == StencilRole.None && last.TextureHash == textureHash && last.BlendType == blendType)
+                // Only merge shared (non-AddOn) runs. A per-part AddOn part (shaderHash != 0) must stay
+                // its own submesh so it carries its own material instance and params — even two adjacent
+                // parts using the same AddOn shader can have different params, so they must not merge.
+                if (last.Role == StencilRole.None && shaderHash == 0 && last.ShaderHash == 0
+                    && last.TextureHash == textureHash && last.BlendType == blendType)
                 {
                     last.IndexCount += indexCount;
                     return;
@@ -79,6 +94,7 @@ namespace SpriteStudio.Runtime
                 IndexStart = indexStart,
                 IndexCount = indexCount,
                 TextureHash = textureHash,
+                ShaderHash = shaderHash,
                 BlendType = blendType,
                 Role = role,
                 StencilOp = stencilOp,
@@ -88,6 +104,25 @@ namespace SpriteStudio.Runtime
                 StencilWriteMask = stencilWriteMask,
                 MaskThreshold = maskThreshold
             };
+        }
+
+        // Stamp the per-part AddOn params onto the most recently emitted submesh (called right after the
+        // per-part EmitDrawBatch, which always creates a fresh submesh since AddOn parts never merge).
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public unsafe void SetLastSubmeshAddOnParams(float p0, float p1, float p2, float p3, float p4, float p5, float p6, float p7)
+        {
+            if (_submeshCount == 0) return;
+            ref var s = ref ((SubmeshInfo*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_submeshes))[_submeshCount - 1];
+            s.P0 = p0; s.P1 = p1; s.P2 = p2; s.P3 = p3; s.P4 = p4; s.P5 = p5; s.P6 = p6; s.P7 = p7;
+        }
+
+        // Stamp the per-part cell rectangle (pixel UVs) onto the most recently emitted submesh.
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public unsafe void SetLastSubmeshCellRect(float l, float t, float r, float b)
+        {
+            if (_submeshCount == 0) return;
+            ref var s = ref ((SubmeshInfo*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_submeshes))[_submeshCount - 1];
+            s.CellL = l; s.CellT = t; s.CellR = r; s.CellB = b;
         }
 
         // The draw-batch buffer is pre-sized by BeginFrame(maxBatches), but maxBatches is only a
@@ -115,9 +150,12 @@ namespace SpriteStudio.Runtime
                 Count = 1,
                 VertexCount = vc,
                 IndexCount = ic,
-                Kind = kind
+                Kind = kind,
+                // Caution: the mesh job reads BlendType to set the per-vertex isAdditive flag; omit it
+                // and ADD parts render as MIX on the Canvas path.
+                BlendType = blend
             };
-            
+
             EmitSubmesh(totalIndices, ic, texHash, blend, role, stencilOp, stencilComp, 0,
                 SpriteStudioMaterial.MaskStencilMask,
                 role == StencilRole.Write ? SpriteStudioMaterial.MaskStencilMask : (byte)0, threshold);
@@ -154,7 +192,7 @@ namespace SpriteStudio.Runtime
             };
         }
 
-        public unsafe void EmitDrawBatch(ushort startRank, ushort count, int vc, int ic, byte kind, uint textureHash, byte blendType, ref int totalVertices, ref int totalIndices)
+        public unsafe void EmitDrawBatch(ushort startRank, ushort count, int vc, int ic, byte kind, uint textureHash, byte blendType, uint shaderHash, ref int totalVertices, ref int totalIndices)
         {
             EnsureDrawBatchCapacity();
             ((DrawBatchData*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
@@ -163,9 +201,12 @@ namespace SpriteStudio.Runtime
                 Count = count,
                 VertexCount = vc,
                 IndexCount = ic,
-                Kind = kind
+                Kind = kind,
+                // Caution: the mesh job reads BlendType to set the per-vertex isAdditive flag; omit it
+                // and ADD parts render as MIX on the Canvas path.
+                BlendType = blendType
             };
-            EmitSubmesh(totalIndices, ic, textureHash, blendType);
+            EmitSubmesh(totalIndices, ic, textureHash, blendType, shaderHash: shaderHash);
             totalVertices += vc;
             totalIndices += ic;
         }
@@ -189,6 +230,9 @@ namespace SpriteStudio.Runtime
             {
                 var s = _submeshes[i];
                 sig = (sig ^ ((ulong)(uint)s.IndexStart | ((ulong)(uint)s.IndexCount << 32))) * prime;
+                // Include the AddOn shader axis so the material list re-resolves when a part's shader
+                // assignment changes (the per-frame params are set separately, like the mask threshold).
+                sig = (sig ^ (ulong)s.ShaderHash) * prime;
             }
             sig = (sig ^ (ulong)(uint)indexCount) * prime;
             sig = (sig ^ (ulong)(uint)vertexCount) * prime;

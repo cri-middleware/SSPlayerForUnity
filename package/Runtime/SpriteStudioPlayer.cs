@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.Timeline;
@@ -11,12 +12,24 @@ namespace SpriteStudio.Runtime
     /// SpriteStudioUpdateManager が「全 Schedule → 全 Apply」でまとめて行います (Job 並列化)。
     /// </summary>
     [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
-    // NOTE: [ExecuteAlways] は無効。Play モードでのみ再生・描画する (編集モードは静止)。
+    // [ExecuteAlways]: edit モードでも OnEnable/LateUpdate を回し、シーン設置時に「開始フレームの
+    // 静止プレビュー」を1回だけ構築する (再生はしない)。Play モードの毎フレーム駆動は従来どおり
+    // SpriteStudioUpdateManager が集中管理する (edit モードでは manager は動かない)。
+    [ExecuteAlways]
     public class SpriteStudioPlayer : MonoBehaviour, ITimeControl, ISpriteStudioRenderable
     {
         [Header("SpriteStudio Asset")]
         [Tooltip("描画対象となるコンバート済みの ssab アセット")]
         [SerializeField] private SpriteStudioAnimeAsset _animeAsset;
+
+        [Tooltip("Per-part AddOn / custom shader catalog. Optional: leave empty to disable per-part " +
+                 "shader dispatch. The built-in AddOns ship pre-registered in the package catalog.")]
+        [SerializeField] private SpriteStudioShaderCatalog _shaderCatalog;
+
+        [Header("Part Tracking")]
+        [Tooltip("指定パーツに追従させるユーザー所有 Transform の登録リスト。プレーヤーは GameObject を生成せず、" +
+                 "登録された Transform を毎フレーム駆動するだけ (constraint 方式)。")]
+        [SerializeField] private List<SpriteStudioPartTracker> _partTrackers = new List<SpriteStudioPartTracker>();
 
         public SpriteStudioAnimeAsset AnimeAsset
         {
@@ -25,6 +38,11 @@ namespace SpriteStudio.Runtime
             {
                 _animeAsset = value;
                 _core.ReloadAsset(_animeAsset);
+                // The part set (and thus name->index mapping) may have changed: re-resolve trackers.
+                MarkPartTrackersDirty();
+#if UNITY_EDITOR
+                _appliedAsset = _animeAsset;
+#endif
             }
         }
 
@@ -144,6 +162,10 @@ namespace SpriteStudio.Runtime
         {
             _animationName = animName;
             _core.Play(_animationName, _loopCount, _speedScale, _skipFrames, "SpriteStudioPlayer");
+#if UNITY_EDITOR
+            // Keep the OnValidate baseline in sync so a later unrelated inspector edit does not restart.
+            _appliedAnimation = _animationName;
+#endif
         }
 
         private void Start()
@@ -220,6 +242,14 @@ namespace SpriteStudio.Runtime
             _core.OnUserData += InvokeUserData;
             _core.OnSignal += InvokeSignal;
             _core.OnAudio += InvokeAudio;
+#if UNITY_EDITOR
+            // Baseline so the first in-play OnValidate (e.g. tweaking speed) is not mistaken for an
+            // asset/animation change and does not restart playback.
+            _appliedAsset = _animeAsset;
+            _appliedAnimation = _animationName;
+            // edit モードでは設置直後に開始フレームの静止プレビューを1回構築する (LateUpdate で消化)。
+            if (!Application.isPlaying) _editPreviewDirty = true;
+#endif
         }
 
         private void InvokeAnimationFinished() => OnAnimationFinishedEvent?.Invoke();
@@ -238,6 +268,10 @@ namespace SpriteStudio.Runtime
             _core.OnSignal -= InvokeSignal;
             _core.OnAudio -= InvokeAudio;
 
+            // Release the per-part AddOn material instances and force a material-list rebuild on
+            // re-enable (the cleared list count no longer matches the submesh count).
+            DestroyAddOnInstances();
+            _submeshMaterials.Clear();
             _core.Dispose();
             // Internal を破棄したので Timeline 制御状態もリセットする。これをしないと再有効化時に
             // 新しい (アニメ未 setup の) ネイティブハンドルへ「同名なので setup 不要」と誤判定し描画が破綻する。
@@ -257,12 +291,18 @@ namespace SpriteStudio.Runtime
         }
 
 #if UNITY_EDITOR
+        // Baseline of the core settings (asset / animation) currently applied to the runtime, so OnValidate
+        // can tell an actual asset/animation change apart from tweaking speed etc. Editor-only; rebuilt on
+        // play entry by OnEnable. NonSerialized so it never persists.
+        [System.NonSerialized] private SpriteStudioAnimeAsset _appliedAsset;
+        [System.NonSerialized] private string _appliedAnimation;
+
         // インスペクタはシリアライズ済みフィールドを直接書き換え、プロパティの setter を呼ばない。
         // そのため再生中のインスペクタ変更をランタイム (Rust) へ反映するにはここで同期する。
         // OnValidate は Editor 専用コールバック (ビルドでは呼ばれない) なので #if UNITY_EDITOR で囲む。
-        // (Internal 未生成時 = デシリアライズ中等は何もしない。アニメ名の切替は破壊的なので対象外。)
         private void OnValidate()
         {
+            // Live-tunable params (do not restart playback).
             if (_core.Internal != null)
             {
                 _core.Internal.SetSpeed(_speedScale);
@@ -275,6 +315,70 @@ namespace SpriteStudio.Runtime
                 _meshRenderer.sortingLayerName = _sortingLayerName;
                 _meshRenderer.sortingOrder = _sortingOrder;
             }
+
+            // Fundamental settings: changing the asset or animation in the inspector must refresh the
+            // runtime (the serialized fields are written directly, bypassing the property setters).
+            bool assetChanged = !ReferenceEquals(_appliedAsset, _animeAsset);
+            bool animChanged = _appliedAnimation != _animationName;
+            if (assetChanged)
+            {
+                // New part set: trackers must re-resolve their names.
+                MarkPartTrackersDirty();
+            }
+
+            if (Application.isPlaying)
+            {
+                // Reflect changes live during play. Reload the ssab on an asset swap, then (re)start the
+                // animation from the head when the asset or animation changed.
+                if (_core.Internal != null)
+                {
+                    if (assetChanged)
+                    {
+                        _core.EnsureCreated(_animeAsset, _subFrameEnabled);
+                        ApplyPixelsPerUnit();
+                    }
+                    if ((assetChanged || animChanged) && !string.IsNullOrEmpty(_animationName))
+                    {
+                        Play(_animationName);
+                    }
+                }
+            }
+            else
+            {
+                // edit モードはプレビューを組み直す (EnsureCreated がアセット変更時に ssab を再ロードする)。
+                _editPreviewDirty = true;
+            }
+
+            _appliedAsset = _animeAsset;
+            _appliedAnimation = _animationName;
+        }
+
+        // edit モードの静止プレビュー。[ExecuteAlways] により LateUpdate は毎エディタフレーム呼ばれるが、
+        // _editPreviewDirty が立っているときだけ「開始フレームを1回構築」して静止させる (再生はしない)。
+        // Play モードは SpriteStudioUpdateManager が駆動するためここでは何もしない。
+        private bool _editPreviewDirty;
+
+        private void LateUpdate()
+        {
+            if (Application.isPlaying) return;
+            if (!_editPreviewDirty) return;
+            // Self-heal if the .ssab was still importing when OnEnable ran (Editor restart race): keep
+            // retrying while the runtime has no ssab yet, and only clear the dirty flag (build once) once
+            // it is ready. A setup failure after that is a config error, not a race, so we do not loop.
+            _core.EnsureCreated(_animeAsset, _subFrameEnabled);
+            if (_core.Internal == null || !_core.Internal.HasSsab) return;
+            _editPreviewDirty = false;
+            BuildEditPreview();
+        }
+
+        private void BuildEditPreview()
+        {
+            if (_core.Internal == null || _animeAsset == null || string.IsNullOrEmpty(_animationName)) return;
+            if (!_core.Internal.SetupAnimation(_animationName)) return;
+            // 開始フレームに固定し、進行させず 1 フレームだけ同期構築する (ScheduleMeshUpdate は advance=false)。
+            _core.Internal.SetFrame(_core.Internal.GetAnimationSectionStart());
+            _core.Internal.ScheduleMeshUpdate(0f);
+            ApplyAndRender();
         }
 #endif
 
@@ -298,9 +402,138 @@ namespace SpriteStudio.Runtime
         {
             if (_core.Internal == null) return;
 
+            // Bind the per-part shader catalog before the build so the geometry builder can carve out
+            // is-per-part AddOn parts (cheap reference assignment; null = no per-part dispatch).
+            _core.Internal.ShaderCatalog = _shaderCatalog;
+
             // バッチ単位に SubMesh を分割し、テクスチャごとに別マテリアルを適用する
             _core.Internal.ApplyToMesh(_sharedMesh, true);
             UpdateSubmeshMaterials();
+
+            // After the frame's world matrices are final, drive any registered part trackers. Done here
+            // (LateUpdate, before the render phase) so attached renderers update in the same frame.
+            MirrorTrackers();
+        }
+
+        /// <summary>
+        /// Drive each registered tracker's target Transform from its part's frame for this frame.
+        /// Writes local TRS in the target's parent space, so a target parented under the player matches the
+        /// part exactly (scale included) while a target placed elsewhere gets the exact world pose
+        /// (scale approximate only when its parent is rotated + non-uniformly scaled). Position/rotation
+        /// are always exact. Scale is written only when driveScale is on (localScale divided out).
+        /// </summary>
+        private void MirrorTrackers()
+        {
+            if (_partTrackers == null || _partTrackers.Count == 0) return;
+            var internalPlayer = _core.Internal;
+            if (internalPlayer == null) return;
+
+            Matrix4x4 rootToWorld = transform.localToWorldMatrix;
+
+            for (int i = 0; i < _partTrackers.Count; i++)
+            {
+                var tracker = _partTrackers[i];
+                if (tracker == null || tracker.target == null) continue;
+
+                // Resolve part index (cached; rebuilt on asset reload via MarkPartTrackersDirty).
+                if (tracker.ResolvedIndex == SpriteStudioPartTracker.ResolveDirty)
+                    tracker.ResolvedIndex = internalPlayer.ResolvePartIndex(tracker.partName);
+                int partIndex = tracker.ResolvedIndex;
+
+                if (partIndex < 0)
+                {
+                    // Part absent from this animation: nothing to follow, so deactivate the target.
+                    if (tracker.target.gameObject.activeSelf) tracker.target.gameObject.SetActive(false);
+                    continue;
+                }
+
+                // A hidden part still has a valid matrix, so FollowAlways keeps tracking it; Deactivate hides.
+                bool hasState = internalPlayer.TryGetPartState(partIndex, out bool hidden, out float lsx, out float lsy);
+                if (hidden && tracker.onHide == SpriteStudioPartTrackerHide.Deactivate)
+                {
+                    if (tracker.target.gameObject.activeSelf) tracker.target.gameObject.SetActive(false);
+                    continue;
+                }
+
+                if (!internalPlayer.TryGetPartLocalMatrix(partIndex, out Matrix4x4 partLocal)) continue;
+
+                // Re-activate if it was auto-deactivated (absent / hidden) on a previous frame.
+                if (!tracker.target.gameObject.activeSelf) tracker.target.gameObject.SetActive(true);
+
+                // Remove the part's own localScale (it scales the basis columns) so only the inherited
+                // scale drives the target. Exact; a degenerate (~0) localScale axis is left untouched.
+                if (tracker.driveScale && hasState)
+                {
+                    if (Mathf.Abs(lsx) > 1e-6f) partLocal.SetColumn(0, partLocal.GetColumn(0) / lsx);
+                    if (Mathf.Abs(lsy) > 1e-6f) partLocal.SetColumn(1, partLocal.GetColumn(1) / lsy);
+                }
+
+                // Express the desired world pose in the target's parent-local space, then write local TRS.
+                Matrix4x4 desiredWorld = rootToWorld * partLocal;
+                Transform parent = tracker.target.parent;
+                Matrix4x4 local = parent != null ? parent.worldToLocalMatrix * desiredWorld : desiredWorld;
+
+                tracker.target.localPosition = local.GetColumn(3);
+                tracker.target.localRotation = local.rotation;
+                if (tracker.driveScale)
+                {
+                    // 2D player: drive X/Y, preserve the target's own Z scale.
+                    Vector3 s = local.lossyScale;
+                    Vector3 cur = tracker.target.localScale;
+                    tracker.target.localScale = new Vector3(s.x, s.y, cur.z);
+                }
+            }
+        }
+
+        // --- Part tracking public API ---
+
+        /// <summary>Register a part tracker at runtime. Returns the created entry.</summary>
+        public SpriteStudioPartTracker RegisterPartTracker(string partName, Transform target,
+            bool driveScale = false, SpriteStudioPartTrackerHide onHide = SpriteStudioPartTrackerHide.FollowAlways)
+        {
+            if (_partTrackers == null) _partTrackers = new List<SpriteStudioPartTracker>();
+            var tracker = new SpriteStudioPartTracker
+            {
+                partName = partName,
+                target = target,
+                driveScale = driveScale,
+                onHide = onHide,
+            };
+            _partTrackers.Add(tracker);
+            return tracker;
+        }
+
+        /// <summary>Remove all trackers whose target is the given Transform. Returns the number removed.</summary>
+        public int UnregisterPartTracker(Transform target)
+        {
+            if (_partTrackers == null) return 0;
+            return _partTrackers.RemoveAll(t => t != null && t.target == target);
+        }
+
+        /// <summary>Is the named part hidden on the current frame? False if the part is unknown / absent.</summary>
+        public bool TryGetPartHidden(string partName, out bool hidden)
+        {
+            hidden = false;
+            if (_core.Internal == null) return false;
+            int idx = _core.Internal.ResolvePartIndex(partName);
+            return idx >= 0 && _core.Internal.TryGetPartState(idx, out hidden, out _, out _);
+        }
+
+        /// <summary>Player-local matrix (1/PPU folded) of the named part for the current frame. False if unknown.</summary>
+        public bool TryGetPartLocalMatrix(string partName, out Matrix4x4 matrix)
+        {
+            matrix = Matrix4x4.identity;
+            if (_core.Internal == null) return false;
+            int idx = _core.Internal.ResolvePartIndex(partName);
+            return idx >= 0 && _core.Internal.TryGetPartLocalMatrix(idx, out matrix);
+        }
+
+        /// <summary>Force part trackers to re-resolve their part index (call after the asset/part set changes).</summary>
+        private void MarkPartTrackersDirty()
+        {
+            if (_partTrackers == null) return;
+            for (int i = 0; i < _partTrackers.Count; i++)
+                if (_partTrackers[i] != null) _partTrackers[i].ResolvedIndex = SpriteStudioPartTracker.ResolveDirty;
         }
 
         private readonly System.Collections.Generic.List<Material> _submeshMaterials = new System.Collections.Generic.List<Material>();
@@ -324,21 +557,27 @@ namespace SpriteStudio.Runtime
             // 構成シグネチャ。threshold は per-frame 可変なのでここには含めず MPB で渡す。
             uint signature = (uint)subCount;
             bool hasWrite = false;
+            bool hasAddOn = false;
             for (int s = 0; s < subCount; s++)
             {
                 var info = submeshes[s];
                 signature = signature * 31u + info.TextureHash;
+                signature = signature * 31u + info.ShaderHash;
                 signature = signature * 31u + info.BlendType;
                 signature = signature * 31u + (uint)info.Role;
                 signature = signature * 31u + info.StencilOp;
                 signature = signature * 31u + info.StencilComp;
                 if (info.Role == StencilRole.Write) hasWrite = true;
+                if (info.ShaderHash != 0) hasAddOn = true;
             }
 
             if (signature != _lastMaterialSignature || _submeshMaterials.Count != subCount)
             {
                 _lastMaterialSignature = signature;
                 _submeshMaterials.Clear();
+                // Per-part AddOn material instances are owned by this player; recreate them when the
+                // submesh layout changes (rare). Destroy the previous set first so they do not leak.
+                DestroyAddOnInstances();
                 if (_submeshMaterials.Capacity < subCount)
                 {
                     _submeshMaterials.Capacity = subCount;
@@ -362,8 +601,21 @@ namespace SpriteStudio.Runtime
                             mat = _animeAsset.ResolveTestMaterial(info.TextureHash, info.BlendType, info.StencilComp);
                             break;
                         default:
-                            // Resolve self -> Instance external reference, then apply the per-blend material variant.
-                            mat = _animeAsset.ResolveMaterial(info.TextureHash, info.BlendType);
+                            if (info.ShaderHash != 0
+                                && SpriteStudioAddOnRegistry.TryResolveShader(info.ShaderHash, _shaderCatalog, out var addonShader, out _))
+                            {
+                                // Per-part AddOn: its own material instance (so its per-frame params do
+                                // not stomp other parts'), tracked for destruction. Params are pushed in
+                                // the per-frame pass below.
+                                mat = _animeAsset.CreatePerPartMaterialInstance(addonShader, info.TextureHash, info.BlendType);
+                                if (mat != null) _addOnInstances.Add(mat);
+                                else mat = _animeAsset.ResolveMaterial(info.TextureHash, info.BlendType);
+                            }
+                            else
+                            {
+                                // Resolve self -> Instance external reference, then apply the per-blend material variant.
+                                mat = _animeAsset.ResolveMaterial(info.TextureHash, info.BlendType);
+                            }
                             break;
                     }
                     if (mat == null)
@@ -393,6 +645,38 @@ namespace SpriteStudio.Runtime
                     _meshRenderer.SetPropertyBlock(_maskMpb, s);
                 }
             }
+
+            // Per-part AddOn params: pushed onto each part's own material instance every frame (the
+            // params animate), independent of the signature-cached material list. Set on the Material
+            // (not a MaterialPropertyBlock) so the per-part draws stay SRP Batcher compatible.
+            if (hasAddOn)
+            {
+                for (int s = 0; s < subCount; s++)
+                {
+                    var info = submeshes[s];
+                    if (info.ShaderHash == 0) continue;
+                    if (s < _submeshMaterials.Count)
+                    {
+                        var m = _submeshMaterials[s];
+                        if (m != null) SpriteStudioMaterial.ApplyAddOnParams(m, info);
+                    }
+                }
+            }
+        }
+
+        private readonly System.Collections.Generic.List<Material> _addOnInstances = new System.Collections.Generic.List<Material>();
+
+        // Destroy the per-part AddOn material instances this player owns (created per submesh-layout
+        // change). The clones are HideAndDontSave, so nothing else releases them.
+        private void DestroyAddOnInstances()
+        {
+            for (int i = 0; i < _addOnInstances.Count; i++)
+            {
+                var m = _addOnInstances[i];
+                if (m == null) continue;
+                if (Application.isPlaying) Destroy(m); else DestroyImmediate(m);
+            }
+            _addOnInstances.Clear();
         }
 
         #region ITimeControl (Timeline 連携)

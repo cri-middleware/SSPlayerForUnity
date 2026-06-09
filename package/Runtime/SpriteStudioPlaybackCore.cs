@@ -19,15 +19,28 @@ namespace SpriteStudio.Runtime
         public event System.Action<SpriteStudioSignal> OnSignal;
         public event System.Action<SpriteStudioAudio> OnAudio;
 
+        // The asset whose ssab is currently loaded into Internal. Used to detect an inspector asset swap so
+        // EnsureCreated reloads (the inspector writes the serialized field directly, bypassing the setter).
+        private SpriteStudioAnimeAsset _loadedAsset;
+
         public void EnsureCreated(SpriteStudioAnimeAsset asset, bool subFrameEnabled)
         {
-            if (Internal != null) return;
+            if (Internal == null)
+            {
+                Internal = new SpriteStudioInternalPlayer { SubFrameEnabled = subFrameEnabled };
+                HookEvents();
+            }
 
-            Internal = new SpriteStudioInternalPlayer { SubFrameEnabled = subFrameEnabled };
-            HookEvents();
-            if (asset != null && asset.SsabData != null)
+            // Load the ssab when (a) none is loaded yet, or (b) the referenced asset changed. (a) is the
+            // self-heal case: on an Editor restart the referenced .ssab can still be re-importing when
+            // OnEnable first runs (asset / SsabData momentarily null), so we retry until it is ready.
+            // (b) handles an inspector asset swap, which bypasses the C# property setter. LoadSsab is safe
+            // to call repeatedly.
+            if (asset != null && asset.SsabData != null
+                && (!Internal.HasSsab || !ReferenceEquals(asset, _loadedAsset)))
             {
                 Internal.LoadSsab(asset.SsabData, asset.ResolveExternalSsab);
+                _loadedAsset = asset;
             }
         }
 
@@ -46,6 +59,7 @@ namespace SpriteStudio.Runtime
             if (Internal != null && asset != null && asset.SsabData != null)
             {
                 Internal.LoadSsab(asset.SsabData, asset.ResolveExternalSsab);
+                _loadedAsset = asset;
             }
         }
 
@@ -56,6 +70,7 @@ namespace SpriteStudio.Runtime
                 Internal.Dispose();
                 Internal = null;
             }
+            _loadedAsset = null;
         }
 
         /// <summary>指定アニメーションの再生を開始する。logContext は警告メッセージのタグ。</summary>
