@@ -22,6 +22,12 @@ namespace SpriteStudio.Runtime
         
         public bool HasPoint;
         public Vector2 PointValue;
+
+        /// <summary>
+        /// True when playback was moving toward lower frame numbers as this event was passed
+        /// (a ping-pong return leg, or a reverse-playing animation). False on the forward leg.
+        /// </summary>
+        public bool IsReverse;
     }
 
     [Serializable]
@@ -41,6 +47,9 @@ namespace SpriteStudio.Runtime
         /// Godot 実装 (onSignal が渡す Dictionary) と等価。UnityEvent ではシリアライズされず実行時のみ有効。
         /// </summary>
         [NonSerialized] public Dictionary<string, object> Params;
+
+        /// <summary>See <see cref="SpriteStudioUserData.IsReverse"/>.</summary>
+        public bool IsReverse;
     }
 
     [Serializable]
@@ -55,6 +64,9 @@ namespace SpriteStudio.Runtime
         public uint SoundNameHash;
         public string SoundName;
         public int LoopNum;
+
+        /// <summary>See <see cref="SpriteStudioUserData.IsReverse"/>.</summary>
+        public bool IsReverse;
     }
 
     [Serializable]
