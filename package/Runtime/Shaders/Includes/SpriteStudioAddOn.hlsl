@@ -99,6 +99,12 @@ bool ss_addon_bmask_keep(float3 rgb, float brightness)
 
 float2 ss_addon_uv(float2 fragUv) { return float2(fragUv.x, 1.0 - fragUv.y); }
 float4 ss_addon_sample(sampler2D tex, float2 ssUv) { return tex2D(tex, float2(ssUv.x, 1.0 - ssUv.y)); }
+// Explicit-LOD (mip 0) variant of ss_addon_sample. Required wherever the sample sits inside a
+// varying-iteration loop: tex2D's implicit gradient forces the compiler to unroll such a loop
+// (FXC X3570), which on Apple/AMD/Vulkan compilers turns into a pathologically slow / hanging shader
+// compile. tex2Dlod needs no derivatives, so [loop] is honoured and it compiles fast on every backend.
+// SS sprite atlases are sampled at mip 0 anyway, so this is visually identical.
+float4 ss_addon_sample_lod(sampler2D tex, float2 ssUv) { return tex2Dlod(tex, float4(ssUv.x, 1.0 - ssUv.y, 0.0, 0.0)); }
 
 // ---- ss-outline: 4-neighbour alpha-edge outline (ss_param0=threshold signed) ----
 // Returns the outline intensity v (0..1); the shader feeds it as both rgb and alpha then discards v<=0.
@@ -175,7 +181,10 @@ float4 ss_addon_wave(sampler2D tex, float2 uv, float2 texelSize, float width, fl
 
 // ---- ss-move: directional motion-blur smear (ss_param0=distance signed, 1=direction, 2=power) ----
 // Accumulates back-traced samples along (sin,cos)(direction*PI). The loop bound is dynamic but capped
-// at 128 (matching ForGodot); [loop] keeps it a real loop rather than an unbounded unroll.
+// at 128 (matching ForGodot). Sampling here MUST use ss_addon_sample_lod (explicit mip 0), NOT tex2D:
+// an implicit-gradient sample inside this varying-iteration loop forces the HLSL compiler to unroll it
+// to 128x (FXC X3570) despite [loop], which on Apple/AMD/Vulkan compilers becomes a pathologically slow
+// or hanging shader compile (GeForce/D3D tolerates it, so the runaway only shows on those backends).
 float4 ss_addon_move(sampler2D tex, float2 uv, float2 texelSize, float dist, float direction, float power)
 {
     float2 ssUv = ss_addon_uv(uv);
@@ -184,12 +193,12 @@ float4 ss_addon_move(sampler2D tex, float2 uv, float2 texelSize, float dist, flo
     float2 vel = float2(sin(direction * UNITY_PI) * texelSize.x, cos(direction * UNITY_PI) * texelSize.y) * sign(dist);
     float2 coord = ssUv + vel * (float)count;
     coord -= vel;
-    float4 pixel = ss_addon_sample(tex, coord);
+    float4 pixel = ss_addon_sample_lod(tex, coord);
     [loop]
     for (int i = 1; i < count; i++)
     {
         coord -= vel;
-        pixel = lerp(ss_addon_sample(tex, coord), pixel, 0.96 * abs(power));
+        pixel = lerp(ss_addon_sample_lod(tex, coord), pixel, 0.96 * abs(power));
     }
     return pixel;
 }
