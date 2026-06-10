@@ -766,6 +766,7 @@ public struct StringValueEntry : IFlatbufferObject
   public static void AddValue(FlatBufferBuilder builder, StringOffset valueOffset) { builder.AddOffset(0, valueOffset.Value, 0); }
   public static Offset<ss.format.StringValueEntry> EndStringValueEntry(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 4);  // value
     return new Offset<ss.format.StringValueEntry>(o);
   }
 }
@@ -776,7 +777,7 @@ static public class StringValueEntryVerify
   static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
   {
     return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyString(tablePos, 4 /*Value*/, false)
+      && verifier.VerifyString(tablePos, 4 /*Value*/, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -803,6 +804,7 @@ public struct Vec2ValueEntry : IFlatbufferObject
   public static void AddValue(FlatBufferBuilder builder, Offset<ss.format.Vec2> valueOffset) { builder.AddOffset(0, valueOffset.Value, 0); }
   public static Offset<ss.format.Vec2ValueEntry> EndVec2ValueEntry(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 4);  // value
     return new Offset<ss.format.Vec2ValueEntry>(o);
   }
 }
@@ -813,7 +815,7 @@ static public class Vec2ValueEntryVerify
   static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
   {
     return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyTable(tablePos, 4 /*Value*/, ss.format.Vec2Verify.Verify, false)
+      && verifier.VerifyTable(tablePos, 4 /*Value*/, ss.format.Vec2Verify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -840,6 +842,7 @@ public struct RectValueEntry : IFlatbufferObject
   public static void AddValue(FlatBufferBuilder builder, Offset<ss.format.Rect> valueOffset) { builder.AddOffset(0, valueOffset.Value, 0); }
   public static Offset<ss.format.RectValueEntry> EndRectValueEntry(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 4);  // value
     return new Offset<ss.format.RectValueEntry>(o);
   }
 }
@@ -850,7 +853,7 @@ static public class RectValueEntryVerify
   static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
   {
     return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyTable(tablePos, 4 /*Value*/, ss.format.RectVerify.Verify, false)
+      && verifier.VerifyTable(tablePos, 4 /*Value*/, ss.format.RectVerify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -881,6 +884,7 @@ public struct EventUserData : IFlatbufferObject
   public static void AddValue(FlatBufferBuilder builder, Offset<ss.format.PartAttributeUserData> valueOffset) { builder.AddOffset(1, valueOffset.Value, 0); }
   public static Offset<ss.format.EventUserData> EndEventUserData(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 6);  // value
     return new Offset<ss.format.EventUserData>(o);
   }
 
@@ -921,7 +925,7 @@ static public class EventUserDataVerify
   {
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*PartIndex*/, 2 /*ushort*/, 2, false)
-      && verifier.VerifyTable(tablePos, 6 /*Value*/, ss.format.PartAttributeUserDataVerify.Verify, false)
+      && verifier.VerifyTable(tablePos, 6 /*Value*/, ss.format.PartAttributeUserDataVerify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -952,6 +956,7 @@ public struct EventSignal : IFlatbufferObject
   public static void AddValue(FlatBufferBuilder builder, Offset<ss.format.PartAttributeSignal> valueOffset) { builder.AddOffset(1, valueOffset.Value, 0); }
   public static Offset<ss.format.EventSignal> EndEventSignal(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 6);  // value
     return new Offset<ss.format.EventSignal>(o);
   }
 
@@ -992,7 +997,7 @@ static public class EventSignalVerify
   {
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*PartIndex*/, 2 /*ushort*/, 2, false)
-      && verifier.VerifyTable(tablePos, 6 /*Value*/, ss.format.PartAttributeSignalVerify.Verify, false)
+      && verifier.VerifyTable(tablePos, 6 /*Value*/, ss.format.PartAttributeSignalVerify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -1023,6 +1028,7 @@ public struct EventAudio : IFlatbufferObject
   public static void AddValue(FlatBufferBuilder builder, Offset<ss.format.PartAttributeAudio> valueOffset) { builder.AddOffset(1, valueOffset.Value, 0); }
   public static Offset<ss.format.EventAudio> EndEventAudio(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 6);  // value
     return new Offset<ss.format.EventAudio>(o);
   }
 
@@ -1063,7 +1069,7 @@ static public class EventAudioVerify
   {
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*PartIndex*/, 2 /*ushort*/, 2, false)
-      && verifier.VerifyTable(tablePos, 6 /*Value*/, ss.format.PartAttributeAudioVerify.Verify, false)
+      && verifier.VerifyTable(tablePos, 6 /*Value*/, ss.format.PartAttributeAudioVerify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -1094,6 +1100,7 @@ public struct EventInstance : IFlatbufferObject
   public static void AddValue(FlatBufferBuilder builder, Offset<ss.format.PartAttributeInstance> valueOffset) { builder.AddOffset(1, valueOffset.Value, 0); }
   public static Offset<ss.format.EventInstance> EndEventInstance(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 6);  // value
     return new Offset<ss.format.EventInstance>(o);
   }
 
@@ -1134,7 +1141,7 @@ static public class EventInstanceVerify
   {
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*PartIndex*/, 2 /*ushort*/, 2, false)
-      && verifier.VerifyTable(tablePos, 6 /*Value*/, ss.format.PartAttributeInstanceVerify.Verify, false)
+      && verifier.VerifyTable(tablePos, 6 /*Value*/, ss.format.PartAttributeInstanceVerify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -1165,6 +1172,7 @@ public struct EventEffect : IFlatbufferObject
   public static void AddValue(FlatBufferBuilder builder, Offset<ss.format.PartAttributeEffect> valueOffset) { builder.AddOffset(1, valueOffset.Value, 0); }
   public static Offset<ss.format.EventEffect> EndEventEffect(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 6);  // value
     return new Offset<ss.format.EventEffect>(o);
   }
 
@@ -1205,7 +1213,7 @@ static public class EventEffectVerify
   {
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*PartIndex*/, 2 /*ushort*/, 2, false)
-      && verifier.VerifyTable(tablePos, 6 /*Value*/, ss.format.PartAttributeEffectVerify.Verify, false)
+      && verifier.VerifyTable(tablePos, 6 /*Value*/, ss.format.PartAttributeEffectVerify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -1428,6 +1436,9 @@ public struct Cell : IFlatbufferObject
   public static void StartTableIndexVertexVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(2, numElems, 2); }
   public static Offset<ss.format.Cell> EndCell(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 6);  // name
+    builder.Required(o, 8);  // rectangle
+    builder.Required(o, 10);  // pivot
     return new Offset<ss.format.Cell>(o);
   }
 
@@ -1468,9 +1479,9 @@ static public class CellVerify
   {
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*NameHash*/, 4 /*uint*/, 4, false)
-      && verifier.VerifyString(tablePos, 6 /*Name*/, false)
-      && verifier.VerifyTable(tablePos, 8 /*Rectangle*/, ss.format.RectVerify.Verify, false)
-      && verifier.VerifyTable(tablePos, 10 /*Pivot*/, ss.format.Vec2Verify.Verify, false)
+      && verifier.VerifyString(tablePos, 6 /*Name*/, true)
+      && verifier.VerifyTable(tablePos, 8 /*Rectangle*/, ss.format.RectVerify.Verify, true)
+      && verifier.VerifyTable(tablePos, 10 /*Pivot*/, ss.format.Vec2Verify.Verify, true)
       && verifier.VerifyField(tablePos, 12 /*Rotated*/, 1 /*bool*/, 1, false)
       && verifier.VerifyVectorOfData(tablePos, 14 /*TableCoordX*/, 4 /*float*/, false)
       && verifier.VerifyVectorOfData(tablePos, 16 /*TableCoordY*/, 4 /*float*/, false)
@@ -1548,6 +1559,9 @@ public struct CellMap : IFlatbufferObject
   public static void StartCellsVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
   public static Offset<ss.format.CellMap> EndCellMap(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 6);  // name
+    builder.Required(o, 8);  // image_path
+    builder.Required(o, 12);  // size_original
     return new Offset<ss.format.CellMap>(o);
   }
 
@@ -1588,10 +1602,10 @@ static public class CellMapVerify
   {
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*NameHash*/, 4 /*uint*/, 4, false)
-      && verifier.VerifyString(tablePos, 6 /*Name*/, false)
-      && verifier.VerifyString(tablePos, 8 /*ImagePath*/, false)
+      && verifier.VerifyString(tablePos, 6 /*Name*/, true)
+      && verifier.VerifyString(tablePos, 8 /*ImagePath*/, true)
       && verifier.VerifyField(tablePos, 10 /*ImagePathHash*/, 4 /*uint*/, 4, false)
-      && verifier.VerifyTable(tablePos, 12 /*SizeOriginal*/, ss.format.Vec2Verify.Verify, false)
+      && verifier.VerifyTable(tablePos, 12 /*SizeOriginal*/, ss.format.Vec2Verify.Verify, true)
       && verifier.VerifyField(tablePos, 14 /*WrapMode*/, 1 /*ss.format.TexWrapMode*/, 1, false)
       && verifier.VerifyField(tablePos, 16 /*FilterMode*/, 1 /*ss.format.TexFilterMode*/, 1, false)
       && verifier.VerifyVectorOfTables(tablePos, 18 /*Cells*/, ss.format.CellVerify.Verify, false)
@@ -1625,6 +1639,7 @@ public struct EffectParticlePointGravity : IFlatbufferObject
   public static void AddPower(FlatBufferBuilder builder, float power) { builder.AddFloat(1, power, 0.0f); }
   public static Offset<ss.format.EffectParticlePointGravity> EndEffectParticlePointGravity(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 4);  // position
     return new Offset<ss.format.EffectParticlePointGravity>(o);
   }
 }
@@ -1635,7 +1650,7 @@ static public class EffectParticlePointGravityVerify
   static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
   {
     return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyTable(tablePos, 4 /*Position*/, ss.format.Vec2Verify.Verify, false)
+      && verifier.VerifyTable(tablePos, 4 /*Position*/, ss.format.Vec2Verify.Verify, true)
       && verifier.VerifyField(tablePos, 6 /*Power*/, 4 /*float*/, 4, false)
       && verifier.VerifyTableEnd(tablePos);
   }
@@ -1667,6 +1682,7 @@ public struct RectAndVec2ValueTable : IFlatbufferObject
   public static void AddScaleFactorValue(FlatBufferBuilder builder, Offset<ss.format.Vec2> scaleFactorValueOffset) { builder.AddOffset(1, scaleFactorValueOffset.Value, 0); }
   public static Offset<ss.format.RectAndVec2ValueTable> EndRectAndVec2ValueTable(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 6);  // scale_factor_value
     return new Offset<ss.format.RectAndVec2ValueTable>(o);
   }
 }
@@ -1678,7 +1694,7 @@ static public class RectAndVec2ValueTableVerify
   {
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyTable(tablePos, 4 /*Size*/, ss.format.RectVerify.Verify, false)
-      && verifier.VerifyTable(tablePos, 6 /*ScaleFactorValue*/, ss.format.Vec2Verify.Verify, false)
+      && verifier.VerifyTable(tablePos, 6 /*ScaleFactorValue*/, ss.format.Vec2Verify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -1835,6 +1851,8 @@ public struct EffectParticleElementRotation : IFlatbufferObject
   public static void AddRotationAddValue(FlatBufferBuilder builder, Offset<ss.format.Vec2> rotationAddValueOffset) { builder.AddOffset(1, rotationAddValueOffset.Value, 0); }
   public static Offset<ss.format.EffectParticleElementRotation> EndEffectParticleElementRotation(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 4);  // rotation_value
+    builder.Required(o, 6);  // rotation_add_value
     return new Offset<ss.format.EffectParticleElementRotation>(o);
   }
 }
@@ -1845,8 +1863,8 @@ static public class EffectParticleElementRotationVerify
   static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
   {
     return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyTable(tablePos, 4 /*RotationValue*/, ss.format.Vec2Verify.Verify, false)
-      && verifier.VerifyTable(tablePos, 6 /*RotationAddValue*/, ss.format.Vec2Verify.Verify, false)
+      && verifier.VerifyTable(tablePos, 4 /*RotationValue*/, ss.format.Vec2Verify.Verify, true)
+      && verifier.VerifyTable(tablePos, 6 /*RotationAddValue*/, ss.format.Vec2Verify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -2128,6 +2146,9 @@ public struct Effect : IFlatbufferObject
   public static void StartEffectNodeVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
   public static Offset<ss.format.Effect> EndEffect(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 6);  // name
+    builder.Required(o, 14);  // layout_scale
+    builder.Required(o, 16);  // effect_node
     return new Offset<ss.format.Effect>(o);
   }
 
@@ -2168,12 +2189,12 @@ static public class EffectVerify
   {
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*NameHash*/, 4 /*uint*/, 4, false)
-      && verifier.VerifyString(tablePos, 6 /*Name*/, false)
+      && verifier.VerifyString(tablePos, 6 /*Name*/, true)
       && verifier.VerifyField(tablePos, 8 /*Fps*/, 2 /*short*/, 2, false)
       && verifier.VerifyField(tablePos, 10 /*IsLockRandSeed*/, 1 /*bool*/, 1, false)
       && verifier.VerifyField(tablePos, 12 /*LockRandSeed*/, 2 /*short*/, 2, false)
-      && verifier.VerifyTable(tablePos, 14 /*LayoutScale*/, ss.format.Vec2Verify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 16 /*EffectNode*/, ss.format.EffectNodeVerify.Verify, false)
+      && verifier.VerifyTable(tablePos, 14 /*LayoutScale*/, ss.format.Vec2Verify.Verify, true)
+      && verifier.VerifyVectorOfTables(tablePos, 16 /*EffectNode*/, ss.format.EffectNodeVerify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -3242,6 +3263,7 @@ public struct PartAttributeShader : IFlatbufferObject
   public static void AddMap1NameHash(FlatBufferBuilder builder, uint map1NameHash) { builder.AddUint(13, map1NameHash, 0); }
   public static Offset<ss.format.PartAttributeShader> EndPartAttributeShader(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 4);  // id
     return new Offset<ss.format.PartAttributeShader>(o);
   }
 }
@@ -3252,7 +3274,7 @@ static public class PartAttributeShaderVerify
   static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
   {
     return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyString(tablePos, 4 /*Id*/, false)
+      && verifier.VerifyString(tablePos, 4 /*Id*/, true)
       && verifier.VerifyField(tablePos, 6 /*IdHash*/, 4 /*uint*/, 4, false)
       && verifier.VerifyField(tablePos, 8 /*Param0*/, 4 /*float*/, 4, false)
       && verifier.VerifyField(tablePos, 10 /*Param1*/, 4 /*float*/, 4, false)
@@ -3374,6 +3396,8 @@ public struct SignalCommandParam : IFlatbufferObject
   public static void AddValue(FlatBufferBuilder builder, int valueOffset) { builder.AddOffset(3, valueOffset, 0); }
   public static Offset<ss.format.SignalCommandParam> EndSignalCommandParam(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 4);  // param_id
+    builder.Required(o, 10);  // value
     return new Offset<ss.format.SignalCommandParam>(o);
   }
 }
@@ -3384,10 +3408,10 @@ static public class SignalCommandParamVerify
   static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
   {
     return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyString(tablePos, 4 /*ParamId*/, false)
+      && verifier.VerifyString(tablePos, 4 /*ParamId*/, true)
       && verifier.VerifyField(tablePos, 6 /*Type*/, 1 /*ss.format.SignalCommandParamType*/, 1, false)
       && verifier.VerifyField(tablePos, 8 /*ValueType*/, 1 /*ss.format.SignalCommandParamValue*/, 1, false)
-      && verifier.VerifyUnion(tablePos, 8, 10 /*Value*/, ss.format.SignalCommandParamValueVerify.Verify, false)
+      && verifier.VerifyUnion(tablePos, 8, 10 /*Value*/, ss.format.SignalCommandParamValueVerify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -3434,6 +3458,8 @@ public struct PartAttributeSignal : IFlatbufferObject
   public static void StartParamsVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
   public static Offset<ss.format.PartAttributeSignal> EndPartAttributeSignal(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 6);  // command_id
+    builder.Required(o, 8);  // params
     return new Offset<ss.format.PartAttributeSignal>(o);
   }
 }
@@ -3445,8 +3471,8 @@ static public class PartAttributeSignalVerify
   {
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*Active*/, 1 /*bool*/, 1, false)
-      && verifier.VerifyString(tablePos, 6 /*CommandId*/, false)
-      && verifier.VerifyVectorOfTables(tablePos, 8 /*Params*/, ss.format.SignalCommandParamVerify.Verify, false)
+      && verifier.VerifyString(tablePos, 6 /*CommandId*/, true)
+      && verifier.VerifyVectorOfTables(tablePos, 8 /*Params*/, ss.format.SignalCommandParamVerify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -3491,6 +3517,7 @@ public struct PartAttributeAudio : IFlatbufferObject
   public static void AddLoopNum(FlatBufferBuilder builder, int loopNum) { builder.AddInt(3, loopNum, 0); }
   public static Offset<ss.format.PartAttributeAudio> EndPartAttributeAudio(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 8);  // sound_name
     return new Offset<ss.format.PartAttributeAudio>(o);
   }
 }
@@ -3503,7 +3530,7 @@ static public class PartAttributeAudioVerify
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*SoundListNameHash*/, 4 /*uint*/, 4, false)
       && verifier.VerifyField(tablePos, 6 /*SoundNameHash*/, 4 /*uint*/, 4, false)
-      && verifier.VerifyString(tablePos, 8 /*SoundName*/, false)
+      && verifier.VerifyString(tablePos, 8 /*SoundName*/, true)
       && verifier.VerifyField(tablePos, 10 /*LoopNum*/, 4 /*int*/, 4, false)
       && verifier.VerifyTableEnd(tablePos);
   }
@@ -4038,6 +4065,8 @@ public struct PartTypeInstance : IFlatbufferObject
   public static void AddRefAnimeNameHash(FlatBufferBuilder builder, uint refAnimeNameHash) { builder.AddUint(3, refAnimeNameHash, 0); }
   public static Offset<ss.format.PartTypeInstance> EndPartTypeInstance(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 4);  // ref_anime_pack
+    builder.Required(o, 8);  // ref_anime_name
     return new Offset<ss.format.PartTypeInstance>(o);
   }
 }
@@ -4048,9 +4077,9 @@ static public class PartTypeInstanceVerify
   static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
   {
     return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyString(tablePos, 4 /*RefAnimePack*/, false)
+      && verifier.VerifyString(tablePos, 4 /*RefAnimePack*/, true)
       && verifier.VerifyField(tablePos, 6 /*RefAnimePackHash*/, 4 /*uint*/, 4, false)
-      && verifier.VerifyString(tablePos, 8 /*RefAnimeName*/, false)
+      && verifier.VerifyString(tablePos, 8 /*RefAnimeName*/, true)
       && verifier.VerifyField(tablePos, 10 /*RefAnimeNameHash*/, 4 /*uint*/, 4, false)
       && verifier.VerifyTableEnd(tablePos);
   }
@@ -4182,6 +4211,7 @@ public struct PartData : IFlatbufferObject
   public static void AddPartType(FlatBufferBuilder builder, int partTypeOffset) { builder.AddOffset(11, partTypeOffset, 0); }
   public static Offset<ss.format.PartData> EndPartData(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 4);  // name
     return new Offset<ss.format.PartData>(o);
   }
 }
@@ -4192,7 +4222,7 @@ static public class PartDataVerify
   static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
   {
     return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyString(tablePos, 4 /*Name*/, false)
+      && verifier.VerifyString(tablePos, 4 /*Name*/, true)
       && verifier.VerifyField(tablePos, 6 /*ParentIndex*/, 2 /*short*/, 2, false)
       && verifier.VerifyField(tablePos, 8 /*BoundsType*/, 1 /*ss.format.BoundsType*/, 1, false)
       && verifier.VerifyField(tablePos, 10 /*BlendType*/, 1 /*ss.format.BlendType*/, 1, false)
@@ -4244,6 +4274,7 @@ public struct Label : IFlatbufferObject
   public static void AddTime(FlatBufferBuilder builder, int time) { builder.AddInt(2, time, 0); }
   public static Offset<ss.format.Label> EndLabel(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 6);  // name
     return new Offset<ss.format.Label>(o);
   }
 
@@ -4284,7 +4315,7 @@ static public class LabelVerify
   {
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*NameHash*/, 4 /*uint*/, 4, false)
-      && verifier.VerifyString(tablePos, 6 /*Name*/, false)
+      && verifier.VerifyString(tablePos, 6 /*Name*/, true)
       && verifier.VerifyField(tablePos, 8 /*Time*/, 4 /*int*/, 4, false)
       && verifier.VerifyTableEnd(tablePos);
   }
@@ -4316,6 +4347,7 @@ public struct PartAnimationDataCellValue : IFlatbufferObject
   public static void AddValue(FlatBufferBuilder builder, Offset<ss.format.PartAttributeCell> valueOffset) { builder.AddOffset(1, valueOffset.Value, 0); }
   public static Offset<ss.format.PartAnimationDataCellValue> EndPartAnimationDataCellValue(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 6);  // value
     return new Offset<ss.format.PartAnimationDataCellValue>(o);
   }
 
@@ -4356,7 +4388,7 @@ static public class PartAnimationDataCellValueVerify
   {
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*Index*/, 2 /*ushort*/, 2, false)
-      && verifier.VerifyTable(tablePos, 6 /*Value*/, ss.format.PartAttributeCellVerify.Verify, false)
+      && verifier.VerifyTable(tablePos, 6 /*Value*/, ss.format.PartAttributeCellVerify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -4718,6 +4750,7 @@ public struct PartAnimationDataPartColor : IFlatbufferObject
   public static void AddEasingRate(FlatBufferBuilder builder, float easingRate) { builder.AddFloat(4, easingRate, 0.0f); }
   public static Offset<ss.format.PartAnimationDataPartColor> EndPartAnimationDataPartColor(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 8);  // value
     return new Offset<ss.format.PartAnimationDataPartColor>(o);
   }
 
@@ -4759,7 +4792,7 @@ static public class PartAnimationDataPartColorVerify
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*Index*/, 2 /*ushort*/, 2, false)
       && verifier.VerifyField(tablePos, 6 /*Interpolation*/, 1 /*ss.format.InterpolationType*/, 1, false)
-      && verifier.VerifyTable(tablePos, 8 /*Value*/, ss.format.PartAttributePartColorVerify.Verify, false)
+      && verifier.VerifyTable(tablePos, 8 /*Value*/, ss.format.PartAttributePartColorVerify.Verify, true)
       && verifier.VerifyTable(tablePos, 10 /*Curve*/, ss.format.SsCurveVerify.Verify, false)
       && verifier.VerifyField(tablePos, 12 /*EasingRate*/, 4 /*float*/, 4, false)
       && verifier.VerifyTableEnd(tablePos);
@@ -4804,6 +4837,7 @@ public struct PartAnimationDataShader : IFlatbufferObject
   public static void AddEasingRate(FlatBufferBuilder builder, float easingRate) { builder.AddFloat(4, easingRate, 0.0f); }
   public static Offset<ss.format.PartAnimationDataShader> EndPartAnimationDataShader(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 8);  // value
     return new Offset<ss.format.PartAnimationDataShader>(o);
   }
 
@@ -4845,7 +4879,7 @@ static public class PartAnimationDataShaderVerify
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*Index*/, 2 /*ushort*/, 2, false)
       && verifier.VerifyField(tablePos, 6 /*Interpolation*/, 1 /*ss.format.InterpolationType*/, 1, false)
-      && verifier.VerifyTable(tablePos, 8 /*Value*/, ss.format.PartAttributeShaderVerify.Verify, false)
+      && verifier.VerifyTable(tablePos, 8 /*Value*/, ss.format.PartAttributeShaderVerify.Verify, true)
       && verifier.VerifyTable(tablePos, 10 /*Curve*/, ss.format.SsCurveVerify.Verify, false)
       && verifier.VerifyField(tablePos, 12 /*EasingRate*/, 4 /*float*/, 4, false)
       && verifier.VerifyTableEnd(tablePos);
@@ -4890,6 +4924,7 @@ public struct PartAnimationDataVertex : IFlatbufferObject
   public static void AddEasingRate(FlatBufferBuilder builder, float easingRate) { builder.AddFloat(4, easingRate, 0.0f); }
   public static Offset<ss.format.PartAnimationDataVertex> EndPartAnimationDataVertex(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 8);  // value
     return new Offset<ss.format.PartAnimationDataVertex>(o);
   }
 
@@ -4931,7 +4966,7 @@ static public class PartAnimationDataVertexVerify
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*Index*/, 2 /*ushort*/, 2, false)
       && verifier.VerifyField(tablePos, 6 /*Interpolation*/, 1 /*ss.format.InterpolationType*/, 1, false)
-      && verifier.VerifyTable(tablePos, 8 /*Value*/, ss.format.PartAttributeVertexVerify.Verify, false)
+      && verifier.VerifyTable(tablePos, 8 /*Value*/, ss.format.PartAttributeVertexVerify.Verify, true)
       && verifier.VerifyTable(tablePos, 10 /*Curve*/, ss.format.SsCurveVerify.Verify, false)
       && verifier.VerifyField(tablePos, 12 /*EasingRate*/, 4 /*float*/, 4, false)
       && verifier.VerifyTableEnd(tablePos);
@@ -4964,6 +4999,7 @@ public struct PartAnimationDataInstance : IFlatbufferObject
   public static void AddValue(FlatBufferBuilder builder, Offset<ss.format.PartAttributeInstance> valueOffset) { builder.AddOffset(1, valueOffset.Value, 0); }
   public static Offset<ss.format.PartAnimationDataInstance> EndPartAnimationDataInstance(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 6);  // value
     return new Offset<ss.format.PartAnimationDataInstance>(o);
   }
 
@@ -5004,7 +5040,7 @@ static public class PartAnimationDataInstanceVerify
   {
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*Index*/, 2 /*ushort*/, 2, false)
-      && verifier.VerifyTable(tablePos, 6 /*Value*/, ss.format.PartAttributeInstanceVerify.Verify, false)
+      && verifier.VerifyTable(tablePos, 6 /*Value*/, ss.format.PartAttributeInstanceVerify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -5035,6 +5071,7 @@ public struct PartAnimationDataEffect : IFlatbufferObject
   public static void AddValue(FlatBufferBuilder builder, Offset<ss.format.PartAttributeEffect> valueOffset) { builder.AddOffset(1, valueOffset.Value, 0); }
   public static Offset<ss.format.PartAnimationDataEffect> EndPartAnimationDataEffect(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 6);  // value
     return new Offset<ss.format.PartAnimationDataEffect>(o);
   }
 
@@ -5075,7 +5112,7 @@ static public class PartAnimationDataEffectVerify
   {
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*Index*/, 2 /*ushort*/, 2, false)
-      && verifier.VerifyTable(tablePos, 6 /*Value*/, ss.format.PartAttributeEffectVerify.Verify, false)
+      && verifier.VerifyTable(tablePos, 6 /*Value*/, ss.format.PartAttributeEffectVerify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -5118,6 +5155,7 @@ public struct PartAnimationDataVec2 : IFlatbufferObject
   public static void AddEasingRate(FlatBufferBuilder builder, float easingRate) { builder.AddFloat(4, easingRate, 0.0f); }
   public static Offset<ss.format.PartAnimationDataVec2> EndPartAnimationDataVec2(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 8);  // value
     return new Offset<ss.format.PartAnimationDataVec2>(o);
   }
 
@@ -5159,7 +5197,7 @@ static public class PartAnimationDataVec2Verify
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*Index*/, 2 /*ushort*/, 2, false)
       && verifier.VerifyField(tablePos, 6 /*Interpolation*/, 1 /*ss.format.InterpolationType*/, 1, false)
-      && verifier.VerifyTable(tablePos, 8 /*Value*/, ss.format.Vec2Verify.Verify, false)
+      && verifier.VerifyTable(tablePos, 8 /*Value*/, ss.format.Vec2Verify.Verify, true)
       && verifier.VerifyTable(tablePos, 10 /*Curve*/, ss.format.SsCurveVerify.Verify, false)
       && verifier.VerifyField(tablePos, 12 /*EasingRate*/, 4 /*float*/, 4, false)
       && verifier.VerifyTableEnd(tablePos);
@@ -5204,6 +5242,7 @@ public struct PartAnimationDataDeform : IFlatbufferObject
   public static void AddEasingRate(FlatBufferBuilder builder, float easingRate) { builder.AddFloat(4, easingRate, 0.0f); }
   public static Offset<ss.format.PartAnimationDataDeform> EndPartAnimationDataDeform(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 8);  // value
     return new Offset<ss.format.PartAnimationDataDeform>(o);
   }
 
@@ -5245,7 +5284,7 @@ static public class PartAnimationDataDeformVerify
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*Index*/, 2 /*ushort*/, 2, false)
       && verifier.VerifyField(tablePos, 6 /*Interpolation*/, 1 /*ss.format.InterpolationType*/, 1, false)
-      && verifier.VerifyTable(tablePos, 8 /*Value*/, ss.format.PartAttributeDeformVerify.Verify, false)
+      && verifier.VerifyTable(tablePos, 8 /*Value*/, ss.format.PartAttributeDeformVerify.Verify, true)
       && verifier.VerifyTable(tablePos, 10 /*Curve*/, ss.format.SsCurveVerify.Verify, false)
       && verifier.VerifyField(tablePos, 12 /*EasingRate*/, 4 /*float*/, 4, false)
       && verifier.VerifyTableEnd(tablePos);
@@ -5845,6 +5884,9 @@ public struct AnimationData : IFlatbufferObject
   public static Offset<ss.format.AnimationData> EndAnimationData(FlatBufferBuilder builder) {
     int o = builder.EndTable();
     builder.Required(o, 4);  // name
+    builder.Required(o, 8);  // parts_initial_attributes
+    builder.Required(o, 10);  // parts_animation_data
+    builder.Required(o, 26);  // canvas
     return new Offset<ss.format.AnimationData>(o);
   }
 }
@@ -5857,8 +5899,8 @@ static public class AnimationDataVerify
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyString(tablePos, 4 /*Name*/, true)
       && verifier.VerifyField(tablePos, 6 /*NameHash*/, 4 /*uint*/, 4, false)
-      && verifier.VerifyVectorOfTables(tablePos, 8 /*PartsInitialAttributes*/, ss.format.InitialPartAttributesVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 10 /*PartsAnimationData*/, ss.format.PartAnimationDataVerify.Verify, false)
+      && verifier.VerifyVectorOfTables(tablePos, 8 /*PartsInitialAttributes*/, ss.format.InitialPartAttributesVerify.Verify, true)
+      && verifier.VerifyVectorOfTables(tablePos, 10 /*PartsAnimationData*/, ss.format.PartAnimationDataVerify.Verify, true)
       && verifier.VerifyVectorOfTables(tablePos, 12 /*Events*/, ss.format.EventsPerFrameVerify.Verify, false)
       && verifier.VerifyVectorOfTables(tablePos, 14 /*InitialEvents*/, ss.format.InitialEventsVerify.Verify, false)
       && verifier.VerifyVectorOfTables(tablePos, 16 /*Labels*/, ss.format.LabelVerify.Verify, false)
@@ -5866,7 +5908,7 @@ static public class AnimationDataVerify
       && verifier.VerifyField(tablePos, 20 /*EndFrame*/, 2 /*short*/, 2, false)
       && verifier.VerifyField(tablePos, 22 /*TotalFrame*/, 2 /*short*/, 2, false)
       && verifier.VerifyField(tablePos, 24 /*Fps*/, 2 /*short*/, 2, false)
-      && verifier.VerifyTable(tablePos, 26 /*Canvas*/, ss.format.RectVerify.Verify, false)
+      && verifier.VerifyTable(tablePos, 26 /*Canvas*/, ss.format.RectVerify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -6240,6 +6282,9 @@ public struct SsAnimeBinary : IFlatbufferObject
   public static void StartEmbeddedAssetsVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
   public static Offset<ss.format.SsAnimeBinary> EndSsAnimeBinary(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 6);  // name
+    builder.Required(o, 10);  // parts
+    builder.Required(o, 12);  // animations
     return new Offset<ss.format.SsAnimeBinary>(o);
   }
   public static void FinishSsAnimeBinaryBuffer(FlatBufferBuilder builder, Offset<ss.format.SsAnimeBinary> offset) { builder.Finish(offset.Value, "SSAB"); }
@@ -6253,10 +6298,10 @@ static public class SsAnimeBinaryVerify
   {
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*Version*/, 4 /*uint*/, 4, false)
-      && verifier.VerifyString(tablePos, 6 /*Name*/, false)
+      && verifier.VerifyString(tablePos, 6 /*Name*/, true)
       && verifier.VerifyField(tablePos, 8 /*NameHash*/, 4 /*uint*/, 4, false)
-      && verifier.VerifyVectorOfTables(tablePos, 10 /*Parts*/, ss.format.PartDataVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 12 /*Animations*/, ss.format.AnimationDataVerify.Verify, false)
+      && verifier.VerifyVectorOfTables(tablePos, 10 /*Parts*/, ss.format.PartDataVerify.Verify, true)
+      && verifier.VerifyVectorOfTables(tablePos, 12 /*Animations*/, ss.format.AnimationDataVerify.Verify, true)
       && verifier.VerifyVectorOfTables(tablePos, 14 /*Cellmaps*/, ss.format.CellMapVerify.Verify, false)
       && verifier.VerifyVectorOfTables(tablePos, 16 /*Effects*/, ss.format.EffectVerify.Verify, false)
       && verifier.VerifyVectorOfTables(tablePos, 18 /*SoundLists*/, ss.format.SoundListVerify.Verify, false)

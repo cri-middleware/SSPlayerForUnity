@@ -96,19 +96,19 @@ $RUNTIME_OUTPUT = "$rootDirectory/package/Runtime/Plugins"
 $EDITOR_OUTPUT = "$rootDirectory/package/Editor/Plugins"
 New-Item -ItemType Directory -Path $RUNTIME_OUTPUT -Force | Out-Null
 New-Item -ItemType Directory -Path $EDITOR_OUTPUT -Force | Out-Null
-
 if (Test-Path "$SDK_DIR/LICENSE.md") {
     Copy-Item "$SDK_DIR/LICENSE.md" "$RUNTIME_OUTPUT/" -Force
 }
-if (Test-Path "$SDK_DIR/libs/ssruntime/DEPENDENCIES.md") {
-    Copy-Item "$SDK_DIR/libs/ssruntime/DEPENDENCIES.md" "$RUNTIME_OUTPUT/ssruntime-THIRD-PARTY-LICENSES.md" -Force
+if (Test-Path "$SDK_DIR/target/licenses/THIRD-PARTY-LICENSES.ssruntime.md") {
+    Copy-Item "$SDK_DIR/target/licenses/THIRD-PARTY-LICENSES.ssruntime.md" "$RUNTIME_OUTPUT/" -Force
 }
+
 if ($PLATFORM -eq "macos" -or $PLATFORM -eq "windows" -or $PLATFORM -eq "linux") {
     if (Test-Path "$SDK_DIR/LICENSE.md") {
         Copy-Item "$SDK_DIR/LICENSE.md" "$EDITOR_OUTPUT/" -Force
     }
-    if (Test-Path "$SDK_DIR/libs/ssconverter/DEPENDENCIES.md") {
-        Copy-Item "$SDK_DIR/libs/ssconverter/DEPENDENCIES.md" "$EDITOR_OUTPUT/ssconverter-THIRD-PARTY-LICENSES.md" -Force
+    if (Test-Path "$SDK_DIR/target/licenses/THIRD-PARTY-LICENSES.ssconverter.md") {
+        Copy-Item "$SDK_DIR/target/licenses/THIRD-PARTY-LICENSES.ssconverter.md" "$EDITOR_OUTPUT/" -Force
     }
 }
 
