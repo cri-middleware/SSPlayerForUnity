@@ -36,7 +36,7 @@ namespace SpriteStudio.Runtime.Tests
                 player.OnAudio += a =>
                 {
                     audio++;
-                    Debug.Log($"[AUDIO] sound={a.SoundName} part={a.PartName} loop={a.LoopNum} reverse={a.IsReverse} frame={player.GetFrame():0.0}");
+                    Debug.Log($"[AUDIO] sound={a.SoundName} part={a.PartName} loop={a.LoopNum} frame={player.GetFrame():0.0}");
                 };
 
                 // 先頭アニメを使う (名前固定にしない)。

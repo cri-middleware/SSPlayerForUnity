@@ -152,14 +152,6 @@ internal struct MaskPartData
         // OnAnimationFinished のエッジ検出用 (!is_playing && is_end_frame_reached の前回値)。
         private bool _prevFinished;
 
-        // Frame-delta inference of the event payloads' IsReverse (stopgap; reset on Play/SetupAnimation).
-        // True when the frame moved toward lower numbers this poll (ping-pong return leg / reverse play).
-        // NOTE: per-poll precision only — a single update that crosses a ping-pong turn or a loop wrap
-        // stamps one direction for every event in that poll. The accurate per-event version needs an
-        // ssruntime getter for the effective leg direction (deferred pending SDK change).
-        private float _prevPollFrame = float.NaN;
-        private bool _prevIsReverse;
-
         // True once an ssab has been loaded into the native runtime. Lets the owner (PlaybackCore /
         // player) detect "Internal created but ssab not yet loaded" — which happens when OnEnable runs
         // before the .ssab finishes importing on an Editor restart — and self-heal by loading it later.
@@ -386,8 +378,6 @@ internal struct MaskPartData
                 if (startFrame < 0.0f) NativeMethods.ss_runtime_play(_handle.ptr);
                 else NativeMethods.ss_runtime_play_with_start_frame(_handle.ptr, startFrame);
             }
-            // Re-seed IsReverse inference from the configured base direction on the next poll.
-            _prevPollFrame = float.NaN;
         }
         public bool IsPausing() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_is_pausing(_handle.ptr); } }
         public void Pause() { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_pause(_handle.ptr); } }
@@ -503,8 +493,6 @@ internal struct MaskPartData
                         // rebuild so a same-numbered start frame is not skipped (otherwise trackers read
                         // identity = origin).
                         _geometryBuilder?.InvalidateFrameCache();
-                        // Re-seed IsReverse inference for the new animation.
-                        _prevPollFrame = float.NaN;
 
                         if (_ssab.HasValue)
                         {
@@ -582,18 +570,6 @@ internal struct MaskPartData
                     OnAnimationLooped?.Invoke();
                 }
 
-                // Infer the playback direction for this poll's events from the frame delta (stopgap).
-                // First poll after Play/SetupAnimation seeds from the configured base direction.
-                float curFrame = NativeMethods.ss_runtime_get_frame_no(_handle.ptr);
-                bool isReverse;
-                if (float.IsNaN(_prevPollFrame))
-                    isReverse = NativeMethods.ss_runtime_get_playback_direction(_handle.ptr) != 0;
-                else if (curFrame < _prevPollFrame - 0.0001f) isReverse = true;
-                else if (curFrame > _prevPollFrame + 0.0001f) isReverse = false;
-                else isReverse = _prevIsReverse; // no frame movement this poll: keep last known
-                _prevPollFrame = curFrame;
-                _prevIsReverse = isReverse;
-
                 int eventCount = NativeMethods.ss_runtime_get_passed_event_count(_handle.ptr);
                 if (eventCount > 0 && _currentAnimation.HasValue)
                 {
@@ -625,8 +601,7 @@ internal struct MaskPartData
                                     HasRect = val.Rect.HasValue,
                                     RectValue = val.Rect.HasValue ? new UnityEngine.Rect(val.Rect.Value.X1, val.Rect.Value.Y1, val.Rect.Value.X2 - val.Rect.Value.X1, val.Rect.Value.Y2 - val.Rect.Value.Y1) : default,
                                     HasPoint = val.Point.HasValue,
-                                    PointValue = val.Point.HasValue ? new UnityEngine.Vector2(val.Point.Value.V1, val.Point.Value.V2) : default,
-                                    IsReverse = isReverse
+                                    PointValue = val.Point.HasValue ? new UnityEngine.Vector2(val.Point.Value.V1, val.Point.Value.V2) : default
                                 };
                                 OnUserData.Invoke(ev);
                             }
@@ -673,8 +648,7 @@ internal struct MaskPartData
                                     PartName = (_ssab.HasValue && _ssab.Value.PartsLength > sig.PartIndex) ? _ssab.Value.Parts(sig.PartIndex)?.Name : null,
                                     Active = val.Active,
                                     CommandId = val.CommandId,
-                                    Params = paramsMap,
-                                    IsReverse = isReverse
+                                    Params = paramsMap
                                 };
                                 OnSignal.Invoke(ev);
                             }
@@ -695,8 +669,7 @@ internal struct MaskPartData
                                     SoundListNameHash = val.SoundListNameHash,
                                     SoundNameHash = val.SoundNameHash,
                                     SoundName = val.SoundName,
-                                    LoopNum = val.LoopNum,
-                                    IsReverse = isReverse
+                                    LoopNum = val.LoopNum
                                 };
                                 OnAudio.Invoke(ev);
                             }
