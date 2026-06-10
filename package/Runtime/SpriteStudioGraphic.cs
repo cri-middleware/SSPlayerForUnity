@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.Events;
 
 namespace SpriteStudio.Runtime
 {
@@ -114,6 +115,40 @@ namespace SpriteStudio.Runtime
         }
 
         private readonly SpriteStudioPlaybackCore _core = new SpriteStudioPlaybackCore();
+
+        public event System.Action OnAnimationFinished
+        {
+            add => _core.OnAnimationFinished += value;
+            remove => _core.OnAnimationFinished -= value;
+        }
+        public event System.Action OnAnimationLooped
+        {
+            add => _core.OnAnimationLooped += value;
+            remove => _core.OnAnimationLooped -= value;
+        }
+        public event System.Action<SpriteStudioUserData> OnUserData
+        {
+            add => _core.OnUserData += value;
+            remove => _core.OnUserData -= value;
+        }
+        public event System.Action<SpriteStudioSignal> OnSignal
+        {
+            add => _core.OnSignal += value;
+            remove => _core.OnSignal -= value;
+        }
+        public event System.Action<SpriteStudioAudio> OnAudio
+        {
+            add => _core.OnAudio += value;
+            remove => _core.OnAudio -= value;
+        }
+
+        [Header("Events")]
+        public UnityEvent OnAnimationFinishedEvent = new UnityEvent();
+        public UnityEvent OnAnimationLoopedEvent = new UnityEvent();
+        public UserDataUnityEvent OnUserDataEvent = new UserDataUnityEvent();
+        public SignalUnityEvent OnSignalEvent = new SignalUnityEvent();
+        public AudioUnityEvent OnAudioEvent = new AudioUnityEvent();
+
         private Mesh _sharedMesh;
 
         protected override void OnEnable()
@@ -138,15 +173,35 @@ namespace SpriteStudio.Runtime
             if (_core.Internal != null) _core.Internal.SuppressInternalMask = true;
             _canvasMaterialDirty = true;
             SpriteStudioUpdateManager.Register(this);
+
+            _core.OnAnimationFinished += InvokeAnimationFinished;
+            _core.OnAnimationLooped += InvokeAnimationLooped;
+            _core.OnUserData += InvokeUserData;
+            _core.OnSignal += InvokeSignal;
+            _core.OnAudio += InvokeAudio;
+
             // edit モードでは設置直後に開始フレームの静止プレビューを構築する (LateUpdate で setup を消化)。
             _editPreviewNeedsSetup = true;
         }
+
+        private void InvokeAnimationFinished() => OnAnimationFinishedEvent?.Invoke();
+        private void InvokeAnimationLooped() => OnAnimationLoopedEvent?.Invoke();
+        private void InvokeUserData(SpriteStudioUserData data) => OnUserDataEvent?.Invoke(data);
+        private void InvokeSignal(SpriteStudioSignal data) => OnSignalEvent?.Invoke(data);
+        private void InvokeAudio(SpriteStudioAudio data) => OnAudioEvent?.Invoke(data);
 
         protected override void OnDisable()
         {
             base.OnDisable();
 
             SpriteStudioUpdateManager.Unregister(this);
+
+            _core.OnAnimationFinished -= InvokeAnimationFinished;
+            _core.OnAnimationLooped -= InvokeAnimationLooped;
+            _core.OnUserData -= InvokeUserData;
+            _core.OnSignal -= InvokeSignal;
+            _core.OnAudio -= InvokeAudio;
+
             _core.Dispose();
 
             // Release the uGUI stencil wrapper (refcounted by StencilMaterial) and invalidate the

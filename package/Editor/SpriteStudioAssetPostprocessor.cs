@@ -123,6 +123,10 @@ namespace SpriteStudio.Editor
         /// </summary>
         private static bool EnsureExternalMaterials(string ssabPath)
         {
+            // 遅延処理 (delayCall) が走る頃には .ssab が削除/移動されていることがある
+            // (アセット削除、リネーム、テストの後始末など)。存在しなければ何もしない。
+            if (string.IsNullOrEmpty(ssabPath) || !File.Exists(ssabPath)) return false;
+
             var importer = AssetImporter.GetAtPath(ssabPath) as SpriteStudioSsabImporter;
             if (importer != null && !importer.GenerateMaterials) return false;
 

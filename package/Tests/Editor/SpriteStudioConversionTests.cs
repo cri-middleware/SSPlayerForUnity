@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.IO;
 using NUnit.Framework;
@@ -35,8 +36,9 @@ namespace SpriteStudio.Editor.Tests
 
             Assert.IsTrue(File.Exists(expectedSsabPath), "Conversion did not produce the expected .ssab file within timeout.");
 
-            // Cleanup
-            if (Directory.Exists(outDir))
+            // Cleanup: 変換完了後も Unity の AssetDatabase インポート (.meta 生成) がまだ走っていることがあり、
+            // Directory.Delete が一時的に "Directory not empty" で失敗しうる。数フレーム待ちつつリトライする。
+            for (int attempt = 0; attempt < 60 && Directory.Exists(outDir); attempt++)
             {
                 // ロック起因の例外を防ぐため属性をクリアして再試行
                 foreach (var file in Directory.GetFiles(outDir, "*", SearchOption.AllDirectories))

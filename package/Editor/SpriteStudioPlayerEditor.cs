@@ -20,6 +20,12 @@ namespace SpriteStudio.Editor
         private SerializedProperty _sortingOrderProp;
         private SerializedProperty _partTrackersProp;
 
+        private SerializedProperty _onAnimationFinishedEventProp;
+        private SerializedProperty _onAnimationLoopedEventProp;
+        private SerializedProperty _onUserDataEventProp;
+        private SerializedProperty _onSignalEventProp;
+        private SerializedProperty _onAudioEventProp;
+
         private static readonly GUIContent _frameSkippingLabel = new GUIContent("Frame Skipping",
             "ON: 負荷でフレームが落ちても経過時間ぶん進める (実時間追従)。OFF: 毎 update で必ず 1 フレームずつ進める (コマ送り)。");
         private static readonly GUIContent _subFrameInterpolationLabel = new GUIContent("Sub-Frame Interpolation",
@@ -37,6 +43,12 @@ namespace SpriteStudio.Editor
             _sortingLayerNameProp = serializedObject.FindProperty("_sortingLayerName");
             _sortingOrderProp = serializedObject.FindProperty("_sortingOrder");
             _partTrackersProp = serializedObject.FindProperty("_partTrackers");
+
+            _onAnimationFinishedEventProp = serializedObject.FindProperty("OnAnimationFinishedEvent");
+            _onAnimationLoopedEventProp = serializedObject.FindProperty("OnAnimationLoopedEvent");
+            _onUserDataEventProp = serializedObject.FindProperty("OnUserDataEvent");
+            _onSignalEventProp = serializedObject.FindProperty("OnSignalEvent");
+            _onAudioEventProp = serializedObject.FindProperty("OnAudioEvent");
         }
 
         public override void OnInspectorGUI()
@@ -60,6 +72,13 @@ namespace SpriteStudio.Editor
 
             EditorGUILayout.Space();
             EditorGUILayout.PropertyField(_partTrackersProp, true);
+
+            EditorGUILayout.Space();
+            EditorGUILayout.PropertyField(_onAnimationFinishedEventProp);
+            EditorGUILayout.PropertyField(_onAnimationLoopedEventProp);
+            EditorGUILayout.PropertyField(_onUserDataEventProp);
+            EditorGUILayout.PropertyField(_onSignalEventProp);
+            EditorGUILayout.PropertyField(_onAudioEventProp);
 
             serializedObject.ApplyModifiedProperties();
         }

@@ -13,6 +13,12 @@ namespace SpriteStudio.Runtime
         /// <summary>内部プレイヤー (FFI コンテキスト)。未生成/破棄後は null。</summary>
         public SpriteStudioInternalPlayer Internal { get; private set; }
 
+        public event System.Action OnAnimationFinished;
+        public event System.Action OnAnimationLooped;
+        public event System.Action<SpriteStudioUserData> OnUserData;
+        public event System.Action<SpriteStudioSignal> OnSignal;
+        public event System.Action<SpriteStudioAudio> OnAudio;
+
         // The asset whose ssab is currently loaded into Internal. Used to detect an inspector asset swap so
         // EnsureCreated reloads (the inspector writes the serialized field directly, bypassing the setter).
         private SpriteStudioAnimeAsset _loadedAsset;
@@ -22,6 +28,7 @@ namespace SpriteStudio.Runtime
             if (Internal == null)
             {
                 Internal = new SpriteStudioInternalPlayer { SubFrameEnabled = subFrameEnabled };
+                HookEvents();
             }
 
             // Load the ssab when (a) none is loaded yet, or (b) the referenced asset changed. (a) is the
@@ -37,6 +44,35 @@ namespace SpriteStudio.Runtime
             }
         }
 
+        // Relay the Internal player's events to this core's events. Named methods (not lambdas) so they can
+        // be unsubscribed in Dispose before the Internal is torn down — keeping subscriptions paired even if
+        // the Internal is later recreated.
+        private void HookEvents()
+        {
+            if (Internal == null) return;
+            Internal.OnAnimationFinished += RelayAnimationFinished;
+            Internal.OnAnimationLooped += RelayAnimationLooped;
+            Internal.OnUserData += RelayUserData;
+            Internal.OnSignal += RelaySignal;
+            Internal.OnAudio += RelayAudio;
+        }
+
+        private void UnhookEvents()
+        {
+            if (Internal == null) return;
+            Internal.OnAnimationFinished -= RelayAnimationFinished;
+            Internal.OnAnimationLooped -= RelayAnimationLooped;
+            Internal.OnUserData -= RelayUserData;
+            Internal.OnSignal -= RelaySignal;
+            Internal.OnAudio -= RelayAudio;
+        }
+
+        private void RelayAnimationFinished() => OnAnimationFinished?.Invoke();
+        private void RelayAnimationLooped() => OnAnimationLooped?.Invoke();
+        private void RelayUserData(SpriteStudioUserData user) => OnUserData?.Invoke(user);
+        private void RelaySignal(SpriteStudioSignal sig) => OnSignal?.Invoke(sig);
+        private void RelayAudio(SpriteStudioAudio audio) => OnAudio?.Invoke(audio);
+
         public void ReloadAsset(SpriteStudioAnimeAsset asset)
         {
             if (Internal != null && asset != null && asset.SsabData != null)
@@ -50,6 +86,7 @@ namespace SpriteStudio.Runtime
         {
             if (Internal != null)
             {
+                UnhookEvents();
                 Internal.Dispose();
                 Internal = null;
             }
