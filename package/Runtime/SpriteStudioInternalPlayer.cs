@@ -30,8 +30,6 @@ namespace SpriteStudio.Runtime
         public int IndexCount => _geometryBuilder != null ? _geometryBuilder.IndexCount : 0;
         public int SubmeshCount => _geometryBuilder != null ? _geometryBuilder.SubmeshCount : 0;
         public NativeArray<SubmeshInfo> Submeshes => _geometryBuilder != null ? _geometryBuilder.Submeshes : default;
-        public uint GetSubmeshTextureHash(int index) => _geometryBuilder.GetSubmeshTextureHash(index);
-        public byte GetSubmeshBlendType(int index) => _geometryBuilder.GetSubmeshBlendType(index);
         public NativeArray<SsVertex> MeshVertices => _geometryBuilder.MeshVertices;
         public NativeArray<uint> MeshIndices => _geometryBuilder.MeshIndices;
 

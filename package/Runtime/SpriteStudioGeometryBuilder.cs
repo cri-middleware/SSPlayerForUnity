@@ -137,20 +137,12 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         public int VertexCount => _vertexCount;
         public int IndexCount => _indexCount;
         public int DrawBatchCount => _batchBuilder.DrawBatchCount;
+        /// <summary>直近の ScheduleMeshUpdate で生成された描画バッチ (= SubMesh) の数。</summary>
         public int SubmeshCount => _batchBuilder.SubmeshCount;
         public NativeArray<SubmeshInfo> Submeshes => _batchBuilder.Submeshes;
         public NativeArray<DrawBatchData> DrawBatches => _batchBuilder.DrawBatches;
         public NativeArray<SsVertex> MeshVertices => _meshVertices;
         public NativeArray<uint> MeshIndices => _meshIndices;
-
-        /// <summary>直近の ScheduleMeshUpdate で生成された描画バッチ (= SubMesh) の数。</summary>
-        // public int SubmeshCount => _batchBuilder.SubmeshCount;
-
-        /// <summary>指定 SubMesh のテクスチャハッシュ (DrawBatch.TextureHash)。</summary>
-        public uint GetSubmeshTextureHash(int index) => _batchBuilder.Submeshes[index].TextureHash;
-
-        /// <summary>SubMesh's ssab BlendType (0..7), used to resolve the per-blend material variant.</summary>
-        public byte GetSubmeshBlendType(int index) => _batchBuilder.Submeshes[index].BlendType;
 
         /// <summary>
         /// Per-part state for the last consumed frame (used by part tracking). Returns false if no frame
