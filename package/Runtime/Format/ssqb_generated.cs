@@ -67,6 +67,8 @@ public struct SequenceItem : IFlatbufferObject
   public static void AddRepeatCount(FlatBufferBuilder builder, int repeatCount) { builder.AddInt(4, repeatCount, 0); }
   public static Offset<ss.format.SequenceItem> EndSequenceItem(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 4);  // ref_anime_pack
+    builder.Required(o, 8);  // ref_anime_name
     return new Offset<ss.format.SequenceItem>(o);
   }
 }
@@ -77,9 +79,9 @@ static public class SequenceItemVerify
   static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
   {
     return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyString(tablePos, 4 /*RefAnimePack*/, false)
+      && verifier.VerifyString(tablePos, 4 /*RefAnimePack*/, true)
       && verifier.VerifyField(tablePos, 6 /*RefAnimePackHash*/, 4 /*uint*/, 4, false)
-      && verifier.VerifyString(tablePos, 8 /*RefAnimeName*/, false)
+      && verifier.VerifyString(tablePos, 8 /*RefAnimeName*/, true)
       && verifier.VerifyField(tablePos, 10 /*RefAnimeNameHash*/, 4 /*uint*/, 4, false)
       && verifier.VerifyField(tablePos, 12 /*RepeatCount*/, 4 /*int*/, 4, false)
       && verifier.VerifyTableEnd(tablePos);
@@ -220,6 +222,7 @@ public struct SsSequenceBinary : IFlatbufferObject
   public static void StartSequenceListVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
   public static Offset<ss.format.SsSequenceBinary> EndSsSequenceBinary(FlatBufferBuilder builder) {
     int o = builder.EndTable();
+    builder.Required(o, 6);  // sequence_list
     return new Offset<ss.format.SsSequenceBinary>(o);
   }
   public static void FinishSsSequenceBinaryBuffer(FlatBufferBuilder builder, Offset<ss.format.SsSequenceBinary> offset) { builder.Finish(offset.Value, "SSQB"); }
@@ -233,7 +236,7 @@ static public class SsSequenceBinaryVerify
   {
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*Version*/, 4 /*uint*/, 4, false)
-      && verifier.VerifyVectorOfTables(tablePos, 6 /*SequenceList*/, ss.format.SequenceVerify.Verify, false)
+      && verifier.VerifyVectorOfTables(tablePos, 6 /*SequenceList*/, ss.format.SequenceVerify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
