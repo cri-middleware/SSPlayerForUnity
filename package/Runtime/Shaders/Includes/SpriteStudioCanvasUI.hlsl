@@ -71,7 +71,7 @@ ss_canvas_v2f ss_canvas_vert(ss_canvas_appdata IN)
 // resolved into IN.partcolorVarg in the vertex stage; a custom shader reads `tex` here.
 float4 ss_canvas_sample(ss_canvas_v2f IN)
 {
-    return ss_input_mediate(tex2D(_MainTex, IN.texcoord), _InputPMA);
+    return ss_input_mediate(ss_tex2D(_MainTex, IN.texcoord), _InputPMA);
 }
 
 // Default SpriteStudio RGB composition (branchless; effect tint is already folded into varg). A custom

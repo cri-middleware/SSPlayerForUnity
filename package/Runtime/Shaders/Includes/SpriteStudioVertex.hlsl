@@ -63,7 +63,7 @@ ss_world_v2f ss_world_vert(ss_world_appdata IN)
 // Sample the main texture (un-premultiplying when requested; RP-agnostic mediation in Core).
 float4 ss_world_sample(ss_world_v2f IN)
 {
-    return ss_input_mediate(tex2D(_MainTex, IN.texcoord), _InputPMA);
+    return ss_input_mediate(ss_tex2D(_MainTex, IN.texcoord), _InputPMA);
 }
 
 // Finalize a composed (rgb, alpha): discard test, PMA finalize, then the world additive alpha
