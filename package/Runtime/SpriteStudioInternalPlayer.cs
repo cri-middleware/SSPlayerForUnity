@@ -80,6 +80,10 @@ internal struct MaskPartData
 
         // Part name -> part index (into the world-matrix array). Built in SetupSlots; used by part tracking.
         private Dictionary<string, int> _partNameToIndex;
+        // Part index -> part name (index-aligned with ssab parts). Built once in SetupSlots so the event
+        // dispatch path resolves names by array lookup instead of decoding a fresh string from the
+        // FlatBuffer per event. Null until SetupSlots runs.
+        private string[] _partNames;
         // True when this ssab has at least one mask writer (pure mask or clipping). When false the
         // whole mask path is skipped, like _build_mask_writers returning empty.
         internal bool _hasMaskParts;
@@ -234,6 +238,8 @@ internal struct MaskPartData
                 // index used by the world-matrix array). Built once per load; static for the asset.
                 if (_partNameToIndex == null) _partNameToIndex = new Dictionary<string, int>(partsLength);
                 else _partNameToIndex.Clear();
+                if (_partNames == null || _partNames.Length < partsLength) _partNames = new string[partsLength];
+                else System.Array.Clear(_partNames, 0, partsLength);
 
                 for (int i = 0; i < partsLength; i++)
                 {
@@ -241,10 +247,13 @@ internal struct MaskPartData
                     if (!pObj.HasValue) continue;
                     var p = pObj.Value;
 
-                    // Register the part name so trackers can resolve it. First occurrence wins on the
-                    // (unexpected) chance of duplicate names.
-                    if (!string.IsNullOrEmpty(p.Name) && !_partNameToIndex.ContainsKey(p.Name))
-                        _partNameToIndex[p.Name] = i;
+                    // Decode the FlatBuffer name once and cache it both by-index (event path) and
+                    // by-name (part tracking). First occurrence wins on the (unexpected) chance of
+                    // duplicate names.
+                    string partName = p.Name;
+                    _partNames[i] = partName;
+                    if (!string.IsNullOrEmpty(partName) && !_partNameToIndex.ContainsKey(partName))
+                        _partNameToIndex[partName] = i;
 
                     // Cache the static mask flags for every part (any Normal/Mesh/Shape/Mask part can
                     // be a writer or a target). Derivation mirrors _build_mask_writers exactly.
@@ -412,6 +421,13 @@ internal struct MaskPartData
         {
             if (string.IsNullOrEmpty(partName) || _partNameToIndex == null) return -1;
             return _partNameToIndex.TryGetValue(partName, out int idx) ? idx : -1;
+        }
+
+        /// <summary>Resolve a part index to its cached name, or null if out of range. Avoids decoding a
+        /// fresh FlatBuffer string per event in the event dispatch path.</summary>
+        private string PartNameAt(int index)
+        {
+            return (_partNames != null && (uint)index < (uint)_partNames.Length) ? _partNames[index] : null;
         }
 
         /// <summary>
@@ -591,7 +607,7 @@ internal struct MaskPartData
                                 var ev = new SpriteStudioUserData
                                 {
                                     PartIndex = user.PartIndex,
-                                    PartName = (_ssab.HasValue && _ssab.Value.PartsLength > user.PartIndex) ? _ssab.Value.Parts(user.PartIndex)?.Name : null,
+                                    PartName = PartNameAt(user.PartIndex),
                                     HasInt = val.Integer.HasValue,
                                     IntValue = val.Integer.HasValue ? val.Integer.Value.Value : 0,
                                     HasString = val.Str != null,
@@ -643,7 +659,7 @@ internal struct MaskPartData
                                 var ev = new SpriteStudioSignal
                                 {
                                     PartIndex = sig.PartIndex,
-                                    PartName = (_ssab.HasValue && _ssab.Value.PartsLength > sig.PartIndex) ? _ssab.Value.Parts(sig.PartIndex)?.Name : null,
+                                    PartName = PartNameAt(sig.PartIndex),
                                     Active = val.Active,
                                     CommandId = val.CommandId,
                                     Params = paramsMap
@@ -663,7 +679,7 @@ internal struct MaskPartData
                                 var ev = new SpriteStudioAudio
                                 {
                                     PartIndex = audio.PartIndex,
-                                    PartName = (_ssab.HasValue && _ssab.Value.PartsLength > audio.PartIndex) ? _ssab.Value.Parts(audio.PartIndex)?.Name : null,
+                                    PartName = PartNameAt(audio.PartIndex),
                                     SoundListNameHash = val.SoundListNameHash,
                                     SoundNameHash = val.SoundNameHash,
                                     SoundName = val.SoundName,
