@@ -94,17 +94,18 @@ bool ss_addon_bmask_keep(float3 rgb, float brightness)
 // circle / spot) must do that math in SS (top-left) space to match the SS6 / ForGodot reference, then
 // flip back when sampling. ss_addon_uv un-flips the incoming frag UV; ss_addon_sample samples at an
 // SS-space UV. This is our explicit vertex flip (not a platform GL/DX difference) so no #if is needed.
-// Symmetric AddOns (outline, blur) are unaffected and sample plain tex2D at the frag UV.
+// Symmetric AddOns sample at the frag UV directly (no flip): blur via the colour primitive ss_tex2D,
+// outline via raw tex2D (it reads alpha only, which is never colorspace-converted).
 // =========================================================================
 
 float2 ss_addon_uv(float2 fragUv) { return float2(fragUv.x, 1.0 - fragUv.y); }
-float4 ss_addon_sample(sampler2D tex, float2 ssUv) { return tex2D(tex, float2(ssUv.x, 1.0 - ssUv.y)); }
+float4 ss_addon_sample(sampler2D tex, float2 ssUv) { return ss_tex2D(tex, float2(ssUv.x, 1.0 - ssUv.y)); }
 // Explicit-LOD (mip 0) variant of ss_addon_sample. Required wherever the sample sits inside a
 // varying-iteration loop: tex2D's implicit gradient forces the compiler to unroll such a loop
 // (FXC X3570), which on Apple/AMD/Vulkan compilers turns into a pathologically slow / hanging shader
 // compile. tex2Dlod needs no derivatives, so [loop] is honoured and it compiles fast on every backend.
 // SS sprite atlases are sampled at mip 0 anyway, so this is visually identical.
-float4 ss_addon_sample_lod(sampler2D tex, float2 ssUv) { return tex2Dlod(tex, float4(ssUv.x, 1.0 - ssUv.y, 0.0, 0.0)); }
+float4 ss_addon_sample_lod(sampler2D tex, float2 ssUv) { return ss_tex2Dlod(tex, float2(ssUv.x, 1.0 - ssUv.y)); }
 
 // ---- ss-outline: 4-neighbour alpha-edge outline (ss_param0=threshold signed) ----
 // Returns the outline intensity v (0..1); the shader feeds it as both rgb and alpha then discards v<=0.
@@ -127,15 +128,15 @@ float ss_addon_outline(sampler2D tex, float2 uv, float2 texelSize, float thresho
 float4 ss_addon_blur(sampler2D tex, float2 uv, float2 texelSize, float focus)
 {
     float2 d = float2(focus * texelSize.x * 16.0, focus * texelSize.y * 16.0);
-    float4 sum = tex2D(tex, uv);
-    sum += tex2D(tex, float2(uv.x + d.x, uv.y + d.y));
-    sum += tex2D(tex, float2(uv.x + d.x, uv.y));
-    sum += tex2D(tex, float2(uv.x,       uv.y + d.y));
-    sum += tex2D(tex, float2(uv.x - d.x, uv.y - d.y));
-    sum += tex2D(tex, float2(uv.x + d.x, uv.y - d.y));
-    sum += tex2D(tex, float2(uv.x - d.x, uv.y + d.y));
-    sum += tex2D(tex, float2(uv.x - d.x, uv.y));
-    sum += tex2D(tex, float2(uv.x,       uv.y - d.y));
+    float4 sum = ss_tex2D(tex, uv);
+    sum += ss_tex2D(tex, float2(uv.x + d.x, uv.y + d.y));
+    sum += ss_tex2D(tex, float2(uv.x + d.x, uv.y));
+    sum += ss_tex2D(tex, float2(uv.x,       uv.y + d.y));
+    sum += ss_tex2D(tex, float2(uv.x - d.x, uv.y - d.y));
+    sum += ss_tex2D(tex, float2(uv.x + d.x, uv.y - d.y));
+    sum += ss_tex2D(tex, float2(uv.x - d.x, uv.y + d.y));
+    sum += ss_tex2D(tex, float2(uv.x - d.x, uv.y));
+    sum += ss_tex2D(tex, float2(uv.x,       uv.y - d.y));
     return sum / 9.0;
 }
 
