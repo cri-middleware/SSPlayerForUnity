@@ -168,6 +168,97 @@ namespace SpriteStudio.Runtime
 #endif
         }
 
+        #region Playback Control (再生制御)
+        // 内部プレイヤー (Rust ランタイム) が既に備える再生制御をコンポーネントの公開 API として薄く露出する。
+        // 状態取得・シーク・一時停止・逆再生などはすべて native 側の実装で、ここは委譲のみ (新規ロジックなし)。
+
+        /// <summary>再生セッションが有効か。一時停止中でも true (停止/未再生で false)。</summary>
+        public bool IsPlaying => _core.Internal?.IsPlaying() ?? false;
+
+        /// <summary>一時停止中か (再生セッション中で、かつ pause されているときだけ true)。</summary>
+        public bool IsPaused
+        {
+            get
+            {
+                // ネイティブの is_pausing は初期値 true (未再生でも立っている) なので、
+                // 再生中であることと併せて判定する。
+                var p = _core.Internal;
+                return p != null && p.IsPlaying() && p.IsPausing();
+            }
+        }
+
+        /// <summary>再生を一時停止する (現在フレームを保持)。<see cref="Resume"/> で再開する。冪等。</summary>
+        public void Pause()
+        {
+            // ネイティブの pause() は is_pausing のトグル。既に一時停止中なら何もしない (冪等性確保)。
+            var p = _core.Internal;
+            if (p != null && !p.IsPausing()) p.Pause();
+        }
+
+        /// <summary>一時停止を解除し、現在フレームから再生を再開する。冪等。</summary>
+        public void Resume()
+        {
+            // ネイティブに resume は無く、play() は先頭へ巻き戻す。pause() を再トグルして
+            // 現在フレームを保持したまま再開する。一時停止中でなければ何もしない。
+            var p = _core.Internal;
+            if (p != null && p.IsPausing()) p.Pause();
+        }
+
+        /// <summary>再生を停止する。</summary>
+        public void Stop() => _core.Internal?.Stop();
+
+        /// <summary>現在の再生フレーム (小数可)。set で任意フレームへシークする。</summary>
+        public float CurrentFrame
+        {
+            get => _core.Internal?.GetFrame() ?? 0f;
+            set => _core.Internal?.SetFrame(value);
+        }
+
+        /// <summary>現在のアニメーションの総フレーム数 (終端フレーム + 1)。未ロード時は 0。</summary>
+        public int TotalFrames => _core.Internal?.GetTotalFrames() ?? 0;
+
+        /// <summary>再生フレームレート (fps)。set で実行時に変更する。未ロード時の get は 0。</summary>
+        public int FrameRate
+        {
+            get => _core.Internal?.GetFrameRate() ?? 0;
+            set => _core.Internal?.SetFrameRate(value);
+        }
+
+        /// <summary>
+        /// 逆再生 (Backward) か。<see cref="Play(string)"/> は毎回 Forward へ戻すため、
+        /// 逆再生で開始したい場合は Play 後に true を設定する。
+        /// </summary>
+        public bool Reverse
+        {
+            get => (_core.Internal?.GetPlaybackDirection() ?? 0) != 0;
+            set
+            {
+                var p = _core.Internal;
+                if (p != null) p.SetPlaybackStyle(value ? 1 : 0, p.GetPlaybackStyle());
+            }
+        }
+
+        /// <summary>
+        /// 往復 (PingPong) 再生か。<see cref="Play(string)"/> は毎回 Normal へ戻すため、
+        /// PingPong で開始したい場合は Play 後に true を設定する。
+        /// </summary>
+        public bool PingPong
+        {
+            get => (_core.Internal?.GetPlaybackStyle() ?? 0) != 0;
+            set
+            {
+                var p = _core.Internal;
+                if (p != null) p.SetPlaybackStyle(p.GetPlaybackDirection(), value ? 1 : 0);
+            }
+        }
+
+        /// <summary>
+        /// 再生範囲をフレームで限定する (SS6 の再生範囲指定のフレーム版。ラベル指定は未対応)。
+        /// </summary>
+        public void SetAnimationSection(int startFrame, int endFrame) => _core.Internal?.SetAnimationSection(startFrame, endFrame);
+
+        #endregion
+
         private void Start()
         {
             if (_autoPlay && !string.IsNullOrEmpty(_animationName))
