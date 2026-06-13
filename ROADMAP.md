@@ -160,19 +160,6 @@ Timeline); keep struct layouts intact for Burst/FFI.
     API (Tier 2), not a texture swap.
 - **Done when**: a test swaps a material/texture at runtime and the submesh material list reflects it.
 
-## ☐ Tier 6 — Inspector / editor UX  (Player-only)
-
-- **Goal**: port SS6's inspector affordances. Files: `package/Editor/SpriteStudioPlayerEditor.cs`,
-  `SpriteStudioGraphicEditor.cs`.
-- **Steps**:
-  1. **Interactive playback preview** (SS6's headline editor feature): the player already builds a static
-     start-frame preview in edit mode (`_editPreviewDirty` / `BuildEditPreview`). Add Play/Pause + a frame
-     scrubber + rate to the inspector, driving the edit-mode preview each editor tick (advance the internal
-     player, `ScheduleMeshUpdate`, `ApplyAndRender`, `Repaint`).
-  2. Toggles/fields backed by Tier 1/4 API: Reverse, PingPong, label-range (Start/End label + offset), a Reset
-     button. These need serialized fields — coordinate with the existing `_loopCount`/`_speedScale` pattern.
-- **Done when**: preview plays/pauses/scrubs in the inspector without entering Play mode.
-
 ## ☐ Collider / Collider2D + collision callbacks  (Player-only — sizeable)
 
 - **Goal**: port SS6 `Script_SpriteStudio6_Collider` / `Collider2D` — per-part Unity colliders sized each frame
@@ -197,16 +184,6 @@ Timeline); keep struct layouts intact for Burst/FFI.
 ## 🕒 Deferred ("あとで")
 
 These are intentionally postponed. Detailed for later pickup.
-
-### 🕒 Effect player component
-
-- **SS6**: `Script_SpriteStudio6_RootEffect` — play an effect/particle animation; `AnimationPlay/Stop/Pause`,
-  deterministic seed (`SeedOffsetSet`).
-- **SS7 status**: runtime effect/particle emission is **done** (SDK Phase 1 `[x]`); the geometry builder already
-  renders effect parts embedded in animations (`SpriteStudioEffectPlanBuffer`).
-- **Task**: decide whether a standalone effect-only component is needed (vs effects embedded in normal
-  animations). If yes, add a C# component + play/stop/seed API over the existing effect FFI/geometry. Investigate
-  the seed FFI surface first.
 
 ### 🕒 Sequence player component  (⛔ SDK Phase 3)
 
