@@ -2,25 +2,54 @@
 
 # SpriteStudioPlayer for Unity
 
-> **Note:** This `develop` branch is a work-in-progress version. The APIs and workflows in this branch may change without notice.
+A high-performance plugin for playing back 2D animations created with [OPTPiX SpriteStudio 7](https://www.webtech.co.jp/spritestudio/) inside [Unity](https://unity.com/).
+This plugin easily integrates raster-based 2D animations into your Unity projects with extreme performance.
 
-A high-performance plugin for playing back animations created with [OPTPiX SpriteStudio 7](https://www.webtech.co.jp/spritestudio/) inside Unity.
-This plugin leverages Unity's Job System (Burst Compiler) and zero-allocation mesh generation combined with a highly optimized Rust core (`libssruntime`) to achieve extreme performance.
+## Documentation
 
-## Key Features
-- **Zero-Allocation Pipeline**: Direct vertex writing from Burst Jobs to `Mesh.SetVertexBufferData`.
-- **Rust Core**: Uses the official `SpriteStudio7-SDK` (Rust) for zero-cost FFI bindings via `csbindgen`.
-- **Editor Integration**: Directly import `.sspj` project files. Converts to flatbuffers (`.ssab`) on the fly via `libssconverter`.
-- **uGUI & World Space**: Provides `SpriteStudioPlayer` for 3D/2D scenes and `SpriteStudioGraphic` for Canvas UI.
+For detailed instructions, please refer to the documents in the `docs/` folder. The documentation is structured step-by-step according to the reader's needs.
+
+- [**Documentation (Japanese)**](./docs/ja/index.md) (English documentation is a work in progress)
+
+### Quick Links (Japanese)
+
+**Setup**
+- [Installation](./docs/ja/setup/install.md)
+- [Build Guide](./docs/ja/setup/build.md)
+
+**Workflow**
+- [Basic Usage](./docs/ja/workflow/usage_basic.md)
+- [Asset Pipeline & Editor Integration](./docs/ja/workflow/usage_asset_pipeline.md)
+- [Scripting & Events](./docs/ja/workflow/usage_scripting.md)
+
+**Advanced**
+- [Import Automation](./docs/ja/workflow/import.md)
+- [Performance Tuning](./docs/ja/workflow/tips.md)
 
 ## Quick Start
-1. Place the `package/` folder into your Unity project's `Packages/` directory, or install via Unity Package Manager using the local folder.
-2. Open **SpriteStudio > Importer** from the Unity menu to set your preferred Output Folder.
-3. Drag and drop your `.sspj` file into the Unity Editor. It will automatically be converted to FlatBuffers (`.ssab`) and imported as a `SpriteStudioAnimeAsset` (ScriptableObject).
-4. Attach `SpriteStudioPlayer` to a GameObject, or `SpriteStudioGraphic` to a Canvas UI element.
-5. Assign the imported asset and play!
 
-## Building the Runtime
-If you are developing the plugin itself, you need to compile the Rust SDK:
-1. Clone with submodules to get `SpriteStudio7-SDK`.
-2. Run `./scripts/build-runtime.sh` (Mac/Linux) or `.\scripts\build-runtime.ps1` (Windows) to build `libssruntime` and `libssconverter`, and deploy them to `package/Runtime/Plugins` and `package/Editor/Plugins`.
+We provide multiple paths depending on your needs. This player supports Unity 6.3 LTS and later, and works in both URP and BRP.
+
+### 1. Try out the Sample Project
+1. **Get the Repo**: Clone or download this repository.
+2. **Prepare**: Run `./scripts/setup-download.sh` (Mac/Linux) or `scripts\setup-download.bat` (Windows) to download the native libraries.
+3. **Open**: Open `examples/UnityTestProject` in Unity Hub.
+4. **Check**: Open the `sprs.unity` scene and press Play to instantly see the animations in action.
+
+### 2. Import into your Project
+1. **Install**: Open Unity's Package Manager, choose "Add package from URL..." and enter the package URL from GitHub Releases (or download the tarball directly).
+2. **Import**: Open **Window > SpriteStudio > Importer** from the Unity menu, then drag and drop your `.sspj` file to convert it automatically.
+3. **Play**: Attach `SpriteStudioPlayer` to a GameObject, assign the generated `SpriteStudioAnimeAsset`, and play!
+
+For advanced setups like compiling from source or modifying the package, please refer to the [Installation Guide](./docs/ja/setup/install.md).
+
+## Overview
+
+This plugin features a **powerful asset pipeline that seamlessly integrates SpriteStudio and the Unity Editor**, enabling automatic conversion and instant updates of your assets.
+
+For details such as data flow diagrams, key features, and system requirements, please refer to the **[Documentation (Japanese)](./docs/ja/index.md)**.
+
+## Related Repositories
+
+- [SpriteStudio7-SDK](https://github.com/SpriteStudio/SpriteStudio7-SDK) — The core SDK providing `libssruntime` and `libssconverter`.
+- [SSPlayerForGodot](https://github.com/SpriteStudio/SSPlayerForGodot) — Godot Engine player utilizing the same Rust core.
