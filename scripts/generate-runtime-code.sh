@@ -11,10 +11,10 @@ OUTPUT_DIR=${ROOTDIR}/package/Runtime/Format
 /bin/mkdir -p ${OUTPUT_DIR}
 
 # Generate C# from FlatBuffers
-for f in ${ROOTDIR}/SpriteStudio7-SDK/libs/ssruntime/fbs/*.fbs; do
+for f in ${ROOTDIR}/SpriteStudio-SDK/libs/ssruntime/fbs/*.fbs; do
     ${FLATC} --csharp --gen-onefile -o ${OUTPUT_DIR} $f
 done
 
-for f in ${ROOTDIR}/SpriteStudio7-SDK/libs/ssab/fbs/*.fbs; do
+for f in ${ROOTDIR}/SpriteStudio-SDK/libs/ssab/fbs/*.fbs; do
     ${FLATC} --csharp --gen-onefile -o ${OUTPUT_DIR} $f
 done

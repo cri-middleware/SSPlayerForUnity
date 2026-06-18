@@ -25,10 +25,10 @@
 2. 左上の **＋** ボタンから **Add package from URL...** （または git URL）を選択します。
 3. リリースページに記載されている `.tgz` またはパッケージ用 URL を入力して **Add** を押します。
 
-   *(※ 実際の URL は [GitHub Releases](https://github.com/SpriteStudio/SSPlayerForUnity/releases) の最新版を参照してください)*
+   *(※ 実際の URL は [GitHub Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) の最新版を参照してください)*
 
 ### 方法 B: ダウンロードしてローカルから追加する
-1. [GitHub Releases](https://github.com/SpriteStudio/SSPlayerForUnity/releases) から最新の成果物（`.tgz` など）を直接ダウンロードします。
+1. [GitHub Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) から最新の成果物（`.tgz` など）を直接ダウンロードします。
 2. Package Manager の **＋** ボタンから **Add package from tarball...** を選び、ダウンロードしたファイルを選択します。
 
 ---
@@ -39,7 +39,7 @@ Unity 側の C# スクリプトを改造したり、パッケージの中身を�
 
 1. リポジトリを clone またはダウンロードします。
    ```sh
-   git clone https://github.com/SpriteStudio/SSPlayerForUnity.git
+   git clone https://github.com/cri-middleware/SSPlayerForUnity.git
    ```
 2. ネイティブライブラリ（`libssruntime`）をダウンロード・配置するために、`scripts/` フォルダ内にあるセットアップスクリプトを実行します。
    - **Windows**: `scripts\setup-download.bat` （または `scripts\setup-download.ps1`）
@@ -55,7 +55,7 @@ Rust コア (`libssruntime`) 自体の開発やデバッグを行う場合の手
 
 1. サブモジュールを含めてリポジトリを clone します。
    ```sh
-   git clone --recursive https://github.com/SpriteStudio/SSPlayerForUnity.git
+   git clone --recursive https://github.com/cri-middleware/SSPlayerForUnity.git
    ```
 2. `scripts/build-runtime.sh`（Windows の場合は `scripts\build-runtime.ps1` など）を実行して、Cargo で Rust コアをビルドし、プラグインフォルダへ配置します。
 3. 詳細は **[ビルドガイド](./build.md)** を参照してください。

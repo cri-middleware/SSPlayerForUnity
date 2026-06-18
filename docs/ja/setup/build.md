@@ -14,11 +14,11 @@
 
 ## 手順
 
-1. サブモジュールを含めてリポジトリを取得し、`SpriteStudio7-SDK` を用意します。
+1. サブモジュールを含めてリポジトリを取得し、`SpriteStudio-SDK` を用意します。
 
    ```sh
    # 新規 clone する場合
-   git clone --recursive https://github.com/SpriteStudio/SSPlayerForUnity.git
+   git clone --recursive https://github.com/cri-middleware/SSPlayerForUnity.git
 
    # すでに clone 済みの場合
    git submodule update --init --recursive

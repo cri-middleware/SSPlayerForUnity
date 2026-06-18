@@ -51,5 +51,5 @@ For details such as data flow diagrams, key features, and system requirements, p
 
 ## Related Repositories
 
-- [SpriteStudio7-SDK](https://github.com/SpriteStudio/SpriteStudio7-SDK) — The core SDK providing `libssruntime` and `libssconverter`.
+- [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — The core SDK providing `libssruntime` and `libssconverter`.
 - [SSPlayerForGodot](https://github.com/SpriteStudio/SSPlayerForGodot) — Godot Engine player utilizing the same Rust core.

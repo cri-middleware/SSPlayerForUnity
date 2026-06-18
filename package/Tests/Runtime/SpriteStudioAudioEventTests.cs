@@ -25,7 +25,7 @@ namespace SpriteStudio.Runtime.Tests
     {
         private const string SoundResourcePath = "Sound/Sound"; // Resources.Load 用
         private const string SoundResSsabPath = "../../package/Tests/Runtime/Resources/Sound/Sound.ssab";
-        private const string OverallSspjPath = "../../SpriteStudio7-SDK/tests/overall/overall.sspj";
+        private const string OverallSspjPath = "../../SpriteStudio-SDK/tests/overall/overall.sspj";
 
         private byte[] _sound;
 

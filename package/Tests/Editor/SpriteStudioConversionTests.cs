@@ -12,7 +12,7 @@ namespace SpriteStudio.Editor.Tests
         [UnityTest]
         public IEnumerator ConversionRunner_CanConvertSspjToSsab()
         {
-            string sspjPath = Path.GetFullPath("../../SpriteStudio7-SDK/tests/Ringo/Ringo.sspj");
+            string sspjPath = Path.GetFullPath("../../SpriteStudio-SDK/tests/Ringo/Ringo.sspj");
             string outDir = Path.Combine(Application.temporaryCachePath, "TestConvertOut");
             string expectedSsabPath = outDir + "/Ringo.ssab";
 
