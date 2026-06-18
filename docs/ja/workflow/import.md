@@ -43,12 +43,12 @@ Importer ウィンドウのドロップ領域に**フォルダ**をドロップ�
 
 ## CI/CD 向け: SDK の CLI で変換する
 
-Unity エディタを起動せずにコマンドラインから変換したい場合（CI/CD やビルドパイプラインへの組み込み、大量アセットの一括変換など）は、SpriteStudio7-SDK に同梱されている独立したコマンドラインコンバータを使用できます。エディタ内蔵のインポータが裏で利用している `libssconverter` と同じエンジンです。
+Unity エディタを起動せずにコマンドラインから変換したい場合（CI/CD やビルドパイプラインへの組み込み、大量アセットの一括変換など）は、SpriteStudio-SDK に同梱されている独立したコマンドラインコンバータを使用できます。エディタ内蔵のインポータが裏で利用している `libssconverter` と同じエンジンです。
 
 > [!NOTE]
-> CLI バイナリは **SpriteStudio7-SDK のリリース成果物に同梱**されています。本 Unity パッケージには含まれないため、CLI を利用する場合は SDK 側から別途取得してください。
+> CLI バイナリは **SpriteStudio-SDK のリリース成果物に同梱**されています。本 Unity パッケージには含まれないため、CLI を利用する場合は SDK 側から別途取得してください。
 
-1. [SpriteStudio7-SDK の Releases](https://github.com/SpriteStudio/SpriteStudio7-SDK/releases) から、該当プラットフォーム（Windows / macOS / Linux）向けの CLI コンバータを取得します。
+1. [SpriteStudio-SDK の Releases](https://github.com/cri-middleware/SpriteStudio-SDK/releases) から、該当プラットフォーム（Windows / macOS / Linux）向けの CLI コンバータを取得します。
 2. `.sspj` を引数に渡して実行し、`.ssab` を生成します。
 3. 生成された `.ssab` を Unity プロジェクトの `Assets/` 配下へ配置すると、`SpriteStudioAnimeAsset` として自動的にインポートされます（隣接テクスチャの設定や共有マテリアルの生成も上記と同様に行われます）。
 

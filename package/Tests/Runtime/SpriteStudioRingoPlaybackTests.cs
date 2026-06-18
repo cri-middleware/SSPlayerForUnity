@@ -28,7 +28,7 @@ namespace SpriteStudio.Runtime.Tests
             if (!File.Exists(absoluteSsabPath))
             {
 #if UNITY_EDITOR
-                string sspjPath = Path.GetFullPath("../../SpriteStudio7-SDK/tests/Ringo/Ringo.sspj");
+                string sspjPath = Path.GetFullPath("../../SpriteStudio-SDK/tests/Ringo/Ringo.sspj");
                 string outDir = Path.GetFullPath(RingoSsabDir);
                 Directory.CreateDirectory(outDir);
 

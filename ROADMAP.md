@@ -1,7 +1,7 @@
 # SpriteStudioPlayer for Unity — Player Roadmap
 
 This is the **C# Player** roadmap for SSPlayerForUnity. It is the counterpart to
-`SpriteStudio7-SDK/ROADMAP.md`, which tracks the **Rust runtime/converter** (`ssruntime` / `ssconverter`).
+`SpriteStudio-SDK/ROADMAP.md`, which tracks the **Rust runtime/converter** (`ssruntime` / `ssconverter`).
 Runtime-side work lives in the SDK roadmap; this file tracks the Unity Player work.
 
 Most items **selectively bring** worthwhile capabilities from the legacy **SS6PlayerForUnity** into this
@@ -34,7 +34,7 @@ than porting for completeness.
 
 - ✅ **Done**
 - ☐ **Ready** — Player-only, no SDK dependency; can start now
-- ⛔ **Blocked on SDK** — needs an `SpriteStudio7-SDK/ROADMAP.md` phase first (phase noted)
+- ⛔ **Blocked on SDK** — needs an `SpriteStudio-SDK/ROADMAP.md` phase first (phase noted)
 - 🕒 **Deferred ("あとで")** — intentionally postponed; detailed here so it can be picked up later
 
 ---
@@ -64,7 +64,7 @@ is built with Burst jobs and uploaded zero-alloc.
 **Tests.** `package/Tests/Runtime/` (PlayMode). Fixtures are generated on demand (no `.ssab` is committed):
 see `SpriteStudioRingoPlaybackTests.cs` / `SpriteStudioAudioEventTests.cs` for the
 `SpriteStudioConversionRunner.Enqueue(sspj, outDir)` + poll pattern (SS7 SDK projects live at
-`../SpriteStudio7-SDK/tests/<name>/<name>.sspj`). Components are `[ExecuteAlways]`, so
+`../SpriteStudio-SDK/tests/<name>/<name>.sspj`). Components are `[ExecuteAlways]`, so
 `AddComponent → AnimeAsset = … → Play("walk")` runs synchronously and native state can be asserted without
 ticking. You cannot run Unity headlessly while the Editor is open — ask the user to run the Test Runner.
 
@@ -133,7 +133,7 @@ Timeline); keep struct layouts intact for Burst/FFI.
 
 ## ⛔ Tier 2 — Per-part runtime overrides (color / cell / visibility)  (SDK Phase 2)
 
-- **Blocked on**: `SpriteStudio7-SDK/ROADMAP.md` Phase 2 **Override Layer API** (runtime state + FFI:
+- **Blocked on**: `SpriteStudio-SDK/ROADMAP.md` Phase 2 **Override Layer API** (runtime state + FFI:
   set/clear per-part color, cell-ref, visibility). Track the FFI names there; regenerate bindings after it lands.
 - **Goal**: port SS6 `PartsColorChange` (blend op Mix/Add/Sub/Mul, single or 4-vertex RGBA, opacity),
   `CellChangeParts` (cell-map + cell index, sentinel = follow data), `HideSet` (force show/hide, cascade to
@@ -231,4 +231,4 @@ These are intentionally postponed. Detailed for later pickup.
 ---
 
 *Keep this roadmap tidy: delete a task once it ships (don't leave checked-off entries), and update the SDK
-phase references if `SpriteStudio7-SDK/ROADMAP.md` changes.*
+phase references if `SpriteStudio-SDK/ROADMAP.md` changes.*
