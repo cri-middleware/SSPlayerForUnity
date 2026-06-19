@@ -44,6 +44,8 @@ namespace SpriteStudio.Editor
 
         static void OnPostprocessAllAssets(string[] importedAssets, string[] deletedAssets, string[] movedAssets, string[] movedFromAssetPaths)
         {
+            var pluginsToConfigure = new System.Collections.Generic.HashSet<string>();
+
             foreach (string str in importedAssets)
             {
                 if (str.EndsWith(".sspj"))
@@ -67,6 +69,10 @@ namespace SpriteStudio.Editor
                         }
                     }
                 }
+                else if (str.Contains("Plugins") && (str.Contains("ssruntime") || str.Contains("ssconverter")))
+                {
+                    pluginsToConfigure.Add(GetPluginRoot(str));
+                }
             }
 
             if (delayedSsabChecks.Count > 0 && !isDelayCallRegistered)
@@ -85,6 +91,10 @@ namespace SpriteStudio.Editor
                 {
                     sourceMapDirty = true;
                 }
+                else if (movedAssets[i].Contains("Plugins") && (movedAssets[i].Contains("ssruntime") || movedAssets[i].Contains("ssconverter")))
+                {
+                    pluginsToConfigure.Add(GetPluginRoot(movedAssets[i]));
+                }
             }
             foreach (string del in deletedAssets)
             {
@@ -94,6 +104,103 @@ namespace SpriteStudio.Editor
                 }
             }
             if (sourceMapDirty) SpriteStudioSourceMap.SaveMap();
+
+            foreach (var plugin in pluginsToConfigure)
+            {
+                ConfigurePluginPlatform(plugin);
+            }
+        }
+
+        private static string GetPluginRoot(string path)
+        {
+            // If the path is inside a .xcframework or .bundle, find the root directory
+            int xcIndex = path.IndexOf(".xcframework", System.StringComparison.OrdinalIgnoreCase);
+            if (xcIndex != -1) return path.Substring(0, xcIndex + 12);
+            
+            int bundleIndex = path.IndexOf(".bundle", System.StringComparison.OrdinalIgnoreCase);
+            if (bundleIndex != -1) return path.Substring(0, bundleIndex + 7);
+            
+            return path;
+        }
+
+        private static void ConfigurePluginPlatform(string assetPath)
+        {
+            var pluginImporter = AssetImporter.GetAtPath(assetPath) as PluginImporter;
+            if (pluginImporter == null) return;
+
+            string lowerPath = assetPath.ToLowerInvariant();
+            if (!lowerPath.Contains("runtime/plugins/") && !lowerPath.Contains("editor/plugins/")) return;
+
+            bool isEditorPlugin = lowerPath.Contains("editor/plugins/");
+            bool changed = false;
+
+            if (pluginImporter.GetCompatibleWithAnyPlatform())
+            {
+                pluginImporter.SetCompatibleWithAnyPlatform(false);
+                changed = true;
+            }
+
+            if (lowerPath.Contains("/ios/"))
+            {
+                if (pluginImporter.GetCompatibleWithEditor()) { pluginImporter.SetCompatibleWithEditor(false); changed = true; }
+                if (!pluginImporter.GetCompatibleWithPlatform(BuildTarget.iOS)) { pluginImporter.SetCompatibleWithPlatform(BuildTarget.iOS, true); changed = true; }
+            }
+            else if (lowerPath.Contains("/android/"))
+            {
+                if (pluginImporter.GetCompatibleWithEditor()) { pluginImporter.SetCompatibleWithEditor(false); changed = true; }
+                if (!pluginImporter.GetCompatibleWithPlatform(BuildTarget.Android)) { pluginImporter.SetCompatibleWithPlatform(BuildTarget.Android, true); changed = true; }
+                
+                if (lowerPath.Contains("arm64-v8a") && pluginImporter.GetPlatformData(BuildTarget.Android, "CPU") != "ARM64")
+                {
+                    pluginImporter.SetPlatformData(BuildTarget.Android, "CPU", "ARM64"); changed = true;
+                }
+                else if (lowerPath.Contains("armeabi-v7a") && pluginImporter.GetPlatformData(BuildTarget.Android, "CPU") != "ARMv7")
+                {
+                    pluginImporter.SetPlatformData(BuildTarget.Android, "CPU", "ARMv7"); changed = true;
+                }
+            }
+            else if (lowerPath.Contains("/webgl/"))
+            {
+                if (pluginImporter.GetCompatibleWithEditor()) { pluginImporter.SetCompatibleWithEditor(false); changed = true; }
+                if (!pluginImporter.GetCompatibleWithPlatform(BuildTarget.WebGL)) { pluginImporter.SetCompatibleWithPlatform(BuildTarget.WebGL, true); changed = true; }
+            }
+            else if (lowerPath.Contains("/macos/"))
+            {
+                if (!pluginImporter.GetCompatibleWithEditor()) { pluginImporter.SetCompatibleWithEditor(true); changed = true; }
+                if (pluginImporter.GetEditorData("OS") != "OSX") { pluginImporter.SetEditorData("OS", "OSX"); changed = true; }
+                if (pluginImporter.GetEditorData("CPU") != "AnyCPU") { pluginImporter.SetEditorData("CPU", "AnyCPU"); changed = true; }
+                if (!isEditorPlugin && !pluginImporter.GetCompatibleWithPlatform(BuildTarget.StandaloneOSX))
+                {
+                    pluginImporter.SetCompatibleWithPlatform(BuildTarget.StandaloneOSX, true); changed = true;
+                }
+            }
+            else if (lowerPath.Contains("/windows/"))
+            {
+                if (!pluginImporter.GetCompatibleWithEditor()) { pluginImporter.SetCompatibleWithEditor(true); changed = true; }
+                if (pluginImporter.GetEditorData("OS") != "Windows") { pluginImporter.SetEditorData("OS", "Windows"); changed = true; }
+                if (pluginImporter.GetEditorData("CPU") != "AnyCPU") { pluginImporter.SetEditorData("CPU", "AnyCPU"); changed = true; }
+                if (!isEditorPlugin && (!pluginImporter.GetCompatibleWithPlatform(BuildTarget.StandaloneWindows64) || !pluginImporter.GetCompatibleWithPlatform(BuildTarget.StandaloneWindows)))
+                {
+                    pluginImporter.SetCompatibleWithPlatform(BuildTarget.StandaloneWindows64, true);
+                    pluginImporter.SetCompatibleWithPlatform(BuildTarget.StandaloneWindows, true);
+                    changed = true;
+                }
+            }
+            else if (lowerPath.Contains("/linux/"))
+            {
+                if (!pluginImporter.GetCompatibleWithEditor()) { pluginImporter.SetCompatibleWithEditor(true); changed = true; }
+                if (pluginImporter.GetEditorData("OS") != "Linux") { pluginImporter.SetEditorData("OS", "Linux"); changed = true; }
+                if (pluginImporter.GetEditorData("CPU") != "AnyCPU") { pluginImporter.SetEditorData("CPU", "AnyCPU"); changed = true; }
+                if (!isEditorPlugin && !pluginImporter.GetCompatibleWithPlatform(BuildTarget.StandaloneLinux64))
+                {
+                    pluginImporter.SetCompatibleWithPlatform(BuildTarget.StandaloneLinux64, true); changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                pluginImporter.SaveAndReimport();
+            }
         }
 
         private static void ProcessDelayedSsabs()
