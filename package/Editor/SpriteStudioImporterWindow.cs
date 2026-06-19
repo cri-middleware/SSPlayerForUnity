@@ -16,6 +16,7 @@ namespace SpriteStudio.Editor
 
         // libssconverter のバージョン文字列。FFI 取得は重く OnGUI は毎フレーム走るため OnEnable で一度だけ取得してキャッシュする。
         private string converterVersion;
+        private string playerVersion;
 
         [MenuItem("Window/SpriteStudio/Importer")]
         public static void ShowWindow()
@@ -39,6 +40,7 @@ namespace SpriteStudio.Editor
             outputFolder = AssetDatabase.LoadAssetAtPath<DefaultAsset>(savedPath);
 
             converterVersion = LoadConverterVersion();
+            playerVersion = LoadPlayerVersion();
         }
 
         private void OnGUI()
@@ -195,9 +197,50 @@ namespace SpriteStudio.Editor
         private void DrawFooter()
         {
             GUILayout.BeginHorizontal(EditorStyles.helpBox);
+            GUILayout.Label("player:", EditorStyles.miniLabel, GUILayout.Width(60));
+            EditorGUILayout.SelectableLabel(playerVersion, EditorStyles.miniLabel, GUILayout.Height(EditorGUIUtility.singleLineHeight));
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal(EditorStyles.helpBox);
             GUILayout.Label("converter:", EditorStyles.miniLabel, GUILayout.Width(60));
             EditorGUILayout.SelectableLabel(converterVersion, EditorStyles.miniLabel, GUILayout.Height(EditorGUIUtility.singleLineHeight));
             GUILayout.EndHorizontal();
+        }
+
+        [System.Serializable]
+        private class PackageJson
+        {
+            public string version;
+        }
+
+        private static string LoadPlayerVersion()
+        {
+            var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(SpriteStudioImporterWindow).Assembly);
+            if (packageInfo != null)
+            {
+                // Unityの packageInfo.version は SemVer のビルドメタデータ (+以降) を落とす場合があるため、
+                // package.json を直接パースして正確な文字列を取得する
+                string packageJsonPath = Path.Combine(packageInfo.resolvedPath, "package.json");
+                if (File.Exists(packageJsonPath))
+                {
+                    try
+                    {
+                        string json = File.ReadAllText(packageJsonPath);
+                        var parsed = JsonUtility.FromJson<PackageJson>(json);
+                        if (!string.IsNullOrEmpty(parsed.version))
+                        {
+                            return parsed.version;
+                        }
+                    }
+                    catch (System.Exception e)
+                    {
+                        Debug.LogWarning($"[SSPlayer] Failed to parse package.json: {e.Message}");
+                    }
+                }
+                
+                return packageInfo.version;
+            }
+            return "unknown";
         }
 
         /// <summary>
@@ -212,7 +255,11 @@ namespace SpriteStudio.Editor
                 if (p == null) return "unknown";
                 string version = PtrToStringUtf8(p);
                 SpriteStudio.SsConverter.NativeMethods.ss_converter_version_free(p);
-                return string.IsNullOrEmpty(version) ? "unknown" : version;
+
+                uint ssabVersion = SpriteStudio.SsConverter.NativeMethods.ss_converter_ssab_schema_version();
+                string libVer = string.IsNullOrEmpty(version) ? "unknown" : version;
+                
+                return $"{libVer} (ssab v{ssabVersion})";
             }
             catch (System.Exception e)
             {
