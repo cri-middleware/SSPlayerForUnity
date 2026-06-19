@@ -54,7 +54,6 @@
 | `platform` | `windows` / `macos` / `linux` / `android` / `ios` / `web` | 対象プラットフォーム |
 | `arch` | `x86_64` / `arm64` / `universal` など | 対象アーキテクチャ |
 | `build` | `debug` / `release` | ビルドモード（配布時は `release`） |
-| `ios_simulator` | `yes` / `no` | iOS シミュレータ向けビルド（既定 `no`） |
 
 例:
 
@@ -64,7 +63,12 @@
 
 # Android arm64 のリリースビルド
 ./scripts/build-runtime.sh platform=android arch=arm64 build=release
+
+# iOS（実機 + シミュレータを内包する XCFramework を生成）
+./scripts/build-runtime.sh platform=ios build=release
 ```
+
+> **iOS について:** `platform=ios` は実機（arm64）と シミュレータ（arm64 / x86_64）の両スライスを含む `libssruntime.xcframework` を生成し、`package/Runtime/Plugins/iOS/` に配置します。device / simulator は XCFramework 内で分離されるため、シミュレータ専用オプションは不要です（Apple Silicon Mac のシミュレータでも動作します）。
 
 > **補足:** ホスト環境と同じ platform/arch を指定した場合は `cargo build` を直接実行します。それ以外（クロスコンパイル）の場合は SDK 側のリリーススクリプトへ委譲します。
 
