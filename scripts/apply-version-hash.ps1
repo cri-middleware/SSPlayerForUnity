@@ -34,7 +34,7 @@ Write-Host "Current git hash: $gitHash"
 # 2. Rewrite the version in package.json to append the hash
 # Use regex to replace to avoid ConvertTo-Json formatting changes
 $jsonContent = Get-Content $packageJson -Raw
-$jsonContent = $jsonContent -replace '"version"\s*:\s*"([^"]+)"', ("`"version`": `"`$1+$gitHash`"")
+$jsonContent = $jsonContent -replace '"version"\s*:\s*"([^+]+)[^"]*"', ("`"version`": `"`$1+$gitHash`"")
 Set-Content -Path $packageJson -Value $jsonContent -NoNewline -Encoding UTF8
 
 Write-Host "Appended +$gitHash to package.json version."

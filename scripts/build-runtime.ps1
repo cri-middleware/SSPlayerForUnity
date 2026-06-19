@@ -15,7 +15,6 @@ $default_opts = @{
     arch = $HOST_ARCH
     platform = $HOST_PLATFORM
     build = "debug"
-    ios_simulator = "no"
 }
 
 $opts = @{}
@@ -28,7 +27,6 @@ function usage() {
     echo "  platform=<platform>    Target platform (windows, macos, linux, android, ios, web)"
     echo "  arch=<arch>            Target architecture (x86_64, arm64, universal, etc.)"
     echo "  build=<build>          Build mode (debug, release)"
-    echo "  ios_simulator=<yes|no> Build for iOS simulator (default: no)"
 }
 
 foreach ($item in $Args) {
@@ -44,14 +42,13 @@ foreach ($item in $Args) {
 $PLATFORM = $opts.platform
 $ARCH = $opts.arch
 $BUILD_MODE = $opts.build
-$IOS_SIMULATOR = $opts.ios_simulator
 
 $IS_HOST_BUILD = $false
 if ($PLATFORM -eq $HOST_PLATFORM -and $ARCH -eq $HOST_ARCH) {
     $IS_HOST_BUILD = $true
 }
 
-echo "Building for $PLATFORM ($ARCH) in $BUILD_MODE mode (iOS Sim: $IOS_SIMULATOR, Host Build: $IS_HOST_BUILD)..."
+echo "Building for $PLATFORM ($ARCH) in $BUILD_MODE mode (Host Build: $IS_HOST_BUILD)..."
 echo ""
 
 $SDK_DIR = "$rootDirectory/SpriteStudio-SDK"
@@ -72,8 +69,8 @@ if ($IS_HOST_BUILD) {
         if ($ARCH -eq "arm64") { $script = "./scripts/release-windows-arm64.ps1" }
         echo "Executing $script $BUILD_MODE..."
         & $script $BUILD_MODE
-    } elseif ($PLATFORM -eq "ios" -and $IOS_SIMULATOR -eq "yes") {
-        & sh ./scripts/release-ios-sim.sh $BUILD_MODE
+    } elseif ($PLATFORM -eq "ios") {
+        & sh ./scripts/release-ios-xcframework.sh $BUILD_MODE
     } elseif ($PLATFORM -eq "web") {
         & sh ./scripts/release-emscripten.sh $BUILD_MODE
     } else {
@@ -143,6 +140,16 @@ if ($PLATFORM -eq "macos" -or $PLATFORM -eq "windows" -or $PLATFORM -eq "linux")
     New-Item -ItemType Directory -Path $EDITOR_LIB_OUT -Force | Out-Null
 }
 
+if ($PLATFORM -eq "ios") {
+    # iOS is distributed as an XCFramework directory (device arm64 + simulator
+    # arm64/x86_64), which Unity links statically (__Internal).
+    $iosXc = "$SDK_DIR/target/xcframework/static/libssruntime.xcframework"
+    echo "Copying XCFramework from $iosXc to $RUNTIME_LIB_OUT..."
+    Remove-Item -Recurse -Force "$RUNTIME_LIB_OUT/libssruntime.xcframework" -ErrorAction SilentlyContinue
+    Copy-Item -Recurse -Force $iosXc "$RUNTIME_LIB_OUT/"
+    exit 0
+}
+
 $LIB_EXT = ".so"
 $LIB_PREFIX = "lib"
 if ($PLATFORM -eq "windows") { 
@@ -150,7 +157,7 @@ if ($PLATFORM -eq "windows") {
     $LIB_PREFIX = ""
 } elseif ($PLATFORM -eq "macos") {
     $LIB_EXT = ".dylib"
-} elseif ($PLATFORM -eq "ios" -or $PLATFORM -eq "web") {
+} elseif ($PLATFORM -eq "web") {
     $LIB_EXT = ".a"
 }
 
@@ -166,12 +173,6 @@ if ($IS_HOST_BUILD) {
         elseif ($ARCH -eq "x86_64") { $TARGET_TRIPLE = "x86_64-linux-android" }
     } elseif ($PLATFORM -eq "web") {
         $TARGET_TRIPLE = "wasm32-unknown-unknown"
-    } elseif ($PLATFORM -eq "ios") {
-        if ($IOS_SIMULATOR -eq "yes") {
-            $TARGET_TRIPLE = "universal-apple-ios-sim"
-        } else {
-            $TARGET_TRIPLE = "universal-apple-ios"
-        }
     } elseif ($PLATFORM -eq "macos" -and $ARCH -eq "universal") {
         $TARGET_TRIPLE = "universal-apple-darwin"
     } elseif ($PLATFORM -eq "windows" -and $ARCH -eq "x86_64") {

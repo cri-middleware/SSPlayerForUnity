@@ -21,7 +21,6 @@ default_opts=(
     arch "${HOST_ARCH}"
     platform "${HOST_PLATFORM}"
     build "debug"
-    ios_simulator "no"
 )
 
 typeset -A opts
@@ -36,7 +35,6 @@ func usage() {
     echo "  platform=<platform>    Target platform (windows, macos, linux, android, ios, web)"
     echo "  arch=<arch>            Target architecture (x86_64, arm64, universal, etc.)"
     echo "  build=<build>          Build mode (debug, release)"
-    echo "  ios_simulator=<yes|no> Build for iOS simulator (default: no)"
 }
 
 while (( $# > 0 )); do
@@ -54,14 +52,13 @@ done
 PLATFORM=${opts[platform]}
 ARCH=${opts[arch]}
 BUILD_MODE=${opts[build]}
-IOS_SIMULATOR=${opts[ios_simulator]}
 
 IS_HOST_BUILD=false
 if [[ "$PLATFORM" == "$HOST_PLATFORM" && "$ARCH" == "$HOST_ARCH" ]]; then
     IS_HOST_BUILD=true
 fi
 
-echo "Building for $PLATFORM ($ARCH) in $BUILD_MODE mode (iOS Sim: $IOS_SIMULATOR, Host Build: $IS_HOST_BUILD)..."
+echo "Building for $PLATFORM ($ARCH) in $BUILD_MODE mode (Host Build: $IS_HOST_BUILD)..."
 
 SDK_DIR=${ROOTDIR}/SpriteStudio-SDK
 pushd ${SDK_DIR} > /dev/null
@@ -89,13 +86,10 @@ else
             SRC_DIR="target/universal-apple-darwin/$BUILD_MODE"
             ;;
         ios)
-            if [[ "$IOS_SIMULATOR" == "yes" ]]; then
-                ./scripts/release-ios-sim.sh $BUILD_MODE
-                SRC_DIR="target/universal-apple-ios-sim/$BUILD_MODE"
-            else
-                ./scripts/release-ios.sh $BUILD_MODE
-                SRC_DIR="target/universal-apple-ios/$BUILD_MODE"
-            fi
+            # iOS ships as a single XCFramework (device + simulator slices);
+            # it is copied wholesale below, so SRC_DIR / copy_lib are not used.
+            ./scripts/release-ios-xcframework.sh $BUILD_MODE
+            SRC_DIR=""
             ;;
         android)
             ./scripts/release-android.sh $BUILD_MODE
@@ -211,7 +205,12 @@ elif [[ "$PLATFORM" == "linux" || "$PLATFORM" == "android" ]]; then
     if [[ "$PLATFORM" == "linux" ]]; then
         copy_lib "libssconverter.so" "${EDITOR_LIB_OUT}" "libssconverter.so"
     fi
-elif [[ "$PLATFORM" == "ios" || "$PLATFORM" == "web" ]]; then
+elif [[ "$PLATFORM" == "ios" ]]; then
+    # iOS is distributed as an XCFramework directory (device arm64 + simulator
+    # arm64/x86_64). Unity links it statically (__Internal). Replace wholesale.
+    /bin/rm -rf "${RUNTIME_LIB_OUT}/libssruntime.xcframework"
+    cp -R "${SDK_DIR}/target/xcframework/static/libssruntime.xcframework" "${RUNTIME_LIB_OUT}/"
+elif [[ "$PLATFORM" == "web" ]]; then
     copy_lib "libssruntime.a" "${RUNTIME_LIB_OUT}" "libssruntime.a"
 fi
 
