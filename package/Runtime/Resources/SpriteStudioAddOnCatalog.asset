@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: bc78ee4739db4bfd8f07d31970b5ff45, type: 3}
   m_Name: SpriteStudioAddOnCatalog
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   Entries:
   - IdName: ss-sepia
     Shader: {fileID: 4800000, guid: 3bf65b4847604f5d81bbf5937ffd8db6, type: 3}
