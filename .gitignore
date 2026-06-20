@@ -1585,3 +1585,7 @@ package/Editor/Bindings/*.g.cs.meta
 *test-run.log
 tmp.xml
 tmp.log
+
+# MkDocs
+.venv/
+site/

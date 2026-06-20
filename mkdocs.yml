@@ -1,0 +1,75 @@
+site_name: SpriteStudioPlayer for Unity
+site_description: "A Unity Engine integration for SpriteStudio 7"
+site_author: "CRI Middleware Co., Ltd."
+site_url: "https://cri-middleware.github.io/SSPlayerForUnity/"
+repo_name: "cri-middleware/SSPlayerForUnity"
+repo_url: "https://github.com/cri-middleware/SSPlayerForUnity"
+edit_uri: "edit/main/docs/"
+
+theme:
+  name: material
+  language: ja
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue grey
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue grey
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+
+plugins:
+  - search
+  - i18n:
+      docs_structure: folder
+      languages:
+        - locale: ja
+          name: 日本語
+          default: true
+          build: true
+
+nav:
+  - Home: index.md
+  - Setup:
+      - Installation: setup/install.md
+      - Build Guide: setup/build.md
+  - Workflow:
+      - Basic Usage: workflow/usage_basic.md
+      - Asset Import & Editor Integration: workflow/usage_asset_pipeline.md
+      - Scripting & Events: workflow/usage_scripting.md
+  - Advanced Topics:
+      - CLI Conversion & CI/CD: workflow/import.md
+      - Performance Tuning & Advanced Settings: workflow/tips.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+
+extra:
+  alternate:
+    - name: 日本語
+      link: ./
+      lang: ja
