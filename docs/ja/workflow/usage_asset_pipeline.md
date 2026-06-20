@@ -8,19 +8,22 @@ SpriteStudioPlayer for Unity は単にアニメーションを再生するだけ
 
 ---
 
-## 1. 初回のインポート (Importer ウィンドウを使ったコンバート)
+## 1. 初回のインポート (.sspj から .ssab へのコンバート)
 
-まだ Unity プロジェクト内に `.ssab` が存在しない場合は、まず SpriteStudio のプロジェクトファイル (`.sspj`) をインポート（コンバート）します。
+SpriteStudio の元データであるプロジェクトファイル（`.sspj`）は、そのままでは Unity 上で再生できません。
+Unity 上で再生・制御可能な専用の最適化バイナリ（**`.ssab`**）へ変換（コンバート）して取り込む必要があります。
+
+まだ Unity プロジェクト内に `.ssab` が存在しない場合は、以下の手順で初回のコンバートを行います。
 
 1. Unity メニューから **Window > SpriteStudio > Importer** を開きます。
 2. 出力先（**Output Folder**、デフォルトは `Assets/ssab_generated`）を確認します。
-3. エクスプローラーや Finder から、目的の **`.sspj` ファイルを Importer ウィンドウのドロップ領域へドラッグ＆ドロップ** します。
+3. エクスプローラーや Finder から、目的の **`.sspj` ファイルを SpriteStudio Importer ウィンドウのドロップ領域へドラッグ＆ドロップ** します。
 
 これだけでコンバート処理が走り、指定した出力先に `SpriteStudioAnimeAsset`（`.ssab` を内包した ScriptableObject）が生成されます。
 生成されたアセットを Hierarchy ウィンドウや Scene ビューへドラッグ＆ドロップして、`SpriteStudioPlayer` / `SpriteStudioGraphic` を配置しましょう（詳細は [基本的な使い方](./usage_basic.md) を参照）。
 
 > [!TIP]
-> フォルダごとドロップすると、その中の `.sspj` を再帰的に一括変換します。プロジェクトの `Assets/` 配下へ `.sspj` を直接置いて自動変換させることもできます。詳しくは [インポートの自動化](./import.md) を参照してください。
+> フォルダごとドロップすると、その中の `.sspj` を再帰的に `.ssab` へ一括変換します。詳しくは [各種コンバート機能と CI/CD](./import.md) を参照してください。
 
 ---
 
@@ -49,16 +52,16 @@ SpriteStudio 側でアニメーションを修正して保存したら、Unity �
 
 > [!IMPORTANT]
 > **「開く」→「保存」→「再コンバート」の最短ワークフロー**
-> アセットを選択したままインスペクタから SpriteStudio を呼び出し、編集後すぐに Unity 上で再コンバートをかけることができます。**SpriteStudio と Unity をシームレスに行き来できるこの強力なアセットパイプライン**により、アニメーション調整におけるトライアンドエラーのコストが劇的に下がります。
+> アセットを選択したままインスペクタから SpriteStudio を呼び出し、編集後すぐに Unity 上で `.ssab` へ最新の変更を反映（再コンバート）させることができます。**SpriteStudio と Unity をシームレスに行き来できるこの強力なアセットパイプライン**により、アニメーション調整におけるトライアンドエラーのコストが劇的に下がります。
 
 > [!TIP]
-> Importer ウィンドウの **Recent SSPJs** からも再変換できます（行をクリック、または右クリック →「Reconvert」）。同一内容（更新日時が同一）の `.sspj` は無駄な再変換をスキップします。
+> SpriteStudio Importer ウィンドウの **Recent SSPJs** からも再変換できます（行をクリック、または右クリック →「Reconvert」）。同一内容（更新日時が同一）の `.sspj` は無駄な再変換をスキップします。
 
 ---
 
-## 生成される `SpriteStudioAnimeAsset`
+## 生成される `SpriteStudioAnimeAsset` (.ssab)
 
-インポートの最終成果物です。再生に必要な情報をすべて保持し、ビルド時のストリッピング（不要アセット除去）を防ぐためのハードリファレンスも兼ねます。
+インポートの最終成果物（変換された `.ssab` データの実体）です。再生に必要な情報をすべて保持し、ビルド時のストリッピング（不要アセット除去）を防ぐためのハードリファレンスも兼ねます。
 
 | フィールド | 説明 |
 |---|---|
@@ -87,7 +90,7 @@ SpriteStudio 側でアニメーションを修正して保存したら、Unity �
 > [!TIP]
 > **チーム開発時のファイルパス共有とスマート再リンク**
 >
-> Importer 経由でインポートした際の連携情報（`.ssab` ↔ `.sspj` のひも付け）は、Unity プロジェクト直下の `ProjectSettings/SpriteStudioSourceMap.json` に **相対パス** で保存されます。
+> SpriteStudio Importer ウィンドウ経由でインポートした際の連携情報（`.ssab` ↔ `.sspj` のひも付け）は、Unity プロジェクト直下の `ProjectSettings/SpriteStudioSourceMap.json` に **相対パス** で保存されます。
 >
 > このファイルを Git 等のバージョン管理システムで共有することで、チームの別メンバーが PC に `git clone` した場合でもパスの連携が維持され、そのまま `Open SSPJ` や `Reconvert` を利用できます。
 >
