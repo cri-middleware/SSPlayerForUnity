@@ -15,6 +15,7 @@ $default_opts = @{
     arch = $HOST_ARCH
     platform = $HOST_PLATFORM
     build = "debug"
+    hostbuild = "auto"
 }
 
 $opts = @{}
@@ -27,6 +28,7 @@ function usage() {
     echo "  platform=<platform>    Target platform (windows, macos, linux, android, ios, web)"
     echo "  arch=<arch>            Target architecture (x86_64, arm64, universal, etc.)"
     echo "  build=<build>          Build mode (debug, release)"
+    echo "  hostbuild=<auto|false> Set to false to force cross-compile scripts even on host"
 }
 
 foreach ($item in $Args) {
@@ -42,9 +44,10 @@ foreach ($item in $Args) {
 $PLATFORM = $opts.platform
 $ARCH = $opts.arch
 $BUILD_MODE = $opts.build
+$HOSTBUILD = $opts.hostbuild
 
 $IS_HOST_BUILD = $false
-if ($PLATFORM -eq $HOST_PLATFORM -and $ARCH -eq $HOST_ARCH) {
+if ($HOSTBUILD -ne "false" -and $PLATFORM -eq $HOST_PLATFORM -and $ARCH -eq $HOST_ARCH -and $BUILD_MODE -eq "debug") {
     $IS_HOST_BUILD = $true
 }
 
@@ -150,6 +153,24 @@ if ($PLATFORM -eq "ios") {
     exit 0
 }
 
+if ($PLATFORM -eq "android") {
+    echo "Copying Android libraries..."
+    $android_targets = @(
+        @{ triple = "aarch64-linux-android"; unity_arch = "arm64-v8a" },
+        @{ triple = "armv7-linux-androideabi"; unity_arch = "armeabi-v7a" },
+        @{ triple = "x86_64-linux-android"; unity_arch = "x86_64" }
+    )
+    foreach ($t in $android_targets) {
+        $src = "$SDK_DIR/target/$($t.triple)/$BUILD_MODE/libssruntime.so"
+        $dest_dir = "$rootDirectory/package/Runtime/Plugins/Android/$($t.unity_arch)"
+        New-Item -ItemType Directory -Path $dest_dir -Force | Out-Null
+        if (Test-Path $src) {
+            Copy-Item $src "$dest_dir/libssruntime.so" -Force
+        }
+    }
+    exit 0
+}
+
 $LIB_EXT = ".so"
 $LIB_PREFIX = "lib"
 if ($PLATFORM -eq "windows") { 
@@ -167,11 +188,7 @@ if ($IS_HOST_BUILD) {
 } else {
     # Architecture mapping for cross-compilation
     $TARGET_TRIPLE = ""
-    if ($PLATFORM -eq "android") {
-        if ($ARCH -eq "arm64" -or $ARCH -eq "arm64-v8a") { $TARGET_TRIPLE = "aarch64-linux-android" }
-        elseif ($ARCH -eq "arm32" -or $ARCH -eq "armeabi-v7a") { $TARGET_TRIPLE = "armv7-linux-androideabi" }
-        elseif ($ARCH -eq "x86_64") { $TARGET_TRIPLE = "x86_64-linux-android" }
-    } elseif ($PLATFORM -eq "web") {
+    if ($PLATFORM -eq "web") {
         $TARGET_TRIPLE = "wasm32-unknown-unknown"
     } elseif ($PLATFORM -eq "macos" -and $ARCH -eq "universal") {
         $TARGET_TRIPLE = "universal-apple-darwin"

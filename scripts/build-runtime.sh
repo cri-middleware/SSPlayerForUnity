@@ -21,6 +21,7 @@ default_opts=(
     arch "${HOST_ARCH}"
     platform "${HOST_PLATFORM}"
     build "debug"
+    hostbuild "auto"
 )
 
 typeset -A opts
@@ -35,6 +36,7 @@ func usage() {
     echo "  platform=<platform>    Target platform (windows, macos, linux, android, ios, web)"
     echo "  arch=<arch>            Target architecture (x86_64, arm64, universal, etc.)"
     echo "  build=<build>          Build mode (debug, release)"
+    echo "  hostbuild=<auto|false> Set to false to force cross-compile scripts even on host"
 }
 
 while (( $# > 0 )); do
@@ -52,9 +54,10 @@ done
 PLATFORM=${opts[platform]}
 ARCH=${opts[arch]}
 BUILD_MODE=${opts[build]}
+HOSTBUILD=${opts[hostbuild]}
 
 IS_HOST_BUILD=false
-if [[ "$PLATFORM" == "$HOST_PLATFORM" && "$ARCH" == "$HOST_ARCH" ]]; then
+if [[ "$HOSTBUILD" != "false" && "$PLATFORM" == "$HOST_PLATFORM" && "$ARCH" == "$HOST_ARCH" && "$BUILD_MODE" == "debug" ]]; then
     IS_HOST_BUILD=true
 fi
 
@@ -200,11 +203,21 @@ if [[ "$PLATFORM" == "windows" ]]; then
 elif [[ "$PLATFORM" == "macos" ]]; then
     copy_lib "libssruntime.dylib" "${RUNTIME_LIB_OUT}" "libssruntime.dylib"
     copy_lib "libssconverter.dylib" "${EDITOR_LIB_OUT}" "libssconverter.dylib"
-elif [[ "$PLATFORM" == "linux" || "$PLATFORM" == "android" ]]; then
+elif [[ "$PLATFORM" == "linux" ]]; then
     copy_lib "libssruntime.so" "${RUNTIME_LIB_OUT}" "libssruntime.so"
-    if [[ "$PLATFORM" == "linux" ]]; then
-        copy_lib "libssconverter.so" "${EDITOR_LIB_OUT}" "libssconverter.so"
-    fi
+    copy_lib "libssconverter.so" "${EDITOR_LIB_OUT}" "libssconverter.so"
+elif [[ "$PLATFORM" == "android" ]]; then
+    for rust_arch in "aarch64-linux-android:arm64-v8a" "armv7-linux-androideabi:armeabi-v7a" "x86_64-linux-android:x86_64"; do
+        arr=(${(s/:/)rust_arch})
+        target=${arr[1]}
+        unity_arch=${arr[2]}
+        src="${SDK_DIR}/target/${target}/${BUILD_MODE}/libssruntime.so"
+        dest_dir="${RUNTIME_DIR}/Android/${unity_arch}"
+        mkdir -p "${dest_dir}"
+        if [[ -f "${src}" ]]; then
+            cp "${src}" "${dest_dir}/libssruntime.so"
+        fi
+    done
 elif [[ "$PLATFORM" == "ios" ]]; then
     # iOS is distributed as an XCFramework directory (device arm64 + simulator
     # arm64/x86_64). Unity links it statically (__Internal). Replace wholesale.
