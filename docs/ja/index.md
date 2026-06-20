@@ -13,7 +13,7 @@
     - [アセットのインポートとエディタ連携](./workflow/usage_asset_pipeline.md)（初回の `.sspj` インポートはこちら）
     - [スクリプト制御とイベント](./workflow/usage_scripting.md)
 - **応用**
-    - [インポートの自動化](./workflow/import.md)
+    - [各種コンバート機能と CI/CD](./workflow/import.md)
     - [パフォーマンスチューニングと高度な設定](./workflow/tips.md)
 
 ## 主な機能 (Key Features)
@@ -35,36 +35,38 @@
 
 ```mermaid
 graph LR
-    SS[".sspj / 画像<br>(ソースアセット)"]
+    SS[" .sspj / 画像<br>(ソースアセット) "]
 
-    subgraph Convert ["変換 (Unity Editor)"]
-        IMP[["Importer ウィンドウ<br>/ 自動変換"]]
-        CONV[["libssconverter"]]
+    subgraph Convert ["変換プロセス"]
+        IMP[[" Importer ウィンドウ<br>(Unityエディタ内蔵) "]]
+        CLI[[" ssconverter-cli<br>(CLIツール) "]]
     end
 
-    subgraph Asset ["インポート成果物"]
-        BIN[".ssab (FlatBuffers)"]
-        SO[["SpriteStudioAnimeAsset"]]
+    subgraph Asset ["インポート成果物 (Assets/)"]
+        BIN[" .ssab / .ssqb "]
+        SO[[ SpriteStudioAnimeAsset ]]
     end
 
     subgraph Runtime ["Unity ランタイム"]
-        NODE[["SpriteStudioPlayer /<br>SpriteStudioGraphic"]]
-        RT["libssruntime"]
+        NODE[[ SpriteStudioPlayer /<br>SpriteStudioGraphic ]]
+        RT(" libssruntime ")
     end
 
     SS -- "ドラッグ＆ドロップ" --> IMP
-    IMP --> CONV
-    CONV -. "変換" .-> BIN
+    SS -- "CI/CDや手動" --> CLI
+    IMP -. "自動変換" .-> BIN
+    CLI -. "生成" .-> BIN
+
     BIN -. "ScriptedImporter" .-> SO
     SO -- "セット" --> NODE
     NODE -. "FFI / 高速再生" .-> RT
-    NODE -- "Burst Job → Mesh" --> RENDER{{"画面"}}
+    NODE -- "Burst Job → Mesh" --> RENDER{{" 画面 "}}
 
     classDef generated stroke-dasharray: 5 5;
     class BIN,SO generated;
 ```
 
-- **エディタ (インポート時)**: `.sspj` を `libssconverter` で `.ssab` へ変換し、テクスチャ・マテリアル・アニメーション名・外部参照などを束ねた `SpriteStudioAnimeAsset` を生成します。
+- **エディタ (インポート時)**: `.sspj` をインポートして自動的に `.ssab` / `.ssqb` へ変換し、テクスチャ・マテリアル・アニメーション名・外部参照などを束ねた `SpriteStudioAnimeAsset` を生成します。`ssconverter-cli` による事前生成も可能です。
 - **ランタイム (再生時)**: プレイヤーコンポーネントが共有コア `SpriteStudioPlaybackCore` に委譲し、`libssruntime` がフレームデータを計算、Burst ジョブが頂点を構築して Mesh に直接アップロードします。
 
 ## 対応環境
