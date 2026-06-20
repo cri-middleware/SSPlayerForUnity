@@ -158,6 +158,10 @@ namespace SpriteStudio.Editor
                 {
                     pluginImporter.SetPlatformData(BuildTarget.Android, "CPU", "ARMv7"); changed = true;
                 }
+                else if (lowerPath.Contains("x86_64") && pluginImporter.GetPlatformData(BuildTarget.Android, "CPU") != "X86_64")
+                {
+                    pluginImporter.SetPlatformData(BuildTarget.Android, "CPU", "X86_64"); changed = true;
+                }
             }
             else if (lowerPath.Contains("/webgl/"))
             {
