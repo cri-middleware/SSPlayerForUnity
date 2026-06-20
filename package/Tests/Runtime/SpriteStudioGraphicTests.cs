@@ -38,7 +38,7 @@ namespace SpriteStudio.Runtime.Tests
         public void Play_WithoutAnimeAsset_LogsWarningOrDoesNothing()
         {
             var graphic = _go.AddComponent<SpriteStudioGraphic>();
-            Assert.DoesNotThrow(() => graphic.Play("dummy"));
+            Assert.DoesNotThrow(() => { graphic.SetAnimation("dummy"); graphic.Play(); });
         }
 
         [Test]

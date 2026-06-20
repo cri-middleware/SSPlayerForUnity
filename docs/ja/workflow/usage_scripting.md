@@ -17,17 +17,21 @@ using SpriteStudio.Runtime;
 ```csharp
 [SerializeField] private SpriteStudioPlayer _player;
 
-// アニメーション名を指定して先頭から再生
-_player.Play("walk");
+// アニメーションを指定してデータをロード（再生はまだ開始しない）
+_player.SetAnimation("walk");
+// 再生を開始
+_player.Play();
 ```
 
-`Play()` は常に**先頭フレーム・Forward・Normal（非往復）**の状態で再生を開始します。逆再生や往復再生で始めたい場合は、`Play()` の後にフラグを設定してください（後述）。
+`SetAnimation()` はアニメーションのデータをロードし、再生設定（ループ/速度/スキップ）を適用したうえで**先頭フレームで待機**します（再生は開始しません）。続けて `Play()` を呼ぶとその場から再生が始まります。`SetAnimation()` は毎回**先頭フレーム・Forward・Normal（非往復）**へ戻すため、逆再生や往復再生で始めたい場合は `SetAnimation()` の後にフラグを設定してください（後述）。
 
 ## 再生制御 API
 
 | メンバー | 種別 | 説明 |
 |---|---|---|
-| `Play(string animName)` | メソッド | 指定アニメーションを先頭から再生 |
+| `SetAnimation(string animName)` | メソッド | アニメーションを指定しデータをロード（再生は開始しない）。成功で `true` |
+| `Play()` | メソッド | セットアップ済みアニメを先頭から再生開始 |
+| `Play(float startFrame)` | メソッド | セットアップ済みアニメを指定フレームから再生開始 |
 | `Pause()` | メソッド | 現在フレームを保持して一時停止（冪等） |
 | `Resume()` | メソッド | 一時停止を解除して現在フレームから再開（冪等） |
 | `Stop()` | メソッド | 再生を停止 |
@@ -52,7 +56,8 @@ else
 ### 例: シークと区間再生
 
 ```csharp
-_player.Play("attack");
+_player.SetAnimation("attack");
+_player.Play();
 _player.SetAnimationSection(10, 30); // 10〜30 フレームの区間だけ再生
 _player.CurrentFrame = 10f;          // 区間先頭へシーク
 ```
@@ -60,12 +65,13 @@ _player.CurrentFrame = 10f;          // 区間先頭へシーク
 ### 例: 逆再生・ピンポン
 
 ```csharp
-_player.Play("walk");
+_player.SetAnimation("walk");
 _player.Reverse = true;   // 逆再生へ
 _player.PingPong = true;  // 往復再生へ
+_player.Play();
 ```
 
-> `Play()` は毎回 Forward / Normal に戻すため、`Reverse` / `PingPong` は **`Play()` の後**に設定してください。
+> `SetAnimation()` は毎回 Forward / Normal に戻すため、`Reverse` / `PingPong` は **`SetAnimation()` の後**に設定してください（`Play()` の前後どちらでも可）。
 
 ## 再生パラメータのプロパティ
 
@@ -89,6 +95,7 @@ _player.PingPong = true;  // 往復再生へ
 
 | イベント | C# event | UnityEvent フィールド | ペイロード | 発火タイミング |
 |---|---|---|---|---|
+| 再生開始 | `OnAnimationStarted` | `OnAnimationStartedEvent` | なし | `Play()` を呼んで再生を開始したとき |
 | 再生終了 | `OnAnimationFinished` | `OnAnimationFinishedEvent` | なし | 再生が終端に達して停止したとき |
 | ループ | `OnAnimationLooped` | `OnAnimationLoopedEvent` | なし | ループで先頭へ戻ったとき |
 | ユーザーデータ | `OnUserData` | `OnUserDataEvent` | `SpriteStudioUserData` | UserData キーのフレーム到達時 |
@@ -182,7 +189,8 @@ void HandleFinished()
     // 攻撃が終わったら待機状態に戻る
     if (_player.AnimationName == "attack")
     {
-        _player.Play("idle");
+        _player.SetAnimation("idle");
+        _player.Play();
     }
 }
 ```

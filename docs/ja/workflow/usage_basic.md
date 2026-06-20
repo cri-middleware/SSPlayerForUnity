@@ -71,7 +71,8 @@ public class Sample : MonoBehaviour
 
     void Start()
     {
-        _player.Play("walk"); // アニメーション名を指定して再生
+        _player.SetAnimation("walk"); // アニメーションを指定（データをロード）
+        _player.Play();               // 再生開始
     }
 }
 ```

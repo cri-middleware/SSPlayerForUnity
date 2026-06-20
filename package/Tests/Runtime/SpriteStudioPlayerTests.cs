@@ -37,7 +37,7 @@ namespace SpriteStudio.Runtime.Tests
         {
             var player = _go.AddComponent<SpriteStudioPlayer>();
             // 落ちないことを確認
-            Assert.DoesNotThrow(() => player.Play("dummy"));
+            Assert.DoesNotThrow(() => { player.SetAnimation("dummy"); player.Play(); });
         }
 
         [Test]
