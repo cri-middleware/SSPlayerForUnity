@@ -13,6 +13,7 @@ namespace SpriteStudio.Runtime
         /// <summary>内部プレイヤー (FFI コンテキスト)。未生成/破棄後は null。</summary>
         public SpriteStudioInternalPlayer Internal { get; private set; }
 
+        public event System.Action OnAnimationStarted;
         public event System.Action OnAnimationFinished;
         public event System.Action OnAnimationLooped;
         public event System.Action<SpriteStudioUserData> OnUserData;
@@ -93,25 +94,44 @@ namespace SpriteStudio.Runtime
             _loadedAsset = null;
         }
 
-        /// <summary>指定アニメーションの再生を開始する。logContext は警告メッセージのタグ。</summary>
-        public void Play(string animationName, int loopCount, float speedScale, bool skipFrames, string logContext)
+        /// <summary>
+        /// 指定アニメーションのデータをロードし、再生設定 (ループ/速度/スキップ/方向) を適用する。
+        /// 再生は開始しない (先頭フレームで posed)。開始するには別途 <see cref="Play()"/> を呼ぶ。
+        /// logContext は警告メッセージのタグ。setup に成功すれば true。
+        /// </summary>
+        public bool SetAnimation(string animationName, int loopCount, float speedScale, bool skipFrames, string logContext)
         {
-            if (Internal == null || string.IsNullOrEmpty(animationName)) return;
+            if (Internal == null || string.IsNullOrEmpty(animationName)) return false;
 
-            if (Internal.SetupAnimation(animationName))
-            {
-                // FFI 契約: direction 0=Forward / 非0=Backward, style 0=Normal / 非0=PingPong
-                Internal.SetPlaybackStyle(0, 0); // Forward, Normal
-                Internal.SetLoop(loopCount);  // -1 = 無限ループ / 1 = 1回 / n = n回
-                Internal.SetSpeed(speedScale);
-                // skip_frames も Rust の setup() が既定 (true) へ戻すため、loop/speed と同じくここで再適用する。
-                Internal.SetSkipFrames(skipFrames);
-                Internal.Play();
-            }
-            else
+            if (!Internal.SetupAnimation(animationName))
             {
                 Debug.LogWarning($"[{logContext}] Failed to setup animation: {animationName}");
+                return false;
             }
+
+            // Rust の setup_animation はこれらを既定値へ戻すため、setup 直後に再適用する。
+            // FFI 契約: direction 0=Forward / 非0=Backward, style 0=Normal / 非0=PingPong
+            Internal.SetPlaybackStyle(0, 0); // Forward, Normal
+            Internal.SetLoop(loopCount);     // -1 = 無限ループ / 1 = 1回 / n = n回
+            Internal.SetSpeed(speedScale);
+            Internal.SetSkipFrames(skipFrames);
+            return true;
+        }
+
+        /// <summary>現在セットアップ済みのアニメーションを先頭から再生開始する。</summary>
+        public void Play()
+        {
+            if (Internal == null) return;
+            Internal.Play();
+            OnAnimationStarted?.Invoke();
+        }
+
+        /// <summary>現在セットアップ済みのアニメーションを指定フレームから再生開始する。</summary>
+        public void Play(float startFrame)
+        {
+            if (Internal == null) return;
+            Internal.Play(startFrame);
+            OnAnimationStarted?.Invoke();
         }
 
         /// <summary>アニメーションを進め、メッシュ構築ジョブをスケジュールする (Job の完了待ちはしない)。</summary>

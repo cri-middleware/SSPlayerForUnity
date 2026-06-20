@@ -97,13 +97,21 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// 指定したアニメーションの再生を開始します。
+        /// 再生するアニメーションを指定し、データのロードと再生設定 (ループ/速度/スキップ) を適用します。
+        /// 再生は開始しません (先頭フレームで posed 表示)。開始するには <see cref="Play()"/> を呼びます。
+        /// setup に成功すれば true。
         /// </summary>
-        public void Play(string animName)
+        public bool SetAnimation(string animName)
         {
             _animationName = animName;
-            _core.Play(_animationName, _loopCount, _speedScale, _skipFrames, "SpriteStudioGraphic");
+            return _core.SetAnimation(_animationName, _loopCount, _speedScale, _skipFrames, "SpriteStudioGraphic");
         }
+
+        /// <summary>現在セットアップ済みのアニメーションを先頭から再生開始します。</summary>
+        public void Play() => _core.Play();
+
+        /// <summary>現在セットアップ済みのアニメーションを指定フレームから再生開始します。</summary>
+        public void Play(float startFrame) => _core.Play(startFrame);
 
         #region Playback Control (再生制御)
         // 内部プレイヤー (Rust ランタイム) が既に備える再生制御をコンポーネントの公開 API として薄く露出する。
@@ -162,8 +170,8 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// 逆再生 (Backward) か。<see cref="Play(string)"/> は毎回 Forward へ戻すため、
-        /// 逆再生で開始したい場合は Play 後に true を設定する。
+        /// 逆再生 (Backward) か。<see cref="SetAnimation(string)"/> は毎回 Forward へ戻すため、
+        /// 逆再生で開始したい場合は SetAnimation 後 (Play 前後どちらでも可) に true を設定する。
         /// </summary>
         public bool Reverse
         {
@@ -176,8 +184,8 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// 往復 (PingPong) 再生か。<see cref="Play(string)"/> は毎回 Normal へ戻すため、
-        /// PingPong で開始したい場合は Play 後に true を設定する。
+        /// 往復 (PingPong) 再生か。<see cref="SetAnimation(string)"/> は毎回 Normal へ戻すため、
+        /// PingPong で開始したい場合は SetAnimation 後 (Play 前後どちらでも可) に true を設定する。
         /// </summary>
         public bool PingPong
         {
@@ -199,14 +207,23 @@ namespace SpriteStudio.Runtime
         protected override void Start()
         {
             base.Start();
-            if (_autoPlay && !string.IsNullOrEmpty(_animationName))
+            if (string.IsNullOrEmpty(_animationName)) return;
+            // AutoPlay でなくても先頭フレームを posed 表示するため SetAnimation は常に行い、
+            // 実際の再生開始は AutoPlay のときだけにする。
+            if (SetAnimation(_animationName) && _autoPlay)
             {
-                Play(_animationName);
+                Play();
             }
         }
 
         private readonly SpriteStudioPlaybackCore _core = new SpriteStudioPlaybackCore();
 
+        /// <summary>再生開始時に発火します (<see cref="Play()"/> 呼び出し時)。</summary>
+        public event System.Action OnAnimationStarted
+        {
+            add => _core.OnAnimationStarted += value;
+            remove => _core.OnAnimationStarted -= value;
+        }
         public event System.Action OnAnimationFinished
         {
             add => _core.OnAnimationFinished += value;
@@ -234,6 +251,7 @@ namespace SpriteStudio.Runtime
         }
 
         [Header("Events")]
+        public UnityEvent OnAnimationStartedEvent = new UnityEvent();
         public UnityEvent OnAnimationFinishedEvent = new UnityEvent();
         public UnityEvent OnAnimationLoopedEvent = new UnityEvent();
         public UserDataUnityEvent OnUserDataEvent = new UserDataUnityEvent();
@@ -265,6 +283,7 @@ namespace SpriteStudio.Runtime
             _canvasMaterialDirty = true;
             SpriteStudioUpdateManager.Register(this);
 
+            _core.OnAnimationStarted += InvokeAnimationStarted;
             _core.OnAnimationFinished += InvokeAnimationFinished;
             _core.OnAnimationLooped += InvokeAnimationLooped;
             _core.OnUserData += InvokeUserData;
@@ -275,6 +294,7 @@ namespace SpriteStudio.Runtime
             _editPreviewNeedsSetup = true;
         }
 
+        private void InvokeAnimationStarted() => OnAnimationStartedEvent?.Invoke();
         private void InvokeAnimationFinished() => OnAnimationFinishedEvent?.Invoke();
         private void InvokeAnimationLooped() => OnAnimationLoopedEvent?.Invoke();
         private void InvokeUserData(SpriteStudioUserData data) => OnUserDataEvent?.Invoke(data);
@@ -287,6 +307,7 @@ namespace SpriteStudio.Runtime
 
             SpriteStudioUpdateManager.Unregister(this);
 
+            _core.OnAnimationStarted -= InvokeAnimationStarted;
             _core.OnAnimationFinished -= InvokeAnimationFinished;
             _core.OnAnimationLooped -= InvokeAnimationLooped;
             _core.OnUserData -= InvokeUserData;

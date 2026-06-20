@@ -76,7 +76,8 @@ namespace SpriteStudio.Runtime.Tests
             _objects.Add(go);
             var player = go.AddComponent<SpriteStudioPlayer>();
             player.AnimeAsset = MakeAsset();
-            player.Play(anim);
+            player.SetAnimation(anim);
+            player.Play();
             return player;
         }
 
@@ -249,7 +250,8 @@ namespace SpriteStudio.Runtime.Tests
             go.AddComponent<CanvasRenderer>();
             var graphic = go.AddComponent<SpriteStudioGraphic>();
             graphic.AnimeAsset = MakeAsset();
-            graphic.Play("walk");
+            graphic.SetAnimation("walk");
+            graphic.Play();
 
             Assert.IsTrue(graphic.IsPlaying, "Play 後は再生中のはず");
             Assert.Greater(graphic.TotalFrames, 0);

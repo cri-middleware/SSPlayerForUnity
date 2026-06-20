@@ -97,7 +97,7 @@ namespace SpriteStudio.Runtime.Tests
 
             // 注: "Ringo" はパック名であってアニメーション名ではない。pack "Ringo" の実アニメは
             // walk / run / dance / attack1 など。正しいアニメ名で再生する。
-            Assert.DoesNotThrow(() => player.Play("walk"));
+            Assert.DoesNotThrow(() => { player.SetAnimation("walk"); player.Play(); });
 
             // 1フレーム待機してUpdateManagerによるJob実行を完了させる
             yield return null;
@@ -179,7 +179,7 @@ namespace SpriteStudio.Runtime.Tests
             string[] animations = { "walk", "run", "dance", "attack1" };
             foreach (var anim in animations)
             {
-                Assert.DoesNotThrow(() => player.Play(anim), $"Playing {anim} failed");
+                Assert.DoesNotThrow(() => { player.SetAnimation(anim); player.Play(); }, $"Playing {anim} failed");
                 yield return null;
                 yield return null; // wait for job complete
             }
