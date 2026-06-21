@@ -3,7 +3,7 @@ $ErrorActionPreference = "Stop"
 $baseDirectory = Split-Path -Parent $PSCommandPath
 $rootDirectory = Split-Path -Parent $baseDirectory
 $targetDir = "$rootDirectory/package"
-$versionFile = "$targetDir/SDK_VERSION.txt"
+$versionFile = "$rootDirectory/SDK_VERSION.txt"
 $currentVersionFile = "$targetDir/Runtime/Plugins/VERSION"
 
 $targetVersion = (Get-Content $versionFile).Trim()

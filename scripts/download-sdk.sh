@@ -3,7 +3,7 @@ set -e
 BASEDIR=$(dirname $0)
 ROOTDIR=$(cd "$BASEDIR/.." && pwd -P)
 TARGET_DIR="${ROOTDIR}/package"
-VERSION_FILE="${TARGET_DIR}/SDK_VERSION.txt"
+VERSION_FILE="${ROOTDIR}/SDK_VERSION.txt"
 CURRENT_VERSION_FILE="${TARGET_DIR}/Runtime/Plugins/VERSION"
 
 TARGET_VERSION=$(cat "$VERSION_FILE" | tr -d '\r\n')
