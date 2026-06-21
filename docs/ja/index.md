@@ -80,6 +80,14 @@ graph LR
 
 > **注意:** 現在のパッケージバージョンは `7.0.0-alpha01` です。API は予告なく変更される可能性があります。
 
+## ライセンス (License)
+
+本プロジェクトは BSD-3-Clause ライセンスのもとで公開されています。詳細はルートディレクトリの [LICENSE.md](../../LICENSE.md) をご参照ください。
+
+## サードパーティライセンス
+
+本プロジェクトはサードパーティのオープンソースライブラリを使用しています。詳細はルートディレクトリの [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) をご参照ください。
+
 ## 関連リポジトリ
 
 - [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — `libssruntime` / `libssconverter` を提供する SDK 本体

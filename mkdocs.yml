@@ -52,6 +52,9 @@ nav:
   - Advanced Topics:
       - CLI Conversion & CI/CD: workflow/import.md
       - Performance Tuning & Advanced Settings: workflow/tips.md
+  - License:
+      - License: license.md
+      - Third-Party Notices: third_party_notices.md
 
 markdown_extensions:
   - admonition

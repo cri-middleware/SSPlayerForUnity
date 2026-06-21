@@ -49,6 +49,14 @@
 
 データフロー図、主な機能、対応環境などの詳細は **[ドキュメント (日本語)](./docs/ja/index.md)** を参照してください。
 
+## ライセンス (License)
+
+本プロジェクトは BSD-3-Clause ライセンスのもとで公開されています。詳細は [LICENSE.md](./LICENSE.md) をご参照ください。
+
+## サードパーティライセンス
+
+本プロジェクトはサードパーティのオープンソースライブラリを使用しています。詳細は [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) をご参照ください。
+
 ## 関連リポジトリ
 
 - [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — `libssruntime` / `libssconverter` を提供する SDK 本体

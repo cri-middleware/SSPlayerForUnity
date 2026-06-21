@@ -49,6 +49,14 @@ This plugin features a **powerful asset pipeline that seamlessly integrates Spri
 
 For details such as data flow diagrams, key features, and system requirements, please refer to the **[Documentation (Japanese)](./docs/ja/index.md)**.
 
+## License
+
+This project is licensed under the BSD-3-Clause License. See the [LICENSE.md](./LICENSE.md) file for details.
+
+## Third-Party Notices
+
+This project uses third-party open-source libraries. Please refer to [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for details.
+
 ## Related Repositories
 
 - [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — The core SDK providing `libssruntime` and `libssconverter`.
