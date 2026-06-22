@@ -95,11 +95,13 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// 指定アニメーションのデータをロードし、再生設定 (ループ/速度/スキップ/方向) を適用する。
-        /// 再生は開始しない (先頭フレームで posed)。開始するには別途 <see cref="Play()"/> を呼ぶ。
+        /// 指定アニメーションのデータをセットアップする (先頭フレームで posed)。再生は開始しない。
+        /// 開始するには別途 <see cref="Play()"/> を呼ぶ。ループ/速度/スキップ/方向などの再生設定はここでは
+        /// 適用しない: Rust の setup_animation がこれらを既定値 (Forward/Normal 等) へ戻すため、必要なら
+        /// 呼び出し側が setup 後に別途適用する (Godot プレイヤーと同じ流れ)。
         /// logContext は警告メッセージのタグ。setup に成功すれば true。
         /// </summary>
-        public bool SetAnimation(string animationName, int loopCount, float speedScale, bool skipFrames, string logContext)
+        public bool SetAnimation(string animationName, string logContext)
         {
             if (Internal == null || string.IsNullOrEmpty(animationName)) return false;
 
@@ -108,13 +110,6 @@ namespace SpriteStudio.Runtime
                 Debug.LogWarning($"[{logContext}] Failed to setup animation: {animationName}");
                 return false;
             }
-
-            // Rust の setup_animation はこれらを既定値へ戻すため、setup 直後に再適用する。
-            // FFI 契約: direction 0=Forward / 非0=Backward, style 0=Normal / 非0=PingPong
-            Internal.SetPlaybackStyle(0, 0); // Forward, Normal
-            Internal.SetLoop(loopCount);     // -1 = 無限ループ / 1 = 1回 / n = n回
-            Internal.SetSpeed(speedScale);
-            Internal.SetSkipFrames(skipFrames);
             return true;
         }
 
