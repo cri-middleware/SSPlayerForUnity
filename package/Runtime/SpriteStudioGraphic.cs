@@ -97,14 +97,30 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// 再生するアニメーションを指定し、データのロードと再生設定 (ループ/速度/スキップ) を適用します。
-        /// 再生は開始しません (先頭フレームで posed 表示)。開始するには <see cref="Play()"/> を呼びます。
-        /// setup に成功すれば true。
+        /// 再生するアニメーションを指定し、データをセットアップします (先頭フレームで posed 表示)。
+        /// 再生は開始しません。開始するには <see cref="Play()"/> を呼びます。ループ/速度/スキップ等の
+        /// 再生設定はここでは適用されません (setup で既定値へ戻るため)。実行時に切り替えたあとで設定を
+        /// 反映するには <see cref="LoopCount"/> / <see cref="SpeedScale"/> / <see cref="SkipFrames"/> などの
+        /// プロパティを setup 後に設定してください (Godot プレイヤーと同じ流れ)。setup に成功すれば true。
         /// </summary>
         public bool SetAnimation(string animName)
         {
             _animationName = animName;
-            return _core.SetAnimation(_animationName, _loopCount, _speedScale, _skipFrames, "SpriteStudioGraphic");
+            return _core.SetAnimation(_animationName, "SpriteStudioGraphic");
+        }
+
+        // Push the serialized playback parameters (loop / speed / skip) to the runtime. SetAnimation only
+        // sets the animation up; the Rust setup resets these to defaults, so they are applied separately
+        // afterwards — mirroring the Godot player, where loop/speed/skip are configured after the animation
+        // is set. Direction/style (Reverse/PingPong) have no serialized default and stay at the setup
+        // default (Forward/Normal) until set via their properties.
+        private void ApplyPlaybackSettings()
+        {
+            var p = _core.Internal;
+            if (p == null) return;
+            p.SetLoop(_loopCount);
+            p.SetSpeed(_speedScale);
+            p.SetSkipFrames(_skipFrames);
         }
 
         /// <summary>現在セットアップ済みのアニメーションを先頭から再生開始します。</summary>
@@ -132,22 +148,11 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        /// <summary>再生を一時停止する (現在フレームを保持)。<see cref="Resume"/> で再開する。冪等。</summary>
-        public void Pause()
-        {
-            // ネイティブの pause() は is_pausing のトグル。既に一時停止中なら何もしない (冪等性確保)。
-            var p = _core.Internal;
-            if (p != null && !p.IsPausing()) p.Pause();
-        }
-
-        /// <summary>一時停止を解除し、現在フレームから再生を再開する。冪等。</summary>
-        public void Resume()
-        {
-            // ネイティブに resume は無く、play() は先頭へ巻き戻す。pause() を再トグルして
-            // 現在フレームを保持したまま再開する。一時停止中でなければ何もしない。
-            var p = _core.Internal;
-            if (p != null && p.IsPausing()) p.Pause();
-        }
+        /// <summary>
+        /// 再生の一時停止 / 再開をトグルします (現在フレームを保持)。ネイティブの is_pausing を切り替えます
+        /// (Godot プレイヤーの pause() と同じ。play() は先頭へ巻き戻すため再開には使えません)。
+        /// </summary>
+        public void Pause() => _core.Internal?.Pause();
 
         /// <summary>再生を停止する。</summary>
         public void Stop() => _core.Internal?.Stop();
@@ -209,10 +214,12 @@ namespace SpriteStudio.Runtime
             base.Start();
             if (string.IsNullOrEmpty(_animationName)) return;
             // AutoPlay でなくても先頭フレームを posed 表示するため SetAnimation は常に行い、
-            // 実際の再生開始は AutoPlay のときだけにする。
-            if (SetAnimation(_animationName) && _autoPlay)
+            // 実際の再生開始は AutoPlay のときだけにする。SetAnimation は再生設定を適用しないため
+            // setup 後に明示適用する (Godot のプロパティ適用順と同じ: animation -> loop/speed/skip -> play)。
+            if (SetAnimation(_animationName))
             {
-                Play();
+                ApplyPlaybackSettings();
+                if (_autoPlay) Play();
             }
         }
 

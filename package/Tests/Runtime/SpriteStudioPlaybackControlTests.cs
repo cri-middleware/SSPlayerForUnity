@@ -11,15 +11,15 @@ namespace SpriteStudio.Runtime.Tests
 {
     /// <summary>
     /// Tier 1 で SpriteStudioPlayer / SpriteStudioGraphic に追加した再生制御 API
-    /// (IsPlaying / IsPaused / Pause / Resume / Stop / CurrentFrame / TotalFrames /
+    /// (IsPlaying / IsPaused / Pause / Stop / CurrentFrame / TotalFrames /
     ///  FrameRate / Reverse / PingPong / SetAnimationSection) を検証する。
     ///
     /// これらは内部プレイヤー (Rust ランタイム) への薄い委譲なので 2 層で確認する:
     ///   (A) コンポーネント層 — ネイティブ状態が同期的に反映される委譲・ラウンドトリップ・null 安全性。
     ///       [ExecuteAlways] により AddComponent で OnEnable が走り、AnimeAsset 割当 → Play まで同期実行されるため、
     ///       フレーム駆動 (UpdateManager / yield) なしで決定論的に検証できる。
-    ///   (B) 内部プレイヤー層 — 手動 Tick による前進挙動 (Pause で停止 / Resume で現フレーム継続 / 逆再生で減少 /
-    ///       区間設定の反映)。コンポーネントの Pause/Resume 等が委譲する先のセマンティクスを担保する。
+    ///   (B) 内部プレイヤー層 — 手動 Tick による前進挙動 (Pause トグルで停止 / 再トグルで現フレーム継続 /
+    ///       逆再生で減少 / 区間設定の反映)。コンポーネントの Pause 等が委譲する先のセマンティクスを担保する。
     ///
     /// フィクスチャは既存の Ringo を流用する。アニメ長に依存する前提は Assume で守る (短アニメ時は inconclusive)。
     /// </summary>
@@ -111,12 +111,12 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
-        public void Resume_AfterPause_ClearsPaused()
+        public void Pause_Toggle_ClearsPaused()
         {
             var player = MakePlayingPlayer();
-            player.Pause();
-            player.Resume();
-            Assert.IsFalse(player.IsPaused, "Resume 後は一時停止が解除されるはず");
+            player.Pause(); // toggle: playing -> paused
+            player.Pause(); // toggle: paused -> playing
+            Assert.IsFalse(player.IsPaused, "Pause を再度呼ぶ (トグル) と一時停止が解除されるはず");
             Assert.IsTrue(player.IsPlaying);
         }
 
@@ -212,7 +212,7 @@ namespace SpriteStudio.Runtime.Tests
             Assert.DoesNotThrow(() =>
             {
                 _ = player.TotalFrames;
-                player.Pause(); player.Resume(); player.Stop();
+                player.Pause(); player.Pause(); player.Stop();
                 player.CurrentFrame = 5f; player.FrameRate = 30;
                 player.Reverse = true; player.PingPong = true;
                 player.SetAnimationSection(0, 1);
@@ -230,7 +230,7 @@ namespace SpriteStudio.Runtime.Tests
 
             Assert.DoesNotThrow(() =>
             {
-                player.Pause(); player.Resume(); player.Stop();
+                player.Pause(); player.Pause(); player.Stop();
                 _ = player.CurrentFrame; player.CurrentFrame = 1f;
                 _ = player.Reverse; player.Reverse = true;
                 player.SetAnimationSection(0, 1);
@@ -296,10 +296,10 @@ namespace SpriteStudio.Runtime.Tests
                 Assert.AreEqual(f0, player.GetFrame(), 0.5f, "一時停止中はフレームが進まないはず");
 
                 // 再開: play() は先頭へ巻き戻すため使えない。pause() を再トグルすると現在フレームを
-                // 保持したまま再開する (コンポーネントの Resume() が委譲する経路と同じ)。
+                // 保持したまま再開する (コンポーネントの Pause() トグルが委譲する経路と同じ)。
                 player.Pause(); // toggle: paused -> playing
                 for (int i = 0; i < step; i++) player.Tick(1f / 60f, false);
-                Assert.Greater(player.GetFrame(), f0, "Resume (pause トグル) は現フレームから継続するはず (先頭に戻らない)");
+                Assert.Greater(player.GetFrame(), f0, "再開 (pause トグル) は現フレームから継続するはず (先頭に戻らない)");
             }
         }
 

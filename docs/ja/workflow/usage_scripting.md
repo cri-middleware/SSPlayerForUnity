@@ -23,7 +23,7 @@ _player.SetAnimation("walk");
 _player.Play();
 ```
 
-`SetAnimation()` はアニメーションのデータをロードし、再生設定（ループ/速度/スキップ）を適用したうえで**先頭フレームで待機**します（再生は開始しません）。続けて `Play()` を呼ぶとその場から再生が始まります。`SetAnimation()` は毎回**先頭フレーム・Forward・Normal（非往復）**へ戻すため、逆再生や往復再生で始めたい場合は `SetAnimation()` の後にフラグを設定してください（後述）。
+`SetAnimation()` はアニメーションのデータをロードし**先頭フレームで待機**します（再生は開始しません）。続けて `Play()` を呼ぶとその場から再生が始まります。`SetAnimation()` は再生設定（ループ/速度/スキップ/方向）を**適用しません**。毎回**先頭フレーム・Forward・Normal（非往復）・ランタイム既定のループ/速度/スキップ**へ戻すため、インスペクタで設定したループ/速度/スキップは起動時に適用されますが、スクリプトから実行時に `SetAnimation()` でアニメを切り替えた場合は、必要に応じて `LoopCount` / `SpeedScale` / `SkipFrames` / `Reverse` / `PingPong` を `SetAnimation()` の後に再設定してください（後述）。
 
 ## 再生制御 API
 
@@ -32,8 +32,7 @@ _player.Play();
 | `SetAnimation(string animName)` | メソッド | アニメーションを指定しデータをロード（再生は開始しない）。成功で `true` |
 | `Play()` | メソッド | セットアップ済みアニメを先頭から再生開始 |
 | `Play(float startFrame)` | メソッド | セットアップ済みアニメを指定フレームから再生開始 |
-| `Pause()` | メソッド | 現在フレームを保持して一時停止（冪等） |
-| `Resume()` | メソッド | 一時停止を解除して現在フレームから再開（冪等） |
+| `Pause()` | メソッド | 一時停止／再開のトグル（現在フレームを保持。`play()` は先頭へ巻き戻すため再開には使えない） |
 | `Stop()` | メソッド | 再生を停止 |
 | `IsPlaying` | `bool`（読取） | 再生セッションが有効か（一時停止中でも `true`） |
 | `IsPaused` | `bool`（読取） | 一時停止中か |
@@ -47,10 +46,8 @@ _player.Play();
 ### 例: 一時停止と再開
 
 ```csharp
-if (_player.IsPlaying && !_player.IsPaused)
-    _player.Pause();
-else
-    _player.Resume();
+// Pause() は一時停止／再開のトグル（再生中なら一時停止、一時停止中なら再開）
+_player.Pause();
 ```
 
 ### 例: シークと区間再生
