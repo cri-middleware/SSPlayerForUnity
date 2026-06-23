@@ -135,13 +135,6 @@ internal struct MaskPartData
             _geometryBuilder = new SpriteStudioGeometryBuilder(this);
         }
 
-        /// <summary>
-        /// SsabData (バイト配列) を読み込んでリソースをバインドする
-        /// </summary>
-        // Instance パーツの入れ子上限。万一データに循環参照があっても無限再帰でハングしないための保険。
-        private const int MaxInstanceDepth = 16;
-        private int _instanceDepth;
-
         public event Action OnAnimationFinished;
         public event Action OnAnimationLooped;
         public event Action<SpriteStudioUserData> OnUserData;
@@ -160,16 +153,13 @@ internal struct MaskPartData
         public bool HasSsab => _hasSsab;
         private bool _hasSsab;
 
+        /// <summary>
+        /// SsabData (バイト配列) を読み込んでリソースをバインドする。
+        /// Instance パーツがあれば子プレイヤーを再帰的に生成する。
+        /// </summary>
         public void LoadSsab(byte[] ssabData, AssetResolver resolver = null)
         {
-            LoadSsabInternal(ssabData, resolver, 0);
-        }
-
-        /// <summary>LoadSsab の実体。depth は Instance 入れ子の深さ (循環参照ガード用)。</summary>
-        private void LoadSsabInternal(byte[] ssabData, AssetResolver resolver, int depth)
-        {
             _assetResolver = resolver;
-            _instanceDepth = depth;
 
             // 再ロード (実行時のアセット差し替え) では、旧 ssab バッファを borrow している
             // in-flight な Burst Job が残っている可能性がある。ネイティブリソースを破棄/再 borrow
@@ -297,12 +287,6 @@ internal struct MaskPartData
                     }
                     else if (p.PartTypeType == ss.format.PartType.PartTypeInstance)
                     {
-                        if (_instanceDepth + 1 >= MaxInstanceDepth)
-                        {
-                            UnityEngine.Debug.LogWarning($"[SpriteStudioInternalPlayer] Instance nesting exceeded {MaxInstanceDepth} levels at part {i}; skipping to avoid cyclic references.");
-                            continue;
-                        }
-
                         var pt = p.PartTypeAsPartTypeInstance();
                         uint packHash = pt.RefAnimePackHash;
                         uint nameHash = pt.RefAnimeNameHash;
@@ -321,7 +305,7 @@ internal struct MaskPartData
                         // Inherit the parent's suppression so children (re)created on load match the
                         // Canvas/world choice; the public setter also propagates to existing children.
                         childPlayer._suppressInternalMask = _suppressInternalMask;
-                        childPlayer.LoadSsabInternal(childSsab, _assetResolver, _instanceDepth + 1);
+                        childPlayer.LoadSsab(childSsab, _assetResolver);
 
                         if (!childPlayer.SetupAnimationByHash(nameHash))
                         {

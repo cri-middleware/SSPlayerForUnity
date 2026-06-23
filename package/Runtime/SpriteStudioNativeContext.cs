@@ -60,7 +60,7 @@ namespace SpriteStudio.Runtime
                 // いる。先に旧 pin を Free すると borrow が dangling になるため、必ず
                 //   旧リソース破棄 → 旧 pin Free → 新 pin Alloc → 新リソース作成 → runtime へ load
                 // の順で行う。なおこの経路は再ロード (実行時のアセット差し替え) でも呼ばれるので、
-                // 呼び出し側 (SpriteStudioInternalPlayer.LoadSsabInternal) で in-flight Job を
+                // 呼び出し側 (SpriteStudioInternalPlayer.LoadSsab) で in-flight Job を
                 // Complete() 済みであることが前提 (旧バッファを読む Job が走っていないこと)。
                 if (_resourceHandle != null)
                 {
