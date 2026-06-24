@@ -366,8 +366,47 @@ internal struct MaskPartData
             unsafe
             {
                 if (!_handle.IsValid) return;
+                // Play() always heads out (rewinds to a start frame); "resume" is Pause()'s toggle,
+                // not Play(). So a fresh play must clear each slot's "last started key" memory, else a
+                // re-played animation would debounce an already-fired independent effect/instance as
+                // the same key and never re-fire it. Mirrors the Godot player's play().
+                ResetSlotsPlaybackState();
                 if (startFrame < 0.0f) NativeMethods.ss_runtime_play(_handle.ptr);
                 else NativeMethods.ss_runtime_play_with_start_frame(_handle.ptr, startFrame);
+            }
+        }
+
+        /// <summary>
+        /// Reset every effect/instance slot's "last started key" playback memory (recursing into
+        /// instance children) so an explicit head-out re-fires independent effects/instances from
+        /// scratch instead of debouncing the first key as the same one the slot last started. Called
+        /// from Play(). The reset itself lives in the runtime (ss_effect_slot_reset /
+        /// ss_instance_slot_reset); the host only iterates the slots it owns. Mirrors the Godot
+        /// player's _reset_slots_playback_state().
+        /// </summary>
+        internal void ResetSlotsPlaybackState()
+        {
+            unsafe
+            {
+                if (_effectSlots != null)
+                {
+                    for (int i = 0; i < _effectSlots.Length; i++)
+                    {
+                        if (_effectSlots[i].EffectSlot != System.IntPtr.Zero)
+                            NativeMethods.ss_effect_slot_reset((void*)_effectSlots[i].EffectSlot);
+                    }
+                }
+                if (_instanceChildren != null)
+                {
+                    for (int i = 0; i < _instanceChildren.Length; i++)
+                    {
+                        if (_instanceChildren[i].InstanceSlot != System.IntPtr.Zero)
+                            NativeMethods.ss_instance_slot_reset((void*)_instanceChildren[i].InstanceSlot);
+                        // Recurse so a re-play also restarts independent effects/instances nested
+                        // inside instance children (their slots live on the child).
+                        _instanceChildren[i].Player?.ResetSlotsPlaybackState();
+                    }
+                }
             }
         }
         public bool IsPausing() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_is_pausing(_handle.ptr); } }
