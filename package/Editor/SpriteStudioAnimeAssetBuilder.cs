@@ -56,7 +56,7 @@ namespace SpriteStudio.Editor
 
             // Shader.Find はインポート順によって null を返すことがあるため、パスから直接ロードする
             var shader = AssetDatabase.LoadAssetAtPath<Shader>(
-                "Packages/com.spritestudio.ssruntime/Runtime/Shaders/SpriteStudioDefault.shader");
+                "Packages/com.spritestudio.ssruntime/Runtime/Resources/Shaders/SpriteStudioDefault.shader");
             if (shader == null) shader = Shader.Find("SpriteStudio/Default");
             return shader;
         }
