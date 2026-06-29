@@ -116,5 +116,57 @@ namespace SpriteStudio.Runtime.Tests
                 Assert.Greater(audio, 0, "音声イベント付きアニメの 1 回再生で OnAudio が発火するはず");
             }
         }
+
+        /// <summary>
+        /// AnimeAsset.TryGetSoundInfo() が、実際に発火した音のハッシュキーで ssab の音メタ
+        /// (alias / file_path / 再生長) を引けることを確認する。発火ペイロード (アドレスのみ) に
+        /// 乗っていない file_path 等を補う opt-in アクセサの往復検証。未知ハッシュは false。
+        /// </summary>
+        [Test]
+        public void TryGetSoundInfo_ResolvesMetadata_ForFiredSound()
+        {
+            Assert.IsNotNull(_sound, $"Sound.ssab が必要です: {Path.GetFullPath(SoundResSsabPath)}");
+
+            // 実際に発火した音のハッシュを 1 件採取する (ssab に確実に存在するキー)。
+            SpriteStudioAudio captured = default;
+            bool got = false;
+            using (var player = new SpriteStudioInternalPlayer())
+            {
+                player.LoadSsab(_sound);
+                player.OnAudio += a => { if (!got) { captured = a; got = true; } };
+                string anim = player.GetAnimationName(0);
+                Assert.IsTrue(player.SetupAnimation(anim), $"先頭アニメ '{anim}' が見つかるはず");
+                player.SetLoop(1);
+                player.Play();
+                int guard = 0;
+                while (player.IsPlaying() && guard++ < 10000) player.Tick(1f / 60f, false);
+            }
+            Assert.IsTrue(got, "音声イベントが 1 件は採取できるはず");
+
+            // 同じ ssab を載せた AnimeAsset から、その音のメタを引けるはず。
+            var asset = ScriptableObject.CreateInstance<SpriteStudioAnimeAsset>();
+            try
+            {
+                asset.SsabData = _sound;
+
+                bool ok = asset.TryGetSoundInfo(captured.SoundListNameHash, captured.SoundNameHash, out var info);
+                Assert.IsTrue(ok, "発火した音のハッシュは ssab の SoundList に存在するはず");
+                Assert.IsFalse(string.IsNullOrEmpty(info.FilePath), "file_path が取得できるはず");
+                Assert.IsFalse(string.IsNullOrEmpty(info.Alias), "alias が取得できるはず");
+                // 発火ペイロードの SoundName は診断用 (オプション) なので、存在する場合のみ一致を検証。
+                if (!string.IsNullOrEmpty(captured.SoundName))
+                    Assert.AreEqual(captured.SoundName, info.Alias, "alias は発火ペイロードの SoundName と一致するはず");
+                Debug.Log($"[AUDIO] TryGetSoundInfo: alias={info.Alias} file={info.FilePath} ms={info.TimeTotalMs}");
+
+                // 未知ハッシュは false を返し、out は default。
+                Assert.IsFalse(asset.TryGetSoundInfo(0xDEADBEEFu, 0xCAFEBABEu, out var none),
+                    "未知ハッシュは false を返すはず");
+                Assert.IsNull(none.FilePath);
+            }
+            finally
+            {
+                Object.DestroyImmediate(asset);
+            }
+        }
     }
 }

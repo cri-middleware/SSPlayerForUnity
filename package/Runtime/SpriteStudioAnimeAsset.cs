@@ -472,5 +472,51 @@ namespace SpriteStudio.Runtime
             ulong k = ((ulong)soundListNameHash << 32) | soundNameHash;
             return _soundToClip.TryGetValue(k, out var clip) ? clip : null;
         }
+
+        [System.NonSerialized] private Dictionary<ulong, SpriteStudioSoundInfo> _soundInfo;
+
+        /// <summary>
+        /// EventAudio の (sound_list_name_hash, sound_name_hash) に対応する ssab 音メタ
+        /// (alias / file_path / file_path_hash / time_total) を返す。ResolveAudioClip と対の
+        /// opt-in アクセサで、AudioClip を経由しない自前バックエンド (CRI ADX 等) 向け。
+        /// 生 FlatBuffers パースをこの 1 か所に封じ込め、呼び出し側に SsabData を晒さない。
+        /// 既定の再生 (PlayOneShot) はこれを呼ばず ResolveAudioClip を使う。
+        /// </summary>
+        public bool TryGetSoundInfo(uint soundListNameHash, uint soundNameHash, out SpriteStudioSoundInfo info)
+        {
+            if (_soundInfo == null)
+            {
+                _soundInfo = new Dictionary<ulong, SpriteStudioSoundInfo>();
+                if (SsabData != null && SsabData.Length > 0)
+                {
+                    var bb = new Google.FlatBuffers.ByteBuffer(SsabData);
+                    var ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
+                    int listLen = ssab.SoundListsLength;
+                    for (int li = 0; li < listLen; li++)
+                    {
+                        var sl = ssab.SoundLists(li);
+                        if (!sl.HasValue) continue;
+                        var soundList = sl.Value;
+                        int fileLen = soundList.TableDataLength;
+                        for (int fi = 0; fi < fileLen; fi++)
+                        {
+                            var sf = soundList.TableData(fi);
+                            if (!sf.HasValue) continue;
+                            var soundFile = sf.Value;
+                            ulong key = ((ulong)soundList.NameHash << 32) | soundFile.NameHash;
+                            _soundInfo[key] = new SpriteStudioSoundInfo
+                            {
+                                Alias = soundFile.Name,
+                                FilePath = soundFile.FilePath,
+                                FilePathHash = soundFile.FilePathHash,
+                                TimeTotalMs = soundFile.TimeTotal,
+                            };
+                        }
+                    }
+                }
+            }
+            ulong k = ((ulong)soundListNameHash << 32) | soundNameHash;
+            return _soundInfo.TryGetValue(k, out info);
+        }
     }
 }

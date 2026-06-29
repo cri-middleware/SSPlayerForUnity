@@ -31,6 +31,18 @@ namespace SpriteStudio.Runtime
             }
         }
 
+        [Header("Audio")]
+        [Tooltip("オーディオイベント (ADIO) で音を鳴らす。ON なら別コンポーネント不要で内蔵再生する。")]
+        [SerializeField] private bool _playAudio = true;
+        [Tooltip("内蔵再生 (AudioClip ワンショット) の音量。Audio Backend 使用時は無視される。")]
+        [Range(0f, 1f)]
+        [SerializeField] private float _audioVolume = 1f;
+        [Tooltip("再生の差し替え口 (任意)。CRI ADX 等の自前バックエンドへ流す場合に割り当てる。" +
+                 "空ならグローバル既定 → 内蔵 AudioClip 再生の順で解決する。")]
+        [SerializeField] private SpriteStudioAudioBackend _audioBackend;
+
+        private SpriteStudioAudioController _audioController;
+
         [Header("Playback Settings")]
         [Tooltip("再生するアニメーション名 (パック名/アニメ名など)")]
         [SerializeField] private string _animationName = "";
@@ -306,7 +318,16 @@ namespace SpriteStudio.Runtime
         private void InvokeAnimationLooped() => OnAnimationLoopedEvent?.Invoke();
         private void InvokeUserData(SpriteStudioUserData data) => OnUserDataEvent?.Invoke(data);
         private void InvokeSignal(SpriteStudioSignal data) => OnSignalEvent?.Invoke(data);
-        private void InvokeAudio(SpriteStudioAudio data) => OnAudioEvent?.Invoke(data);
+        private void InvokeAudio(SpriteStudioAudio data)
+        {
+            OnAudioEvent?.Invoke(data);
+            // 内蔵再生 (デザイナ向けゼロコンフィグ)。実行中のみ・別コンポーネント不要。
+            if (_playAudio && Application.isPlaying)
+            {
+                if (_audioController == null) _audioController = new SpriteStudioAudioController(gameObject);
+                _audioController.Play(in data, _animeAsset, _audioBackend, _audioVolume);
+            }
+        }
 
         protected override void OnDisable()
         {
