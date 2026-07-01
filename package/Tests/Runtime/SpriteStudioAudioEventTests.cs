@@ -12,18 +12,18 @@ namespace SpriteStudio.Runtime.Tests
     /// flow through the same passed-event path as UserData / Signal, so this mainly confirms the C#
     /// dispatch side -- OnAudio is the only event kind whose firing had not yet been verified.
     ///
-    /// フィクスチャ "Sound" は SDK の overall.sspj 内のパック (tests/overall/Sound.ssae)。.ssab はコミット
-    /// されない (生成物) ため、RingoPlaybackTests と同方式で [UnitySetUp] がオンデマンド変換する:
-    ///   1) Resources にビルド済み (Player ビルド/キャッシュ済み Editor) ならそれを使う。
-    ///   2) Resources 配下に生成済みファイルがあれば直接読む。
-    ///   3) Editor のみ: overall.sspj を Assets 外の一時ディレクトリへ変換し、生成された Sound.ssab "だけ" を
-    ///      package/Tests/Runtime/Resources/Sound/ へ取り込む (Player ビルドにバンドルさせるため)。
-    /// 本テストは SsabData のバイトしか使わない (音声イベントにテクスチャは不要) ため、取り込み時に
-    /// テクスチャ解決の警告が出ても SsabData は設定され、再生・イベント検証には影響しない。
+    /// The "Sound" fixture is a pack inside the SDK's overall.sspj (tests/overall/Sound.ssae). Since .ssab is not
+    /// committed (it is a build artifact), [UnitySetUp] converts it on demand the same way as RingoPlaybackTests:
+    ///   1) If already built into Resources (Player build / cached Editor), use that.
+    ///   2) If a generated file exists under Resources, read it directly.
+    ///   3) Editor only: convert overall.sspj into a temp directory outside Assets and import "only" the generated
+    ///      Sound.ssab into package/Tests/Runtime/Resources/Sound/ (so it gets bundled into the Player build).
+    /// This test uses only the SsabData bytes (audio events do not need textures), so even if texture-resolution
+    /// warnings appear during import, SsabData is still set and playback/event verification is unaffected.
     /// </summary>
     public class SpriteStudioAudioEventTests
     {
-        private const string SoundResourcePath = "Sound/Sound"; // Resources.Load 用
+        private const string SoundResourcePath = "Sound/Sound"; // For Resources.Load
         private const string SoundResSsabPath = "../../package/Tests/Runtime/Resources/Sound/Sound.ssab";
         private const string OverallSspjPath = "../../SpriteStudio-SDK/tests/overall/overall.sspj";
 
@@ -32,7 +32,7 @@ namespace SpriteStudio.Runtime.Tests
         [UnitySetUp]
         public IEnumerator Setup()
         {
-            // 1) Resources にビルド済みならそれを使う。
+            // 1) If already built into Resources, use that.
             var asset = Resources.Load<SpriteStudioAnimeAsset>(SoundResourcePath);
             if (asset != null && asset.SsabData != null && asset.SsabData.Length > 0)
             {
@@ -40,7 +40,7 @@ namespace SpriteStudio.Runtime.Tests
                 yield break;
             }
 
-            // 2) Resources 配下に生成済みの .ssab があれば直接読む。
+            // 2) If a generated .ssab exists under Resources, read it directly.
             string resSsab = Path.GetFullPath(SoundResSsabPath);
             if (File.Exists(resSsab))
             {
@@ -49,11 +49,11 @@ namespace SpriteStudio.Runtime.Tests
             }
 
 #if UNITY_EDITOR
-            // 3) Editor: overall.sspj をオンデマンド変換し、生成された Sound.ssab だけを Resources へ取り込む。
-            //    変換先は Assets 外の一時ディレクトリ (他 21 パックは Unity に取り込ませない)。Poll は
-            //    EditorApplication.update を待たずリフレクションで回す (RingoPlaybackTests と同方式)。
+            // 3) Editor: convert overall.sspj on demand and import only the generated Sound.ssab into Resources.
+            //    The conversion target is a temp directory outside Assets (the other 21 packs are not imported into Unity). Poll
+            //    is driven via reflection without waiting for EditorApplication.update (same way as RingoPlaybackTests).
             string sspj = Path.GetFullPath(OverallSspjPath);
-            Assert.IsTrue(File.Exists(sspj), $"overall.sspj が見つからない: {sspj}");
+            Assert.IsTrue(File.Exists(sspj), $"overall.sspj not found: {sspj}");
 
             string tmpDir = Path.Combine(Application.temporaryCachePath, "ss_sound_fixture");
             Directory.CreateDirectory(tmpDir);
@@ -64,7 +64,7 @@ namespace SpriteStudio.Runtime.Tests
             enqueue?.Invoke(null, new object[] { sspj, tmpDir });
 
             var poll = runnerType?.GetMethod("Poll", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-            float timeout = 60f; // overall.sspj は多パックで変換に時間がかかる
+            float timeout = 60f; // overall.sspj has many packs, so conversion takes time
             while (!File.Exists(tmpSound) && timeout > 0f)
             {
                 poll?.Invoke(null, null);
@@ -74,14 +74,14 @@ namespace SpriteStudio.Runtime.Tests
 
             if (File.Exists(tmpSound))
             {
-                // Player ビルド用に Sound.ssab だけを Resources へ取り込む。
+                // Import only Sound.ssab into Resources for the Player build.
                 Directory.CreateDirectory(Path.GetDirectoryName(resSsab));
                 File.Copy(tmpSound, resSsab, overwrite: true);
 
                 var assetDatabaseType = System.Type.GetType("UnityEditor.AssetDatabase, UnityEditor");
                 assetDatabaseType?.GetMethod("Refresh", new System.Type[0])?.Invoke(null, null);
 
-                // 今セッションはバイト直読みで確実に進める (import の完了を待たない)。
+                // For this session, proceed reliably by reading the bytes directly (do not wait for import to finish).
                 _sound = File.ReadAllBytes(resSsab);
             }
 #endif
@@ -91,7 +91,7 @@ namespace SpriteStudio.Runtime.Tests
         [Test]
         public void OnAudio_Fires_WhilePlayingAudioAnimation()
         {
-            Assert.IsNotNull(_sound, $"Sound.ssab が必要です (overall.sspj から生成): {Path.GetFullPath(SoundResSsabPath)}");
+            Assert.IsNotNull(_sound, $"Sound.ssab is required (generated from overall.sspj): {Path.GetFullPath(SoundResSsabPath)}");
             using (var player = new SpriteStudioInternalPlayer())
             {
                 player.LoadSsab(_sound);
@@ -103,17 +103,69 @@ namespace SpriteStudio.Runtime.Tests
                     Debug.Log($"[AUDIO] sound={a.SoundName} part={a.PartName} loop={a.LoopNum} frame={player.GetFrame():0.0}");
                 };
 
-                // 先頭アニメを使う (名前固定にしない)。
+                // Use the first animation (do not hard-code the name).
                 string anim = player.GetAnimationName(0);
-                Assert.IsTrue(player.SetupAnimation(anim), $"先頭アニメ '{anim}' が見つかるはず");
-                player.SetLoop(1); // 1 回だけ再生して全フレームを通す
+                Assert.IsTrue(player.SetupAnimation(anim), $"The first animation '{anim}' should be found");
+                player.SetLoop(1); // Play only once to pass through all frames
                 player.Play();
 
                 int guard = 0;
                 while (player.IsPlaying() && guard++ < 10000) player.Tick(1f / 60f, false);
 
                 Debug.Log($"[AUDIO] summary: audio={audio} animation={anim} guard={guard}");
-                Assert.Greater(audio, 0, "音声イベント付きアニメの 1 回再生で OnAudio が発火するはず");
+                Assert.Greater(audio, 0, "OnAudio should fire during a single playthrough of an animation with audio events");
+            }
+        }
+
+        /// <summary>
+        /// Confirms that AnimeAsset.TryGetSoundInfo() can look up ssab sound metadata (alias / file_path / duration)
+        /// using the hash key of a sound that actually fired. A round-trip verification of the opt-in accessor that
+        /// supplements file_path etc. not carried by the firing payload (addresses only). Unknown hashes return false.
+        /// </summary>
+        [Test]
+        public void TryGetSoundInfo_ResolvesMetadata_ForFiredSound()
+        {
+            Assert.IsNotNull(_sound, $"Sound.ssab is required: {Path.GetFullPath(SoundResSsabPath)}");
+
+            // Capture one hash of a sound that actually fired (a key guaranteed to exist in the ssab).
+            SpriteStudioAudio captured = default;
+            bool got = false;
+            using (var player = new SpriteStudioInternalPlayer())
+            {
+                player.LoadSsab(_sound);
+                player.OnAudio += a => { if (!got) { captured = a; got = true; } };
+                string anim = player.GetAnimationName(0);
+                Assert.IsTrue(player.SetupAnimation(anim), $"The first animation '{anim}' should be found");
+                player.SetLoop(1);
+                player.Play();
+                int guard = 0;
+                while (player.IsPlaying() && guard++ < 10000) player.Tick(1f / 60f, false);
+            }
+            Assert.IsTrue(got, "At least one audio event should be captured");
+
+            // From an AnimeAsset loaded with the same ssab, that sound's metadata should be resolvable.
+            var asset = ScriptableObject.CreateInstance<SpriteStudioAnimeAsset>();
+            try
+            {
+                asset.SsabData = _sound;
+
+                bool ok = asset.TryGetSoundInfo(captured.SoundListNameHash, captured.SoundNameHash, out var info);
+                Assert.IsTrue(ok, "The fired sound's hash should exist in the ssab's SoundList");
+                Assert.IsFalse(string.IsNullOrEmpty(info.FilePath), "file_path should be retrievable");
+                Assert.IsFalse(string.IsNullOrEmpty(info.Alias), "alias should be retrievable");
+                // The firing payload's SoundName is diagnostic (optional), so verify the match only if present.
+                if (!string.IsNullOrEmpty(captured.SoundName))
+                    Assert.AreEqual(captured.SoundName, info.Alias, "alias should match the firing payload's SoundName");
+                Debug.Log($"[AUDIO] TryGetSoundInfo: alias={info.Alias} file={info.FilePath} ms={info.TimeTotalMs}");
+
+                // An unknown hash returns false, and out is default.
+                Assert.IsFalse(asset.TryGetSoundInfo(0xDEADBEEFu, 0xCAFEBABEu, out var none),
+                    "An unknown hash should return false");
+                Assert.IsNull(none.FilePath);
+            }
+            finally
+            {
+                Object.DestroyImmediate(asset);
             }
         }
     }

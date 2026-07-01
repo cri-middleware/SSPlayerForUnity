@@ -59,4 +59,18 @@ namespace SpriteStudio.Runtime
 
     [Serializable]
     public class AudioUnityEvent : UnityEvent<SpriteStudioAudio> {}
+
+    /// <summary>
+    /// Represents ssab sound metadata (equivalent to ssse) with the minimum needed for playback. Opt-in
+    /// information that supplements what the SpriteStudioAudio (firing payload) does not carry, such as
+    /// file_path / duration. Returned by AnimeAsset.TryGetSoundInfo() under the same hash key as SpriteStudioAudio.
+    /// </summary>
+    public struct SpriteStudioSoundInfo
+    {
+        public string Alias;        // SoundFile.name (alias)
+        public string FilePath;     // SoundFile.file_path  e.g. "sound/foo.acb"
+        public uint   FilePathHash; // SoundFile.file_path_hash
+        public uint   TimeTotalMs;  // SoundFile.time_total
+    }
+
 }

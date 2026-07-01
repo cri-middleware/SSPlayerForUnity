@@ -19,17 +19,28 @@ namespace SpriteStudio.Runtime
     public class SpriteStudioPlayer : MonoBehaviour, ITimeControl, ISpriteStudioRenderable
     {
         [Header("SpriteStudio Asset")]
-        [Tooltip("描画対象となるコンバート済みの ssab アセット")]
+        [Tooltip("The converted ssab asset to render")]
         [SerializeField] private SpriteStudioAnimeAsset _animeAsset;
 
         [Tooltip("Per-part AddOn / custom shader catalog. Optional: leave empty to disable per-part " +
                  "shader dispatch. The built-in AddOns ship pre-registered in the package catalog.")]
         [SerializeField] private SpriteStudioShaderCatalog _shaderCatalog;
 
-        [Header("Part Tracking")]
-        [Tooltip("指定パーツに追従させるユーザー所有 Transform の登録リスト。プレーヤーは GameObject を生成せず、" +
-                 "登録された Transform を毎フレーム駆動するだけ (constraint 方式)。")]
+        [Tooltip("Registration list of user-owned Transforms that follow specified parts. The player does not create GameObjects; " +
+                 "it only drives the registered Transforms every frame (constraint style).")]
         [SerializeField] private List<SpriteStudioPartTracker> _partTrackers = new List<SpriteStudioPartTracker>();
+
+        [Header("Audio")]
+        [Tooltip("Play sounds from audio events (ADIO). When ON, plays them built-in with no extra component required.")]
+        [SerializeField] private bool _playAudio = true;
+        [Tooltip("Volume of built-in playback (AudioClip one-shot). Ignored when an Audio Backend is used.")]
+        [Range(0f, 1f)]
+        [SerializeField] private float _audioVolume = 1f;
+        [Tooltip("Playback override hook (optional). Assign this to route to a custom audio backend such as audio middleware. " +
+                 "When empty, resolution falls back to the global default, then built-in AudioClip playback.")]
+        [SerializeField] private SpriteStudioAudioBackend _audioBackend;
+
+        private SpriteStudioAudioController _audioController;
 
         public SpriteStudioAnimeAsset AnimeAsset
         {
@@ -71,7 +82,7 @@ namespace SpriteStudio.Runtime
         }
 
         [Header("Playback Settings")]
-        [Tooltip("再生するアニメーション名 (パック名/アニメ名など)")]
+        [Tooltip("Animation name to play (e.g. pack name / animation name)")]
         [SerializeField] private string _animationName = "";
         public string AnimationName
         {
@@ -79,7 +90,7 @@ namespace SpriteStudio.Runtime
             set => _animationName = value;
         }
 
-        [Tooltip("起動時に自動で再生を開始するか")]
+        [Tooltip("Whether to start playback automatically on startup")]
         [SerializeField] private bool _autoPlay = true;
         public bool AutoPlay
         {
@@ -87,7 +98,7 @@ namespace SpriteStudio.Runtime
             set => _autoPlay = value;
         }
 
-        [Tooltip("ループ回数。-1 = 無限ループ / 1 = 1回再生 / n = n回再生")]
+        [Tooltip("Loop count. -1 = infinite loop / 1 = play once / n = play n times")]
         [SerializeField] private int _loopCount = -1;
         public int LoopCount
         {
@@ -99,7 +110,7 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        [Tooltip("アニメーションの再生速度スケール")]
+        [Tooltip("Playback speed scale of the animation")]
         [SerializeField] private float _speedScale = 1.0f;
         public float SpeedScale
         {
@@ -111,7 +122,7 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        [Tooltip("サブフレーム描画（フレーム間の補間）を有効にするか")]
+        [Tooltip("Whether to enable sub-frame rendering (interpolation between frames)")]
         [SerializeField] private bool _subFrameEnabled = false;
         public bool SubFrameEnabled
         {
@@ -123,7 +134,7 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        [Tooltip("実時間追従 (timed)。ON: 負荷でフレームが落ちても経過時間ぶん進める。OFF (fixed): 毎 update で必ず 1 フレームずつ進める (コマ送り)。")]
+        [Tooltip("Real-time tracking (timed). ON: advance by elapsed time even when frames drop under load. OFF (fixed): always advance exactly one frame per update (frame-by-frame).")]
         [SerializeField] private bool _skipFrames = true;
         public bool SkipFrames
         {
@@ -135,7 +146,7 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        [Tooltip("1 Unity ワールド単位あたりのピクセル数。SS のピクセル座標をワールド単位へ換算する。既定 1=ピクセル等倍 (従来通り)。Unity スプライト慣習に合わせるなら 100 等を設定する。")]
+        [Tooltip("Pixels per one Unity world unit. Converts SS pixel coordinates into world units. Default 1 = 1:1 pixel scale (as before). Set to e.g. 100 to match Unity's sprite convention.")]
         [SerializeField] private float _pixelsPerUnit = 1f;
         public float PixelsPerUnit
         {
@@ -165,6 +176,7 @@ namespace SpriteStudio.Runtime
         public bool SetAnimation(string animName)
         {
             _animationName = animName;
+            _audioController?.StopLoops();   // On animation switch, stop the previous animation's loop sounds (let one-shots end on their own)
             bool ok = _core.SetAnimation(_animationName, "SpriteStudioPlayer");
 #if UNITY_EDITOR
             // Keep the OnValidate baseline in sync so a later unrelated inspector edit does not restart.
@@ -188,10 +200,10 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>現在セットアップ済みのアニメーションを先頭から再生開始します。</summary>
-        public void Play() => _core.Play();
+        public void Play() { _core.Play(); _audioController?.ResumeAll(); }   // Explicit play lifts the suspend (SDK doc §4)
 
         /// <summary>現在セットアップ済みのアニメーションを指定フレームから再生開始します。</summary>
-        public void Play(float startFrame) => _core.Play(startFrame);
+        public void Play(float startFrame) { _core.Play(startFrame); _audioController?.ResumeAll(); }
 
         #region Playback Control (再生制御)
         // 内部プレイヤー (Rust ランタイム) が既に備える再生制御をコンポーネントの公開 API として薄く露出する。
@@ -216,7 +228,16 @@ namespace SpriteStudio.Runtime
         /// 再生の一時停止 / 再開をトグルします (現在フレームを保持)。ネイティブの is_pausing を切り替えます
         /// (Godot プレイヤーの pause() と同じ。play() は先頭へ巻き戻すため再開には使えません)。
         /// </summary>
-        public void Pause() => _core.Internal?.Pause();
+        public void Pause()
+        {
+            _core.Internal?.Pause();
+            // Sync audio with the animation pause/resume (SDK doc §4). Pause is a toggle, so branch on the resulting state.
+            if (_audioController != null && _core.Internal != null)
+            {
+                if (_core.Internal.IsPausing()) _audioController.PauseAll();
+                else _audioController.ResumeAll();
+            }
+        }
 
         /// <summary>再生を停止する。</summary>
         public void Stop() => _core.Internal?.Stop();
@@ -288,7 +309,6 @@ namespace SpriteStudio.Runtime
 
         private readonly SpriteStudioPlaybackCore _core = new SpriteStudioPlaybackCore();
 
-        /// <summary>再生開始時に発火します (<see cref="Play()"/> 呼び出し時)。</summary>
         public event System.Action OnAnimationStarted
         {
             add => _core.OnAnimationStarted += value;
@@ -371,11 +391,24 @@ namespace SpriteStudio.Runtime
         }
 
         private void InvokeAnimationStarted() => OnAnimationStartedEvent?.Invoke();
-        private void InvokeAnimationFinished() => OnAnimationFinishedEvent?.Invoke();
+        private void InvokeAnimationFinished()
+        {
+            _audioController?.StopLoops();   // On animation end, stop loop sounds (let one-shots end on their own)
+            OnAnimationFinishedEvent?.Invoke();
+        }
         private void InvokeAnimationLooped() => OnAnimationLoopedEvent?.Invoke();
         private void InvokeUserData(SpriteStudioUserData data) => OnUserDataEvent?.Invoke(data);
         private void InvokeSignal(SpriteStudioSignal data) => OnSignalEvent?.Invoke(data);
-        private void InvokeAudio(SpriteStudioAudio data) => OnAudioEvent?.Invoke(data);
+        private void InvokeAudio(SpriteStudioAudio data)
+        {
+            OnAudioEvent?.Invoke(data);   // Notification (observation channel) always fires regardless of playback direction.
+            // Built-in/Backend playback (zero-config). Only while running and playing forward (SDK doc §4: no sound on reverse playback).
+            if (_playAudio && Application.isPlaying && (_core.Internal?.IsPlayingForward() ?? false))
+            {
+                if (_audioController == null) _audioController = new SpriteStudioAudioController(gameObject);
+                _audioController.Play(in data, _animeAsset, _audioBackend, _audioVolume);
+            }
+        }
 
         private void OnDisable()
         {
@@ -387,6 +420,7 @@ namespace SpriteStudio.Runtime
             _core.OnUserData -= InvokeUserData;
             _core.OnSignal -= InvokeSignal;
             _core.OnAudio -= InvokeAudio;
+            _audioController?.StopAll();   // On disable, stop all built-in sounds
 
             // Release the per-part AddOn material instances and force a material-list rebuild on
             // re-enable (the cleared list count no longer matches the submesh count).
@@ -400,6 +434,7 @@ namespace SpriteStudio.Runtime
 
         private void OnDestroy()
         {
+            _audioController?.StopAll();   // Cleanup on destroy (safeguard)
             if (_sharedMesh != null)
             {
                 if (Application.isPlaying)
