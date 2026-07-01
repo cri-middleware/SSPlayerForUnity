@@ -393,7 +393,11 @@ namespace SpriteStudio.Runtime
         }
 
         private void InvokeAnimationStarted() => OnAnimationStartedEvent?.Invoke();
-        private void InvokeAnimationFinished() => OnAnimationFinishedEvent?.Invoke();
+        private void InvokeAnimationFinished()
+        {
+            _audioController?.StopLoops();   // アニメ終了でループ音を止める (単発は自己終了に任せる)
+            OnAnimationFinishedEvent?.Invoke();
+        }
         private void InvokeAnimationLooped() => OnAnimationLoopedEvent?.Invoke();
         private void InvokeUserData(SpriteStudioUserData data) => OnUserDataEvent?.Invoke(data);
         private void InvokeSignal(SpriteStudioSignal data) => OnSignalEvent?.Invoke(data);

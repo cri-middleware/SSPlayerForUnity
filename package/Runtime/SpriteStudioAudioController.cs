@@ -11,10 +11,10 @@ namespace SpriteStudio.Runtime
     /// 解決順: 個体バックエンド > グローバルバックエンド > 内蔵 (ResolveAudioClip)。
     /// 内蔵再生は**パーツ単位でアクティブな音声を管理**する。同一性キー = (PartIndex,
     /// SoundListNameHash+SoundNameHash) で 1 キーにつき最大 1 ボイス。同じキーが再発火したら
-    /// 直前を停止して鳴らし直す (多重再生を防ぐ)。loop_num で回数を決める:
-    ///   * &lt;= 0 (0・負数) : 無限ループ。
-    ///   * 1             : 単発 (1 回再生)。
-    ///   * &gt;= 2       : 有限 N 回再生。
+    /// 直前を停止して鳴らし直す (多重再生を防ぐ)。loop_num は再生回数:
+    ///   * 1        : 単発 (1 回再生)。
+    ///   * &gt;= 2  : N 回再生。
+    ///   * &lt;= 0  : 仕様上来ない (SS で無限ループは指定不可)。防御的に鳴らさない。
     /// AudioSource は必要時に owner へ自動付与し、終了後はプールで再利用する。
     /// 逆再生では鳴らさない (順再生フィルタは呼び出し側 Player/Graphic が担当)。
     /// </summary>
@@ -43,6 +43,9 @@ namespace SpriteStudio.Runtime
                 be.PlayAudio(in ev, asset, _owner);
                 return;
             }
+
+            // loop_num は再生回数。仕様上 <= 0 は来ない (SS で無限ループ指定不可) → 防御的に鳴らさない。
+            if (ev.LoopNum <= 0) return;
 
             // 内蔵: インポート済み AudioClip を解決。非対応/未解決は安全に無音。
             var clip = asset != null ? asset.ResolveAudioClip(ev.SoundListNameHash, ev.SoundNameHash) : null;
@@ -92,32 +95,21 @@ namespace SpriteStudio.Runtime
             src.volume = volume;
             double dsp = AudioSettings.dspTime;
 
-            if (loopNum <= 0)
-            {
-                // 無限ループ。
-                src.loop = true;
-                src.PlayScheduled(dsp);
-                v.Infinite = true;
-                v.PlaysOnce = false;
-                v.EndDsp = double.PositiveInfinity;
-            }
-            else if (loopNum == 1)
+            if (loopNum == 1)
             {
                 // 単発 (1 回再生)。自己終了。
                 src.loop = false;
                 src.PlayScheduled(dsp);
-                v.Infinite = false;
                 v.PlaysOnce = true;
                 v.EndDsp = dsp + (double)clip.length;
             }
             else
             {
-                // 有限 N 回再生 (N >= 2)。N 長で終了予約。
+                // N 回再生 (N >= 2)。N 長で終了予約。自己終了。
                 src.loop = true;
                 src.PlayScheduled(dsp);
                 double end = dsp + (double)clip.length * loopNum;
                 src.SetScheduledEndTime(end);
-                v.Infinite = false;
                 v.PlaysOnce = false;
                 v.EndDsp = end;
             }
@@ -132,7 +124,7 @@ namespace SpriteStudio.Runtime
             double now = AudioSettings.dspTime;
             foreach (var kv in _voices)
             {
-                if (!kv.Value.Infinite && now >= kv.Value.EndDsp)   // 無限は自然終了しない
+                if (now >= kv.Value.EndDsp)   // 全ボイス自己終了する (無限は無い)
                     _scratch.Add(kv.Key);
             }
             FreeScratch();
@@ -208,9 +200,8 @@ namespace SpriteStudio.Runtime
         private sealed class Voice
         {
             public AudioSource Source;
-            public bool Infinite;    // loop_num <= 0
             public bool PlaysOnce;   // loop_num == 1 (単発。StopLoops では止めない)
-            public double EndDsp;    // 単発/有限の予約終了 dspTime。無限は +∞。
+            public double EndDsp;    // 予約終了 dspTime (全ボイス自己終了する)。
         }
     }
 }

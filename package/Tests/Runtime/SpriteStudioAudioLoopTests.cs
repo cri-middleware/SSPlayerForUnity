@@ -10,6 +10,7 @@ namespace SpriteStudio.Runtime.Tests
     /// 内蔵音声 (SpriteStudioAudioController) の構造的挙動を検証する (SDK doc §4 準拠)。
     /// 実音は batchmode/-nographics で鳴らせないため、担保するのは AudioSource の確保/停止/一時停止と
     /// 同一性キー (パーツ単位) による多重再生防止まで (再生タイミング/回数は dspTime 依存のため対象外)。
+    /// loop_num は再生回数 (1=単発 / N>=2=N回)。&lt;=0 は仕様上来ない → 防御的に鳴らさない。
     /// </summary>
     public class SpriteStudioAudioLoopTests
     {
@@ -39,8 +40,9 @@ namespace SpriteStudio.Runtime.Tests
             };
 
         [Test]
-        public void InfiniteLoop_RefireSameKey_DoesNotDuplicate()
+        public void LoopNumZeroOrNegative_DoesNotPlay()
         {
+            // loop_num <= 0 は仕様上来ない (SS で無限ループ指定不可)。内蔵は防御的に鳴らさない。
             var go = new GameObject("ss-audio");
             var asset = MakeAssetWithSound(10u, 20u, out var clip);
             var prevGlobal = SpriteStudioAudioBackend.Global;
@@ -49,55 +51,10 @@ namespace SpriteStudio.Runtime.Tests
                 SpriteStudioAudioBackend.Global = null;
                 var ctrl = new SpriteStudioAudioController(go);
 
-                ctrl.Play(Ev(0, 10u, 20u, -1), asset, null, 1f);
-                ctrl.Play(Ev(0, 10u, 20u, -1), asset, null, 1f);   // 同一キー再発火 → 直前停止して鳴らし直し (1 ボイス維持)
+                ctrl.Play(Ev(0, 10u, 20u, 0), asset, null, 1f);
+                ctrl.Play(Ev(1, 10u, 20u, -1), asset, null, 1f);
 
-                var sources = go.GetComponents<AudioSource>();
-                Assert.AreEqual(1, sources.Length, "同一キーの無限ループ再発火で AudioSource が積み上がってはいけない");
-                Assert.IsTrue(sources[0].loop, "無限ループは loop=true のはず");
-                Assert.AreEqual(clip, sources[0].clip);
-            }
-            finally { Cleanup(prevGlobal, asset, clip, go); }
-        }
-
-        [Test]
-        public void LoopNumZero_IsInfiniteLoop()
-        {
-            // SDK doc §4: loopNum <= 0 は無限ループ。0 は「単発」ではない (旧規約から反転)。
-            var go = new GameObject("ss-audio");
-            var asset = MakeAssetWithSound(17u, 27u, out var clip);
-            var prevGlobal = SpriteStudioAudioBackend.Global;
-            try
-            {
-                SpriteStudioAudioBackend.Global = null;
-                var ctrl = new SpriteStudioAudioController(go);
-
-                ctrl.Play(Ev(0, 17u, 27u, 0), asset, null, 1f);
-
-                var sources = go.GetComponents<AudioSource>();
-                Assert.AreEqual(1, sources.Length);
-                Assert.IsTrue(sources[0].loop, "loopNum=0 は無限ループなので loop=true のはず (単発ではない)");
-            }
-            finally { Cleanup(prevGlobal, asset, clip, go); }
-        }
-
-        [Test]
-        public void FiniteLoop_RefireSameKey_ReusesSingleSource()
-        {
-            var go = new GameObject("ss-audio");
-            var asset = MakeAssetWithSound(11u, 21u, out var clip);
-            var prevGlobal = SpriteStudioAudioBackend.Global;
-            try
-            {
-                SpriteStudioAudioBackend.Global = null;
-                var ctrl = new SpriteStudioAudioController(go);
-
-                ctrl.Play(Ev(0, 11u, 21u, 2), asset, null, 1f);    // 有限 (loopNum=2 → 2 回)
-                ctrl.Play(Ev(0, 11u, 21u, 2), asset, null, 1f);    // 再発火 → 同じ 1 本で鳴らし直し
-
-                var sources = go.GetComponents<AudioSource>();
-                Assert.AreEqual(1, sources.Length, "有限ループの再発火は同じ AudioSource を使い回すはず");
-                Assert.IsTrue(sources[0].loop);
+                Assert.IsNull(go.GetComponent<AudioSource>(), "loop_num <= 0 は鳴らさない (AudioSource を作らない)");
             }
             finally { Cleanup(prevGlobal, asset, clip, go); }
         }
@@ -125,6 +82,27 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
+        public void FiniteLoop_RefireSameKey_ReusesSingleSource()
+        {
+            var go = new GameObject("ss-audio");
+            var asset = MakeAssetWithSound(11u, 21u, out var clip);
+            var prevGlobal = SpriteStudioAudioBackend.Global;
+            try
+            {
+                SpriteStudioAudioBackend.Global = null;
+                var ctrl = new SpriteStudioAudioController(go);
+
+                ctrl.Play(Ev(0, 11u, 21u, 2), asset, null, 1f);    // 有限 (loopNum=2 → 2 回)
+                ctrl.Play(Ev(0, 11u, 21u, 2), asset, null, 1f);    // 再発火 → 同じ 1 本で鳴らし直し
+
+                var sources = go.GetComponents<AudioSource>();
+                Assert.AreEqual(1, sources.Length, "同一キーのループ再発火は同じ AudioSource を使い回すはず");
+                Assert.IsTrue(sources[0].loop);
+            }
+            finally { Cleanup(prevGlobal, asset, clip, go); }
+        }
+
+        [Test]
         public void DifferentParts_SameSound_AreIndependent()
         {
             var go = new GameObject("ss-audio");
@@ -135,8 +113,8 @@ namespace SpriteStudio.Runtime.Tests
                 SpriteStudioAudioBackend.Global = null;
                 var ctrl = new SpriteStudioAudioController(go);
 
-                ctrl.Play(Ev(0, 12u, 22u, -1), asset, null, 1f);
-                ctrl.Play(Ev(1, 12u, 22u, -1), asset, null, 1f);   // 別パーツ → 別ボイス
+                ctrl.Play(Ev(0, 12u, 22u, 2), asset, null, 1f);
+                ctrl.Play(Ev(1, 12u, 22u, 2), asset, null, 1f);   // 別パーツ → 別ボイス
 
                 Assert.AreEqual(2, go.GetComponents<AudioSource>().Length, "パーツが違えば別ボイスになるはず");
             }
@@ -154,7 +132,7 @@ namespace SpriteStudio.Runtime.Tests
                 SpriteStudioAudioBackend.Global = null;
                 var ctrl = new SpriteStudioAudioController(go);
 
-                ctrl.Play(Ev(0, 13u, 23u, -1), asset, null, 1f);
+                ctrl.Play(Ev(0, 13u, 23u, 2), asset, null, 1f);
                 ctrl.StopAll();
 
                 var sources = go.GetComponents<AudioSource>();
@@ -167,7 +145,7 @@ namespace SpriteStudio.Runtime.Tests
         [Test]
         public void StopLoops_LeavesSinglePlay()
         {
-            // アニメ切替 (StopLoops) はループを止めるが、単発は自己終了に任せて残す (ユーザー決定「あ」)。
+            // アニメ切替 / 終了 (StopLoops) はループを止めるが、単発は自己終了に任せて残す (ユーザー決定「あ」)。
             var go = new GameObject("ss-audio");
             var asset = MakeAssetWithSound(18u, 28u, out var clip);
             var prevGlobal = SpriteStudioAudioBackend.Global;
@@ -177,7 +155,7 @@ namespace SpriteStudio.Runtime.Tests
                 var ctrl = new SpriteStudioAudioController(go);
 
                 ctrl.Play(Ev(0, 18u, 28u, 1), asset, null, 1f);    // part0: 単発
-                ctrl.Play(Ev(1, 18u, 28u, -1), asset, null, 1f);   // part1: 無限ループ
+                ctrl.Play(Ev(1, 18u, 28u, 2), asset, null, 1f);    // part1: ループ (2 回)
                 ctrl.StopLoops();
 
                 int withClip = go.GetComponents<AudioSource>().Count(s => s.clip != null);
@@ -197,9 +175,9 @@ namespace SpriteStudio.Runtime.Tests
                 SpriteStudioAudioBackend.Global = null;
                 var ctrl = new SpriteStudioAudioController(go);
 
-                ctrl.Play(Ev(0, 16u, 26u, -1), asset, null, 1f);
+                ctrl.Play(Ev(0, 16u, 26u, 2), asset, null, 1f);
                 ctrl.StopAll();
-                ctrl.Play(Ev(0, 16u, 26u, -1), asset, null, 1f);   // プールから再利用されるはず
+                ctrl.Play(Ev(0, 16u, 26u, 2), asset, null, 1f);   // プールから再利用されるはず
 
                 Assert.AreEqual(1, go.GetComponents<AudioSource>().Length,
                     "停止後の再生はプールの AudioSource を再利用し、新規追加しないはず");
@@ -217,7 +195,7 @@ namespace SpriteStudio.Runtime.Tests
             {
                 SpriteStudioAudioBackend.Global = null;
                 var ctrl = new SpriteStudioAudioController(go);
-                ctrl.Play(Ev(0, 19u, 29u, -1), asset, null, 1f);
+                ctrl.Play(Ev(0, 19u, 29u, 2), asset, null, 1f);
 
                 Assert.DoesNotThrow(() => { ctrl.PauseAll(); ctrl.ResumeAll(); });
                 Assert.AreEqual(1, go.GetComponents<AudioSource>().Length, "Pause/Resume はボイスを増減させないはず");
@@ -226,7 +204,7 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
-        public void Backend_HandlesLoopEvent_NoBuiltInAudioSource()
+        public void Backend_HandlesEvent_NoBuiltInAudioSource()
         {
             var go = new GameObject("ss-audio");
             var asset = MakeAssetWithSound(14u, 24u, out var clip);
@@ -237,9 +215,9 @@ namespace SpriteStudio.Runtime.Tests
                 SpriteStudioAudioBackend.Global = null;
                 var ctrl = new SpriteStudioAudioController(go);
 
-                ctrl.Play(Ev(0, 14u, 24u, -1), asset, backend, 1f);
+                ctrl.Play(Ev(0, 14u, 24u, 1), asset, backend, 1f);
 
-                Assert.AreEqual(1, backend.Calls, "ループイベントも backend へ届くはず");
+                Assert.AreEqual(1, backend.Calls, "イベントは backend へ届くはず");
                 Assert.IsNull(go.GetComponent<AudioSource>(), "backend 経路では内蔵 AudioSource を作らないはず");
             }
             finally

@@ -199,16 +199,16 @@ public bool TryGetSoundInfo(uint soundListNameHash, uint soundNameHash, out Spri
 
 ## 5. 確定事項
 
-1. **LoopNum セマンティクス**（SDK doc `11_optional_features.ja.md` §4 に準拠・2026-07-01）:
+1. **LoopNum セマンティクス**（`loop_num` = 再生回数・2026-07-01）:
 
    | `loop_num` | 意味 | 再生回数 |
    |---|---|---|
-   | `<= 0`（0・負数） | 無限ループ | ∞ |
    | `1` | 単発再生 | 1 回 |
    | `N >= 2` | N 回再生 | N 回 |
+   | `<= 0` | 仕様上来ない（SS で無限ループ指定不可） | 内蔵は防御的に鳴らさない |
 
-   ⚠️ **旧規約（`0`=単発 / `N>0`=N+1 回）から SDK doc へ訂正**。`0` が「単発→無限」に反転する点に注意。
-   （旧規約は SS の「リピート回数」表記に引きずられた誤り。実体は再生回数で SDK doc が正。）
+   ⚠️ 旧規約（`0`=単発 / `N>0`=N+1 回）は SS の「リピート回数」表記に引きずられた誤り。実体は再生回数。
+   無限ループ（`<=0`）は SpriteStudio 上で指定できないと判明したため撤去。
 
 2. **Player / Graphic 両対応** — どちらも内蔵（同じ `SpriteStudioAudioController`）。
 
@@ -272,19 +272,19 @@ public bool TryGetSoundInfo(uint soundListNameHash, uint soundNameHash, out Spri
 
 内蔵再生を**パーツ単位「アクティブ音声」管理**に統一し、§4 の要件（loopNum・多重再生防止・順再生
 フィルタ・pause/resume）に合わせた。単発もループも同じ経路（同一性キーで 1 ボイス）。Backend 経路は不変。
-> 一旦 doc に厳密 conform。我々の所感（例: 無限の再発火は restart でなく無視が持続音に良い）は別途 upstream 相談。
+無限ループは SpriteStudio で指定できないため撤去（`loop_num` は再生回数）。
 
 ### 7.1 同一性キーと再発火（多重再生防止）
 - **同一性キー = `(PartIndex, SoundListNameHash+SoundNameHash)`**、1 キーにつき最大 1 ボイス
   （パーツが違えば同じ音でも別ボイス）。
-- **再発火（同一キー）は無限/有限/単発とも「直前を停止して鳴らし直す（restart）」**（§4）。積み上げない。
+- **再発火（同一キー）は有限/単発とも「直前を停止して鳴らし直す（restart）」**（§4・upstream 確認済み）。積み上げない。
 
-### 7.2 回数制御（loopNum）
-- `<= 0`（0・負数）→ 無限（`loop=true`・終了予約なし）
+### 7.2 回数制御（loopNum = 再生回数）
 - `1` → 単発（1 回・`loop=false`）
 - `>= 2` → N 回（`loop=true` ＋ `SetScheduledEndTime(dsp + clip.length × N)`）
-- いずれも `PlayScheduled`。サンプル精度・毎フレーム tick 不要。終了済み（単発・有限）は次の再生要求時に
-  遅延回収してプールへ返す（無限は自然終了しない）。
+- `<= 0` → 仕様上来ない（SS で無限ループ指定不可）→ **内蔵は防御的に鳴らさない**（Backend には素通し）。
+- `PlayScheduled` でサンプル精度・毎フレーム tick 不要。全ボイスが自己終了するので、次の再生要求時に
+  遅延回収してプールへ返す。
 
 ### 7.3 順再生フィルタ（#4）
 - **順再生時のみ再生**。`InvokeAudio` で `_core.Internal.IsPlayingForward()` を見て逆再生では鳴らさない。
@@ -296,14 +296,15 @@ public bool TryGetSoundInfo(uint soundListNameHash, uint soundNameHash, out Spri
   `Play()`（サスペンド解除）に配線し、全ボイスを `AudioSource.Pause()`/`UnPause()`。
 
 ### 7.5 停止トリガと AudioSource 管理
-- `StopLoops()` = アニメ切替（`SetAnimation`）でループ停止。**単発は自己終了に任せて残す**（ユーザー決定「あ」）。
+- `StopLoops()` = アニメ切替（`SetAnimation`）**とアニメ終了（`OnAnimationFinished`）**でループ停止。
+  **単発は自己終了に任せて残す**（ユーザー決定「あ」）。
 - `StopAll()` = 無効化（`OnDisable`）/ 破棄（`OnDestroy`）で全音声停止。
 - AudioSource は owner 上のプールで再利用。ボイスは 2D（素の設定）。空間/ミキサーが要るなら Backend。
 
 ### 7.6 既知の限界
 - 有限で再発火間隔 < `clip.length × N` は頭切れ（キーをその頻度で置いた作者の意図）。
 - 有限ループを pause すると、`SetScheduledEndTime` は絶対 dspTime 基準のため、pause 中に予約終了を
-  過ぎると resume 時に途中終了し得る（単発・無限は影響なし）。
+  過ぎると resume 時に途中終了し得る（単発は影響なし）。
 - ネイティブ再ビルドは Windows debug のみ実施。他プラットフォームの `ss_runtime_is_playing_forward`
   同梱は release ビルド時。
 
@@ -313,7 +314,7 @@ public bool TryGetSoundInfo(uint soundListNameHash, uint soundNameHash, out Spri
 | `SpriteStudio-SDK/libs/ssruntime/src/ffi/mod.rs` | `ss_runtime_is_playing_forward`（extern "C"）追加 |
 | `package/Runtime/SpriteStudioAudioController.cs` | パーツ単位ボイス統合（同一性キー / restart / loopNum / プール / StopLoops / StopAll / PauseAll / ResumeAll） |
 | `package/Runtime/SpriteStudioInternalPlayer.cs` | `IsPlayingForward()` |
-| `package/Runtime/SpriteStudioPlayer.cs` / `SpriteStudioGraphic.cs` | 順再生ゲート / Pause・Play 同期 / StopLoops・StopAll 配線 |
-| `package/Tests/Runtime/SpriteStudioAudioLoopTests.cs` | 10 本（無限/有限/単発 dedup・パーツ独立・StopAll・StopLoops が単発を残す・プール再利用・Pause/Resume・backend） |
+| `package/Runtime/SpriteStudioPlayer.cs` / `SpriteStudioGraphic.cs` | 順再生ゲート / Pause・Play 同期 / StopLoops（切替・終了）・StopAll 配線 |
+| `package/Tests/Runtime/SpriteStudioAudioLoopTests.cs` | 9 本（loop_num<=0 は鳴らさない・単発/有限 dedup・パーツ独立・StopAll・StopLoops が単発を残す・プール再利用・Pause/Resume・backend） |
 
 - **残 = 実機での聴感確認**（batchmode では音が鳴らせず未カバー・構造テストのみ）。
