@@ -61,9 +61,9 @@ namespace SpriteStudio.Runtime
     public class AudioUnityEvent : UnityEvent<SpriteStudioAudio> {}
 
     /// <summary>
-    /// ssab の音メタ (ssse 相当) を再生に必要な最小限で表す。SpriteStudioAudio
-    /// (発火ペイロード) には乗っていない file_path / 再生長などを補う opt-in 情報。
-    /// AnimeAsset.TryGetSoundInfo() が SpriteStudioAudio と同じハッシュキーで返す。
+    /// Represents ssab sound metadata (equivalent to ssse) with the minimum needed for playback. Opt-in
+    /// information that supplements what the SpriteStudioAudio (firing payload) does not carry, such as
+    /// file_path / duration. Returned by AnimeAsset.TryGetSoundInfo() under the same hash key as SpriteStudioAudio.
     /// </summary>
     public struct SpriteStudioSoundInfo
     {

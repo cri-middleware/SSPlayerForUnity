@@ -5,13 +5,13 @@ using UnityEngine;
 namespace SpriteStudio.Runtime.Tests
 {
     /// <summary>
-    /// 内蔵オーディオ再生のルーティング (SpriteStudioAudioController + SpriteStudioAudioBackend) を検証する。
-    /// 実音 (PlayOneShot) は batchmode/-nographics で鳴らせないため、ここで担保するのは差し替え口の
-    /// 解決順 (個体バックエンド > グローバルバックエンド > 内蔵) まで。
+    /// Verifies the routing of built-in audio playback (SpriteStudioAudioController + SpriteStudioAudioBackend).
+    /// Since real sound (PlayOneShot) cannot play under batchmode/-nographics, this only guarantees the override hook's
+    /// resolution order (per-object backend > global backend > built-in).
     /// </summary>
     public class SpriteStudioAudioBackendTests
     {
-        /// <summary>呼び出しを記録するだけのバックエンド (再生はしない)。</summary>
+        /// <summary>A backend that only records calls (does not play).</summary>
         private class RecordingBackend : SpriteStudioAudioBackend
         {
             public int Calls;
@@ -38,8 +38,8 @@ namespace SpriteStudio.Runtime.Tests
 
                 ctrl.Play(in ev, null, perObject, 1f);
 
-                Assert.AreEqual(1, perObject.Calls, "個体バックエンドへ届くはず");
-                Assert.AreEqual(0, global.Calls, "個体バックエンドがグローバルより優先されるはず");
+                Assert.AreEqual(1, perObject.Calls, "Should reach the per-object backend");
+                Assert.AreEqual(0, global.Calls, "The per-object backend should take priority over the global one");
                 Assert.AreEqual(2u, perObject.Last.SoundNameHash);
             }
             finally
@@ -65,7 +65,7 @@ namespace SpriteStudio.Runtime.Tests
 
                 ctrl.Play(in ev, null, null, 1f);
 
-                Assert.AreEqual(1, global.Calls, "個体指定が無ければグローバルへフォールバックするはず");
+                Assert.AreEqual(1, global.Calls, "Without a per-object assignment, it should fall back to the global backend");
                 Assert.AreEqual(7u, global.Last.SoundNameHash);
             }
             finally
@@ -87,9 +87,9 @@ namespace SpriteStudio.Runtime.Tests
                 var ctrl = new SpriteStudioAudioController(go);
                 var ev = new SpriteStudioAudio { SoundName = "c", SoundNameHash = 1u };
 
-                // バックエンド無し + asset null → 内蔵経路は解決できず安全に no-op (AudioSource も付けない)。
+                // No backend + null asset -> the built-in path cannot resolve and is a safe no-op (does not add an AudioSource).
                 Assert.DoesNotThrow(() => ctrl.Play(in ev, null, null, 1f));
-                Assert.IsNull(go.GetComponent<AudioSource>(), "解決できない時は AudioSource を付けないはず");
+                Assert.IsNull(go.GetComponent<AudioSource>(), "When it cannot resolve, it should not add an AudioSource");
             }
             finally
             {

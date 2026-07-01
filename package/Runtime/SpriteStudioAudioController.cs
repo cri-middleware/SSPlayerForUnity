@@ -4,39 +4,39 @@ using UnityEngine;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// Player / Graphic に内蔵される音声再生ヘルパ (MonoBehaviour ではない素の C# クラス)。
-    /// オーディオイベント 1 件を、差し替え口 (SpriteStudioAudioBackend) があればそちらへ、
-    /// 無ければ内蔵の AudioClip 再生へルーティングする (SDK doc 11_optional_features.ja.md §4 準拠)。
+    /// Built-in audio playback helper embedded in Player / Graphic (a plain C# class, not a MonoBehaviour).
+    /// Routes one audio event to the override hook (SpriteStudioAudioBackend) if present, otherwise to
+    /// built-in AudioClip playback (per SDK doc 11_optional_features.ja.md §4).
     ///
-    /// 解決順: 個体バックエンド > グローバルバックエンド > 内蔵 (ResolveAudioClip)。
-    /// 内蔵再生は**パーツ単位でアクティブな音声を管理**する。同一性キー = (PartIndex,
-    /// SoundListNameHash+SoundNameHash) で 1 キーにつき最大 1 ボイス。同じキーが再発火したら
-    /// 直前を停止して鳴らし直す (多重再生を防ぐ)。loop_num は再生回数:
-    ///   * 1        : 単発 (1 回再生)。
-    ///   * &gt;= 2  : N 回再生。
-    ///   * &lt;= 0  : 仕様上来ない (SS で無限ループは指定不可)。防御的に鳴らさない。
-    /// AudioSource は必要時に owner へ自動付与し、終了後はプールで再利用する。
-    /// 逆再生では鳴らさない (順再生フィルタは呼び出し側 Player/Graphic が担当)。
+    /// Resolution order: per-object backend > global backend > built-in (ResolveAudioClip).
+    /// Built-in playback **manages active sounds per part**. The identity key = (PartIndex,
+    /// SoundListNameHash+SoundNameHash), with at most one voice per key. If the same key fires again,
+    /// the previous one is stopped and replayed (to prevent duplicate playback). loop_num is the play count:
+    ///   * 1        : one-shot (play once).
+    ///   * &gt;= 2  : play N times.
+    ///   * &lt;= 0  : cannot occur per spec (SS cannot specify an infinite loop). Defensively does not play.
+    /// AudioSource is added to the owner on demand and reused from a pool after it finishes.
+    /// Does not play during reverse playback (the forward-playback filter is the caller's responsibility, i.e. Player/Graphic).
     /// </summary>
     public sealed class SpriteStudioAudioController
     {
         private readonly GameObject _owner;
 
-        // パーツ単位のアクティブ音声: 同一性キー -> ボイス。1 キーにつき最大 1 ボイス。
+        // Active sounds per part: identity key -> voice. At most one voice per key.
         private readonly Dictionary<VoiceKey, Voice> _voices = new Dictionary<VoiceKey, Voice>();
-        private readonly Stack<AudioSource> _pool = new Stack<AudioSource>();   // 返却済み AudioSource の再利用
-        private List<VoiceKey> _scratch;                                        // 列挙中削除を避ける一時バッファ
+        private readonly Stack<AudioSource> _pool = new Stack<AudioSource>();   // Reuse of returned AudioSources
+        private List<VoiceKey> _scratch;                                        // Temp buffer to avoid removing while enumerating
 
         public SpriteStudioAudioController(GameObject owner)
         {
             _owner = owner;
         }
 
-        /// <summary>オーディオイベント 1 件を再生する (内蔵経路はパーツ単位で dedup)。</summary>
+        /// <summary>Plays one audio event (the built-in path dedups per part).</summary>
         public void Play(in SpriteStudioAudio ev, SpriteStudioAnimeAsset asset,
                          SpriteStudioAudioBackend backend, float volume)
         {
-            // 差し替え口: 個体 > グローバル。どちらかあれば内蔵再生はしない (回数管理も backend の責務)。
+            // Override hook: per-object > global. If either exists, built-in playback is skipped (the backend also owns play-count management).
             var be = backend != null ? backend : SpriteStudioAudioBackend.Global;
             if (be != null)
             {
@@ -44,19 +44,19 @@ namespace SpriteStudio.Runtime
                 return;
             }
 
-            // loop_num は再生回数。仕様上 <= 0 は来ない (SS で無限ループ指定不可) → 防御的に鳴らさない。
+            // loop_num is the play count. Per spec <= 0 cannot occur (SS cannot specify an infinite loop) -> defensively do not play.
             if (ev.LoopNum <= 0) return;
 
-            // 内蔵: インポート済み AudioClip を解決。非対応/未解決は安全に無音。
+            // Built-in: resolve the imported AudioClip. Unsupported/unresolved is safely silent.
             var clip = asset != null ? asset.ResolveAudioClip(ev.SoundListNameHash, ev.SoundNameHash) : null;
             if (clip == null) return;
 
-            ReclaimFinished();   // 終了済みボイスを遅延回収 (毎フレーム tick 不要)
+            ReclaimFinished();   // Lazily reclaim finished voices (no per-frame tick needed)
 
             var key = new VoiceKey(ev.PartIndex, ev.SoundListNameHash, ev.SoundNameHash);
             if (_voices.TryGetValue(key, out var voice))
             {
-                // 再発火 (同一キー): 直前を停止して鳴らし直す (SDK doc §4・多重再生防止)。
+                // Refire (same key): stop the previous one and replay (SDK doc §4, prevents duplicate playback).
                 StartVoice(voice, clip, volume, ev.LoopNum);
                 return;
             }
@@ -66,27 +66,27 @@ namespace SpriteStudio.Runtime
             _voices[key] = v;
         }
 
-        /// <summary>ループ音を停止する (アニメ切替で呼ぶ)。単発は自己終了に任せて止めない。</summary>
+        /// <summary>Stops loop sounds (call on animation switch). One-shots are left to end on their own and are not stopped.</summary>
         public void StopLoops() => Sweep(loopsOnly: true);
 
-        /// <summary>全音声を停止する (無効化 / 破棄で呼ぶ)。</summary>
+        /// <summary>Stops all sounds (call on disable / destroy).</summary>
         public void StopAll() => Sweep(loopsOnly: false);
 
-        /// <summary>再生中の全音声を一時停止する (アニメ pause と同期・SDK doc §4)。</summary>
+        /// <summary>Pauses all playing sounds (synced with animation pause, SDK doc §4).</summary>
         public void PauseAll()
         {
             foreach (var kv in _voices) kv.Value.Source.Pause();
         }
 
-        /// <summary>一時停止した音声を再開する (アニメ resume / play と同期・SDK doc §4)。</summary>
+        /// <summary>Resumes paused sounds (synced with animation resume / play, SDK doc §4).</summary>
         public void ResumeAll()
         {
             foreach (var kv in _voices) kv.Value.Source.UnPause();
         }
 
-        // --- 内部 -------------------------------------------------------------
+        // --- Internal ---------------------------------------------------------
 
-        // ボイスを loop_num に応じて (再) 開始する。既存 Source を stop してから鳴らし直す。
+        // (Re)starts a voice according to loop_num. Stops the existing Source, then replays it.
         private static void StartVoice(Voice v, AudioClip clip, float volume, int loopNum)
         {
             var src = v.Source;
@@ -97,7 +97,7 @@ namespace SpriteStudio.Runtime
 
             if (loopNum == 1)
             {
-                // 単発 (1 回再生)。自己終了。
+                // One-shot (play once). Self-terminating.
                 src.loop = false;
                 src.PlayScheduled(dsp);
                 v.PlaysOnce = true;
@@ -105,7 +105,7 @@ namespace SpriteStudio.Runtime
             }
             else
             {
-                // N 回再生 (N >= 2)。N 長で終了予約。自己終了。
+                // Play N times (N >= 2). Schedule the end at N lengths. Self-terminating.
                 src.loop = true;
                 src.PlayScheduled(dsp);
                 double end = dsp + (double)clip.length * loopNum;
@@ -115,7 +115,7 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        // 予約終了を過ぎたボイス (単発・有限) を回収してプールへ返す。要求時にだけ掃くので idle コストは無い。
+        // Reclaims voices (one-shot / finite) whose scheduled end has passed and returns them to the pool. Swept only on demand, so there is no idle cost.
         private void ReclaimFinished()
         {
             if (_voices.Count == 0) return;
@@ -124,13 +124,13 @@ namespace SpriteStudio.Runtime
             double now = AudioSettings.dspTime;
             foreach (var kv in _voices)
             {
-                if (now >= kv.Value.EndDsp)   // 全ボイス自己終了する (無限は無い)
+                if (now >= kv.Value.EndDsp)   // All voices self-terminate (none are infinite)
                     _scratch.Add(kv.Key);
             }
             FreeScratch();
         }
 
-        // loopsOnly=true ならループ (単発以外) だけを、false なら全ボイスを停止してプールへ返す。
+        // If loopsOnly=true, stops only loops (non-one-shot); if false, stops all voices and returns them to the pool.
         private void Sweep(bool loopsOnly)
         {
             if (_voices.Count == 0) return;
@@ -138,7 +138,7 @@ namespace SpriteStudio.Runtime
 
             foreach (var kv in _voices)
             {
-                if (loopsOnly && kv.Value.PlaysOnce) continue;   // 単発は残す (自己終了)
+                if (loopsOnly && kv.Value.PlaysOnce) continue;   // Keep one-shots (self-terminating)
                 _scratch.Add(kv.Key);
             }
             FreeScratch();
@@ -179,8 +179,8 @@ namespace SpriteStudio.Runtime
             _pool.Push(src);
         }
 
-        // (PartIndex, (SoundListNameHash << 32) | SoundNameHash) を同一性キーにする。
-        // IEquatable 実装で Dictionary キー使用時のボクシングを避ける (ゼロ GC)。
+        // Uses (PartIndex, (SoundListNameHash << 32) | SoundNameHash) as the identity key.
+        // Implements IEquatable to avoid boxing when used as a Dictionary key (zero GC).
         private readonly struct VoiceKey : System.IEquatable<VoiceKey>
         {
             private readonly int _part;
@@ -200,8 +200,8 @@ namespace SpriteStudio.Runtime
         private sealed class Voice
         {
             public AudioSource Source;
-            public bool PlaysOnce;   // loop_num == 1 (単発。StopLoops では止めない)
-            public double EndDsp;    // 予約終了 dspTime (全ボイス自己終了する)。
+            public bool PlaysOnce;   // loop_num == 1 (one-shot. Not stopped by StopLoops)
+            public double EndDsp;    // Scheduled end dspTime (all voices self-terminate).
         }
     }
 }

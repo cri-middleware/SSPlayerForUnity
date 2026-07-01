@@ -18,7 +18,7 @@ namespace SpriteStudio.Runtime
     public class SpriteStudioGraphic : MaskableGraphic, ISpriteStudioRenderable
     {
         [Header("SpriteStudio Asset")]
-        [Tooltip("描画対象となるコンバート済みの ssab アセット")]
+        [Tooltip("The converted ssab asset to render")]
         [SerializeField] private SpriteStudioAnimeAsset _animeAsset;
 
         public SpriteStudioAnimeAsset AnimeAsset
@@ -32,19 +32,19 @@ namespace SpriteStudio.Runtime
         }
 
         [Header("Audio")]
-        [Tooltip("オーディオイベント (ADIO) で音を鳴らす。ON なら別コンポーネント不要で内蔵再生する。")]
+        [Tooltip("Play sounds from audio events (ADIO). When ON, plays them built-in with no extra component required.")]
         [SerializeField] private bool _playAudio = true;
-        [Tooltip("内蔵再生 (AudioClip ワンショット) の音量。Audio Backend 使用時は無視される。")]
+        [Tooltip("Volume of built-in playback (AudioClip one-shot). Ignored when an Audio Backend is used.")]
         [Range(0f, 1f)]
         [SerializeField] private float _audioVolume = 1f;
-        [Tooltip("再生の差し替え口 (任意)。CRI ADX 等の自前バックエンドへ流す場合に割り当てる。" +
-                 "空ならグローバル既定 → 内蔵 AudioClip 再生の順で解決する。")]
+        [Tooltip("Playback override hook (optional). Assign this to route to a custom audio backend such as audio middleware. " +
+                 "When empty, resolution falls back to the global default, then built-in AudioClip playback.")]
         [SerializeField] private SpriteStudioAudioBackend _audioBackend;
 
         private SpriteStudioAudioController _audioController;
 
         [Header("Playback Settings")]
-        [Tooltip("再生するアニメーション名 (パック名/アニメ名など)")]
+        [Tooltip("Animation name to play (e.g. pack name / animation name)")]
         [SerializeField] private string _animationName = "";
         public string AnimationName
         {
@@ -52,7 +52,7 @@ namespace SpriteStudio.Runtime
             set => _animationName = value;
         }
 
-        [Tooltip("起動時に自動で再生を開始するか")]
+        [Tooltip("Whether to start playback automatically on startup")]
         [SerializeField] private bool _autoPlay = true;
         public bool AutoPlay
         {
@@ -60,7 +60,7 @@ namespace SpriteStudio.Runtime
             set => _autoPlay = value;
         }
 
-        [Tooltip("ループ回数。-1 = 無限ループ / 1 = 1回再生 / n = n回再生")]
+        [Tooltip("Loop count. -1 = infinite loop / 1 = play once / n = play n times")]
         [SerializeField] private int _loopCount = -1;
         public int LoopCount
         {
@@ -72,7 +72,7 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        [Tooltip("アニメーションの再生速度スケール")]
+        [Tooltip("Playback speed scale of the animation")]
         [SerializeField] private float _speedScale = 1.0f;
         public float SpeedScale
         {
@@ -84,7 +84,7 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        [Tooltip("サブフレーム描画（フレーム間の補間）を有効にするか")]
+        [Tooltip("Whether to enable sub-frame rendering (interpolation between frames)")]
         [SerializeField] private bool _subFrameEnabled = false;
         public bool SubFrameEnabled
         {
@@ -96,7 +96,7 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        [Tooltip("実時間追従 (timed)。ON: 負荷でフレームが落ちても経過時間ぶん進める。OFF (fixed): 毎 update で必ず 1 フレームずつ進める (コマ送り)。")]
+        [Tooltip("Real-time tracking (timed). ON: advance by elapsed time even when frames drop under load. OFF (fixed): always advance exactly one frame per update (frame-by-frame).")]
         [SerializeField] private bool _skipFrames = true;
         public bool SkipFrames
         {
@@ -118,7 +118,7 @@ namespace SpriteStudio.Runtime
         public bool SetAnimation(string animName)
         {
             _animationName = animName;
-            _audioController?.StopLoops();   // アニメ切替で旧アニメのループ音を止める (単発は自己終了に任せる)
+            _audioController?.StopLoops();   // On animation switch, stop the previous animation's loop sounds (let one-shots end on their own)
             return _core.SetAnimation(_animationName, "SpriteStudioGraphic");
         }
 
@@ -137,7 +137,7 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>現在セットアップ済みのアニメーションを先頭から再生開始します。</summary>
-        public void Play() { _core.Play(); _audioController?.ResumeAll(); }   // 明示 play でサスペンド解除 (SDK doc §4)
+        public void Play() { _core.Play(); _audioController?.ResumeAll(); }   // Explicit play lifts the suspend (SDK doc §4)
 
         /// <summary>現在セットアップ済みのアニメーションを指定フレームから再生開始します。</summary>
         public void Play(float startFrame) { _core.Play(startFrame); _audioController?.ResumeAll(); }
@@ -168,7 +168,7 @@ namespace SpriteStudio.Runtime
         public void Pause()
         {
             _core.Internal?.Pause();
-            // アニメ pause/resume に音声を同期 (SDK doc §4)。Pause はトグルなので結果状態で分岐。
+            // Sync audio with the animation pause/resume (SDK doc §4). Pause is a toggle, so branch on the resulting state.
             if (_audioController != null && _core.Internal != null)
             {
                 if (_core.Internal.IsPausing()) _audioController.PauseAll();
@@ -326,7 +326,7 @@ namespace SpriteStudio.Runtime
         private void InvokeAnimationStarted() => OnAnimationStartedEvent?.Invoke();
         private void InvokeAnimationFinished()
         {
-            _audioController?.StopLoops();   // アニメ終了でループ音を止める (単発は自己終了に任せる)
+            _audioController?.StopLoops();   // On animation end, stop loop sounds (let one-shots end on their own)
             OnAnimationFinishedEvent?.Invoke();
         }
         private void InvokeAnimationLooped() => OnAnimationLoopedEvent?.Invoke();
@@ -334,8 +334,8 @@ namespace SpriteStudio.Runtime
         private void InvokeSignal(SpriteStudioSignal data) => OnSignalEvent?.Invoke(data);
         private void InvokeAudio(SpriteStudioAudio data)
         {
-            OnAudioEvent?.Invoke(data);   // 通知 (観測軸) は再生方向に関係なく常に発火。
-            // 内蔵/Backend 再生 (ゼロコンフィグ)。実行中かつ順再生時のみ (SDK doc §4: 逆再生では鳴らさない)。
+            OnAudioEvent?.Invoke(data);   // Notification (observation channel) always fires regardless of playback direction.
+            // Built-in/Backend playback (zero-config). Only while running and playing forward (SDK doc §4: no sound on reverse playback).
             if (_playAudio && Application.isPlaying && (_core.Internal?.IsPlayingForward() ?? false))
             {
                 if (_audioController == null) _audioController = new SpriteStudioAudioController(gameObject);
@@ -355,7 +355,7 @@ namespace SpriteStudio.Runtime
             _core.OnUserData -= InvokeUserData;
             _core.OnSignal -= InvokeSignal;
             _core.OnAudio -= InvokeAudio;
-            _audioController?.StopAll();   // 無効化で内蔵の全音声を止める
+            _audioController?.StopAll();   // On disable, stop all built-in sounds
 
             _core.Dispose();
 

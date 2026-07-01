@@ -10,24 +10,24 @@ namespace SpriteStudio.Runtime
     [UnityEngine.Icon("Packages/com.spritestudio.ssruntime/Editor/Icons/ssab_icon.png")]
     public class SpriteStudioAnimeAsset : ScriptableObject
     {
-        [Tooltip("コンバート済みの .ssab バイナリデータ")]
+        [Tooltip("Converted .ssab binary data")]
         [HideInInspector]
         public byte[] SsabData;
 
-        [Tooltip("テクスチャのビルドストリッピング防止用ハードリファレンス")]
+        [Tooltip("Hard reference to prevent texture build stripping")]
         public List<Texture2D> Textures = new List<Texture2D>();
 
-        [Tooltip("外部アニメーション参照（Instance パーツ用）")]
+        [Tooltip("External animation references (for Instance parts)")]
         public List<SpriteStudioAnimeAsset> ExternalReferences = new List<SpriteStudioAnimeAsset>();
 
-        [Tooltip("マテリアル辞書: 描画に必要なベースマテリアル群への参照")]
+        [Tooltip("Material dictionary: references to the base materials needed for rendering")]
         public List<Material> Materials = new List<Material>();
-        
-        [Tooltip("ファイル内に含まれるアニメーション名のリスト")]
+
+        [Tooltip("List of animation names contained in the file")]
         public string[] AnimationNames;
 
-        [Tooltip("ssab の音声 (EventAudio が参照) を再生するための『口』。アドレス用ハッシュ2つ + 解決済み AudioClip のみ。" +
-                 "名前/元パス/再生長などのメタは SsabData にあるので重複保持しない。音声なし pack では空。")]
+        [Tooltip("The 'mouth' for playing ssab sounds (referenced by EventAudio). Only the two addressing hashes + the resolved AudioClip. " +
+                 "Metadata such as name/source path/duration lives in SsabData, so it is not duplicated here. Empty for packs with no sound.")]
         public List<SoundClipEntry> Sounds = new List<SoundClipEntry>();
 
         [HideInInspector]
@@ -435,26 +435,26 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// EventAudio が参照する音声 1 件を、再生に必要な最小限で表す。
-        /// アドレス用の 2 ハッシュ + 再生用 AudioClip のハードリファレンスのみ。
-        /// 名前・元パス・再生長などのメタは SsabData 側に既にあるので重複保持しない。
+        /// Represents one sound referenced by EventAudio, with the minimum needed for playback.
+        /// Only the two addressing hashes + a hard reference to the AudioClip for playback.
+        /// Metadata such as name, source path, and duration already lives in SsabData, so it is not duplicated here.
         /// </summary>
         [System.Serializable]
         public class SoundClipEntry
         {
-            [Tooltip("SoundList 名のハッシュ (fnv1a)。EventAudio.SoundListNameHash と対応。")]
+            [Tooltip("Hash of the SoundList name (fnv1a). Corresponds to EventAudio.SoundListNameHash.")]
             public uint SoundListNameHash;
-            [Tooltip("音声エイリアス名のハッシュ (fnv1a)。EventAudio.SoundNameHash と対応。")]
+            [Tooltip("Hash of the sound alias name (fnv1a). Corresponds to EventAudio.SoundNameHash.")]
             public uint SoundNameHash;
-            [Tooltip("再生用 AudioClip。ビルドストリッピング防止 / 実行時ロードのためのハードリファレンス。")]
+            [Tooltip("AudioClip for playback. Hard reference to prevent build stripping / for runtime loading.")]
             public AudioClip Clip;
         }
 
         [System.NonSerialized] private Dictionary<ulong, AudioClip> _soundToClip;
 
         /// <summary>
-        /// EventAudio の (sound_list_name_hash, sound_name_hash) に対応する AudioClip を返す。
-        /// 見つからない場合は null。シーケンス/音声のランタイム再生を実装する際の解決口 (現状の呼び出し元はなし)。
+        /// Returns the AudioClip corresponding to EventAudio's (sound_list_name_hash, sound_name_hash).
+        /// Returns null if not found. The resolution hook for implementing runtime sequence/sound playback (currently no callers).
         /// </summary>
         public AudioClip ResolveAudioClip(uint soundListNameHash, uint soundNameHash)
         {
@@ -476,11 +476,11 @@ namespace SpriteStudio.Runtime
         [System.NonSerialized] private Dictionary<ulong, SpriteStudioSoundInfo> _soundInfo;
 
         /// <summary>
-        /// EventAudio の (sound_list_name_hash, sound_name_hash) に対応する ssab 音メタ
-        /// (alias / file_path / file_path_hash / time_total) を返す。ResolveAudioClip と対の
-        /// opt-in アクセサで、AudioClip を経由しない自前バックエンド (CRI ADX 等) 向け。
-        /// 生 FlatBuffers パースをこの 1 か所に封じ込め、呼び出し側に SsabData を晒さない。
-        /// 既定の再生 (PlayOneShot) はこれを呼ばず ResolveAudioClip を使う。
+        /// Returns the ssab sound metadata (alias / file_path / file_path_hash / time_total) corresponding
+        /// to EventAudio's (sound_list_name_hash, sound_name_hash). An opt-in accessor paired with
+        /// ResolveAudioClip, intended for a custom audio backend that does not go through AudioClip.
+        /// Confines raw FlatBuffers parsing to this one place and does not expose SsabData to callers.
+        /// Default playback (PlayOneShot) does not call this and uses ResolveAudioClip instead.
         /// </summary>
         public bool TryGetSoundInfo(uint soundListNameHash, uint soundNameHash, out SpriteStudioSoundInfo info)
         {

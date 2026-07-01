@@ -19,7 +19,7 @@ override でカスタムする」案だった。しかし**デザイナ/初心�
 ポイントは **ユーザー層が 2 ついて要求が真逆**であること:
 
 - **デザイナ/初心者** — コードもコンポーネント追加もしたくない。「置いたら鳴る」が理想。
-- **上級者/ミドルウェア連携（CRI ADX 等）** — 完全に差し替えたい。
+- **上級者/オーディオミドルウェア連携** — 完全に差し替えたい。
 
 `ADIO` は「やることが自明」（= この音を鳴らす）なので、デザイナ向けには**イベント関数の
 登録ではなく自動再生（ゼロコンフィグ）**が正解。上級者向けには**毎オブジェクトの継承
@@ -53,7 +53,7 @@ override でカスタムする」案だった。しかし**デザイナ/初心�
   回数制御・順再生フィルタ・Pause/Resume 同期は §7 で実装済み。
 - ssab スキーマ / SDK への音量・パン等のフィールド追加
 - AudioClip インポートのオプト化（Importer トグル）＋警告抑制
-  （ADX 前提プロジェクトの警告氾濫対策。importer 改修として独立着手）
+  （オーディオミドルウェア前提プロジェクトの警告氾濫対策。importer 改修として独立着手）
 
 ---
 
@@ -166,7 +166,7 @@ public abstract class SpriteStudioAudioBackend : ScriptableObject
 2. Play。該当フレームで自動再生される。**別コンポーネントもコードも不要。**
 3. 鳴らしたくない個体は `Play Audio` を OFF。音量は `Audio Volume`。
 
-### 4.2 上級者: プロジェクト全体を自前バックエンドへ（CRI ADX 等）
+### 4.2 上級者: プロジェクト全体を自前バックエンドへ（オーディオミドルウェア等）
 
 ```csharp
 public class AdxAudioBackend : SpriteStudioAudioBackend
@@ -216,7 +216,7 @@ public bool TryGetSoundInfo(uint soundListNameHash, uint soundNameHash, out Spri
 
 4. **デコーダ非拘束** — `SpriteStudioAudioBackend` で AudioClip を経由しない再生に丸ごと
    差し替え可能。パッケージは「識別子(alias/file_path/hash)＋発火タイミング」のみ提供し、
-   デコード/再生手段を前提にしない（CRI ADX 連携見据え）。
+   デコード/再生手段を前提にしない（オーディオミドルウェア連携見据え）。
 
 5. **配置** — 計画書はリポジトリ直下 `_IMPLEMENT_Audio_playback.md`。
 
