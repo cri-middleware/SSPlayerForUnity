@@ -19,7 +19,11 @@ namespace SpriteStudio.Editor
         private SerializedProperty _sortingLayerNameProp;
         private SerializedProperty _sortingOrderProp;
         private SerializedProperty _partTrackersProp;
+        private SerializedProperty _playAudioProp;
+        private SerializedProperty _audioVolumeProp;
+        private SerializedProperty _audioBackendProp;
 
+        private SerializedProperty _onAnimationStartedEventProp;
         private SerializedProperty _onAnimationFinishedEventProp;
         private SerializedProperty _onAnimationLoopedEventProp;
         private SerializedProperty _onUserDataEventProp;
@@ -43,7 +47,11 @@ namespace SpriteStudio.Editor
             _sortingLayerNameProp = serializedObject.FindProperty("_sortingLayerName");
             _sortingOrderProp = serializedObject.FindProperty("_sortingOrder");
             _partTrackersProp = serializedObject.FindProperty("_partTrackers");
+            _playAudioProp = serializedObject.FindProperty("_playAudio");
+            _audioVolumeProp = serializedObject.FindProperty("_audioVolume");
+            _audioBackendProp = serializedObject.FindProperty("_audioBackend");
 
+            _onAnimationStartedEventProp = serializedObject.FindProperty("OnAnimationStartedEvent");
             _onAnimationFinishedEventProp = serializedObject.FindProperty("OnAnimationFinishedEvent");
             _onAnimationLoopedEventProp = serializedObject.FindProperty("OnAnimationLoopedEvent");
             _onUserDataEventProp = serializedObject.FindProperty("OnUserDataEvent");
@@ -74,6 +82,16 @@ namespace SpriteStudio.Editor
             EditorGUILayout.PropertyField(_partTrackersProp, true);
 
             EditorGUILayout.Space();
+            EditorGUILayout.PropertyField(_playAudioProp);   // The [Header("Audio")] on the field renders the section label.
+            // Volume / Backend only take effect while Play Audio is on (it is the master switch).
+            using (new EditorGUI.DisabledScope(!_playAudioProp.boolValue))
+            {
+                EditorGUILayout.PropertyField(_audioVolumeProp);
+                EditorGUILayout.PropertyField(_audioBackendProp);
+            }
+
+            EditorGUILayout.Space();
+            EditorGUILayout.PropertyField(_onAnimationStartedEventProp);
             EditorGUILayout.PropertyField(_onAnimationFinishedEventProp);
             EditorGUILayout.PropertyField(_onAnimationLoopedEventProp);
             EditorGUILayout.PropertyField(_onUserDataEventProp);

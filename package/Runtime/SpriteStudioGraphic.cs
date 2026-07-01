@@ -247,7 +247,6 @@ namespace SpriteStudio.Runtime
 
         private readonly SpriteStudioPlaybackCore _core = new SpriteStudioPlaybackCore();
 
-        /// <summary>再生開始時に発火します (<see cref="Play()"/> 呼び出し時)。</summary>
         public event System.Action OnAnimationStarted
         {
             add => _core.OnAnimationStarted += value;

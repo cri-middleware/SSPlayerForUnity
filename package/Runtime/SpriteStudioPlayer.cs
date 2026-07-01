@@ -26,7 +26,6 @@ namespace SpriteStudio.Runtime
                  "shader dispatch. The built-in AddOns ship pre-registered in the package catalog.")]
         [SerializeField] private SpriteStudioShaderCatalog _shaderCatalog;
 
-        [Header("Part Tracking")]
         [Tooltip("Registration list of user-owned Transforms that follow specified parts. The player does not create GameObjects; " +
                  "it only drives the registered Transforms every frame (constraint style).")]
         [SerializeField] private List<SpriteStudioPartTracker> _partTrackers = new List<SpriteStudioPartTracker>();
@@ -310,7 +309,6 @@ namespace SpriteStudio.Runtime
 
         private readonly SpriteStudioPlaybackCore _core = new SpriteStudioPlaybackCore();
 
-        /// <summary>再生開始時に発火します (<see cref="Play()"/> 呼び出し時)。</summary>
         public event System.Action OnAnimationStarted
         {
             add => _core.OnAnimationStarted += value;
