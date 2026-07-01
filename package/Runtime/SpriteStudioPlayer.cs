@@ -177,6 +177,7 @@ namespace SpriteStudio.Runtime
         public bool SetAnimation(string animName)
         {
             _animationName = animName;
+            _audioController?.StopLoops();   // アニメ切替で旧アニメのループ音を止める (単発は自己終了に任せる)
             bool ok = _core.SetAnimation(_animationName, "SpriteStudioPlayer");
 #if UNITY_EDITOR
             // Keep the OnValidate baseline in sync so a later unrelated inspector edit does not restart.
@@ -200,10 +201,10 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>現在セットアップ済みのアニメーションを先頭から再生開始します。</summary>
-        public void Play() => _core.Play();
+        public void Play() { _core.Play(); _audioController?.ResumeAll(); }   // 明示 play でサスペンド解除 (SDK doc §4)
 
         /// <summary>現在セットアップ済みのアニメーションを指定フレームから再生開始します。</summary>
-        public void Play(float startFrame) => _core.Play(startFrame);
+        public void Play(float startFrame) { _core.Play(startFrame); _audioController?.ResumeAll(); }
 
         #region Playback Control (再生制御)
         // 内部プレイヤー (Rust ランタイム) が既に備える再生制御をコンポーネントの公開 API として薄く露出する。
@@ -228,7 +229,16 @@ namespace SpriteStudio.Runtime
         /// 再生の一時停止 / 再開をトグルします (現在フレームを保持)。ネイティブの is_pausing を切り替えます
         /// (Godot プレイヤーの pause() と同じ。play() は先頭へ巻き戻すため再開には使えません)。
         /// </summary>
-        public void Pause() => _core.Internal?.Pause();
+        public void Pause()
+        {
+            _core.Internal?.Pause();
+            // アニメ pause/resume に音声を同期 (SDK doc §4)。Pause はトグルなので結果状態で分岐。
+            if (_audioController != null && _core.Internal != null)
+            {
+                if (_core.Internal.IsPausing()) _audioController.PauseAll();
+                else _audioController.ResumeAll();
+            }
+        }
 
         /// <summary>再生を停止する。</summary>
         public void Stop() => _core.Internal?.Stop();
@@ -389,9 +399,9 @@ namespace SpriteStudio.Runtime
         private void InvokeSignal(SpriteStudioSignal data) => OnSignalEvent?.Invoke(data);
         private void InvokeAudio(SpriteStudioAudio data)
         {
-            OnAudioEvent?.Invoke(data);
-            // 内蔵再生 (デザイナ向けゼロコンフィグ)。実行中のみ・別コンポーネント不要。
-            if (_playAudio && Application.isPlaying)
+            OnAudioEvent?.Invoke(data);   // 通知 (観測軸) は再生方向に関係なく常に発火。
+            // 内蔵/Backend 再生 (ゼロコンフィグ)。実行中かつ順再生時のみ (SDK doc §4: 逆再生では鳴らさない)。
+            if (_playAudio && Application.isPlaying && (_core.Internal?.IsPlayingForward() ?? false))
             {
                 if (_audioController == null) _audioController = new SpriteStudioAudioController(gameObject);
                 _audioController.Play(in data, _animeAsset, _audioBackend, _audioVolume);
@@ -408,6 +418,7 @@ namespace SpriteStudio.Runtime
             _core.OnUserData -= InvokeUserData;
             _core.OnSignal -= InvokeSignal;
             _core.OnAudio -= InvokeAudio;
+            _audioController?.StopAll();   // 無効化で内蔵の全音声を止める
 
             // Release the per-part AddOn material instances and force a material-list rebuild on
             // re-enable (the cleared list count no longer matches the submesh count).
@@ -421,6 +432,7 @@ namespace SpriteStudio.Runtime
 
         private void OnDestroy()
         {
+            _audioController?.StopAll();   // 破棄時の後始末 (保険)
             if (_sharedMesh != null)
             {
                 if (Application.isPlaying)

@@ -361,6 +361,8 @@ internal struct MaskPartData
 
         #region Playback Control
         public bool IsPlaying() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_is_playing(_handle.ptr); } }
+        // 現在の実効再生方向が順方向か (ピンポン等の折り返しも反映)。逆再生では音を鳴らさないための判定に使う。
+        public bool IsPlayingForward() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_is_playing_forward(_handle.ptr); } }
         public void Play(float startFrame = -1.0f)
         {
             unsafe
