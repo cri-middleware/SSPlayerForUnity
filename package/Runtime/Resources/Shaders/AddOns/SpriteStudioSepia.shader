@@ -1,6 +1,6 @@
 Shader "SpriteStudio/AddOn/Sepia"
 {
-    // Per-part AddOn: ss-sepia (ported from the SS6 SDK / SSPlayerForGodot). Identical to
+    // Per-part AddOn: ss-sepia (ported from the SS6 SDK). Identical to
     // SpriteStudio/Default except the fragment runs ss_addon_sepia (SpriteStudioAddOn.hlsl) before the
     // PartColor composition. _SsParam0 = signed sepia strength (the per-part shader param0, set by the
     // C# per-part dispatch each frame). Shares the world vertex stage -> fragment-only authoring.
@@ -86,7 +86,7 @@ Shader "SpriteStudio/AddOn/Sepia"
             half4 frag(ss_world_v2f IN) : SV_Target
             {
                 float4 tex = ss_world_sample(IN);
-                // AddOn effect first, then PartColor composition (mirrors ForGodot ss_sepia.fs).
+                // AddOn effect first, then PartColor composition (ss_sepia.fs).
                 float3 rgb = ss_addon_sepia(tex.rgb, _SsParam0);
                 rgb = ss_partcolor_blend(rgb, IN.color.rgb, IN.partcolorVarg);
                 float alpha = tex.a * IN.color.a;
@@ -148,7 +148,7 @@ Shader "SpriteStudio/AddOn/Sepia"
             half4 frag(ss_world_v2f IN) : SV_Target
             {
                 float4 tex = ss_world_sample(IN);
-                // AddOn effect first, then PartColor composition (mirrors ForGodot ss_sepia.fs).
+                // AddOn effect first, then PartColor composition (ss_sepia.fs).
                 float3 rgb = ss_addon_sepia(tex.rgb, _SsParam0);
                 rgb = ss_partcolor_blend(rgb, IN.color.rgb, IN.partcolorVarg);
                 float alpha = tex.a * IN.color.a;

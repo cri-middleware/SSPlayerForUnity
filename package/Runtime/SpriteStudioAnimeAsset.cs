@@ -35,7 +35,7 @@ namespace SpriteStudio.Runtime
 
         /// <summary>
         /// Resolve and return the .ssab binary of the child animation requested by an Instance part.
-        /// Same priority as Godot's SsInternalPlayer::_resolve_ssab_by_hash:
+        /// Resolution priority:
         ///   1. A reference to another pack (external .ssab) is looked up from the ExternalReferences fixed at import time, by pack_hash.
         ///   2. A same-pack (self) animation reference returns our own SsabData.
         /// SpriteStudio Instances are mostly same-project references, so 2 is the primary path.
@@ -66,9 +66,8 @@ namespace SpriteStudio.Runtime
             }
 
             // 3. Fallback (a safeguard for when 1 does not match due to operational differences in the pack
-            //    name hash). Like Godot's find_animation_by_hash, search for an ssab that actually contains
-            //    the requested animation name hash, in the order self -> external references. Resolves
-            //    without depending on pack_hash.
+            //    name hash): search for an ssab that actually contains the requested animation name hash,
+            //    in the order self -> external references. Resolves without depending on pack_hash.
             if (nameHash != 0)
             {
                 if (ContainsAnimationHash(nameHash)) return SsabData;

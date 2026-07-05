@@ -113,7 +113,7 @@ namespace SpriteStudio.Runtime
         /// Does not start playback; call <see cref="Play()"/> to start. Playback settings such as
         /// loop/speed/skip are not applied here (setup resets them to defaults). To apply settings after
         /// switching at runtime, set the <see cref="LoopCount"/> / <see cref="SpeedScale"/> /
-        /// <see cref="SkipFrames"/> properties after setup (same flow as the Godot player). Returns true if
+        /// <see cref="SkipFrames"/> properties after setup. Returns true if
         /// setup succeeded.
         /// </summary>
         public bool SetAnimation(string animName)
@@ -125,7 +125,7 @@ namespace SpriteStudio.Runtime
 
         // Push the serialized playback parameters (loop / speed / skip) to the runtime. SetAnimation only
         // sets the animation up; the Rust setup resets these to defaults, so they are applied separately
-        // afterwards — mirroring the Godot player, where loop/speed/skip are configured after the animation
+        // afterwards — loop/speed/skip are configured after the animation
         // is set. Direction/style (Reverse/PingPong) have no serialized default and stay at the setup
         // default (Forward/Normal) until set via their properties.
         private void ApplyPlaybackSettings()
@@ -165,7 +165,7 @@ namespace SpriteStudio.Runtime
 
         /// <summary>
         /// Toggles playback pause / resume (keeps the current frame). Flips the native is_pausing
-        /// (same as the Godot player's pause(); play() rewinds to the start, so it cannot be used to resume).
+        /// (play() rewinds to the start, so it cannot be used to resume).
         /// </summary>
         public void Pause()
         {
@@ -242,7 +242,7 @@ namespace SpriteStudio.Runtime
             if (string.IsNullOrEmpty(_animationName)) return;
             // Always call SetAnimation so the first frame is posed even when AutoPlay is off; actually start
             // playback only when AutoPlay is on. SetAnimation does not apply playback settings, so apply them
-            // explicitly after setup (same property-application order as Godot: animation -> loop/speed/skip -> play).
+            // explicitly after setup (property-application order: animation -> loop/speed/skip -> play).
             if (SetAnimation(_animationName))
             {
                 ApplyPlaybackSettings();

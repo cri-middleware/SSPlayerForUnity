@@ -1,6 +1,6 @@
 Shader "SpriteStudio/AddOn/Step"
 {
-    // Per-part AddOn: ss-step (brightness-driven posterise), ported from the SS6 SDK / SSPlayerForGodot.
+    // Per-part AddOn: ss-step (brightness-driven posterise), ported from the SS6 SDK.
     // _SsParam0 = threshold (signed), _SsParam1 = stages, _SsParam2 = mono/texture mix. Identical to
     // SpriteStudio/Default except the fragment runs ss_addon_step before the PartColor composition.
     Properties

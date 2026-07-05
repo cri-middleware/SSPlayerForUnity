@@ -18,11 +18,13 @@ namespace SpriteStudio.Runtime
         public int IndexStart;
         public int IndexCount;
         public uint TextureHash;
+
         // Per-part AddOn shader id hash (FrameData PartAttributeShader.IdHash). 0 = the shared default
         // path (SpriteStudio/Default). Non-zero = an individual per-part draw whose material uses the
         // AddOn shader resolved from the SpriteStudioShaderCatalog.
         public uint ShaderHash;
         public byte BlendType;
+
         // Stencil state (only meaningful when Role != None). Op/Comp hold the corresponding
         // UnityEngine.Rendering.StencilOp / CompareFunction values; the masks/ref are the
         // bit-isolated stencil values; MaskThreshold = (255 - mask)/255 for Write (<0 = no cutout).
@@ -33,13 +35,9 @@ namespace SpriteStudio.Runtime
         public byte StencilReadMask;
         public byte StencilWriteMask;
         public float MaskThreshold;
-        // Per-part AddOn shader params (FrameData PartAttributeShader.Param0..7), only meaningful when
-        // ShaderHash != 0. The player sets these on the part's own AddOn material instance each frame.
-        public float P0, P1, P2, P3, P4, P5, P6, P7;
-        // Per-part cell rectangle in PIXEL UVs (lt.u, lt.v, rb.u, rb.v), for cell-rect AddOns
-        // (ss-circle / ss-spot). Set on _SsCellRect; the shader converts to its UV space. 0 for parts
-        // with no cell (Shape / Mesh) -> those AddOns degenerate (discard).
-        public float CellL, CellT, CellR, CellB;
+
+        public float P0, P1, P2, P3, P4, P5, P6, P7;  // Shader Params (for AddOn)
+        public float CellL, CellT, CellR, CellB;      // cell rectangles / 0 for parts with no cell (Shape / Mesh)
     }
 
     internal sealed class SpriteStudioBatchBuilder : IDisposable
@@ -72,9 +70,10 @@ namespace SpriteStudio.Runtime
             {
                 var pSub = (SubmeshInfo*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_submeshes);
                 ref var last = ref pSub[_submeshCount - 1];
-                // Only merge shared (non-AddOn) runs. A per-part AddOn part (shaderHash != 0) must stay
-                // its own submesh so it carries its own material instance and params — even two adjacent
-                // parts using the same AddOn shader can have different params, so they must not merge.
+                // Only merge shared (non-AddOn) runs.
+				// A per-part AddOn part (shaderHash != 0) must stay its own submesh
+				//   so it carries its own material instance and params — even two adjacent
+				//   parts using the same AddOn shader can have different params, so they must not merge.
                 if (last.Role == StencilRole.None && shaderHash == 0 && last.ShaderHash == 0
                     && last.TextureHash == textureHash && last.BlendType == blendType)
                 {
@@ -151,8 +150,6 @@ namespace SpriteStudio.Runtime
                 VertexCount = vc,
                 IndexCount = ic,
                 Kind = kind,
-                // Caution: the mesh job reads BlendType to set the per-vertex isAdditive flag; omit it
-                // and ADD parts render as MIX on the Canvas path.
                 BlendType = blend
             };
 
@@ -202,8 +199,6 @@ namespace SpriteStudio.Runtime
                 VertexCount = vc,
                 IndexCount = ic,
                 Kind = kind,
-                // Caution: the mesh job reads BlendType to set the per-vertex isAdditive flag; omit it
-                // and ADD parts render as MIX on the Canvas path.
                 BlendType = blendType
             };
             EmitSubmesh(totalIndices, ic, textureHash, blendType, shaderHash: shaderHash);
@@ -230,6 +225,7 @@ namespace SpriteStudio.Runtime
             {
                 var s = _submeshes[i];
                 sig = (sig ^ ((ulong)(uint)s.IndexStart | ((ulong)(uint)s.IndexCount << 32))) * prime;
+
                 // Include the AddOn shader axis so the material list re-resolves when a part's shader
                 // assignment changes (the per-frame params are set separately, like the mask threshold).
                 sig = (sig ^ (ulong)s.ShaderHash) * prime;

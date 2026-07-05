@@ -71,8 +71,8 @@ internal struct MaskPartData
             public bool Writes;            // PureMask || MaskWrite: contributes stencil coverage
             public bool IsClipping;        // MaskWrite && !PureMask: draws normally, masks parts drawn AFTER it
             // Geometry kind the mesh job uses to build this part's stencil-write geometry. PartTypeMask
-            // has no colour batch, so it is built as a Normal quad from local vertices (like Godot's
-            // _render_mask_coverage, which routes Mask through _build_normal).
+            // has no colour batch, so it is built as a Normal quad from local vertices (Mask parts are
+            // routed through the Normal build path).
             public byte DrawKind;          // SsDrawBatchKind: Normal / Shape / Mesh
         }
         // Per-part static mask metadata (index-aligned with ssab parts). Null until SetupSlots runs.
@@ -373,7 +373,7 @@ internal struct MaskPartData
                 // Play() always heads out (rewinds to a start frame); "resume" is Pause()'s toggle,
                 // not Play(). So a fresh play must clear each slot's "last started key" memory, else a
                 // re-played animation would debounce an already-fired independent effect/instance as
-                // the same key and never re-fire it. Mirrors the Godot player's play().
+                // the same key and never re-fire it.
                 ResetSlotsPlaybackState();
                 if (startFrame < 0.0f) NativeMethods.ss_runtime_play(_handle.ptr);
                 else NativeMethods.ss_runtime_play_with_start_frame(_handle.ptr, startFrame);
@@ -385,8 +385,7 @@ internal struct MaskPartData
         /// instance children) so an explicit head-out re-fires independent effects/instances from
         /// scratch instead of debouncing the first key as the same one the slot last started. Called
         /// from Play(). The reset itself lives in the runtime (ss_effect_slot_reset /
-        /// ss_instance_slot_reset); the host only iterates the slots it owns. Mirrors the Godot
-        /// player's _reset_slots_playback_state().
+        /// ss_instance_slot_reset); the host only iterates the slots it owns.
         /// </summary>
         internal void ResetSlotsPlaybackState()
         {
@@ -577,8 +576,7 @@ internal struct MaskPartData
             {
                 // Tick is executed strictly sequentially on the main thread (state mutability boundary)
                 // ss_runtime_update takes delta in "milliseconds" (update_interval = 1000/fps).
-                // Unity's Time.deltaTime is in seconds, so multiply by 1000 (the Godot implementation
-                // also uses delta_seconds * 1000).
+                // Unity's Time.deltaTime is in seconds, so multiply by 1000.
                 NativeMethods.ss_runtime_update(_handle.ptr, deltaTime * 1000.0f);
                 PollEvents();
             }
@@ -659,7 +657,7 @@ internal struct MaskPartData
                                 if (!sigOpt.HasValue || !sigOpt.Value.Value.HasValue) continue;
                                 var sig = sigOpt.Value;
                                 var val = sig.Value.Value;
-                                // Do not notify inactive signals (same as Godot / the porting doc).
+                                // Do not notify inactive signals.
                                 if (!val.Active) continue;
 
                                 // Expand the command parameters (union: Bool/Index/Integer/Floating/Text).

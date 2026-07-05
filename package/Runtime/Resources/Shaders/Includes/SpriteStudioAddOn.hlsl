@@ -9,7 +9,7 @@
 // fragment compute rgb via an effect function here and finish with ss_partcolor_blend + the matching
 // ss_world_finalize (mirroring SpriteStudio/Default).
 //
-// PartColor policy: AddOns mirror SSPlayerForGodot exactly. Most route the effect result through
+// PartColor policy: most AddOns route the effect result through
 // ss_partcolor_blend; ss-blur is the documented multiply-only exception. Do NOT "fix" PartColor here
 // (a coordinated tool-side revision may change it across all platforms later).
 
@@ -18,7 +18,7 @@
 
 #include "SpriteStudioCore.hlsl"
 
-// ss-sepia: ported from the SS6 SDK / SSPlayerForGodot (ss_sepia.fs). `power` (ss_param0) is signed:
+// ss-sepia: ported from the SS6 SDK (ss_sepia.fs). `power` (ss_param0) is signed:
 //   power > 0 : warm sepia tint over the luminance grayscale; abs(power) is the blend amount.
 //   power < 0 : pure grayscale (no warming).
 //   power == 0: pass-through.
@@ -91,7 +91,7 @@ bool ss_addon_bmask_keep(float3 rgb, float brightness)
 //
 // V-FLIP: the vertex stage flips V (SS top-left UV -> Unity bottom-left) so the texture renders the right
 // way up. AddOns that compute directions / positions in UV space (wave / move / pix / noise / scatter /
-// circle / spot) must do that math in SS (top-left) space to match the SS6 / ForGodot reference, then
+// circle / spot) must do that math in SS (top-left) space to match the SS6 reference, then
 // flip back when sampling. ss_addon_uv un-flips the incoming frag UV; ss_addon_sample samples at an
 // SS-space UV. This is our explicit vertex flip (not a platform GL/DX difference) so no #if is needed.
 // Symmetric AddOns sample at the frag UV directly (no flip): blur via the colour primitive ss_tex2D,
@@ -123,7 +123,7 @@ float ss_addon_outline(sampler2D tex, float2 uv, float2 texelSize, float thresho
 }
 
 // ---- ss-blur: 9-tap box blur (ss_param0=focus). Returns the averaged texel. ----
-// NOTE: ss-blur is the documented multiply-only PartColor exception (see SS6/ForGodot); the shader
+// NOTE: ss-blur is the documented multiply-only PartColor exception (see SS6); the shader
 // multiplies this by the vertex colour instead of calling ss_partcolor_blend.
 float4 ss_addon_blur(sampler2D tex, float2 uv, float2 texelSize, float focus)
 {
@@ -182,7 +182,7 @@ float4 ss_addon_wave(sampler2D tex, float2 uv, float2 texelSize, float width, fl
 
 // ---- ss-move: directional motion-blur smear (ss_param0=distance signed, 1=direction, 2=power) ----
 // Accumulates back-traced samples along (sin,cos)(direction*PI). The loop bound is dynamic but capped
-// at 128 (matching ForGodot). Sampling here MUST use ss_addon_sample_lod (explicit mip 0), NOT tex2D:
+// at 128. Sampling here MUST use ss_addon_sample_lod (explicit mip 0), NOT tex2D:
 // an implicit-gradient sample inside this varying-iteration loop forces the HLSL compiler to unroll it
 // to 128x (FXC X3570) despite [loop], which on Apple/AMD/Vulkan compilers becomes a pathologically slow
 // or hanging shader compile (GeForce/D3D tolerates it, so the runaway only shows on those backends).

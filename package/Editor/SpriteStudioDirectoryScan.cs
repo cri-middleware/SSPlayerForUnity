@@ -18,7 +18,7 @@ namespace SpriteStudio.Editor
     /// </summary>
     internal sealed class SpriteStudioDirectoryScan
     {
-        // Default budget (same values as the Godot version)
+        // Default budget
         private const uint DefaultMaxDepth = 16;
         private const ulong DefaultMaxMillis = 5000;
         private static readonly nuint DefaultMaxEntries = 50000;

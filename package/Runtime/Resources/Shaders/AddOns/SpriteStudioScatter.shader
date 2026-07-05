@@ -1,7 +1,7 @@
 Shader "SpriteStudio/AddOn/Scatter"
 {
-    // Per-part AddOn: ss-scatter (per-cell directional UV scatter), ported from the SS6 SDK /
-    // SSPlayerForGodot. _SsParam0 = power, _SsParam1 = ratio (probability gate), _SsParam2 = phase. The
+    // Per-part AddOn: ss-scatter (per-cell directional UV scatter), ported from the SS6 SDK.
+    // _SsParam0 = power, _SsParam1 = ratio (probability gate), _SsParam2 = phase. The
     // fragment samples the texture at a scattered UV before the PartColor composition.
     Properties
     {

@@ -234,7 +234,6 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             }
         }
 
-
         /// <summary>
         /// Consume the frame-data pointer obtained by the parallel GetFrameDataJob (its job output), read out
         /// the SoA, and dispatch the mesh-building Burst Job. ptr==Zero / len==0 is treated as no geometry.
@@ -405,12 +404,11 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 int totalVertices = 0;
                 int totalIndices = 0;
-                
 
                 // Mask Phase A: harvest per-part textures, then pre-write every pure mask so the stencil
                 // reflects all of them before any body part is drawn. Each pure mask's coverage is
                 // removed again at its own rank in the main loop (Phase B), yielding the "mask affects
-                // lower-priority parts" scope (mirrors SS6PU's pre-draw + slot decrement).
+                // lower-priority parts" scope.
                 if (_player.MaskActive)
                 {
                     _maskPlanner.BuildPartLookup(frameData, _drawOrder, drawBatchesLength, drawOrderLength, partsLength);

@@ -1,6 +1,6 @@
 Shader "SpriteStudio/AddOn/Pix"
 {
-    // Per-part AddOn: ss-pix (UV-quantise pixelation), ported from the SS6 SDK / SSPlayerForGodot.
+    // Per-part AddOn: ss-pix (UV-quantise pixelation), ported from the SS6 SDK.
     // _SsParam0 = power (block size scale). The fragment samples the texture at a coarse grid before the
     // PartColor composition.
     Properties

@@ -98,7 +98,7 @@ namespace SpriteStudio.Runtime
         /// Sets up the data for the specified animation (posed at the first frame). Does not start playback.
         /// Call <see cref="Play()"/> separately to start. Playback settings such as loop/speed/skip/direction
         /// are not applied here: Rust's setup_animation resets them to defaults (Forward/Normal, etc.), so if
-        /// needed the caller applies them separately after setup (same flow as the Godot player).
+        /// needed the caller applies them separately after setup.
         /// logContext is the tag for warning messages. Returns true if setup succeeded.
         /// </summary>
         public bool SetAnimation(string animationName, string logContext)

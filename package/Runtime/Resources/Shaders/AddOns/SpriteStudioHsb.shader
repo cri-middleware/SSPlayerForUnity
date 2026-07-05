@@ -1,7 +1,7 @@
 Shader "SpriteStudio/AddOn/Hsb"
 {
-    // Per-part AddOn: ss-hsb (Hue / Saturation / Brightness shift), ported from the SS6 SDK /
-    // SSPlayerForGodot. _SsParam0/1/2 = signed H/S/B shift (the per-part shader params). Identical to
+    // Per-part AddOn: ss-hsb (Hue / Saturation / Brightness shift), ported from the SS6 SDK.
+    // _SsParam0/1/2 = signed H/S/B shift (the per-part shader params). Identical to
     // SpriteStudio/Default except the fragment runs ss_addon_hsb before the PartColor composition.
     Properties
     {

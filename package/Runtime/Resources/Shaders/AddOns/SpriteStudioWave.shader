@@ -1,6 +1,6 @@
 Shader "SpriteStudio/AddOn/Wave"
 {
-    // Per-part AddOn: ss-wave (sinusoidal horizontal warp), ported from the SS6 SDK / SSPlayerForGodot.
+    // Per-part AddOn: ss-wave (sinusoidal horizontal warp), ported from the SS6 SDK.
     // _SsParam0 = width (frequency), _SsParam1 = height (amplitude), _SsParam2 = phase. The fragment
     // samples the texture at a warped UV before the PartColor composition.
     Properties

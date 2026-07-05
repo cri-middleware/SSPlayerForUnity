@@ -1,7 +1,7 @@
 Shader "SpriteStudio/AddOn/Spot"
 {
     // Per-part AddOn: ss-spot (radial spotlight gradient centred at the cell rect), ported from the SS6
-    // SDK / SSPlayerForGodot. _SsParam0 = power, _SsParam1 = decay, _SsParam2 = colour mix. _SsCellRect
+    // SDK. _SsParam0 = power, _SsParam1 = decay, _SsParam2 = colour mix. _SsCellRect
     // (pixel UVs lt/rb) is set per-part by the player. The fragment builds the radial gradient before
     // the PartColor composition.
     Properties

@@ -1,7 +1,7 @@
 Shader "SpriteStudio/AddOn/Noise"
 {
-    // Per-part AddOn: ss-noise (per-texel pseudo-random noise overlay), ported from the SS6 SDK /
-    // SSPlayerForGodot. _SsParam0 = power, _SsParam1 = colour decorrelation, _SsParam2 = phase. The
+    // Per-part AddOn: ss-noise (per-texel pseudo-random noise overlay), ported from the SS6 SDK.
+    // _SsParam0 = power, _SsParam1 = colour decorrelation, _SsParam2 = phase. The
     // fragment samples the texture itself before the PartColor composition.
     Properties
     {

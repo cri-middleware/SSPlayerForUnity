@@ -193,7 +193,7 @@ namespace SpriteStudio.Editor
             GUILayout.EndScrollView();
         }
 
-        // Show the libssconverter version at the bottom of the window (equivalent to Godot's ss_import_dock footer).
+        // Show the libssconverter version at the bottom of the window.
         private void DrawFooter()
         {
             GUILayout.BeginHorizontal(EditorStyles.helpBox);

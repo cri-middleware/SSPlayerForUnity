@@ -1,6 +1,6 @@
 Shader "SpriteStudio/MaskWrite"
 {
-    // Stencil-write pass for masks (port of SS6PU Stencil_SpriteStudio6.shader). Writes only the
+    // Stencil-write pass for masks. Writes only the
     // stencil buffer (ColorMask 0); the colour output is ignored. The stencil op (Increment /
     // Decrement / Invert), Ref and the bit-isolated Read/Write masks are property-driven and set by
     // the C# player per writer. A pure mask uses this with an Increment-class op; the matching
@@ -10,7 +10,7 @@ Shader "SpriteStudio/MaskWrite"
         _MainTex ("Sprite Texture", 2D) = "white" {}
 
         // Cutout threshold = (255 - PartState.mask) / 255. A texel is discarded (contributes no
-        // coverage) when its alpha is <= the threshold, matching SS6PU / SSPlayerForGodot. A
+        // coverage) when its alpha is <= the threshold. A
         // negative value disables the cutout (e.g. Shape masks whose geometry itself is the mask).
         _MaskThreshold ("Mask Threshold", Float) = -1
 

@@ -38,8 +38,7 @@ namespace SpriteStudio.Runtime
         /// <summary>
         /// Signal command parameters (param_id -> value). Each value is one of bool / int / float / string,
         /// corresponding to the FlatBuffers SignalCommandParamValue union. Null when there are no parameters.
-        /// Equivalent to the Godot implementation (the Dictionary onSignal passes). Not serialized by
-        /// UnityEvent; valid only at runtime.
+        /// Not serialized by UnityEvent; valid only at runtime.
         /// </summary>
         [NonSerialized] public Dictionary<string, object> Params;
     }
