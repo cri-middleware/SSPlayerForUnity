@@ -94,6 +94,10 @@ Shader "SpriteStudio/AddOn/Wave"
             }
             ENDHLSL
         }
+        // --- Editor Scene-view selection / picking: reuse SpriteStudio/Default's passes (base-silhouette
+        // hit-area; an AddOn's effect-modified silhouette need not be matched exactly). ---
+        UsePass "SpriteStudio/Default/SCENESELECTIONPASS"
+        UsePass "SpriteStudio/Default/PICKING"
     }
 
     // === Built-in Render Pipeline SubShader ===
@@ -152,5 +156,9 @@ Shader "SpriteStudio/AddOn/Wave"
             }
             ENDHLSL
         }
+        // --- Editor Scene-view selection / picking: reuse SpriteStudio/Default's passes (base-silhouette
+        // hit-area; an AddOn's effect-modified silhouette need not be matched exactly). ---
+        UsePass "SpriteStudio/Default/SCENESELECTIONPASS"
+        UsePass "SpriteStudio/Default/PICKING"
     }
 }
