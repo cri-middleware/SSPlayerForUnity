@@ -5,16 +5,18 @@
 
 ## 目次
 
-- **セットアップ**
-    - [インストール](./setup/install.md)
-    - [ビルドガイド](./setup/build.md)
-- **ワークフロー**
-    - [基本的な使い方](./workflow/usage_basic.md)
-    - [アセットのインポートとエディタ連携](./workflow/usage_asset_pipeline.md)（初回の `.sspj` インポートはこちら）
-    - [スクリプト制御とイベント](./workflow/usage_scripting.md)
-- **応用**
-    - [各種コンバート機能と CI/CD](./workflow/import.md)
-    - [パフォーマンスチューニングと高度な設定](./workflow/tips.md)
+本ドキュメントは、目的別に以下の構成となっています。
+
+- **利用者向けガイド** — パッケージを導入してアニメーションを再生する
+    - [インストール](./setup/install.md): Unity プロジェクトへのパッケージ導入
+    - [基本的な使い方](./workflow/usage_basic.md): コンポーネントの配置と再生
+    - [アセットのインポートとエディタ連携](./workflow/usage_asset_pipeline.md): 初回の `.sspj` インポートはこちら
+    - [スクリプト制御とイベント](./workflow/usage_scripting.md): C# / Timeline からの制御とイベント受信
+    - [パフォーマンスチューニングと高度な設定](./workflow/tips.md): 大量描画・最適化のための設定
+- **カスタマイズ・自動化ガイド** — CLI や CI/CD に組み込む
+    - [各種コンバート機能と CI/CD](./workflow/import.md): `ssconverter-cli` によるバッチ変換・自動化
+- **Player・SDK 開発者向けガイド** — ネイティブをソースからビルドする
+    - [ビルドガイド](./setup/build.md): `libssruntime` / `libssconverter` のビルド手順
 
 ## 主な機能 (Key Features)
 
@@ -74,7 +76,7 @@ graph LR
 | 項目 | 内容 |
 |---|---|
 | Unity バージョン | **Unity 6.3 LTS (6000.3)** 以降 |
-| レンダーパイプライン | Built-in (BRP) / Universal (URP) |
+| レンダーパイプライン | Universal (URP) / Built-in (BRP) |
 | 依存パッケージ | Burst / Mathematics / Collections / Timeline（いずれも Unity 標準） |
 | 対応プラットフォーム | Windows / macOS / Linux / Android / iOS / WebGL（ネイティブライブラリは [ビルドガイド](./setup/build.md) 参照） |
 
@@ -82,11 +84,11 @@ graph LR
 
 ## ライセンス (License)
 
-本プロジェクトは BSD-3-Clause ライセンスのもとで公開されています。詳細はルートディレクトリの [LICENSE.md](../../LICENSE.md) をご参照ください。
+本プロジェクトは BSD-3-Clause ライセンスのもとで公開されています。詳細は [ライセンス](./license.md) をご参照ください。
 
 ## サードパーティライセンス
 
-本プロジェクトはサードパーティのオープンソースライブラリを使用しています。詳細はルートディレクトリの [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) をご参照ください。
+本プロジェクトはサードパーティのオープンソースライブラリを使用しています。詳細は [サードパーティライセンス](./third_party_notices.md) をご参照ください。
 
 ## 関連リポジトリ
 
