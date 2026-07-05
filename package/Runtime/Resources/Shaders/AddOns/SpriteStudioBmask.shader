@@ -1,6 +1,6 @@
 Shader "SpriteStudio/AddOn/Bmask"
 {
-    // Per-part AddOn: ss-bmask (brightness-threshold mask), ported from the SS6 SDK / SSPlayerForGodot.
+    // Per-part AddOn: ss-bmask (brightness-threshold mask), ported from the SS6 SDK.
     // _SsParam0 = signed brightness: pixels on the wrong side of the threshold are discarded. Identical
     // to SpriteStudio/Default except the fragment runs the ss_addon_bmask discard test.
     Properties

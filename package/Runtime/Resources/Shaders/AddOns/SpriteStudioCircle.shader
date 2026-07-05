@@ -1,7 +1,7 @@
 Shader "SpriteStudio/AddOn/Circle"
 {
-    // Per-part AddOn: ss-circle (unwrap the cell rectangle into a disc), ported from the SS6 SDK /
-    // SSPlayerForGodot. _SsParam0 = phase, _SsParam1 = direction. _SsCellRect (pixel UVs lt/rb) is set
+    // Per-part AddOn: ss-circle (unwrap the cell rectangle into a disc), ported from the SS6 SDK.
+    // _SsParam0 = phase, _SsParam1 = direction. _SsCellRect (pixel UVs lt/rb) is set
     // per-part by the player from the cell quad. The fragment samples the unwrapped texel before the
     // PartColor composition; fragments outside the disc are discarded.
     Properties

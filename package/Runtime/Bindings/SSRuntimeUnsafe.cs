@@ -5,8 +5,8 @@ using SpriteStudio.SsRuntime;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// ECS (Entities) の IComponentData や Burst Job 内から安全に
-    /// ネイティブポインタ (void*) を扱うためのラッパー構造体です。
+    /// Wrapper struct for safely handling a native pointer (void*) from within an ECS
+    /// (Entities) IComponentData or a Burst Job.
     /// </summary>
     public unsafe struct SsPlayerHandle
     {

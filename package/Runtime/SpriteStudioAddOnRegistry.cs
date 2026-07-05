@@ -5,8 +5,8 @@ namespace SpriteStudio.Runtime
 {
     /// <summary>
     /// Built-in per-part AddOn registry: the SpriteStudio standard AddOn shader ids (ss-sepia,
-    /// ss-outline, ...) hardcoded in C# so they dispatch with zero project setup, mirroring
-    /// SSPlayerForGodot's EMBEDDED_SHADERS. The optional user-authored <see cref="SpriteStudioShaderCatalog"/>
+    /// ss-outline, ...) hardcoded in C# as a built-in embedded shader set so they dispatch with zero
+    /// project setup. The optional user-authored <see cref="SpriteStudioShaderCatalog"/>
     /// is consulted first (so a project can override or add custom shaders); the built-in table is the
     /// fallback.
     ///

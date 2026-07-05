@@ -3,9 +3,9 @@ using UnityEngine.Playables;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// SpriteStudioTrack の mixer。バインドされた SpriteStudioPlayer に対し、最大ウェイトのクリップの
-    /// アニメーションを設定し、クリップローカル時間へ決定論的にシークする。
-    /// SpriteStudio は複数アニメをブレンドできないため、最も支配的なクリップ 1 つを採用する。
+    /// Mixer for SpriteStudioTrack. On the bound SpriteStudioPlayer, it sets the animation of the
+    /// highest-weight clip and deterministically seeks to the clip-local time.
+    /// SpriteStudio cannot blend multiple animations, so it adopts the single most dominant clip.
     /// </summary>
     public class SpriteStudioMixerBehaviour : PlayableBehaviour
     {
@@ -17,7 +17,7 @@ namespace SpriteStudio.Runtime
             _boundPlayer = player;
             if (player == null) return;
 
-            // 最大ウェイトのクリップを 1 つ選ぶ (ブレンド不可のため支配的なクリップを採用)。
+            // Pick the single highest-weight clip (blending is impossible, so adopt the dominant clip).
             int inputCount = playable.GetInputCount();
             int best = -1;
             float bestWeight = 0f;
@@ -31,7 +31,7 @@ namespace SpriteStudio.Runtime
                 }
             }
 
-            // どのクリップも区間外 (ギャップ) なら制御を手放す。
+            // If every clip is out of range (a gap), release control.
             if (best < 0 || bestWeight <= 0f)
             {
                 player.ReleaseTimelineControl();
@@ -39,7 +39,7 @@ namespace SpriteStudio.Runtime
             }
 
             var input = (ScriptPlayable<SpriteStudioPlayableBehaviour>)playable.GetInput(best);
-            // input.GetTime() はクリップローカル時間 (秒)。Rust 側で時刻基準に決定論評価される。
+            // input.GetTime() is the clip-local time (seconds). The Rust side evaluates it deterministically against that timestamp.
             player.EvaluateTimelineClip(input.GetBehaviour().AnimationName, input.GetTime());
         }
 

@@ -23,16 +23,16 @@ namespace SpriteStudio.Runtime
     [System.Serializable]
     public class SpriteStudioPartTracker
     {
-        [Tooltip("追従対象のパーツ名 (ssab の PartData.Name)。")]
+        [Tooltip("Name of the part to follow (ssab PartData.Name).")]
         public string partName;
 
-        [Tooltip("このパーツに追従させるユーザー所有の Transform。プレーヤー直下でも別階層でも可。")]
+        [Tooltip("User-owned Transform to make follow this part. May be directly under the player or in a separate hierarchy.")]
         public Transform target;
 
-        [Tooltip("ON: localScale を除いた継承スケールも反映。OFF (既定): 位置と回転のみ追従。")]
+        [Tooltip("ON: also reflect the inherited scale (excluding localScale). OFF (default): follow position and rotation only.")]
         public bool driveScale = false;
 
-        [Tooltip("パーツが hide のフレームでの挙動。FollowAlways=追従継続 / Deactivate=対象を非表示。")]
+        [Tooltip("Behavior on frames where the part is hidden. FollowAlways = keep following / Deactivate = hide the target.")]
         public SpriteStudioPartTrackerHide onHide = SpriteStudioPartTrackerHide.FollowAlways;
 
         // Cached part index resolved from partName. Re-resolved when set to Dirty (e.g. after the

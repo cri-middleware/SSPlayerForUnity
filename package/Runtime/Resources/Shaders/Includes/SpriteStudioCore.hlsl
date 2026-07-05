@@ -3,9 +3,8 @@
 // HLSL shaders and URP (Shader Graph Custom Function).
 //
 // Policy:
-//  - SS6PU expressed the equivalent logic with #define macros gated by #if defined(PS_*)
-//    keywords. Keywords cause shader-variant explosion / device "pink shader" stripping,
-//    so here we replace them with "functions instead of macros" and
+//  - Keyword-gated #define macros (#if defined(PS_*)) would cause shader-variant explosion /
+//    device "pink shader" stripping, so here we use "functions instead of macros" and
 //    "material-float uniform branches instead of keywords".
 //  - PMA in/out (_InputPMA / _OutputPMA) and discard (_NotDiscard) are passed in by the
 //    shader as material properties. The per-blend (ssab BlendType) values are set by the
@@ -99,10 +98,10 @@ float4 ss_tex2Dlod(sampler2D tex, float2 uv)
 
 // [input mediation point] Un-premultiply the sampled texel in Linear color space for the blends
 //  that request it. Sampling itself is done by the caller (RP-specific: tex2D on Built-in,
-//  SAMPLE_TEXTURE2D on URP) so this stays render-pipeline agnostic. Mirrors SS6PU's
-//  PixelSolveColorspaceInput, gated on color space: in Gamma it is a no-op (touching the input there
-//  brightens/shifts the InputPMA modes - Mix/Mul/Mulalpha/Invert - at antialiased edges).
-//  The sRGB<->linear adjust SS6PU does (pow on input/output) now lives in the colorspace seam:
+//  SAMPLE_TEXTURE2D on URP) so this stays render-pipeline agnostic. Gated on color space: in Gamma
+//  it is a no-op (touching the input there brightens/shifts the InputPMA modes -
+//  Mix/Mul/Mulalpha/Invert - at antialiased edges).
+//  The sRGB<->linear adjust (pow on input/output) now lives in the colorspace seam:
 //  ss_tex2D re-encodes sampled RGB to sRGB on input, ss_output_color decodes to linear on output.
 //  This function does only the inverse-PMA mediation; it never touches the colorspace itself.
 float4 ss_input_mediate(float4 c, float inputPMA)
@@ -116,11 +115,11 @@ float4 ss_input_mediate(float4 c, float inputPMA)
     return c;
 }
 
-// [part-color coefficient table] Per-blend coefficients (Mix/Mul/Add/Sub), mirroring SSPlayerForGodot
-//  (ss_library_vs.glsl `_PartColorCoef`) and the SS6 SDK reference. The vertex stage resolves these
+// [part-color coefficient table] Per-blend coefficients (Mix/Mul/Add/Sub), from the SS6 SDK reference
+//  (ss_library_vs.glsl `_PartColorCoef`). The vertex stage resolves these
 //  into `varg`; the fragment then composites with a single branchless formula (ss_partcolor_blend).
-//  Keeping the implementation method identical to ForGodot (vertex-resolved table + branchless pixel
-//  formula) avoids per-platform spec drift before the all-platform release.
+//  Implementation method: vertex-resolved table + branchless pixel formula, avoiding per-platform
+//  spec drift before the all-platform release.
 static const float4 _SsPartColorCoef[4] =
 {
     float4(-1.0,  1.0, 0.0, 0.0), // Mix
@@ -133,8 +132,8 @@ static const float4 _SsPartColorCoef[4] =
 //  branchless `varg` consumed by ss_partcolor_blend (no per-blend branch in the fragment).
 //  blendIdx: 0=Mix / 1=Mul / 2=Add / 3=Sub (lower 4 of ss.format.BlendType).
 //  Effect parts (isNormalized > 0.5) tint by the vertex colour (pixel * color); that is the generic
-//  formula with coefficients (0, 1, 1), so the fragment stays branchless for effects too. Mirrors
-//  SSPlayerForGodot default.vs.
+//  formula with coefficients (0, 1, 1), so the fragment stays branchless for effects too. Matches the
+//  SS6 SDK reference (default.vs).
 float3 ss_partcolor_varg(float rate, float blendIdx, float isNormalized)
 {
     int idx = clamp((int)(blendIdx + 0.5), 0, 3);
@@ -145,9 +144,9 @@ float3 ss_partcolor_varg(float rate, float blendIdx, float isNormalized)
 
 // [part-color composition | PIXEL stage] Branchless generic compositing. `varg.xyz` is resolved per
 //  vertex by ss_partcolor_varg (the .w slot is unused here; callers reuse it as an alpha carrier).
-//  Mirrors SSPlayerForGodot (ss_library_fs.glsl): pixel*varg.x + lerp(1, pixel, varg.z)*color*varg.y.
-//  Reproduces Mix/Mul/Add/Sub exactly. NOTE: Add/Sub are intentionally NOT saturated, matching
-//  ForGodot (the previous Unity implementation saturated them). The 4-corner colours are already
+//  Formula (ss_library_fs.glsl): pixel*varg.x + lerp(1, pixel, varg.z)*color*varg.y.
+//  Reproduces Mix/Mul/Add/Sub exactly. NOTE: Add/Sub are intentionally NOT saturated
+//  (the previous Unity implementation saturated them). The 4-corner colours are already
 //  mediated on the CPU and folded into the vertex colour; this only applies the result.
 float3 ss_partcolor_blend(float3 pixelRGB, float3 colorRGB, float4 varg)
 {
@@ -156,7 +155,7 @@ float3 ss_partcolor_blend(float3 pixelRGB, float3 colorRGB, float4 varg)
 
 // [discard test] Whether to discard the pixel at an alpha threshold. Blends with
 //  notDiscard > 0.5 (Mul/Invert, etc.) must keep transparent pixels, so they are not
-//  discarded. Function form of SS6PU's PixelDiscardAlpha (PS_NOT_DISCARD).
+//  discarded.
 bool ss_should_discard(float alpha, float threshold, float notDiscard)
 {
     return (notDiscard <= 0.5) && (threshold >= alpha);
@@ -164,7 +163,7 @@ bool ss_should_discard(float alpha, float threshold, float notDiscard)
 
 // [output mediation point] Finalize the color into premultiplied alpha, then the output half of the
 //  colorspace seam. Pass-through PMA when outputPMA <= 0.5. alpha == 0 collapses to black (PMA
-//  convention). Equivalent to SS6PU's PixelSolvePMA, plus ss_gamma_to_linear so the composed sRGB
+//  convention), then ss_gamma_to_linear so the composed sRGB
 //  result is decoded for the hardware linear->sRGB framebuffer encode (no-op in Gamma projects). RGB
 //  only - alpha stays linear.
 //  Note: masking (stencil) is handled on a separate path (Stencil block), not here.

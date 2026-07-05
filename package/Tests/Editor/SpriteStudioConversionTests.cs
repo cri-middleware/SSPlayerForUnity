@@ -23,10 +23,10 @@ namespace SpriteStudio.Editor.Tests
             }
             Directory.CreateDirectory(outDir);
 
-            // SpriteStudioConversionRunner を直接呼び出す
+            // Call SpriteStudioConversionRunner directly
             SpriteStudioConversionRunner.Enqueue(sspjPath, outDir);
 
-            // コンバート完了を待機 (ネイティブ側のファイルハンドル解放を確実にするため、Runnerがアイドルになるまで待つ)
+            // Wait for conversion to finish (wait until the Runner is idle to ensure the native side releases its file handle)
             float timeout = 10f;
             double startTime = UnityEditor.EditorApplication.timeSinceStartup;
             while (SpriteStudioConversionRunner.IsProcessing && (UnityEditor.EditorApplication.timeSinceStartup - startTime) < timeout)
@@ -36,11 +36,11 @@ namespace SpriteStudio.Editor.Tests
 
             Assert.IsTrue(File.Exists(expectedSsabPath), "Conversion did not produce the expected .ssab file within timeout.");
 
-            // Cleanup: 変換完了後も Unity の AssetDatabase インポート (.meta 生成) がまだ走っていることがあり、
-            // Directory.Delete が一時的に "Directory not empty" で失敗しうる。数フレーム待ちつつリトライする。
+            // Cleanup: even after conversion completes, Unity's AssetDatabase import (.meta generation) may still
+            // be running, so Directory.Delete can transiently fail with "Directory not empty". Retry while waiting a few frames.
             for (int attempt = 0; attempt < 60 && Directory.Exists(outDir); attempt++)
             {
-                // ロック起因の例外を防ぐため属性をクリアして再試行
+                // Clear attributes and retry to prevent lock-induced exceptions
                 foreach (var file in Directory.GetFiles(outDir, "*", SearchOption.AllDirectories))
                 {
                     File.SetAttributes(file, FileAttributes.Normal);

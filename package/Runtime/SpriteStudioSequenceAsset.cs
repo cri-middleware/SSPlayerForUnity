@@ -4,30 +4,30 @@ using System.Collections.Generic;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// .ssqb (SpriteStudio Sequence Binary) のインポート成果物となる ScriptableObject。
-    /// シーケンス (アニメ再生リスト) のメタデータと、参照アニメパック (SpriteStudioAnimeAsset) への
-    /// ハードリファレンスを保持する。
+    /// The import artifact of a .ssqb (SpriteStudio Sequence Binary), a ScriptableObject.
+    /// Holds the sequence (animation playback list) metadata and hard references to the referenced anime
+    /// packs (SpriteStudioAnimeAsset).
     ///
-    /// ランタイムでのシーケンス再生 (アニメの自動連結・繰り返し) はここでは実装しない。
-    /// 本アセットは「Unity が .ssqb をデータとして認識・参照できる」ところまでを担う。
+    /// Runtime sequence playback (automatic chaining / repetition of animations) is not implemented here.
+    /// This asset only takes it as far as "Unity can recognize and reference the .ssqb as data".
     /// </summary>
     [UnityEngine.Icon("Packages/com.spritestudio.ssruntime/Editor/Icons/ssqb_icon.png")]
     public class SpriteStudioSequenceAsset : ScriptableObject
     {
-        [Tooltip("コンバート済みの .ssqb バイナリデータ")]
+        [Tooltip("Converted .ssqb binary data")]
         [HideInInspector]
         public byte[] SsqbData;
 
-        [Tooltip("ファイルに含まれるシーケンス定義のリスト")]
+        [Tooltip("List of sequence definitions contained in the file")]
         public List<SequenceEntry> Sequences = new List<SequenceEntry>();
 
-        [Tooltip("シーケンスが参照するアニメパック (SpriteStudioAnimeAsset) へのハードリファレンス。" +
-                 "ビルドストリッピング防止 / GUID 安定参照のため、未配置でなければここに積む。")]
+        [Tooltip("Hard references to the anime packs (SpriteStudioAnimeAsset) the sequence refers to. " +
+                 "Kept here (unless unassigned) to prevent build stripping / for stable GUID references.")]
         public List<SpriteStudioAnimeAsset> ReferencedAnimeAssets = new List<SpriteStudioAnimeAsset>();
 
         /// <summary>
-        /// シーケンス終端時の挙動。ss.format.SequenceType と同じ値 (Last=0 / Keep=1 / Top=2)。
-        /// 生成コード (ss.format) への依存を ScriptableObject の公開 API から切り離すためにミラーする。
+        /// Behavior at the end of a sequence. Same values as ss.format.SequenceType (Last=0 / Keep=1 / Top=2).
+        /// Mirrored to decouple the ScriptableObject's public API from a dependency on the generated code (ss.format).
         /// </summary>
         public enum SequenceTermination : byte
         {
@@ -39,30 +39,30 @@ namespace SpriteStudio.Runtime
         [System.Serializable]
         public class SequenceItemEntry
         {
-            [Tooltip("参照アニメパック名")]
+            [Tooltip("Referenced anime pack name")]
             public string RefAnimePack;
-            [Tooltip("参照アニメパック名のハッシュ (fnv1a)")]
+            [Tooltip("Hash of the referenced anime pack name (fnv1a)")]
             public uint RefAnimePackHash;
-            [Tooltip("参照アニメ名")]
+            [Tooltip("Referenced animation name")]
             public string RefAnimeName;
-            [Tooltip("参照アニメ名のハッシュ (fnv1a)")]
+            [Tooltip("Hash of the referenced animation name (fnv1a)")]
             public uint RefAnimeNameHash;
-            [Tooltip("このアイテムの繰り返し回数")]
+            [Tooltip("Repeat count for this item")]
             public int RepeatCount;
         }
 
         [System.Serializable]
         public class SequenceEntry
         {
-            [Tooltip("シーケンス名")]
+            [Tooltip("Sequence name")]
             public string Name;
-            [Tooltip("シーケンス名のハッシュ (fnv1a)")]
+            [Tooltip("Hash of the sequence name (fnv1a)")]
             public uint NameHash;
-            [Tooltip("シーケンスのインデックス")]
+            [Tooltip("Sequence index")]
             public int Index;
-            [Tooltip("シーケンス終端時の挙動")]
+            [Tooltip("Behavior at the end of the sequence")]
             public SequenceTermination Type;
-            [Tooltip("再生順に並んだアイテム (各アイテムは 1 アニメ参照 + 繰り返し回数)")]
+            [Tooltip("Items in playback order (each item is 1 animation reference + a repeat count)")]
             public List<SequenceItemEntry> Items = new List<SequenceItemEntry>();
         }
     }

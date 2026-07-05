@@ -8,12 +8,12 @@ using UnityEngine;
 namespace SpriteStudio.Editor
 {
     /// <summary>
-    /// libssconverter による .sspj → .ssab 変換を「キュー + 同時実行上限 + 進捗表示」で実行する。
+    /// Runs .sspj -> .ssab conversion via libssconverter with a "queue + concurrency limit + progress display".
     ///
-    /// - EditorApplication.update でポーリングするためノンブロッキング (変換中もエディタは固まらない)。
-    /// - フォルダ D&D 等で大量にエンキューされても、ネイティブ context はスロットが空いた時にのみ
-    ///   生成し、同時実行数を CPU 数で上限化する (スレッド過多を防止)。
-    /// - UnityEditor.Progress でステータスバーに進捗を出し、キャンセルにも対応する。
+    /// - Non-blocking because it polls in EditorApplication.update (the editor does not freeze during conversion).
+    /// - Even when a large number is enqueued (e.g. dragging a folder), native contexts are created only when a
+    ///   slot is free, and concurrency is capped by the CPU count (prevents too many threads).
+    /// - Shows progress in the status bar via UnityEditor.Progress and supports cancellation.
     /// </summary>
     public static class SpriteStudioConversionRunner
     {
@@ -34,7 +34,7 @@ namespace SpriteStudio.Editor
         private static readonly List<Active> _active = new List<Active>();
         private static bool _polling;
 
-        // 進捗 (実行中バッチ全体で 1 つの Progress。キューが空になるまで生存)
+        // Progress (a single Progress for the whole running batch; lives until the queue is empty)
         private static int _progressId = -1;
         private static int _total;
         private static int _completed;
@@ -45,11 +45,11 @@ namespace SpriteStudio.Editor
 
         private static int Concurrency => Mathf.Clamp(SystemInfo.processorCount - 1, 1, 8);
 
-        /// <summary>実行待ち・実行中のジョブが無く、全変換の後処理 (ProcessFinished) まで完了している状態。
-        /// テスト等で「変換が完全に終わってから出力ディレクトリを削除する」ために待機判定に使う。</summary>
+        /// <summary>True when there are no pending or running jobs and all post-processing (ProcessFinished) is done.
+        /// Used as a wait condition, e.g. in tests, to "delete the output directory only after conversion is fully finished".</summary>
         public static bool IsIdle => _pending.Count == 0 && _active.Count == 0;
 
-        /// <summary>変換ジョブを 1 件キューに積む。スロットが空いていれば即実行を開始する。</summary>
+        /// <summary>Enqueues one conversion job. Starts it immediately if a slot is free.</summary>
         public static void Enqueue(string sspjPath, string outputDir)
         {
             if (string.IsNullOrEmpty(sspjPath) || !File.Exists(sspjPath))
@@ -105,7 +105,7 @@ namespace SpriteStudio.Editor
                     SpriteStudio.SsConverter.NativeMethods.ss_converter_abort(ctx);
                 }
             }
-            return true; // 進行中はアボート要求済み。Poll で回収される。
+            return true; // In-flight jobs have been asked to abort; they will be collected in Poll.
         }
 
         private static void Pump()
@@ -124,8 +124,8 @@ namespace SpriteStudio.Editor
                 var context = SpriteStudio.SsConverter.NativeMethods.ss_converter_create();
                 if (context == null)
                 {
-                    // context を作れない場合、_active に積めず進捗も進まないので Progress が 100% に
-                    // 到達しなくなる。完了扱いにして停滞を防ぐ。
+                    // If the context can't be created it isn't added to _active and progress won't advance,
+                    // so Progress never reaches 100%. Treat it as completed to avoid stalling.
                     Debug.LogError($"[SSPlayer] ss_converter_create() failed for '{Path.GetFileName(job.SspjPath)}'. Skipping.");
                     _completed++;
                     return;
@@ -136,8 +136,8 @@ namespace SpriteStudio.Editor
                     var sspjBytes = Encoding.UTF8.GetBytes(job.SspjPath + "\0");
                     var outDirBytes = Encoding.UTF8.GetBytes(job.OutputDir + "\0");
 
-                    // Rust 側 (ss_converter_convert) は spawn 前に CStr を into_owned でコピーするため、
-                    // fixed の範囲を抜けてバッファが解放されても安全 (use-after-free にならない)。
+                    // The Rust side (ss_converter_convert) copies the CStr via into_owned before spawning,
+                    // so it is safe even if the buffer is freed after leaving the fixed block (no use-after-free).
                     fixed (byte* sspjPtr = sspjBytes)
                     fixed (byte* outDirPtr = outDirBytes)
                     {
@@ -153,8 +153,9 @@ namespace SpriteStudio.Editor
                 }
                 catch (Exception e)
                 {
-                    // 変換開始に失敗 (marshalling 等)。ここで context を破棄しないと永久リークし、
-                    // _active へ積まれないため進捗も停滞する。完了扱いにして回収する。
+                    // Failed to start the conversion (marshalling, etc.). If the context isn't destroyed here it
+                    // leaks forever, and since it isn't added to _active, progress also stalls. Treat it as
+                    // completed and reclaim it.
                     Debug.LogError($"[SSPlayer] Failed to start conversion for '{Path.GetFileName(job.SspjPath)}': {e.Message}");
                     SpriteStudio.SsConverter.NativeMethods.ss_converter_destroy(context);
                     _completed++;
@@ -178,11 +179,11 @@ namespace SpriteStudio.Editor
                     var ctx = (SpriteStudio.SsConverter.Context*)conversion.Context.ToPointer();
                     finished = SpriteStudio.SsConverter.NativeMethods.ss_converter_is_finished(ctx);
                 }
-                if (!finished) continue; // まだ変換中
+                if (!finished) continue; // still converting
 
-                // 結果処理 (ファイル列挙 / source map 登録) は例外を投げうる。例外が
-                // EditorApplication.update へ伝播すると Poll が解除されてパイプライン全体が停止し、
-                // context もリークする。破棄・回収・進捗加算は必ず finally で行い、自己回復させる。
+                // Result processing (file enumeration / source map registration) can throw. If the exception
+                // propagates to EditorApplication.update, Poll is unregistered, the whole pipeline stops, and
+                // the context leaks. Always do destroy / reclaim / progress increment in finally to self-recover.
                 try
                 {
                     ProcessFinished(conversion);
@@ -206,19 +207,19 @@ namespace SpriteStudio.Editor
 
             if (anyCompleted)
             {
-                Pump(); // 空いたスロットへ次のジョブを補充
+                Pump(); // fill the freed slots with the next jobs
                 ReportProgress();
             }
 
-            // 全完了 (またはキャンセルで pending 空 + active 回収済み) → 後始末
+            // All done (or, on cancel, pending is empty + active has been reclaimed) -> clean up
             if (_active.Count == 0 && _pending.Count == 0)
             {
                 Finish();
             }
         }
 
-        /// <summary>完了した変換の結果を処理する (成否ログ + 生成 .ssab の source map 登録)。
-        /// context の破棄は呼び出し側 (Poll) が finally で必ず行う。</summary>
+        /// <summary>Processes the result of a finished conversion (success/failure log + source map registration of the generated .ssab).
+        /// The caller (Poll) always destroys the context in its finally block.</summary>
         private static void ProcessFinished(Active conversion)
         {
             unsafe
@@ -244,8 +245,8 @@ namespace SpriteStudio.Editor
                 }
             }
 
-            // 成功: 生成された .ssab をまとめて登録し、最後に 1 回だけ保存する
-            // (1 ファイルごとにマップ JSON を全書き換えしない)。
+            // Success: register the generated .ssab files together and save just once at the end
+            // (avoid rewriting the entire map JSON for every single file).
             var generatedSsabs = Directory.GetFiles(conversion.OutputDir, "*.ssab", SearchOption.AllDirectories);
             if (generatedSsabs.Length > 0)
             {
@@ -274,7 +275,7 @@ namespace SpriteStudio.Editor
             _completed = 0;
             _canceled = false;
 
-            // 生成された .ssab / テクスチャを Unity に取り込ませる (バッチ末尾で 1 回)
+            // Let Unity import the generated .ssab / textures (once, at the end of the batch)
             AssetDatabase.Refresh();
 
             if (wasCanceled)

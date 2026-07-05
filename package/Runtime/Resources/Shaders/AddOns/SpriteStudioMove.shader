@@ -1,6 +1,6 @@
 Shader "SpriteStudio/AddOn/Move"
 {
-    // Per-part AddOn: ss-move (directional motion-blur smear), ported from the SS6 SDK / SSPlayerForGodot.
+    // Per-part AddOn: ss-move (directional motion-blur smear), ported from the SS6 SDK.
     // _SsParam0 = distance (signed), _SsParam1 = direction, _SsParam2 = power. The fragment accumulates
     // back-traced texture samples before the PartColor composition.
     Properties

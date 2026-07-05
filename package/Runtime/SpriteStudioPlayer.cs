@@ -6,15 +6,15 @@ using UnityEngine.Timeline;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// Layer 3: ワールド座標用プレイヤーコンポーネント (3D空間/2Dシーン用)
-    /// Unity の Transform および MeshRenderer を利用して描画を行います。
-    /// 再生ロジックは共有コア (SpriteStudioPlaybackCore) に委譲し、毎フレームの駆動は
-    /// SpriteStudioUpdateManager が「全 Schedule → 全 Apply」でまとめて行います (Job 並列化)。
+    /// Layer 3: Player component for world coordinates (for 3D space / 2D scenes).
+    /// Renders using Unity's Transform and MeshRenderer.
+    /// Playback logic is delegated to the shared core (SpriteStudioPlaybackCore); the per-frame drive is
+    /// batched by SpriteStudioUpdateManager as "all Schedule -> all Apply" (Job parallelization).
     /// </summary>
     [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
-    // [ExecuteAlways]: edit モードでも OnEnable/LateUpdate を回し、シーン設置時に「開始フレームの
-    // 静止プレビュー」を1回だけ構築する (再生はしない)。Play モードの毎フレーム駆動は従来どおり
-    // SpriteStudioUpdateManager が集中管理する (edit モードでは manager は動かない)。
+    // [ExecuteAlways]: run OnEnable/LateUpdate in edit mode too, building the "start-frame static preview"
+    // exactly once when placed in the scene (does not play). The per-frame drive in Play mode is still
+    // centrally managed by SpriteStudioUpdateManager as before (the manager does not run in edit mode).
     [ExecuteAlways]
     public class SpriteStudioPlayer : MonoBehaviour, ITimeControl, ISpriteStudioRenderable
     {
@@ -158,8 +158,8 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        // PPU を内部プレイヤーの頂点スケール (= 1/PPU) へ反映する。トップレベルのみ設定し、
-        // Instance 子は VertexScale=1 のまま据え置く (親側で一括スケールされるため二重スケールを避ける)。
+        // Reflect PPU into the internal player's vertex scale (= 1/PPU). Set on the top level only; leave
+        // Instance children at VertexScale=1 (the parent scales them as a whole, so avoid double scaling).
         private void ApplyPixelsPerUnit()
         {
             if (_core.Internal != null)
@@ -167,11 +167,12 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// 再生するアニメーションを指定し、データをセットアップします (先頭フレームで posed 表示)。
-        /// 再生は開始しません。開始するには <see cref="Play()"/> を呼びます。ループ/速度/スキップ等の
-        /// 再生設定はここでは適用されません (setup で既定値へ戻るため)。実行時に切り替えたあとで設定を
-        /// 反映するには <see cref="LoopCount"/> / <see cref="SpeedScale"/> / <see cref="SkipFrames"/> などの
-        /// プロパティを setup 後に設定してください (Godot プレイヤーと同じ流れ)。setup に成功すれば true。
+        /// Selects the animation to play and sets its data up (posed at the first frame).
+        /// Does not start playback; call <see cref="Play()"/> to start. Playback settings such as
+        /// loop/speed/skip are not applied here (setup resets them to defaults). To apply settings after
+        /// switching at runtime, set the <see cref="LoopCount"/> / <see cref="SpeedScale"/> /
+        /// <see cref="SkipFrames"/> properties after setup. Returns true if
+        /// setup succeeded.
         /// </summary>
         public bool SetAnimation(string animName)
         {
@@ -187,7 +188,7 @@ namespace SpriteStudio.Runtime
 
         // Push the serialized playback parameters (loop / speed / skip) to the runtime. SetAnimation only
         // sets the animation up; the Rust setup resets these to defaults, so they are applied separately
-        // afterwards — mirroring the Godot player, where loop/speed/skip are configured after the animation
+        // afterwards — loop/speed/skip are configured after the animation
         // is set. Direction/style (Reverse/PingPong) have no serialized default and stay at the setup
         // default (Forward/Normal) until set via their properties.
         private void ApplyPlaybackSettings()
@@ -199,34 +200,35 @@ namespace SpriteStudio.Runtime
             p.SetSkipFrames(_skipFrames);
         }
 
-        /// <summary>現在セットアップ済みのアニメーションを先頭から再生開始します。</summary>
+        /// <summary>Starts playing the currently set-up animation from the beginning.</summary>
         public void Play() { _core.Play(); _audioController?.ResumeAll(); }   // Explicit play lifts the suspend (SDK doc §4)
 
-        /// <summary>現在セットアップ済みのアニメーションを指定フレームから再生開始します。</summary>
+        /// <summary>Starts playing the currently set-up animation from the specified frame.</summary>
         public void Play(float startFrame) { _core.Play(startFrame); _audioController?.ResumeAll(); }
 
-        #region Playback Control (再生制御)
-        // 内部プレイヤー (Rust ランタイム) が既に備える再生制御をコンポーネントの公開 API として薄く露出する。
-        // 状態取得・シーク・一時停止・逆再生などはすべて native 側の実装で、ここは委譲のみ (新規ロジックなし)。
+        #region Playback Control
+        // Thinly expose, as the component's public API, the playback controls the internal player (Rust
+        // runtime) already provides. State queries, seek, pause, reverse playback, etc. are all implemented
+        // natively; this is delegation only (no new logic).
 
-        /// <summary>再生セッションが有効か。一時停止中でも true (停止/未再生で false)。</summary>
+        /// <summary>Whether a playback session is active. True even while paused (false when stopped / not playing).</summary>
         public bool IsPlaying => _core.Internal?.IsPlaying() ?? false;
 
-        /// <summary>一時停止中か (再生セッション中で、かつ pause されているときだけ true)。</summary>
+        /// <summary>Whether currently paused (true only while a playback session is active and paused).</summary>
         public bool IsPaused
         {
             get
             {
-                // ネイティブの is_pausing は初期値 true (未再生でも立っている) なので、
-                // 再生中であることと併せて判定する。
+                // The native is_pausing defaults to true (set even when not playing), so also check that
+                // playback is actually running.
                 var p = _core.Internal;
                 return p != null && p.IsPlaying() && p.IsPausing();
             }
         }
 
         /// <summary>
-        /// 再生の一時停止 / 再開をトグルします (現在フレームを保持)。ネイティブの is_pausing を切り替えます
-        /// (Godot プレイヤーの pause() と同じ。play() は先頭へ巻き戻すため再開には使えません)。
+        /// Toggles playback pause / resume (keeps the current frame). Flips the native is_pausing
+        /// (play() rewinds to the start, so it cannot be used to resume).
         /// </summary>
         public void Pause()
         {
@@ -239,20 +241,20 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        /// <summary>再生を停止する。</summary>
+        /// <summary>Stops playback.</summary>
         public void Stop() => _core.Internal?.Stop();
 
-        /// <summary>現在の再生フレーム (小数可)。set で任意フレームへシークする。</summary>
+        /// <summary>Current playback frame (fractional allowed). Set to seek to an arbitrary frame.</summary>
         public float CurrentFrame
         {
             get => _core.Internal?.GetFrame() ?? 0f;
             set => _core.Internal?.SetFrame(value);
         }
 
-        /// <summary>現在のアニメーションの総フレーム数 (終端フレーム + 1)。未ロード時は 0。</summary>
+        /// <summary>Total frame count of the current animation (end frame + 1). 0 when nothing is loaded.</summary>
         public int TotalFrames => _core.Internal?.GetTotalFrames() ?? 0;
 
-        /// <summary>再生フレームレート (fps)。set で実行時に変更する。未ロード時の get は 0。</summary>
+        /// <summary>Playback frame rate (fps). Set to change it at runtime. Get returns 0 when nothing is loaded.</summary>
         public int FrameRate
         {
             get => _core.Internal?.GetFrameRate() ?? 0;
@@ -260,8 +262,9 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// 逆再生 (Backward) か。<see cref="SetAnimation(string)"/> は毎回 Forward へ戻すため、
-        /// 逆再生で開始したい場合は SetAnimation 後 (Play 前後どちらでも可) に true を設定する。
+        /// Whether reverse (Backward) playback is on. <see cref="SetAnimation(string)"/> resets this to
+        /// Forward every time, so to start in reverse set it to true after SetAnimation (either before or
+        /// after Play).
         /// </summary>
         public bool Reverse
         {
@@ -274,8 +277,9 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// 往復 (PingPong) 再生か。<see cref="SetAnimation(string)"/> は毎回 Normal へ戻すため、
-        /// PingPong で開始したい場合は SetAnimation 後 (Play 前後どちらでも可) に true を設定する。
+        /// Whether ping-pong (round-trip) playback is on. <see cref="SetAnimation(string)"/> resets this to
+        /// Normal every time, so to start in ping-pong set it to true after SetAnimation (either before or
+        /// after Play).
         /// </summary>
         public bool PingPong
         {
@@ -288,7 +292,8 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// 再生範囲をフレームで限定する (SS6 の再生範囲指定のフレーム版。ラベル指定は未対応)。
+        /// Limits the playback range by frame (frame-based version of SS6's playback-range spec; label
+        /// specification is not supported).
         /// </summary>
         public void SetAnimationSection(int startFrame, int endFrame) => _core.Internal?.SetAnimationSection(startFrame, endFrame);
 
@@ -297,9 +302,9 @@ namespace SpriteStudio.Runtime
         private void Start()
         {
             if (string.IsNullOrEmpty(_animationName)) return;
-            // AutoPlay でなくても先頭フレームを posed 表示するため SetAnimation は常に行い、
-            // 実際の再生開始は AutoPlay のときだけにする。SetAnimation は再生設定を適用しないため
-            // setup 後に明示適用する (Godot のプロパティ適用順と同じ: animation -> loop/speed/skip -> play)。
+            // Always call SetAnimation so the first frame is posed even when AutoPlay is off; actually start
+            // playback only when AutoPlay is on. SetAnimation does not apply playback settings, so apply them
+            // explicitly after setup (property-application order: animation -> loop/speed/skip -> play).
             if (SetAnimation(_animationName))
             {
                 ApplyPlaybackSettings();
@@ -357,16 +362,16 @@ namespace SpriteStudio.Runtime
             _meshFilter = GetComponent<MeshFilter>();
             _meshRenderer = GetComponent<MeshRenderer>();
 
-            // 描画順の初期適用
+            // Initial apply of the draw order
             _meshRenderer.sortingLayerName = _sortingLayerName;
             _meshRenderer.sortingOrder = _sortingOrder;
 
-            // ゼロアロケーション描画用の単一メッシュを構築 (再生成させない)
+            // Build the single mesh for zero-allocation rendering (do not recreate it)
             if (_sharedMesh == null)
             {
                 _sharedMesh = new Mesh();
                 _sharedMesh.name = "SpriteStudio_DynamicMesh";
-                _sharedMesh.MarkDynamic(); // 毎フレーム更新用に最適化
+                _sharedMesh.MarkDynamic(); // Optimize for per-frame updates
             }
             _meshFilter.sharedMesh = _sharedMesh;
 
@@ -385,7 +390,7 @@ namespace SpriteStudio.Runtime
             // asset/animation change and does not restart playback.
             _appliedAsset = _animeAsset;
             _appliedAnimation = _animationName;
-            // edit モードでは設置直後に開始フレームの静止プレビューを1回構築する (LateUpdate で消化)。
+            // In edit mode, build the start-frame static preview once right after placement (consumed in LateUpdate).
             if (!Application.isPlaying) _editPreviewDirty = true;
 #endif
         }
@@ -427,8 +432,9 @@ namespace SpriteStudio.Runtime
             DestroyAddOnInstances();
             _submeshMaterials.Clear();
             _core.Dispose();
-            // Internal を破棄したので Timeline 制御状態もリセットする。これをしないと再有効化時に
-            // 新しい (アニメ未 setup の) ネイティブハンドルへ「同名なので setup 不要」と誤判定し描画が破綻する。
+            // Internal was disposed, so reset the Timeline control state too. Without this, on re-enable the
+            // new (animation-not-set-up) native handle would be wrongly judged "same name, no setup needed"
+            // and rendering would break.
             ReleaseTimelineControl();
         }
 
@@ -452,9 +458,9 @@ namespace SpriteStudio.Runtime
         [System.NonSerialized] private SpriteStudioAnimeAsset _appliedAsset;
         [System.NonSerialized] private string _appliedAnimation;
 
-        // インスペクタはシリアライズ済みフィールドを直接書き換え、プロパティの setter を呼ばない。
-        // そのため再生中のインスペクタ変更をランタイム (Rust) へ反映するにはここで同期する。
-        // OnValidate は Editor 専用コールバック (ビルドでは呼ばれない) なので #if UNITY_EDITOR で囲む。
+        // The inspector writes the serialized fields directly and does not call the property setters.
+        // So, to reflect in-play inspector edits into the runtime (Rust), sync them here.
+        // OnValidate is an Editor-only callback (not called in builds), so it is wrapped in #if UNITY_EDITOR.
         private void OnValidate()
         {
             // Live-tunable params (do not restart playback).
@@ -494,14 +500,15 @@ namespace SpriteStudio.Runtime
                     }
                     if ((assetChanged || animChanged) && !string.IsNullOrEmpty(_animationName))
                     {
-                        // インスペクタでアニメ/アセットを変えたら setup し直し、再生設定を再適用して頭から再生し直す。
+                        // When the animation/asset is changed in the inspector, set up again, re-apply the
+                        // playback settings, and restart playback from the head.
                         if (SetAnimation(_animationName)) { ApplyPlaybackSettings(); Play(); }
                     }
                 }
             }
             else
             {
-                // edit モードはプレビューを組み直す (EnsureCreated がアセット変更時に ssab を再ロードする)。
+                // Edit mode rebuilds the preview (EnsureCreated reloads the ssab on an asset change).
                 _editPreviewDirty = true;
             }
 
@@ -509,9 +516,9 @@ namespace SpriteStudio.Runtime
             _appliedAnimation = _animationName;
         }
 
-        // edit モードの静止プレビュー。[ExecuteAlways] により LateUpdate は毎エディタフレーム呼ばれるが、
-        // _editPreviewDirty が立っているときだけ「開始フレームを1回構築」して静止させる (再生はしない)。
-        // Play モードは SpriteStudioUpdateManager が駆動するためここでは何もしない。
+        // Edit-mode static preview. With [ExecuteAlways], LateUpdate is called every editor frame, but only
+        // when _editPreviewDirty is set does it "build the start frame once" and hold it static (does not play).
+        // In Play mode the SpriteStudioUpdateManager drives it, so this does nothing.
         private bool _editPreviewDirty;
 
         private void LateUpdate()
@@ -531,26 +538,26 @@ namespace SpriteStudio.Runtime
         {
             if (_core.Internal == null || _animeAsset == null || string.IsNullOrEmpty(_animationName)) return;
             if (!_core.Internal.SetupAnimation(_animationName)) return;
-            // 開始フレームに固定し、進行させず 1 フレームだけ同期構築する (ScheduleMeshUpdate は advance=false)。
+            // Pin to the start frame and synchronously build just one frame without advancing (ScheduleMeshUpdate is advance=false).
             _core.Internal.SetFrame(_core.Internal.GetAnimationSectionStart());
             _core.Internal.ScheduleMeshUpdate(0f);
             ApplyAndRender();
         }
 #endif
 
-        // --- ISpriteStudioRenderable (SpriteStudioUpdateManager から駆動される) ---
+        // --- ISpriteStudioRenderable (driven by SpriteStudioUpdateManager) ---
 
         public void PrepareFrame(float deltaTime, out System.IntPtr handle, out float drawFrame)
         {
             if (_core.Internal == null) { handle = System.IntPtr.Zero; drawFrame = 0f; return; }
-            // Timeline 制御中は SetTime が設定したフレームを描画するため自動進行しない (advance=false)
+            // Under Timeline control, render the frame set by SetTime, so do not auto-advance (advance=false)
             _core.Internal.PrepareFrameData(deltaTime, !_timelineControlled, out handle, out drawFrame);
         }
 
         public void ConsumeFrame(System.IntPtr frameDataPtr, int len, float deltaTime)
         {
             if (_core.Internal == null) return;
-            // Timeline 制御中はエフェクト/インスタンスを wall-clock dt で進めない (決定論シーク維持のため dt=0)
+            // Under Timeline control, do not advance effects/instances by wall-clock dt (dt=0 to keep deterministic seeking)
             _core.Internal.ConsumeFrameData(frameDataPtr, len, _timelineControlled ? 0f : deltaTime);
         }
 
@@ -562,7 +569,7 @@ namespace SpriteStudio.Runtime
             // is-per-part AddOn parts (cheap reference assignment; null = no per-part dispatch).
             _core.Internal.ShaderCatalog = _shaderCatalog;
 
-            // バッチ単位に SubMesh を分割し、テクスチャごとに別マテリアルを適用する
+            // Split SubMeshes per batch and apply a separate material per texture
             _core.Internal.ApplyToMesh(_sharedMesh, true);
             UpdateSubmeshMaterials();
 
@@ -697,9 +704,10 @@ namespace SpriteStudio.Runtime
         private MaterialPropertyBlock _maskMpb;
 
         /// <summary>
-        /// SubMesh (= 描画バッチ) ごとに、テクスチャハッシュ + ステンシルロールへ対応するマテリアルを割り当てる。
-        /// 構成 (SubMesh 数 / texture / blend / role / op / comp) が前フレームと同じなら再割り当てしない。
-        /// マスク書込 SubMesh の閾値 (_MaskThreshold) は毎フレーム変わり得るので MaterialPropertyBlock で別途設定する。
+        /// Assigns, per SubMesh (= draw batch), the material matching its texture hash + stencil role.
+        /// Skips reassignment if the layout (SubMesh count / texture / blend / role / op / comp) is identical
+        /// to the previous frame. The mask-write SubMesh threshold (_MaskThreshold) can change every frame,
+        /// so it is set separately via a MaterialPropertyBlock.
         /// </summary>
         private void UpdateSubmeshMaterials()
         {
@@ -710,7 +718,7 @@ namespace SpriteStudio.Runtime
 
             var submeshes = _core.Internal.Submeshes;
 
-            // 構成シグネチャ。threshold は per-frame 可変なのでここには含めず MPB で渡す。
+            // Layout signature. threshold is per-frame variable, so it is not included here and is passed via the MPB.
             uint signature = (uint)subCount;
             bool hasWrite = false;
             bool hasAddOn = false;
@@ -739,8 +747,8 @@ namespace SpriteStudio.Runtime
                     _submeshMaterials.Capacity = subCount;
                 }
 
-                // 対応不明時のフォールバック先。自身の Materials が空でも外部参照で解決できる場合があるため、
-                // ここでは early-return せず submesh ごとに解決する。
+                // Fallback for the unresolved case. Even if our own Materials is empty, an external reference
+                // may still resolve, so do not early-return here; resolve per submesh instead.
                 var mats = _animeAsset.Materials;
                 Material fallback = (mats != null && mats.Count > 0) ? mats[0] : null;
 
@@ -776,9 +784,10 @@ namespace SpriteStudio.Runtime
                     }
                     if (mat == null)
                     {
-                        // 回復可能なフォールバック (アセットにマテリアル/テクスチャが未割当 or 未解決)。
-                        // ここは signature 変化時のみ通るのでスパムにはならない。視覚的には壊れるが
-                        // 実行は継続できるため、severity は Warning (設定不備の通知) が適切。
+                        // Recoverable fallback (the asset has no material/texture assigned, or it did not resolve).
+                        // This path is only taken when the signature changes, so it does not spam. Rendering is
+                        // visually broken but execution can continue, so Warning (a config-issue notice) is the
+                        // appropriate severity.
                         Debug.LogWarning($"[SpriteStudioPlayer] TextureHash {info.TextureHash} not resolved (Submesh {s}, role {info.Role}). Falling back to material 0.");
                         mat = fallback;
                     }
@@ -787,8 +796,8 @@ namespace SpriteStudio.Runtime
                 _meshRenderer.SetSharedMaterials(_submeshMaterials);
             }
 
-            // マスク書込 SubMesh の cutout 閾値を per-submesh MaterialPropertyBlock で毎フレーム設定する
-            // (閾値はアニメーションし得るので material-list キャッシュとは独立に更新する)。
+            // Set the mask-write SubMesh cutout threshold every frame via a per-submesh MaterialPropertyBlock
+            // (the threshold can animate, so update it independently of the material-list cache).
             if (hasWrite)
             {
                 for (int s = 0; s < subCount; s++)
@@ -835,14 +844,14 @@ namespace SpriteStudio.Runtime
             _addOnInstances.Clear();
         }
 
-        #region ITimeControl (Timeline 連携)
+        #region ITimeControl (Timeline integration)
 
         private bool _timelineControlled;
 
         public void OnControlTimeStart()
         {
             _timelineControlled = true;
-            // クリップ制御の開始時にアニメーションをセットアップしておく
+            // Set the animation up when clip control begins
             if (_core.Internal != null && !string.IsNullOrEmpty(_animationName))
             {
                 _core.Internal.SetupAnimation(_animationName);
@@ -851,7 +860,7 @@ namespace SpriteStudio.Runtime
 
         public void SetTime(double time)
         {
-            // Timeline 経由のシーク: クリップ内ローカル時間 (秒) をフレーム番号へ変換して設定する
+            // Seek via Timeline: convert clip-local time (seconds) to a frame number and set it
             if (_core.Internal == null) return;
             int fps = _core.Internal.GetFrameRate();
             if (fps <= 0) fps = 60;
@@ -865,17 +874,18 @@ namespace SpriteStudio.Runtime
 
         #endregion
 
-        #region SpriteStudioTrack (専用 Timeline トラック) 連携
+        #region SpriteStudioTrack (dedicated Timeline track) integration
 
-        // 専用トラックが現在セットアップしているアニメ名。変化時のみ SetupAnimation し直す。
+        // The animation name the dedicated track currently has set up. Re-run SetupAnimation only when it changes.
         private string _timelineCurrentAnim;
 
         /// <summary>
-        /// SpriteStudioTrack の mixer がクリップ評価時に呼ぶ。指定アニメへ (変化時のみ) 切替え、
-        /// クリップローカル時間 (秒) のフレームへシークする。状態は Rust が時刻基準で一括計算するため、
-        /// シークバーを前後にどれだけ動かしても決定論的で破綻しない。
-        /// NOTE: play モード専用 (SpriteStudioPlayer は非 ExecuteAlways のため edit モードでは Internal/
-        /// Mesh が未生成で描画されない)。edit モードのシークプレビューは今後の課題。
+        /// Called by the SpriteStudioTrack mixer when evaluating a clip. Switches to the specified animation
+        /// (only when it changes) and seeks to the frame for the clip-local time (seconds). State is computed
+        /// in bulk by Rust based on the time, so no matter how far the seek bar is scrubbed back and forth it
+        /// stays deterministic and does not break.
+        /// NOTE: Play-mode only (SpriteStudioPlayer is not ExecuteAlways, so in edit mode the Internal/Mesh
+        /// are not created and nothing renders). Edit-mode seek preview is future work.
         /// </summary>
         public void EvaluateTimelineClip(string animationName, double clipLocalTime)
         {
@@ -891,10 +901,10 @@ namespace SpriteStudio.Runtime
             int fps = _core.Internal.GetFrameRate();
             if (fps <= 0) fps = 60;
             _core.Internal.SetFrame((float)(clipLocalTime * fps));
-            // 描画は UpdateManager が PrepareFrame(advance=false)→ApplyAndRender で行う (SetTime と同じ経路)。
+            // Rendering is done by the UpdateManager via PrepareFrame(advance=false) -> ApplyAndRender (same path as SetTime).
         }
 
-        /// <summary>Timeline 制御を解除する (mixer のグラフ破棄/トラック非アクティブ時)。</summary>
+        /// <summary>Releases Timeline control (on mixer graph teardown / track deactivation).</summary>
         public void ReleaseTimelineControl()
         {
             _timelineControlled = false;

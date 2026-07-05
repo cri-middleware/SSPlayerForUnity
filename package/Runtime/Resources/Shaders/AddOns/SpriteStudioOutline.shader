@@ -1,7 +1,7 @@
 Shader "SpriteStudio/AddOn/Outline"
 {
-    // Per-part AddOn: ss-outline (4-neighbour alpha-edge outline), ported from the SS6 SDK /
-    // SSPlayerForGodot. _SsParam0 = signed threshold (|threshold| = alpha cutoff). The fragment samples
+    // Per-part AddOn: ss-outline (4-neighbour alpha-edge outline), ported from the SS6 SDK.
+    // _SsParam0 = signed threshold (|threshold| = alpha cutoff). The fragment samples
     // the texture itself (TEXTURE_PIXEL_SIZE = _MainTex_TexelSize) before the PartColor composition.
     Properties
     {

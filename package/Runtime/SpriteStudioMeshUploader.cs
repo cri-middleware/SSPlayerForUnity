@@ -7,15 +7,16 @@ using SpriteStudio.SsRuntime;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// 構築済みジオメトリ (頂点 / インデックス / SubMesh / バウンズ) を Unity の <see cref="Mesh"/> へ
-    /// アップロードする責務を <see cref="SpriteStudioGeometryBuilder"/> から分離したコラボレータ。
+    /// Collaborator split out from <see cref="SpriteStudioGeometryBuilder"/> whose responsibility is uploading
+    /// the built geometry (vertices / indices / SubMesh / bounds) to Unity's <see cref="Mesh"/>.
     ///
-    /// トポロジ (index/submesh 構造) が前回アップロードと一致する間は頂点だけ更新し、index/submesh の
-    /// 再アップロードを省く「index キャッシュ」を内部に持つ。キャッシュ状態は本クラスが完全所有する。
+    /// Internally holds an "index cache": while the topology (index/submesh structure) matches the previous
+    /// upload, only the vertices are updated and the index/submesh re-upload is skipped. The cache state is
+    /// fully owned by this class.
     /// </summary>
     internal sealed class SpriteStudioMeshUploader : IDisposable
     {
-        /// <summary>アップロード対象の構築済みジオメトリ一式 (ビルダーが所有するバッファへの参照)。</summary>
+        /// <summary>The full set of built geometry to upload (references to buffers owned by the builder).</summary>
         internal readonly struct UploadData
         {
             public readonly bool FrameSkipped;
@@ -45,7 +46,7 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        // 頂点レイアウト (Position / Color / TexCoord0 / TexCoord1)。SetVertexBufferParams へ使い回す。
+        // Vertex layout (Position / Color / TexCoord0 / TexCoord1). Reused for SetVertexBufferParams.
         private static readonly VertexAttributeDescriptor[] s_vertexLayout =
         {
             new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3),
@@ -54,10 +55,10 @@ namespace SpriteStudio.Runtime
             new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 4),
         };
 
-        // SetSubMeshes 用の永続バッファ (grow-only で使い回す)。
+        // Persistent buffer for SetSubMeshes (reused grow-only).
         private NativeArray<SubMeshDescriptor> _submeshDescriptors;
 
-        // index アップロードのキャッシュ用。トポロジ (バッチ構造) が不変なら index/submesh の再送を省く。
+        // For the index-upload cache. If the topology (batch structure) is unchanged, skip re-uploading the index/submesh.
         private bool _meshUploaded;
         private int _lastMeshId;
         private ulong _uploadedTopologySignature;
@@ -75,18 +76,18 @@ namespace SpriteStudio.Runtime
         private bool _warned16BitOverflow;
 
         /// <summary>
-        /// 構築済みジオメトリを <paramref name="targetMesh"/> へ反映する。Job の完了待ちは呼び出し側
-        /// (ビルダー) が済ませている前提。frame-skip 時は前回の Mesh が正しいので何もしない。
+        /// Apply the built geometry to <paramref name="targetMesh"/>. Assumes the caller (the builder) has
+        /// already waited for the Job to complete. On a frame-skip the previous Mesh is correct, so do nothing.
         /// </summary>
         public void Apply(Mesh targetMesh, bool perBatchSubmesh, bool use16BitIndices, in UploadData data)
         {
-            // ScheduleMeshUpdate が再構築を省いたフレームは Mesh が前回のまま正しいので、再アップロードも省く。
+            // On a frame where ScheduleMeshUpdate skipped the rebuild, the Mesh is still correct from last time, so skip the re-upload too.
             if (data.FrameSkipped) return;
 
             if (data.VertexCount == 0 || data.IndexCount == 0 || !data.Vertices.IsCreated || !data.Indices.IsCreated)
             {
                 targetMesh.Clear();
-                _meshUploaded = false; // 次回はフルアップロード (キャッシュ無効化)
+                _meshUploaded = false; // next time is a full upload (cache invalidated)
                 return;
             }
 
@@ -97,12 +98,12 @@ namespace SpriteStudio.Runtime
                 return;
             }
 
-            // Unity の厳格なバリデーション (Overlap や領域外参照) を回避するためのフラグ。
+            // Flags to bypass Unity's strict validation (Overlap and out-of-range references).
             var updateFlags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices;
 
-            // トポロジ (index/submesh 構造) が前回アップロードと完全一致するなら、毎フレーム動く頂点だけ
-            // 更新し、index/submesh の再アップロードを省く。Mesh インスタンスが変わった場合 (共有/プレビュー
-            // 等) は安全側でフルアップロードに倒す。
+            // If the topology (index/submesh structure) exactly matches the previous upload, update only the
+            // per-frame moving vertices and skip re-uploading the index/submesh. If the Mesh instance changed
+            // (shared/preview, etc.), fall back to a full upload for safety.
             int meshId = targetMesh.GetInstanceID();
             bool topoUnchanged = _meshUploaded
                 && meshId == _lastMeshId
@@ -118,8 +119,8 @@ namespace SpriteStudio.Runtime
                 return;
             }
 
-            // --- フルアップロード (初回 or トポロジ変化) ---
-            // バッファ再宣言時の領域外参照を避けるため一旦 submesh を空にする。
+            // --- Full upload (first time or topology change) ---
+            // Empty the submesh once to avoid out-of-range references while re-declaring the buffers.
             targetMesh.SetSubMesh(0, new SubMeshDescriptor(0, 0), updateFlags);
             targetMesh.subMeshCount = 1;
 
@@ -131,7 +132,7 @@ namespace SpriteStudio.Runtime
 
             if (perBatchSubmesh && data.SubmeshCount > 0)
             {
-                // SetSubMeshes で一括設定する (逐次設定時の Overlap 警告を回避)。
+                // Set them all at once via SetSubMeshes (avoids the Overlap warning from setting sequentially).
                 EnsureDescriptors(data.SubmeshCount);
                 for (int s = 0; s < data.SubmeshCount; s++)
                 {
@@ -147,7 +148,7 @@ namespace SpriteStudio.Runtime
             }
             ApplyJobComputedBounds(targetMesh, data.Bounds);
 
-            // アップロード済みトポロジを記録 (次フレーム以降の index 再送スキップ判定に使う)。
+            // Record the uploaded topology (used from the next frame on to decide whether to skip the index re-upload).
             _meshUploaded = true;
             _lastMeshId = meshId;
             _uploadedTopologySignature = data.TopologySignature;
@@ -157,7 +158,7 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// UpdateMeshJob が算出した min/max を Mesh.bounds へ適用する。未算出時は RecalculateBounds。
+        /// Apply the min/max computed by UpdateMeshJob to Mesh.bounds. If not computed, RecalculateBounds.
         /// </summary>
         private static void ApplyJobComputedBounds(Mesh targetMesh, NativeArray<Vector3> bounds)
         {

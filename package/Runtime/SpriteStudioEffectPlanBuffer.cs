@@ -7,20 +7,22 @@ using SpriteStudio.SsRuntime;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// エフェクトの draw_plan (ネイティブ FlatBuffer) を frame-data と同じ流儀で読み、全エフェクトパートの
-    /// ジオメトリ (verts/uvs/colors/indices) を連結バッファへ詰める責務を
-    /// <see cref="SpriteStudioGeometryBuilder"/> から分離したコラボレータ。Burst Job は連結バッファを読む。
+    /// A collaborator split out from <see cref="SpriteStudioGeometryBuilder"/> whose responsibility is to
+    /// read the effect draw_plan (native FlatBuffer) in the same manner as frame-data and pack every effect
+    /// part's geometry (verts/uvs/colors/indices) into concatenated buffers. The Burst Job reads the
+    /// concatenated buffers.
     ///
-    /// ゼロアロケーションのためバッファは永続確保し grow-only で再利用する。論理件数は *_Count で保持する。
+    /// For zero-allocation the buffers are persistently allocated and reused grow-only. Logical counts are
+    /// held in the *_Count fields.
     /// </summary>
     internal sealed class SpriteStudioEffectPlanBuffer : IDisposable
     {
-        // パーツ index で引く draw_plan の結果 (CommandStart/Count/QuadBase)。MemClear 済 default = 非可視。
+        // draw_plan result indexed by part index (CommandStart/Count/QuadBase). MemClear'd default = not visible.
         private NativeArray<EffectDrawPlanData> _effectPlans;
 
         private Google.FlatBuffers.ByteBuffer _planByteBuffer;
 #if ENABLE_SPAN_T && UNSAFE_BYTEBUFFER
-        // ゼロコピー: ネイティブ draw_plan ポインタを直接 ByteBuffer に載せる読み取り専用アロケータ。
+        // Zero-copy: a read-only allocator that places the native draw_plan pointer directly into a ByteBuffer.
         private NativeByteBufferAllocator _planAllocator;
 #else
         private byte[] _planBytes;
@@ -36,7 +38,7 @@ namespace SpriteStudio.Runtime
         private int _effectColorFloatCount;
         private int _effectIndexCount;
 
-        /// <summary>結合ジオメトリ (Burst Job が読む)。</summary>
+        /// <summary>Concatenated geometry (read by the Burst Job).</summary>
         public NativeArray<float> Verts { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => _effectVerts; }
         public NativeArray<float> Uvs { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => _effectUvs; }
         public NativeArray<float> Colors { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => _effectColors; }
@@ -50,8 +52,8 @@ namespace SpriteStudio.Runtime
         public EffectDrawCommandData GetCommand(int index) => _effectCommands[index];
 
         /// <summary>
-        /// フレーム頭で plan テーブルを partsLength ぶん確保し、全 plan を default (非可視) へ MemClear、
-        /// 結合バッファの論理件数を 0 へリセットする。
+        /// At the start of a frame, allocate the plan table for partsLength entries, MemClear all plans to
+        /// default (not visible), and reset the concatenated buffers' logical counts to 0.
         /// </summary>
         public unsafe void BeginFrame(int partsLength)
         {
@@ -70,7 +72,8 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// エフェクトが無くても Job が参照するため、結合配列が最低 1 要素を持つことを保証する。
+        /// Guarantee the concatenated arrays hold at least 1 element, since the Job references them even
+        /// when there are no effects.
         /// </summary>
         public void EnsureGeometryMinimum()
         {
@@ -81,16 +84,17 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// 1 スロットの draw_plan (ネイティブ FlatBuffer fb/len) を読み、ジオメトリを結合バッファへ追記し、
-        /// このスロットの plan メタ (CommandStart/Count/QuadBase) を返す。
+        /// Read one slot's draw_plan (native FlatBuffer fb/len), append its geometry to the concatenated
+        /// buffers, and return this slot's plan metadata (CommandStart/Count/QuadBase).
         /// </summary>
         public unsafe EffectDrawPlanData Append(byte* fb, int len)
         {
             if (fb == null || len <= 0) return default;
 
 #if ENABLE_SPAN_T && UNSAFE_BYTEBUFFER
-            // ゼロコピー: ネイティブポインタを直接 ByteBuffer に載せる (allocator/ByteBuffer は使い回し)。
-            // draw_plan は本メソッド内で全ジオメトリを結合 NativeArray へコピーし切るため寿命が完結し安全。
+            // Zero-copy: place the native pointer directly into the ByteBuffer (allocator/ByteBuffer are reused).
+            // The draw_plan's lifetime is self-contained and safe because this method copies all of its
+            // geometry into the concatenated NativeArrays within the call.
             if (_planAllocator == null)
             {
                 _planAllocator = new NativeByteBufferAllocator();
@@ -99,7 +103,7 @@ namespace SpriteStudio.Runtime
             _planAllocator.Reset(fb, len);
             _planByteBuffer.Position = 0;
 #else
-            // ネイティブ → 再利用 byte[] へコピーして ByteBuffer に包む (フォールバック)。
+            // Copy native -> a reused byte[] and wrap it in a ByteBuffer (fallback).
             if (_planBytes == null || _planBytes.Length < len)
             {
                 _planBytes = new byte[UnityEngine.Mathf.Max(len, 4096)];
@@ -117,11 +121,12 @@ namespace SpriteStudio.Runtime
             int iLen = plan.IndicesLength;
             int cmdLen = plan.CommandsLength;
 
-            // このスロットのグローバル quad ベース (= これまでに詰めた quad 数 = indices/6)。
+            // This slot's global quad base (= number of quads packed so far = indices/6).
             int quadBase = _effectIndexCount / 6;
 
-            // ジオメトリは fbs で連続 scalar vector。生ポインタ fb から結合バッファへ一括 memcpy する。
-            // vtable offset = 4 + field_index*2、fbs 定義順: commands(0)/vert_stride(1)/verts(2)/uvs(3)/colors(4)/indices(5)。
+            // The geometry is a contiguous scalar vector in fbs. Bulk-memcpy from the raw pointer fb into
+            // the concatenated buffers. vtable offset = 4 + field_index*2; fbs declaration order:
+            // commands(0)/vert_stride(1)/verts(2)/uvs(3)/colors(4)/indices(5).
             var t = new Google.FlatBuffers.Table(
                 _planByteBuffer.GetInt(_planByteBuffer.Position) + _planByteBuffer.Position, _planByteBuffer);
 
@@ -141,14 +146,14 @@ namespace SpriteStudio.Runtime
             SpriteStudioNativeBuffers.CopyFbVector(t, 14, fb, _effectIndices, _effectIndexCount, iLen);
             _effectIndexCount += iLen;
 
-            // commands を抽出 (描画順ループでテクスチャ/ブレンド/範囲を参照する)。
+            // Extract commands (the draw-order loop references texture/blend/range from them).
             SpriteStudioNativeBuffers.EnsureCapacityPreserve(ref _effectCommands, _effectCommandCount + cmdLen);
             int cmdStart = _effectCommandCount;
             for (int c = 0; c < cmdLen; c++)
             {
                 var cc = plan.Commands(c);
-                // 欠落コマンドは default (QuadCount=0) で埋める。continue で飛ばすと前フレームの値が残り、
-                // 誤った quad 範囲を読むため必ず埋める。
+                // Fill missing commands with default (QuadCount=0). Skipping via continue would leave the
+                // previous frame's value and read a wrong quad range, so always fill.
                 if (!cc.HasValue) { _effectCommands[cmdStart + c] = default; continue; }
                 var cmd = cc.Value;
                 _effectCommands[cmdStart + c] = new EffectDrawCommandData

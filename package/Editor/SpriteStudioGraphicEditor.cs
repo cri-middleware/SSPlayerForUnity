@@ -28,9 +28,9 @@ namespace SpriteStudio.Editor
         private SerializedProperty _onAudioEventProp;
 
         private static readonly GUIContent _frameSkippingLabel = new GUIContent("Frame Skipping",
-            "ON: 負荷でフレームが落ちても経過時間ぶん進める (実時間追従)。OFF: 毎 update で必ず 1 フレームずつ進める (コマ送り)。");
+            "ON: advance by elapsed time even when frames are dropped under load (real-time tracking). OFF: advance exactly one frame per update (frame-by-frame).");
         private static readonly GUIContent _subFrameInterpolationLabel = new GUIContent("Sub-Frame Interpolation",
-            "ON: フレーム間を補間して滑らかに描画 (高FPS でヌルヌル)。OFF: キーフレームにスナップ (コマ感)。");
+            "ON: interpolate between frames for smooth rendering (fluid at high FPS). OFF: snap to keyframes (stepped look).");
 
         protected override void OnEnable()
         {
@@ -65,7 +65,7 @@ namespace SpriteStudio.Editor
             EditorGUILayout.PropertyField(_autoPlayProp);
             EditorGUILayout.PropertyField(_loopProp);
             EditorGUILayout.Slider(_speedScaleProp, 0f, 4f);
-            // 順番: Frame Skipping (実時間追従) → Sub-Frame Interpolation (フレーム間補間)。
+            // Order: Frame Skipping (real-time tracking) → Sub-Frame Interpolation (inter-frame interpolation).
             EditorGUILayout.PropertyField(_skipFramesProp, _frameSkippingLabel);
             EditorGUILayout.PropertyField(_subFrameEnabledProp, _subFrameInterpolationLabel);
 

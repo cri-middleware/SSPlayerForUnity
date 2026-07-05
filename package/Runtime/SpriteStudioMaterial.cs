@@ -50,12 +50,12 @@ namespace SpriteStudio.Runtime
     ///
     /// Factors are the SDK OpenGL canonical table, keyed by the ssab enum value. The target we
     /// match is the SS authoring tool / SDK output, which uses STRAIGHT (non-premultiplied) alpha,
-    /// so InputPMA / OutputPMA are 0 here. (SS6PU premultiplies Mul / Mulalpha / Invert in its own
-    /// pipeline; that is SS6PU-specific and would darken those modes at fractional alpha vs the
-    /// authoring output.) Mix stays premultiplied because it is mathematically identical either way.
+    /// so InputPMA / OutputPMA are 0 here. (Premultiplying Mul / Mulalpha / Invert would darken
+    /// those modes at fractional alpha vs the authoring output.) Mix stays premultiplied because it
+    /// is mathematically identical either way.
     ///
-    /// Never key off SS6PU's enum names: their Mul / Mulalpha are swapped relative to ssab
-    /// (ssab Mul = alpha-ignored multiply).
+    /// Key off the ssab BlendType values, not names: Mul / Mulalpha can be swapped relative to their
+    /// names (ssab Mul = alpha-ignored multiply).
     /// </summary>
     public static class SpriteStudioBlendTable
     {
@@ -75,13 +75,13 @@ namespace SpriteStudio.Runtime
             {
                 case 0: // Mix
                     return new State { Src = BlendMode.One, Dst = BlendMode.OneMinusSrcAlpha, Op = BlendOp.Add, InputPMA = 1, OutputPMA = 1, NotDiscard = 0 };
-                case 1: // Mul (alpha NOT considered = pure multiply; equals SS6PU MUL_NA)
+                case 1: // Mul (alpha NOT considered = pure multiply)
                     return new State { Src = BlendMode.Zero, Dst = BlendMode.SrcColor, Op = BlendOp.Add, InputPMA = 0, OutputPMA = 0, NotDiscard = 0 };
                 case 2: // Add
                     return new State { Src = BlendMode.SrcAlpha, Dst = BlendMode.One, Op = BlendOp.Add, InputPMA = 0, OutputPMA = 0, NotDiscard = 0 };
                 case 3: // Sub
                     return new State { Src = BlendMode.SrcAlpha, Dst = BlendMode.One, Op = BlendOp.ReverseSubtract, InputPMA = 0, OutputPMA = 0, NotDiscard = 0 };
-                case 4: // Mulalpha (alpha considered; equals SS6PU MUL)
+                case 4: // Mulalpha (alpha considered)
                     return new State { Src = BlendMode.DstColor, Dst = BlendMode.OneMinusSrcAlpha, Op = BlendOp.Add, InputPMA = 0, OutputPMA = 0, NotDiscard = 0 };
                 case 5: // Screen
                     return new State { Src = BlendMode.OneMinusDstColor, Dst = BlendMode.One, Op = BlendOp.Add, InputPMA = 0, OutputPMA = 0, NotDiscard = 0 };

@@ -7,13 +7,13 @@ using SpriteStudio.Runtime;
 namespace SpriteStudio.Editor
 {
     /// <summary>
-    /// .ssqb (事前コンバート済みシーケンスバイナリ) のインポーター。
-    /// FlatBuffers を解釈し、SpriteStudioSequenceAsset (ScriptableObject) を生成する。
-    /// 参照アニメパックは <see cref="SpriteStudioAnimeAssetBuilder.ResolveSsabPath"/> で
-    /// プロジェクト内の SpriteStudioAnimeAsset へ解決し、ハードリファレンスする。
+    /// Importer for .ssqb (pre-converted sequence binary).
+    /// Interprets the FlatBuffers and generates a SpriteStudioSequenceAsset (ScriptableObject).
+    /// Referenced anime packs are resolved to SpriteStudioAnimeAsset in the project via
+    /// <see cref="SpriteStudioAnimeAssetBuilder.ResolveSsabPath"/> and hard-referenced.
     ///
-    /// シーケンス再生のランタイム実装は本インポーターの対象外。Unity が .ssqb を
-    /// データとして認識・参照できる状態を作るところまでを担う。
+    /// The runtime implementation of sequence playback is out of scope for this importer. It only goes as
+    /// far as making the .ssqb recognizable and referenceable as data by Unity.
     /// </summary>
     [ScriptedImporter(1, "ssqb")]
     [UnityEngine.Icon("Packages/com.spritestudio.ssruntime/Editor/Icons/ssqb_icon.png")]
@@ -25,8 +25,9 @@ namespace SpriteStudio.Editor
             asset.SsqbData = File.ReadAllBytes(ctx.assetPath);
 
             var bb = new Google.FlatBuffers.ByteBuffer(asset.SsqbData);
-            // 入力検証: コンバータ出力以外 (拡張子だけ .ssqb の別物など) を弾き、原因が分かるエラーにする。
-            // 識別子は先頭オフセット(4)+マジック(4) を読むので最低 8 バイト必要。
+            // Input validation: reject anything that is not converter output (e.g. an unrelated file that
+            // merely has the .ssqb extension) and surface an error that explains the cause.
+            // Reading the identifier needs the leading offset (4) + magic (4), so at least 8 bytes are required.
             if (asset.SsqbData.Length < 8 || !ss.format.SsSequenceBinary.SsSequenceBinaryBufferHasIdentifier(bb))
             {
                 ctx.LogImportError($"[SpriteStudioSsqbImporter] Not a valid .ssqb (FlatBuffers 'SSQB' identifier missing): {ctx.assetPath}");
@@ -38,7 +39,7 @@ namespace SpriteStudio.Editor
             var ssqb = ss.format.SsSequenceBinary.GetRootAsSsSequenceBinary(bb);
             string baseDir = Path.GetDirectoryName(ctx.assetPath);
 
-            // 参照アニメパックの重複解決を避けるための記録。
+            // Records to avoid resolving the same referenced anime pack more than once.
             var seenPacks = new HashSet<string>();
             var seenAssets = new HashSet<SpriteStudioAnimeAsset>();
 
@@ -54,7 +55,7 @@ namespace SpriteStudio.Editor
                     Name = seq.Name,
                     NameHash = seq.NameHash,
                     Index = seq.Index,
-                    // 名前で明示マッピング (値キャストではない)。上流 .fbs が値を並べ替えても破綻しない。
+                    // Explicit mapping by name (not a value cast). Does not break even if the upstream .fbs reorders values.
                     Type = ToTermination(seq.Type),
                 };
 
@@ -74,9 +75,10 @@ namespace SpriteStudio.Editor
                         RepeatCount = it.RepeatCount,
                     });
 
-                    // 参照アニメパック (.ssab) をプロジェクト内アセットへ解決し、ハードリファレンスする。
-                    // 解決ロジックは .ssab importer と共有 (ResolveSsabPath)。未解決でも (まだ未インポート
-                    // 等で) 依存登録は済んでいるので、対象が入った時点で再インポートされ解決される。
+                    // Resolve the referenced anime pack (.ssab) to a project asset and hard-reference it.
+                    // The resolution logic is shared with the .ssab importer (ResolveSsabPath). Even if it is
+                    // unresolved (e.g. not yet imported), the dependency is registered, so it is re-imported and
+                    // resolved once the target appears.
                     if (!string.IsNullOrEmpty(it.RefAnimePack) && seenPacks.Add(it.RefAnimePack))
                     {
                         SpriteStudioAnimeAssetBuilder.ResolveSsabPath(baseDir, it.RefAnimePack, out var animeAsset, ctx.DependsOnSourceAsset);
@@ -102,9 +104,10 @@ namespace SpriteStudio.Editor
         }
 
         /// <summary>
-        /// ss.format.SequenceType を SequenceTermination へ名前ベースで写す。
-        /// 値キャストと違い、上流 .fbs の値順が変わっても (列挙子名で対応するため) 破綻しない。
-        /// 未知値は安全側の Last にフォールバックする。
+        /// Maps ss.format.SequenceType to SequenceTermination by name.
+        /// Unlike a value cast, it does not break even if the upstream .fbs value order changes (since it
+        /// matches by enumerator name).
+        /// Unknown values fall back to the safe-side Last.
         /// </summary>
         private static SpriteStudioSequenceAsset.SequenceTermination ToTermination(ss.format.SequenceType t)
         {

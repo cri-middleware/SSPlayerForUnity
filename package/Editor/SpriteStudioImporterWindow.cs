@@ -14,7 +14,7 @@ namespace SpriteStudio.Editor
 
         private Vector2 scrollPosition;
 
-        // libssconverter のバージョン文字列。FFI 取得は重く OnGUI は毎フレーム走るため OnEnable で一度だけ取得してキャッシュする。
+        // libssconverter version string. The FFI query is expensive and OnGUI runs every frame, so fetch it once in OnEnable and cache it.
         private string converterVersion;
         private string playerVersion;
 
@@ -113,7 +113,7 @@ namespace SpriteStudio.Editor
                     if (evt.type == EventType.DragPerform)
                     {
                         DragAndDrop.AcceptDrag();
-                        // フォルダ(再帰走査)・複数ファイル・重複・衝突・Recent をまとめて処理する
+                        // Handles folders (recursive scan), multiple files, duplicates, collisions, and Recent all together
                         SpriteStudioImporter.ImportPaths(DragAndDrop.paths);
                     }
                     Event.current.Use();
@@ -193,7 +193,7 @@ namespace SpriteStudio.Editor
             GUILayout.EndScrollView();
         }
 
-        // ウィンドウ下部に libssconverter のバージョンを表示する (Godot の ss_import_dock フッターと同等)。
+        // Show the libssconverter version at the bottom of the window.
         private void DrawFooter()
         {
             GUILayout.BeginHorizontal(EditorStyles.helpBox);
@@ -218,8 +218,8 @@ namespace SpriteStudio.Editor
             var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(SpriteStudioImporterWindow).Assembly);
             if (packageInfo != null)
             {
-                // Unityの packageInfo.version は SemVer のビルドメタデータ (+以降) を落とす場合があるため、
-                // package.json を直接パースして正確な文字列を取得する
+                // Unity's packageInfo.version may drop SemVer build metadata (everything after '+'),
+                // so parse package.json directly to get the exact string
                 string packageJsonPath = Path.Combine(packageInfo.resolvedPath, "package.json");
                 if (File.Exists(packageJsonPath))
                 {
@@ -244,8 +244,8 @@ namespace SpriteStudio.Editor
         }
 
         /// <summary>
-        /// libssconverter から FFI でバージョン文字列を取得する。
-        /// ネイティブは CString を into_raw() で返すため、必ず ss_converter_version_free で解放する。
+        /// Fetches the version string from libssconverter via FFI.
+        /// The native side returns a CString via into_raw(), so it must always be freed with ss_converter_version_free.
         /// </summary>
         private static unsafe string LoadConverterVersion()
         {
@@ -286,9 +286,9 @@ namespace SpriteStudio.Editor
         }
 
         /// <summary>
-        /// 単一 .sspj の変換 (非対話) を行う既存 API。
-        /// AssetPostprocessor / AnimeAssetEditor の Reconvert から呼ばれるためシグネチャを維持する。
-        /// 実体は一括インポート基盤 (<see cref="SpriteStudioImporter"/>) に委譲する。
+        /// Existing API that converts a single .sspj (non-interactive).
+        /// Called from the Reconvert paths in AssetPostprocessor / AnimeAssetEditor, so the signature is kept.
+        /// The actual work is delegated to the batch import infrastructure (<see cref="SpriteStudioImporter"/>).
         /// </summary>
         public static void RunConvertDirect(string sspjPath)
         {

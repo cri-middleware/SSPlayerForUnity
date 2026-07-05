@@ -10,12 +10,12 @@ namespace SpriteStudio.Runtime.Tests
         [Test]
         public void CreateAndDispose_DoesNotThrow()
         {
-            // FFI コンテキストが正常に作成・破棄されるか確認する基本的なテスト
-            // ネイティブライブラリが適切にロードされ、クラッシュしないかを検証します。
+            // Basic test that the FFI context is created and destroyed correctly.
+            // Verifies that the native library loads properly and does not crash.
             using (var player = new SpriteStudioInternalPlayer())
             {
                 Assert.IsNotNull(player);
-                // JobHandle や GCHandle などの初期化が成功しているはずです
+                // Initialization of JobHandle, GCHandle, etc. should have succeeded
             }
         }
 
@@ -31,7 +31,7 @@ namespace SpriteStudio.Runtime.Tests
         [Test]
         public void Dispose_CalledTwice_DoesNotThrow()
         {
-            // Dispose は冪等であること (二重 Dispose で native の二重解放やクラッシュを起こさない)。
+            // Dispose must be idempotent (a double Dispose must not double-free native memory or crash).
             var player = new SpriteStudioInternalPlayer();
             Assert.DoesNotThrow(() =>
             {
@@ -43,8 +43,8 @@ namespace SpriteStudio.Runtime.Tests
         [Test]
         public void Dispose_DoesNotLogLeakError()
         {
-            // 正常に Dispose すれば、ファイナライザのリーク検出ログ ("Memory leak detected") も
-            // その他の Error ログも出ない。Dispose 経路 (解放順序変更含む) が綺麗であることを確認。
+            // A clean Dispose should emit neither the finalizer's leak-detection log ("Memory leak detected")
+            // nor any other Error log. Confirms the Dispose path (including the release-ordering change) is clean.
             var player = new SpriteStudioInternalPlayer();
             player.Dispose();
             LogAssert.NoUnexpectedReceived();

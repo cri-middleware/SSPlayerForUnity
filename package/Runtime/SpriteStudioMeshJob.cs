@@ -8,20 +8,21 @@ using UnityEngine;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// frame-data の列挙値 (ss.runtime.UpdateAttributeFlags) を直値ではなく生成 enum から導出して共有する。
-    /// 会計側 (SpriteStudioInternalPlayer) と Burst Job (UpdateMeshJob) が同じ定義を参照することで、
-    /// 「片方だけ直して値がズレる」事故 (頂点数会計と Job の不一致) を防ぐ。
-    /// Burst は const を inline するため Job からも参照できる。
+    /// Share the frame-data enum values (ss.runtime.UpdateAttributeFlags) by deriving them from the generated
+    /// enum rather than from literals. Having the accounting side (SpriteStudioInternalPlayer) and the Burst Job
+    /// (UpdateMeshJob) reference the same definition prevents the "edit one side and the values drift" accident
+    /// (a mismatch between the vertex-count accounting and the Job).
+    /// Burst inlines const, so the Job can reference it too.
     /// </summary>
     internal static class SsUpdateFlag
     {
         public const ulong AttributeVertex = (ulong)ss.runtime.UpdateAttributeFlags.AttributeVertex;
         public const ulong AttributePartColor = (ulong)ss.runtime.UpdateAttributeFlags.AttributePartColor;
-        // 頂点センターが必要 = 頂点変形 or パーツカラーが有効なフレーム (SDK core/framedata.rs と同条件)。
+        // Center vertex needed = a frame where vertex deform or part color is active (same condition as SDK core/framedata.rs).
         public const ulong NeedsCenterMask = AttributeVertex | AttributePartColor;
     }
 
-    /// <summary>DrawBatch.Kind の直値を生成 enum (ss.runtime.DrawBatchKind) から導出した共有定数。</summary>
+    /// <summary>Shared constants for DrawBatch.Kind literals, derived from the generated enum (ss.runtime.DrawBatchKind).</summary>
     internal static class SsDrawBatchKind
     {
         public const byte Normal = (byte)ss.runtime.DrawBatchKind.Normal;
@@ -47,23 +48,23 @@ namespace SpriteStudio.Runtime
         public int EffectPartIndex;
     }
 
-    // エフェクト draw command (1 エミッタ/セルマップ分の描画範囲)。
-    // 生成アクセサ ss.runtime.EffectDrawCommand から値をコピーして埋める。
+    // Effect draw command (the draw range for one emitter/cellmap).
+    // Filled by copying values from the generated accessor ss.runtime.EffectDrawCommand.
     public struct EffectDrawCommandData
     {
         public uint CellmapHash;
         public uint QuadCount;
-        public uint ParticleOffset; // スロット内ローカルの quad オフセット
+        public uint ParticleOffset; // slot-local quad offset
         public byte Blend;          // 0=Mix, 1=Add
     }
 
-    // 1 エフェクトパート分の draw plan を、結合バッファ (_effectVerts 等) 上の
-    // 位置情報として保持する。ジオメトリ実体は結合 NativeArray 側へコピー済み。
+    // Holds one effect part's draw plan as position info into the merged buffers (_effectVerts, etc.).
+    // The geometry itself has already been copied into the merged NativeArrays.
     public struct EffectDrawPlanData
     {
-        public int CommandStart;  // _effectCommands 内の開始 index
-        public int CommandCount;  // command 数 (0 なら描画なし)
-        public int QuadBase;      // 結合ジオメトリ内のグローバル quad オフセット
+        public int CommandStart;  // start index within _effectCommands
+        public int CommandCount;  // command count (0 = no draw)
+        public int QuadBase;      // global quad offset within the merged geometry
     }
 
     public unsafe struct InstanceMeshPointer
@@ -126,7 +127,7 @@ namespace SpriteStudio.Runtime
         [ReadOnly] public NativeArray<ushort> DrawOrder;
         [ReadOnly] public NativeArray<PartStateData> PartStates;
         [ReadOnly] public NativeArray<PartColorData> PartColors;
-        // エフェクトの結合ジオメトリ (全エフェクトパート分を連結。off はグローバル quad オフセット)。
+        // Merged effect geometry (all effect parts concatenated; off is the global quad offset).
         [ReadOnly] public NativeArray<float> EffectVerts;
         [ReadOnly] public NativeArray<float> EffectUvs;
         [ReadOnly] public NativeArray<float> EffectColors;
@@ -135,16 +136,16 @@ namespace SpriteStudio.Runtime
 
         public NativeArray<SsVertex> Vertices;
         public NativeArray<uint> Indices;
-        // メッシュ境界 (要素 0=min, 1=max)。Execute 末尾で集計する。
+        // Mesh bounds (element 0=min, 1=max). Aggregated at the end of Execute.
         public NativeArray<Vector3> Bounds;
 
-        // 入力バッファは grow-only で過剰確保されうるため、走査は論理件数で行う
+        // Input buffers may be over-allocated grow-only, so iterate by logical count
         public int BatchCount;
         public int PartCount;
         public int PartColorCount;
 
-        // 最終頂点位置に掛ける一様スケール (= 1 / PixelsPerUnit)。SpriteStudioInternalPlayer.VertexScale 由来。
-        // ピクセル空間のワールド頂点を Unity ワールド単位へ変換する (UV には掛けない)。
+        // Uniform scale applied to the final vertex position (= 1 / PixelsPerUnit). From SpriteStudioInternalPlayer.VertexScale.
+        // Converts pixel-space world vertices into Unity world units (not applied to UVs).
         public float InvScale;
 
         public void Execute()
@@ -188,7 +189,7 @@ namespace SpriteStudio.Runtime
                 }
             }
 
-            // 頂点の min/max を集計してメッシュ境界を求める。
+            // Aggregate the vertices' min/max to derive the mesh bounds.
             if (Bounds.Length >= 2)
             {
                 if (vbase <= 0)
@@ -223,11 +224,11 @@ namespace SpriteStudio.Runtime
 
             float* draw_m = WorldMatrices + p_idx * 16;
 
-            uint off = batch.EffectParticleOffset; // 結合ジオメトリ内のグローバル quad オフセット
+            uint off = batch.EffectParticleOffset; // global quad offset within the merged geometry
             int vertStart = (int)off * 4;
             int indStart = (int)off * 6;
 
-            // ss.format.BlendType: Mix=0, Add=2 (シェーダ texcoord1.y)
+            // ss.format.BlendType: Mix=0, Add=2 (shader texcoord1.y)
             int blend_idx = batch.EffectBlend == 1 ? 2 : 0;
             // Per-vertex additive flag (TexCoord1.w) for the Canvas single-material a=0 trick.
             float isAdditive = batch.EffectBlend == 1 ? 1f : 0f;
@@ -239,7 +240,7 @@ namespace SpriteStudio.Runtime
                 {
                     int vi = qVertBase + v;
 
-                    // エフェクト頂点は stride 3 (X, Y, Z)。Z は未使用。
+                    // Effect vertices have stride 3 (X, Y, Z). Z is unused.
                     float lx = EffectVerts[vi * 3 + 0];
                     float ly = EffectVerts[vi * 3 + 1];
 
@@ -446,7 +447,7 @@ namespace SpriteStudio.Runtime
                 float wLB = (1f - fx) * fy;
                 float wRB = fx * fy;
 
-                // 重みの和は 1 だが FP 誤差で 255 を僅かに超えうるため、他経路 (effect/normal) と同様に clamp する。
+                // The weights sum to 1, but FP error can nudge it slightly past 255, so clamp as the other paths (effect/normal) do.
                 byte r = (byte)math.clamp(corner_colors[0].r * wLT + corner_colors[1].r * wRT + corner_colors[2].r * wLB + corner_colors[3].r * wRB, 0f, 255f);
                 byte g = (byte)math.clamp(corner_colors[0].g * wLT + corner_colors[1].g * wRT + corner_colors[2].g * wLB + corner_colors[3].g * wRB, 0f, 255f);
                 byte b = (byte)math.clamp(corner_colors[0].b * wLT + corner_colors[1].b * wRT + corner_colors[2].b * wLB + corner_colors[3].b * wRB, 0f, 255f);

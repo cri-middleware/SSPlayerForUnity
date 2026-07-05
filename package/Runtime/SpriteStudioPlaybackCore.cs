@@ -3,14 +3,14 @@ using UnityEngine;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// SpriteStudioPlayer (MeshRenderer) と SpriteStudioGraphic (uGUI) で共通する再生ロジック。
-    /// 両者は基底クラスが異なる (MonoBehaviour vs Graphic) ため継承で共有できないので、
-    /// コンポジションで各コンポーネントがこのコアを保持して委譲する。
-    /// 直列化される設定 (アニメ名・ループ等) は Unity のシリアライズ互換のため各コンポーネント側に残す。
+    /// Playback logic shared by SpriteStudioPlayer (MeshRenderer) and SpriteStudioGraphic (uGUI).
+    /// The two have different base classes (MonoBehaviour vs Graphic) so they cannot share via inheritance;
+    /// instead, each component holds this core by composition and delegates to it.
+    /// Serialized settings (animation name, loop, etc.) stay on each component for Unity serialization compatibility.
     /// </summary>
     internal sealed class SpriteStudioPlaybackCore
     {
-        /// <summary>内部プレイヤー (FFI コンテキスト)。未生成/破棄後は null。</summary>
+        /// <summary>Internal player (FFI context). Null when not created / after disposal.</summary>
         public SpriteStudioInternalPlayer Internal { get; private set; }
 
         public event System.Action OnAnimationStarted;
@@ -95,11 +95,11 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// 指定アニメーションのデータをセットアップする (先頭フレームで posed)。再生は開始しない。
-        /// 開始するには別途 <see cref="Play()"/> を呼ぶ。ループ/速度/スキップ/方向などの再生設定はここでは
-        /// 適用しない: Rust の setup_animation がこれらを既定値 (Forward/Normal 等) へ戻すため、必要なら
-        /// 呼び出し側が setup 後に別途適用する (Godot プレイヤーと同じ流れ)。
-        /// logContext は警告メッセージのタグ。setup に成功すれば true。
+        /// Sets up the data for the specified animation (posed at the first frame). Does not start playback.
+        /// Call <see cref="Play()"/> separately to start. Playback settings such as loop/speed/skip/direction
+        /// are not applied here: Rust's setup_animation resets them to defaults (Forward/Normal, etc.), so if
+        /// needed the caller applies them separately after setup.
+        /// logContext is the tag for warning messages. Returns true if setup succeeded.
         /// </summary>
         public bool SetAnimation(string animationName, string logContext)
         {
@@ -113,7 +113,7 @@ namespace SpriteStudio.Runtime
             return true;
         }
 
-        /// <summary>現在セットアップ済みのアニメーションを先頭から再生開始する。</summary>
+        /// <summary>Starts playing the currently set-up animation from the beginning.</summary>
         public void Play()
         {
             if (Internal == null) return;
@@ -121,7 +121,7 @@ namespace SpriteStudio.Runtime
             OnAnimationStarted?.Invoke();
         }
 
-        /// <summary>現在セットアップ済みのアニメーションを指定フレームから再生開始する。</summary>
+        /// <summary>Starts playing the currently set-up animation from the specified frame.</summary>
         public void Play(float startFrame)
         {
             if (Internal == null) return;
@@ -129,7 +129,7 @@ namespace SpriteStudio.Runtime
             OnAnimationStarted?.Invoke();
         }
 
-        /// <summary>アニメーションを進め、メッシュ構築ジョブをスケジュールする (Job の完了待ちはしない)。</summary>
+        /// <summary>Advances the animation and schedules the mesh-build job (does not wait for the Job to complete).</summary>
         public void TickAndSchedule(float deltaTime, bool subFrameEnabled)
         {
             if (Internal == null) return;

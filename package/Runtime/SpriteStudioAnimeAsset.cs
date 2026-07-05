@@ -4,8 +4,8 @@ using System.Collections.Generic;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// インポート処理の最終成果物となる ScriptableObject。
-    /// .ssab バイト配列の保持や、テクスチャ等のハードリファレンス管理を行います。
+    /// The final artifact of the import process, a ScriptableObject.
+    /// Holds the .ssab byte array and manages hard references to textures and the like.
     /// </summary>
     [UnityEngine.Icon("Packages/com.spritestudio.ssruntime/Editor/Icons/ssab_icon.png")]
     public class SpriteStudioAnimeAsset : ScriptableObject
@@ -34,19 +34,19 @@ namespace SpriteStudio.Runtime
         public uint PackHash;
 
         /// <summary>
-        /// Instance パーツが要求する子アニメーションの .ssab バイナリを解決して返す。
-        /// Godot の SsInternalPlayer::_resolve_ssab_by_hash と同じ優先順位:
-        ///   1. 別パック (外部 .ssab) への参照は、インポート時に確定した ExternalReferences を pack_hash で引く。
-        ///   2. 同一パック内 (自分自身) のアニメ参照は、自身の SsabData を返す。
-        /// SpriteStudio の Instance は同一プロジェクト内参照が大半のため、2 が主経路になる。
-        /// 実行時はファイルを一切読まず、ハードリファレンスを辿るだけ (GUID 参照のため
-        /// Resources/AssetBundle/Addressables でも安全)。
+        /// Resolve and return the .ssab binary of the child animation requested by an Instance part.
+        /// Resolution priority:
+        ///   1. A reference to another pack (external .ssab) is looked up from the ExternalReferences fixed at import time, by pack_hash.
+        ///   2. A same-pack (self) animation reference returns our own SsabData.
+        /// SpriteStudio Instances are mostly same-project references, so 2 is the primary path.
+        /// At runtime no file is read at all; it only follows hard references (GUID references, so it is
+        /// safe with Resources/AssetBundle/Addressables too).
         /// </summary>
-        /// <param name="packHash">参照先アニメパックの名前ハッシュ (PartTypeInstance.RefAnimePackHash)。</param>
-        /// <param name="nameHash">参照先アニメの名前ハッシュ。解決後に SetupAnimationByHash で使用。</param>
+        /// <param name="packHash">Name hash of the referenced anime pack (PartTypeInstance.RefAnimePackHash).</param>
+        /// <param name="nameHash">Name hash of the referenced animation. Used by SetupAnimationByHash after resolution.</param>
         public byte[] ResolveExternalSsab(uint packHash, uint nameHash)
         {
-            // 1. 別パックへの参照: pack_hash 一致を最優先で外部参照から引く。
+            // 1. Reference to another pack: look it up from the external references, prioritizing a pack_hash match.
             if (packHash != 0 && ExternalReferences != null)
             {
                 for (int i = 0; i < ExternalReferences.Count; i++)
@@ -59,15 +59,15 @@ namespace SpriteStudio.Runtime
                 }
             }
 
-            // 2. 同一パック内 (自分自身) のアニメ参照。pack_hash 未設定 (0) も現バイナリにフォールバックする。
+            // 2. Same-pack (self) animation reference. An unset pack_hash (0) also falls back to the current binary.
             if (packHash == 0 || packHash == PackHash)
             {
                 return SsabData;
             }
 
-            // 3. フォールバック (pack 名ハッシュの運用差で 1 が一致しない場合の保険)。
-            //    Godot の find_animation_by_hash と同様、要求アニメ名ハッシュを実際に含む ssab を
-            //    自身 → 外部参照 の順で探す。pack_hash に依存せず解決できる。
+            // 3. Fallback (a safeguard for when 1 does not match due to operational differences in the pack
+            //    name hash): search for an ssab that actually contains the requested animation name hash,
+            //    in the order self -> external references. Resolves without depending on pack_hash.
             if (nameHash != 0)
             {
                 if (ContainsAnimationHash(nameHash)) return SsabData;
@@ -86,7 +86,7 @@ namespace SpriteStudio.Runtime
 
         [System.NonSerialized] private HashSet<uint> _animationHashes;
 
-        /// <summary>この ssab が指定アニメ名ハッシュのアニメーションを含むか (Animation.NameHash で判定)。</summary>
+        /// <summary>Whether this ssab contains an animation with the given animation name hash (checked against Animation.NameHash).</summary>
         public bool ContainsAnimationHash(uint nameHash)
         {
             if (_animationHashes == null)
@@ -107,17 +107,17 @@ namespace SpriteStudio.Runtime
             return _animationHashes.Contains(nameHash);
         }
 
-        // DrawBatch.TextureHash → Materials のインデックス対応表 (並列配列で直列化)。
-        // 1つのテクスチャに複数の候補ハッシュ (cellmap の NameHash/ImagePathHash, external の NameHash) が
-        // 対応しうるため、どれが来ても引けるよう全候補を登録している。
+        // DrawBatch.TextureHash -> Materials index mapping table (serialized as parallel arrays).
+        // A single texture can correspond to multiple candidate hashes (the cellmap's NameHash/ImagePathHash,
+        // the external NameHash), so all candidates are registered so any of them can look it up.
         [HideInInspector] public uint[] TextureHashKeys;
         [HideInInspector] public int[] TextureHashMaterialIndices;
 
         [System.NonSerialized] private Dictionary<uint, int> _hashToMaterial;
 
         /// <summary>
-        /// DrawBatch のテクスチャハッシュに対応する Materials のインデックスを返す。
-        /// 対応が見つからない場合は -1 (呼び出し側で material[0] 等にフォールバックする)。
+        /// Return the Materials index corresponding to a DrawBatch's texture hash.
+        /// Returns -1 if no correspondence is found (the caller falls back to material[0], etc.).
         /// </summary>
         public int GetMaterialIndexForHash(uint textureHash)
         {
@@ -137,10 +137,11 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// DrawBatch のテクスチャハッシュに対応する Material を返す。
-        /// まず自身のテーブルを引き、無ければ Instance 参照先 (外部 .ssab) のテーブルも探索する。
-        /// Instance の子は外部 .ssab のテクスチャ/マテリアルを使うため、外部参照側でしか解決できない
-        /// ハッシュがサブメッシュとして親へ上がってくる。見つからなければ null (呼び出し側でフォールバック)。
+        /// Return the Material corresponding to a DrawBatch's texture hash.
+        /// First looks up our own table; if not found, also searches the Instance reference target's
+        /// (external .ssab) table. Because Instance children use the external .ssab's textures/materials,
+        /// hashes resolvable only on the external-reference side bubble up to the parent as submeshes.
+        /// Returns null if not found (the caller falls back).
         /// </summary>
         public Material ResolveMaterialForHash(uint textureHash)
         {

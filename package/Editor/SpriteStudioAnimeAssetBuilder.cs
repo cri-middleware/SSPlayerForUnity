@@ -9,19 +9,20 @@ using SpriteStudio.Runtime;
 namespace SpriteStudio.Editor
 {
     /// <summary>
-    /// .ssab の FlatBuffers 解釈とテクスチャ解決の共通ロジック、および
-    /// SpriteStudioSsabImporter 用の SpriteStudioAnimeAsset 構築処理。
-    /// importer と SpriteStudioAssetPostprocessor で重複していた parse / パス解決 / 重複排除を
-    /// ここへ集約する。
+    /// Shared logic for interpreting the .ssab FlatBuffers and resolving textures, plus the
+    /// SpriteStudioAnimeAsset build routine for SpriteStudioSsabImporter.
+    /// Centralizes the parse / path resolution / de-duplication that was duplicated between the
+    /// importer and SpriteStudioAssetPostprocessor.
     ///
-    /// マテリアル方針は従来どおり: テクスチャ単位の「共有 .mat」を使う (Spine-Unity 方式)。
-    /// importer は隣接する共有 .mat があれば参照し、無ければ暫定の埋め込みマテリアルを使う。
-    /// 共有 .mat の自動生成自体は SpriteStudioAssetPostprocessor が担当する。
+    /// Material policy is unchanged: use a per-texture "shared .mat" (Spine-Unity style).
+    /// The importer references an adjacent shared .mat if one exists, otherwise falls back to a
+    /// provisional embedded material. Auto-generating the shared .mat itself is handled by
+    /// SpriteStudioAssetPostprocessor.
     /// </summary>
     internal static class SpriteStudioAnimeAssetBuilder
     {
-        // インポート時の詳細ログ (`[SS-IMPORT]`)。既定は静か。ssab / ssqb 双方の importer が参照する。
-        // Window/SpriteStudio/Verbose Import Log でトグル (EditorPrefs 永続)。
+        // Verbose import logging (`[SS-IMPORT]`). Quiet by default. Referenced by both the ssab and ssqb importers.
+        // Toggled via Window/SpriteStudio/Verbose Import Log (persisted in EditorPrefs).
         private const string VerboseLogPrefKey = "SpriteStudio.VerboseImportLog";
         internal static bool VerboseImportLog
         {
@@ -41,20 +42,20 @@ namespace SpriteStudio.Editor
             return true;
         }
 
-        /// <summary>解決済みのテクスチャ参照 (cellmap / external_texture)。</summary>
+        /// <summary>A resolved texture reference (cellmap / external_texture).</summary>
         internal struct TextureRef
         {
-            public string TexName;    // ssab 内の元の名前
-            public string TexPath;    // 解決済みプロジェクトパス (未配置なら最有力候補)
-            public Texture2D Texture; // 未配置なら null
-            public string MatPath;    // 共有マテリアルのパス (ChangeExtension(TexPath, ".mat"))
+            public string TexName;    // Original name inside the ssab
+            public string TexPath;    // Resolved project path (best candidate if not present)
+            public Texture2D Texture; // null if not present
+            public string MatPath;    // Shared material path (ChangeExtension(TexPath, ".mat"))
         }
 
         internal static Shader ResolveShader(Shader overrideShader)
         {
             if (overrideShader != null) return overrideShader;
 
-            // Shader.Find はインポート順によって null を返すことがあるため、パスから直接ロードする
+            // Shader.Find can return null depending on import order, so load it directly from the path.
             var shader = AssetDatabase.LoadAssetAtPath<Shader>(
                 "Packages/com.spritestudio.ssruntime/Runtime/Resources/Shaders/SpriteStudioDefault.shader");
             if (shader == null) shader = Shader.Find("SpriteStudio/Default");
@@ -62,10 +63,11 @@ namespace SpriteStudio.Editor
         }
 
         /// <summary>
-        /// アセット名 (相対パス or ファイル名) をプロジェクト内の指定型アセットへ解決する共通ロジック。
-        /// 相対ディレクトリ付き → ファイル名のみ の順でフォールバック探索し、見つかった実体を out で返す。
-        /// onDependency が渡された場合、探索したパスを依存として通知する (importer 用)。
-        /// 戻り値は最有力候補パス (未配置でも返る)。
+        /// Shared logic for resolving an asset name (relative path or file name) to an asset of the
+        /// given type in the project. Falls back in the order "with relative directory" -> "file name
+        /// only" and returns the resolved instance via out.
+        /// If onDependency is supplied, the searched paths are reported as dependencies (for the importer).
+        /// The return value is the best-candidate path (returned even if not present).
         /// </summary>
         internal static string ResolveAssetPath<T>(string baseDir, string name, out T asset, Action<string> onDependency)
             where T : UnityEngine.Object
@@ -94,11 +96,11 @@ namespace SpriteStudio.Editor
             return path;
         }
 
-        /// <summary>テクスチャ名 (image_path / external name) をプロジェクトパスへ解決する (<see cref="ResolveAssetPath{T}"/>)。</summary>
+        /// <summary>Resolves a texture name (image_path / external name) to a project path (<see cref="ResolveAssetPath{T}"/>).</summary>
         internal static string ResolveTexturePath(string baseDir, string texName, out Texture2D tex, Action<string> onDependency)
             => ResolveAssetPath(baseDir, texName, out tex, onDependency);
 
-        /// <summary>音声ファイル名 (SoundFile.file_path) をプロジェクト内の AudioClip へ解決する (<see cref="ResolveAssetPath{T}"/>)。</summary>
+        /// <summary>Resolves an audio file name (SoundFile.file_path) to an AudioClip in the project (<see cref="ResolveAssetPath{T}"/>).</summary>
         internal static string ResolveAudioClipPath(string baseDir, string fileName, out AudioClip clip, Action<string> onDependency)
             => ResolveAssetPath(baseDir, fileName, out clip, onDependency);
 
@@ -126,11 +128,12 @@ namespace SpriteStudio.Editor
 
             if (asset == null)
             {
-                // 直下に無い場合のフォールバック: プロジェクト全体から同名 .ssab を探す。
-                // FindAssets の名前検索は「部分一致 + 順序非保証」なので、そのまま guids[0] を採ると
-                // 同名/類似名アセットがあるとマシンやインポート順で結果が変わる (非決定的インポート)。
-                // (a) ファイル名が厳密一致するものだけに絞り、(b) パスでソートして決定的に選ぶ。
-                // (c) 複数該当はグローバル状態依存の曖昧ケースなので警告する。
+                // Fallback when it is not directly adjacent: search the whole project for a .ssab of the same name.
+                // FindAssets' name search is "partial match + no ordering guarantee", so taking guids[0] as-is
+                // would let same/similar-named assets change the result across machines or import order
+                // (non-deterministic import).
+                // (a) narrow to entries whose file name matches exactly, and (b) sort by path to pick deterministically.
+                // (c) multiple matches is an ambiguous case that depends on global state, so warn.
                 string stem = Path.GetFileNameWithoutExtension(filename);
                 string[] guids = AssetDatabase.FindAssets(stem + " t:SpriteStudioAnimeAsset");
                 var matches = new List<string>();
@@ -145,7 +148,7 @@ namespace SpriteStudio.Editor
                 {
                     if (matches.Count > 1)
                     {
-                        Debug.LogWarning($"[SSPlayer] Anime pack '{animePackName}' は複数候補に一致しました ({matches.Count} 件: {string.Join(", ", matches)})。決定的に '{matches[0]}' を使用します。参照元アセットの隣に .ssab を置くと曖昧さを避けられます。");
+                        Debug.LogWarning($"[SSPlayer] Anime pack '{animePackName}' matched multiple candidates ({matches.Count}: {string.Join(", ", matches)}). Using '{matches[0]}' deterministically. Placing the .ssab next to the referencing asset avoids the ambiguity.");
                     }
                     path = matches[0];
                     onDependency?.Invoke(path);
@@ -157,9 +160,9 @@ namespace SpriteStudio.Editor
         }
 
         /// <summary>
-        /// .ssab が参照する全テクスチャ (cellmaps + external_textures) を、
-        /// 解決済みパスで重複排除して列挙する。
-        /// onDependency が渡された場合、走査したテクスチャパスを依存として通知する (importer 用)。
+        /// Enumerates every texture referenced by the .ssab (cellmaps + external_textures),
+        /// de-duplicated by resolved path.
+        /// If onDependency is supplied, the scanned texture paths are reported as dependencies (for the importer).
         /// </summary>
         internal static List<TextureRef> EnumerateTextures(byte[] ssabData, string baseDir, Action<string> onDependency = null)
         {
@@ -173,7 +176,7 @@ namespace SpriteStudio.Editor
             var result = new List<TextureRef>();
             var seen = new HashSet<string>();
 
-            // cellmaps: 通常パーツ等が参照する主テクスチャ
+            // cellmaps: the primary textures referenced by normal parts, etc.
             int cellmapLen = ssab.CellmapsLength;
             for (int i = 0; i < cellmapLen; i++)
             {
@@ -181,7 +184,7 @@ namespace SpriteStudio.Editor
                 if (cm.HasValue) TryAddTexture(result, seen, baseDir, cm.Value.ImagePath, onDependency);
             }
 
-            // external_textures: TextureChange アトリビュート用の差し替えテクスチャ
+            // external_textures: replacement textures for the TextureChange attribute
             int extLen = ssab.ExternalTexturesLength;
             for (int i = 0; i < extLen; i++)
             {
@@ -196,7 +199,7 @@ namespace SpriteStudio.Editor
             if (string.IsNullOrEmpty(texName)) return;
 
             string texPath = ResolveTexturePath(baseDir, texName, out var tex, onDependency);
-            if (!seen.Add(texPath)) return; // 解決済みパスで重複排除
+            if (!seen.Add(texPath)) return; // de-duplicate by resolved path
 
             result.Add(new TextureRef
             {
@@ -207,18 +210,19 @@ namespace SpriteStudio.Editor
             });
         }
 
-        /// <summary>SpriteStudioSsabImporter から呼ばれ、SpriteStudioAnimeAsset を構築する。</summary>
+        /// <summary>Called from SpriteStudioSsabImporter to build the SpriteStudioAnimeAsset.</summary>
         internal static void Build(SpriteStudioSsabImporter importer, AssetImportContext ctx)
         {
             var asset = ScriptableObject.CreateInstance<SpriteStudioAnimeAsset>();
 
-            // 1. .ssab バイナリの保持 (ランタイムのメモリ供給元)
+            // 1. Retain the .ssab binary (the runtime's memory source)
             asset.SsabData = File.ReadAllBytes(ctx.assetPath);
 
-            // 2. パース
+            // 2. Parse
             var bb = new Google.FlatBuffers.ByteBuffer(asset.SsabData);
-            // 入力検証: コンバータ出力以外 (拡張子だけ .ssab の別物など) を弾き、原因が分かるエラーにする。
-            // 識別子は先頭オフセット(4)+マジック(4) を読むので最低 8 バイト必要。
+            // Input validation: reject anything that is not converter output (e.g. an unrelated file that
+            // merely has the .ssab extension) and surface an error that explains the cause.
+            // Reading the identifier needs the leading offset (4) + magic (4), so at least 8 bytes are required.
             if (asset.SsabData.Length < 8 || !ss.format.SsAnimeBinary.SsAnimeBinaryBufferHasIdentifier(bb))
             {
                 ctx.LogImportError($"[SpriteStudioSsabImporter] Not a valid .ssab (FlatBuffers 'SSAB' identifier missing): {ctx.assetPath}");
@@ -231,11 +235,11 @@ namespace SpriteStudio.Editor
             
             asset.PackHash = ssab.NameHash;
 
-            // 3. テクスチャ依存の登録とマテリアル割り当て (ビルド落ち・Addressables対策)
+            // 3. Register texture dependencies and assign materials (guards against build stripping / Addressables)
             var shader = ResolveShader(importer.OverrideShader);
             var textures = CollectTextures(ssab, baseDir, ctx.DependsOnSourceAsset);
 
-            // 解決済みテクスチャパス → Materials のインデックス
+            // Resolved texture path -> index into Materials
             var pathToMaterialIndex = new Dictionary<string, int>();
 
             foreach (var t in textures)
@@ -250,8 +254,8 @@ namespace SpriteStudio.Editor
 
                 if (!importer.GenerateMaterials) continue;
 
-                // 共有 .mat があればそれを使う (postprocessor が自動生成する想定)。
-                // .mat 生成時に再インポートされるよう依存登録する。
+                // Use the shared .mat if it exists (the postprocessor is expected to auto-generate it).
+                // Register a dependency so this is re-imported when the .mat is generated.
                 ctx.DependsOnSourceAsset(t.MatPath);
                 var externalMat = AssetDatabase.LoadAssetAtPath<Material>(t.MatPath);
                 if (externalMat != null)
@@ -261,7 +265,7 @@ namespace SpriteStudio.Editor
                 }
                 else if (shader != null)
                 {
-                    // 共有 .mat が生成されるまでの暫定埋め込みマテリアル
+                    // Provisional embedded material used until the shared .mat is generated
                     var mat = new Material(shader) { name = t.Texture.name + "_Material", mainTexture = t.Texture };
                     ctx.AddObjectToAsset("Mat_" + asset.Materials.Count, mat);
                     asset.Materials.Add(mat);
@@ -269,9 +273,9 @@ namespace SpriteStudio.Editor
                 }
             }
 
-            // 4. DrawBatch.TextureHash → Material インデックスの対応表を構築する。
-            //    どのハッシュが実行時に来ても引けるよう、cellmap の NameHash/ImagePathHash と
-            //    external の NameHash を全て (= 同じテクスチャの解決先マテリアル) に対応づける。
+            // 4. Build the DrawBatch.TextureHash -> Material index lookup table.
+            //    So any hash that arrives at runtime can be looked up, map the cellmap's
+            //    NameHash/ImagePathHash and the external NameHash all (= the material the same texture resolves to).
             if (importer.GenerateMaterials && pathToMaterialIndex.Count > 0)
             {
                 var hashKeys = new List<uint>();
@@ -307,7 +311,7 @@ namespace SpriteStudio.Editor
                 asset.TextureHashMaterialIndices = hashMaterialIndices.ToArray();
             }
 
-            // 5. アニメーション名の抽出
+            // 5. Extract animation names
             int animLen = ssab.AnimationsLength;
             asset.AnimationNames = new string[animLen];
             for (int i = 0; i < animLen; i++)
@@ -316,11 +320,13 @@ namespace SpriteStudio.Editor
                 if (anim.HasValue) asset.AnimationNames[i] = anim.Value.Name;
             }
 
-            // 5b. 音声 (SoundList/SoundFile) → AudioClip の解決と『口』への格納。
-            //     ランタイム再生は未実装だが、再生時に必要な「アドレス用ハッシュ2つ + AudioClip 実体」
-            //     だけを ScriptableObject に持たせる (名前/パス/再生長は SsabData にあるので重複させない)。
-            //     AudioClip はテクスチャと同様にハードリファレンス + 依存登録してビルド落ち (ストリッピング)
-            //     を防ぐ。解決できない音声はテクスチャ同様に警告してスキップする (= Sounds は再生可能分のみ)。
+            // 5b. Resolve sounds (SoundList/SoundFile) to AudioClips and store them in the "slot".
+            //     Runtime playback is not implemented yet, but the ScriptableObject only holds what playback
+            //     needs: the two address hashes + the AudioClip instance (name/path/duration live in SsabData,
+            //     so they are not duplicated here).
+            //     Like textures, AudioClips are hard-referenced + dependency-registered to prevent build
+            //     stripping. Sounds that cannot be resolved are warned about and skipped, like textures
+            //     (= Sounds only contains the playable entries).
             int soundListLen = ssab.SoundListsLength;
             for (int li = 0; li < soundListLen; li++)
             {
@@ -352,10 +358,11 @@ namespace SpriteStudio.Editor
                 }
             }
 
-            // 6. 外部アニメーション (Instance) への依存解決。
-            //    external_instances ベクタはコンバータが省略しうる (実際 Ringo_tyu で空だった) ため、
-            //    parts の PartTypeInstance を直接走査して別パック参照を集める (権威ある参照元)。
-            //    外部アセットが更に参照する別パックも辿る (transitive)。
+            // 6. Resolve dependencies on external animations (Instance).
+            //    The external_instances vector can be omitted by the converter (it was actually empty for
+            //    Ringo_tyu), so scan the parts' PartTypeInstance directly to collect cross-pack references
+            //    (the authoritative source).
+            //    Also follow other packs that the external assets reference in turn (transitive).
             {
                 var seenAssets = new HashSet<SpriteStudioAnimeAsset>();
                 var seenPacks = new HashSet<string>();
@@ -369,7 +376,7 @@ namespace SpriteStudio.Editor
             ctx.SetMainObject(asset);
         }
 
-        /// <summary>ハッシュ→マテリアル対応を記録する。0 (未設定) や既出ハッシュは無視 (先勝ち)。</summary>
+        /// <summary>Records a hash -> material mapping. Ignores 0 (unset) and already-seen hashes (first wins).</summary>
         private static void RecordHash(List<uint> keys, List<int> indices, HashSet<uint> seen, uint hash, int materialIndex)
         {
             if (hash == 0) return;
@@ -379,11 +386,12 @@ namespace SpriteStudio.Editor
         }
 
         /// <summary>
-        /// ssab が参照する別パック (Instance) を再帰的に集めて outRefs へ追加する。
-        /// external_instances ベクタ (あれば) と parts の PartTypeInstance の両方から参照パック名を集め、
-        /// ResolveSsabPath でプロジェクト内アセットへ解決する。external_instances はコンバータが
-        /// 省略しうるため parts 走査が主経路。外部アセットが更に参照する別パックも辿る (transitive)。
-        /// seenAssets / seenPacks で重複・循環を排除する。
+        /// Recursively collects other packs (Instance) referenced by the ssab and adds them to outRefs.
+        /// Gathers referenced pack names from both the external_instances vector (if present) and the parts'
+        /// PartTypeInstance, then resolves them to project assets via ResolveSsabPath. The parts scan is the
+        /// primary path because the converter can omit external_instances. Also follows other packs that the
+        /// external assets reference in turn (transitive).
+        /// seenAssets / seenPacks eliminate duplicates and cycles.
         /// </summary>
         private static void CollectExternalReferences(byte[] ssabData, string baseDir, uint ownPackHash,
             AssetImportContext ctx, List<SpriteStudioAnimeAsset> outRefs,
@@ -410,7 +418,7 @@ namespace SpriteStudio.Editor
                 var p = ssab.Parts(i);
                 if (!p.HasValue || p.Value.PartTypeType != ss.format.PartType.PartTypeInstance) continue;
                 var pt = p.Value.PartTypeAsPartTypeInstance();
-                // 同一パック参照 (self) は実行時に self 解決するので外部参照に積まない。
+                // A same-pack reference (self) is resolved to self at runtime, so don't add it as an external reference.
                 if (pt.RefAnimePackHash == ownPackHash) continue;
                 if (!string.IsNullOrEmpty(pt.RefAnimePack)) packNames.Add(pt.RefAnimePack);
             }
@@ -422,7 +430,7 @@ namespace SpriteStudio.Editor
                 if (extAsset == null || !seenAssets.Add(extAsset)) continue;
                 outRefs.Add(extAsset);
 
-                // transitive: 外部アセットが更に参照する別パックも辿る (外部の baseDir で再帰)。
+                // transitive: also follow other packs that the external asset references (recurse with the external's baseDir).
                 string extDir = Path.GetDirectoryName(AssetDatabase.GetAssetPath(extAsset));
                 CollectExternalReferences(extAsset.SsabData, extDir, extAsset.PackHash, ctx, outRefs, seenAssets, seenPacks);
             }

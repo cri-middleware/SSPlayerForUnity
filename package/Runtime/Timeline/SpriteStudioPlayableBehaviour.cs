@@ -4,8 +4,8 @@ using UnityEngine.Playables;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// SpriteStudioTrack の 1 クリップに対応する PlayableBehaviour。
-    /// 再生する SpriteStudio アニメーション名を保持する (実際の駆動は SpriteStudioMixerBehaviour が行う)。
+    /// PlayableBehaviour corresponding to a single clip on a SpriteStudioTrack.
+    /// Holds the name of the SpriteStudio animation to play back (the actual driving is done by SpriteStudioMixerBehaviour).
     /// </summary>
     [Serializable]
     public class SpriteStudioPlayableBehaviour : PlayableBehaviour

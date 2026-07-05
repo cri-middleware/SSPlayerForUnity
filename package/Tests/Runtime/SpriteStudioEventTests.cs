@@ -8,13 +8,13 @@ using UnityEngine.TestTools;
 namespace SpriteStudio.Runtime.Tests
 {
     /// <summary>
-    /// SSAB イベントポーリングのライフサイクル (finished / looped) を検証する。既存の Ringo を使い、
-    /// 特に OnAnimationFinished が「再生終了の瞬間にちょうど 1 回だけ」発火することを確認する
-    /// (is_end_frame_reached の貼り付き / 着地+終端の二重発火に対するエッジ検出の回帰テスト)。
+    /// Verifies the SSAB event-polling lifecycle (finished / looped). Uses the existing Ringo, and in particular
+    /// confirms that OnAnimationFinished fires exactly once at the moment playback ends
+    /// (regression test for edge detection against is_end_frame_reached getting stuck / double-firing on landing + end).
     /// </summary>
     public class SpriteStudioEventTests
     {
-        private const string RingoAssetPath = "Ringo/Ringo"; // Resources.Load 用
+        private const string RingoAssetPath = "Ringo/Ringo"; // for Resources.Load
         private const string RingoSsabPath = "../../package/Tests/Runtime/Resources/Ringo/Ringo.ssab";
 
         private byte[] _ringo;
@@ -22,7 +22,7 @@ namespace SpriteStudio.Runtime.Tests
         [UnitySetUp]
         public IEnumerator Setup()
         {
-            // Ringo はコンバート済みが Resources にある。なければファイルから直接読む。
+            // The converted Ringo is in Resources. If not present, read directly from the file.
             var ringoAsset = Resources.Load<SpriteStudioAnimeAsset>(RingoAssetPath);
             if (ringoAsset != null && ringoAsset.SsabData != null && ringoAsset.SsabData.Length > 0)
             {
@@ -36,7 +36,7 @@ namespace SpriteStudio.Runtime.Tests
             yield return null;
         }
 
-        /// <summary>再生が停止する (= is_playing が false になる) まで Tick で進める。</summary>
+        /// <summary>Advance with Tick until playback stops (= is_playing becomes false).</summary>
         private static void DriveToEnd(SpriteStudioInternalPlayer player, int maxTicks = 5000)
         {
             int guard = 0;
@@ -46,32 +46,33 @@ namespace SpriteStudio.Runtime.Tests
         [Test]
         public void OnAnimationFinished_FiresExactlyOnce_WhenPlayOnceCompletes()
         {
-            Assert.IsNotNull(_ringo, "Ringo.ssab が必要です。");
+            Assert.IsNotNull(_ringo, "Ringo.ssab is required.");
             using (var player = new SpriteStudioInternalPlayer())
             {
                 player.LoadSsab(_ringo);
                 int finished = 0;
                 player.OnAnimationFinished += () => finished++;
 
-                Assert.IsTrue(player.SetupAnimation("walk"), "walk アニメが見つかるはず");
-                player.SetLoop(1);   // 1 回だけ再生
+                Assert.IsTrue(player.SetupAnimation("walk"), "The walk animation should be found");
+                player.SetLoop(1);   // play only once
                 player.Play();
 
                 DriveToEnd(player);
-                Assert.IsFalse(player.IsPlaying(), "1 回再生は完了して停止するはず");
+                Assert.IsFalse(player.IsPlaying(), "A single playback should complete and stop");
 
-                // 停止後にさらに進めても再発火しないこと (エッジ検出の回帰テスト。検出が無いと
-                // is_end_frame_reached が貼り付いて毎フレーム発火し、また 1 回再生でも着地+終端の 2 回発火する)。
+                // Should not re-fire when advanced further after stopping (edge-detection regression test. Without
+                // detection, is_end_frame_reached gets stuck and fires every frame, and even a single playback
+                // would fire twice on landing + end).
                 for (int i = 0; i < 180; i++) player.Tick(1f / 60f, false);
 
-                Assert.AreEqual(1, finished, "OnAnimationFinished は完了時に 1 度だけ発火するはず");
+                Assert.AreEqual(1, finished, "OnAnimationFinished should fire exactly once on completion");
             }
         }
 
         [Test]
         public void OnAnimationFinished_DoesNotFire_DuringInfiniteLoop()
         {
-            Assert.IsNotNull(_ringo, "Ringo.ssab が必要です。");
+            Assert.IsNotNull(_ringo, "Ringo.ssab is required.");
             using (var player = new SpriteStudioInternalPlayer())
             {
                 player.LoadSsab(_ringo);
@@ -79,19 +80,19 @@ namespace SpriteStudio.Runtime.Tests
                 player.OnAnimationFinished += () => finished++;
 
                 Assert.IsTrue(player.SetupAnimation("walk"));
-                player.SetLoop(-1);  // 無限ループ
+                player.SetLoop(-1);  // infinite loop
                 player.Play();
                 for (int i = 0; i < 600; i++) player.Tick(1f / 60f, false);
 
-                Assert.AreEqual(0, finished, "無限ループでは OnAnimationFinished は発火しないはず");
-                Assert.IsTrue(player.IsPlaying(), "無限ループは再生し続けるはず");
+                Assert.AreEqual(0, finished, "OnAnimationFinished should not fire during an infinite loop");
+                Assert.IsTrue(player.IsPlaying(), "An infinite loop should keep playing");
             }
         }
 
         [Test]
         public void OnAnimationLooped_Fires_DuringInfiniteLoop()
         {
-            Assert.IsNotNull(_ringo, "Ringo.ssab が必要です。");
+            Assert.IsNotNull(_ringo, "Ringo.ssab is required.");
             using (var player = new SpriteStudioInternalPlayer())
             {
                 player.LoadSsab(_ringo);
@@ -104,14 +105,14 @@ namespace SpriteStudio.Runtime.Tests
                 int guard = 0;
                 while (looped < 1 && guard++ < 5000) player.Tick(1f / 60f, false);
 
-                Assert.GreaterOrEqual(looped, 1, "ループ境界を跨いだら OnAnimationLooped が発火するはず");
+                Assert.GreaterOrEqual(looped, 1, "OnAnimationLooped should fire when crossing a loop boundary");
             }
         }
 
         [Test]
         public void Events_DoNotFire_WhenNeverPlayed()
         {
-            Assert.IsNotNull(_ringo, "Ringo.ssab が必要です。");
+            Assert.IsNotNull(_ringo, "Ringo.ssab is required.");
             using (var player = new SpriteStudioInternalPlayer())
             {
                 player.LoadSsab(_ringo);
@@ -120,11 +121,11 @@ namespace SpriteStudio.Runtime.Tests
                 player.OnAnimationLooped += () => looped++;
 
                 Assert.IsTrue(player.SetupAnimation("walk"));
-                // Play() を呼ばない (is_playing=false のまま)。
+                // Don't call Play() (is_playing stays false).
                 for (int i = 0; i < 120; i++) player.Tick(1f / 60f, false);
 
-                Assert.AreEqual(0, finished, "未再生では OnAnimationFinished は発火しないはず");
-                Assert.AreEqual(0, looped, "未再生では OnAnimationLooped は発火しないはず");
+                Assert.AreEqual(0, finished, "OnAnimationFinished should not fire when never played");
+                Assert.AreEqual(0, looped, "OnAnimationLooped should not fire when never played");
             }
         }
     }

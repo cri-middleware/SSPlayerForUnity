@@ -32,7 +32,7 @@ namespace SpriteStudio.Runtime.Tests
                 string outDir = Path.GetFullPath(RingoSsabDir);
                 Directory.CreateDirectory(outDir);
 
-                // EditorのConversionRunnerをリフレクションで叩く
+                // Invoke the Editor's ConversionRunner via reflection
                 var runnerType = System.Type.GetType("SpriteStudio.Editor.SpriteStudioConversionRunner, SpriteStudio.Editor");
                 if (runnerType != null)
                 {
@@ -43,7 +43,7 @@ namespace SpriteStudio.Runtime.Tests
                     }
                 }
 
-                // コンバート完了を待つ (ファイルが生成されるか、タイムアウト)
+                // Wait for conversion to finish (until the file is generated, or timeout)
                 float timeout = 10f;
                 var pollMethod = runnerType?.GetMethod("Poll", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
                 while (!File.Exists(absoluteSsabPath) && timeout > 0)
@@ -55,7 +55,7 @@ namespace SpriteStudio.Runtime.Tests
 
                 Assert.IsTrue(File.Exists(absoluteSsabPath), "Failed to generate Ringo.ssab within timeout.");
 
-                // UnityのAssetDatabaseを更新してResourcesとして読めるようにする
+                // Refresh Unity's AssetDatabase so it can be read as a Resource
                 var assetDatabaseType = System.Type.GetType("UnityEditor.AssetDatabase, UnityEditor");
                 if (assetDatabaseType != null)
                 {
@@ -95,11 +95,11 @@ namespace SpriteStudio.Runtime.Tests
             var player = go.AddComponent<SpriteStudioPlayer>();
             player.AnimeAsset = animeAsset;
 
-            // 注: "Ringo" はパック名であってアニメーション名ではない。pack "Ringo" の実アニメは
-            // walk / run / dance / attack1 など。正しいアニメ名で再生する。
+            // Note: "Ringo" is the pack name, not an animation name. The actual animations in pack "Ringo"
+            // are walk / run / dance / attack1, etc. Play using a valid animation name.
             Assert.DoesNotThrow(() => { player.SetAnimation("walk"); player.Play(); });
 
-            // 1フレーム待機してUpdateManagerによるJob実行を完了させる
+            // Wait one frame to let the UpdateManager's Job execution complete
             yield return null;
             yield return null;
             
@@ -111,13 +111,13 @@ namespace SpriteStudio.Runtime.Tests
         [Test]
         public void ReloadSsab_AtRuntime_DoesNotCrashAndRebuildsGeometry()
         {
-            // 実行時のアセット差し替え経路 (SpriteStudioInternalPlayer.LoadSsab 再呼び出し) を、
-            // 実 Burst Job を 1 度走らせて ssab バッファを borrow させた状態で検証する。#3a で入れた
-            // 「解放順序の修正 + in-flight Job の Complete()」が効いてクラッシュ/リークしないこと、
-            // および再ロード後もジオメトリが再構築されることを確認する。
+            // Verify the runtime asset-swap path (re-calling SpriteStudioInternalPlayer.LoadSsab) with a real
+            // Burst Job run once so the ssab buffer is borrowed. Confirm that the "release-ordering fix +
+            // Complete() of the in-flight Job" added in #3a takes effect and prevents crashes/leaks, and that
+            // the geometry is rebuilt after reloading.
             //
-            // 注: Unity の Mesh.vertexCount は GPU バッファ依存で headless/batchmode では 0 になりうる
-            // ため、ここでは get_frame_data 由来の CPU 側カウント (InternalPlayer.VertexCount) で検証する。
+            // Note: Unity's Mesh.vertexCount depends on the GPU buffer and can be 0 in headless/batchmode,
+            // so here we verify with the CPU-side count derived from get_frame_data (InternalPlayer.VertexCount).
             byte[] ssabBytes = null;
             var animeAsset = Resources.Load<SpriteStudioAnimeAsset>(RingoAssetPath);
             if (animeAsset != null && animeAsset.SsabData != null && animeAsset.SsabData.Length > 0)
@@ -135,23 +135,23 @@ namespace SpriteStudio.Runtime.Tests
 
             using (var player = new SpriteStudioInternalPlayer())
             {
-                // 初回ロード + 1 フレーム駆動 (実 Burst Job を投げて ssab バッファを borrow させる)。
+                // Initial load + one-frame drive (submit a real Burst Job so the ssab buffer gets borrowed).
                 player.LoadSsab(ssabBytes);
-                Assert.IsTrue(player.SetupAnimation("walk"), "walk アニメーションが見つかるはず");
+                Assert.IsTrue(player.SetupAnimation("walk"), "The walk animation should be found");
                 player.Play();
                 player.Tick(0.016f, false);
                 player.ScheduleMeshUpdate(0.016f);
                 player.CurrentUpdateJobHandle.Complete();
-                Assert.Greater(player.VertexCount, 0, "初回ビルドで頂点が生成されるはず");
+                Assert.Greater(player.VertexCount, 0, "The initial build should generate vertices");
 
-                // 再ロード: LoadSsab が再度走り、#3a の解放順序 + in-flight Job Complete を経由する。
+                // Reload: LoadSsab runs again, going through #3a's release ordering + in-flight Job Complete.
                 Assert.DoesNotThrow(() => player.LoadSsab(ssabBytes));
                 Assert.IsTrue(player.SetupAnimation("walk"));
                 player.Play();
                 player.Tick(0.016f, false);
                 player.ScheduleMeshUpdate(0.016f);
                 player.CurrentUpdateJobHandle.Complete();
-                Assert.Greater(player.VertexCount, 0, "再ロード後も頂点が再構築されるはず");
+                Assert.Greater(player.VertexCount, 0, "Vertices should be rebuilt after reloading too");
             }
 
             LogAssert.NoUnexpectedReceived();

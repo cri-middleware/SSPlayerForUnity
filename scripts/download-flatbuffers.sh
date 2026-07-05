@@ -18,10 +18,10 @@ echo "Extracting C# runtime..."
 unzip -o -q "${TEMP_DIR}/flatbuffers.zip" -d "${TEMP_DIR}"
 
 /bin/mkdir -p "${OUTPUT_DIR}"
-# 古いファイルがあれば削除してクリーンアップ
+# Clean up: remove any stale files
 rm -rf "${OUTPUT_DIR:?}"/*
 
-# C# 用のソースコードのみをパッケージ内にコピー
+# Copy only the C# source into the package
 cp -r "${TEMP_DIR}/flatbuffers-${VERSION}/net/FlatBuffers/"*.cs "${OUTPUT_DIR}/"
 
 echo "Cleaning up..."

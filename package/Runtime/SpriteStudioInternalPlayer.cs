@@ -8,14 +8,14 @@ using SpriteStudio.SsRuntime;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// Layer 2: 共通ロジック層 (Internal Player)
-    /// ネイティブ (Rust) 側との FFI コンテキスト (void*) を保持し、
-    /// アニメーションの Tick と Job System を用いたメッシュ構築を管理します。
-    /// ライフサイクル管理（IDisposable）を厳格に行い、メモリリークを防ぎます。
+    /// Layer 2: shared logic layer (Internal Player).
+    /// Holds the FFI context (void*) to the native (Rust) side and manages the
+    /// animation Tick and Job System-based mesh construction.
+    /// Enforces strict lifecycle management (IDisposable) to prevent memory leaks.
     /// </summary>
     public class SpriteStudioInternalPlayer : IDisposable
     {
-        // ネイティブコンテキスト（ポインタ管理を委譲）
+        // Native context (pointer management is delegated to it).
         internal SpriteStudioNativeContext _nativeContext;
         internal SsPlayerHandle _handle => _nativeContext.Handle;
         private unsafe void* _resourceHandle => _nativeContext.ResourceHandle;
@@ -34,9 +34,9 @@ namespace SpriteStudio.Runtime
         public NativeArray<uint> MeshIndices => _geometryBuilder.MeshIndices;
 
         /// <summary>
-        /// 頂点位置に掛ける一様スケール (= 1 / PixelsPerUnit)。既定 1 (= ピクセル等倍)。
-        /// トップレベルプレイヤーのみ設定し、Instance 子は 1 のまま据え置く
-        /// (子は親に px のまま取り込まれ、親側で一括スケールされるため。二重スケール防止)。
+        /// Uniform scale applied to vertex positions (= 1 / PixelsPerUnit). Default 1 (= pixel-for-pixel).
+        /// Set only on the top-level player; Instance children stay at 1
+        /// (children are ingested into the parent in px and scaled once by the parent; prevents double scaling).
         /// </summary>
         public float VertexScale { get; set; } = 1f;
 
@@ -71,8 +71,8 @@ internal struct MaskPartData
             public bool Writes;            // PureMask || MaskWrite: contributes stencil coverage
             public bool IsClipping;        // MaskWrite && !PureMask: draws normally, masks parts drawn AFTER it
             // Geometry kind the mesh job uses to build this part's stencil-write geometry. PartTypeMask
-            // has no colour batch, so it is built as a Normal quad from local vertices (like Godot's
-            // _render_mask_coverage, which routes Mask through _build_normal).
+            // has no colour batch, so it is built as a Normal quad from local vertices (Mask parts are
+            // routed through the Normal build path).
             public byte DrawKind;          // SsDrawBatchKind: Normal / Shape / Mesh
         }
         // Per-part static mask metadata (index-aligned with ssab parts). Null until SetupSlots runs.
@@ -144,7 +144,7 @@ internal struct MaskPartData
         private ss.format.SsAnimeBinary? _ssab;
         private ss.format.AnimationData? _currentAnimation;
 
-        // OnAnimationFinished のエッジ検出用 (!is_playing && is_end_frame_reached の前回値)。
+        // Edge detection for OnAnimationFinished (previous value of !is_playing && is_end_frame_reached).
         private bool _prevFinished;
 
         // True once an ssab has been loaded into the native runtime. Lets the owner (PlaybackCore /
@@ -154,17 +154,17 @@ internal struct MaskPartData
         private bool _hasSsab;
 
         /// <summary>
-        /// SsabData (バイト配列) を読み込んでリソースをバインドする。
-        /// Instance パーツがあれば子プレイヤーを再帰的に生成する。
+        /// Load SsabData (a byte array) and bind the resources.
+        /// Recursively creates child players if there are Instance parts.
         /// </summary>
         public void LoadSsab(byte[] ssabData, AssetResolver resolver = null)
         {
             _assetResolver = resolver;
 
-            // 再ロード (実行時のアセット差し替え) では、旧 ssab バッファを borrow している
-            // in-flight な Burst Job が残っている可能性がある。ネイティブリソースを破棄/再 borrow
-            // する前に必ず Job を完了させ、解放済みメモリ参照によるセグフォールトを防ぐ。
-            // 初回ロード時は Job 未投入なので default ハンドルへの Complete() で no-op。
+            // On a reload (runtime asset swap) an in-flight Burst Job may still be borrowing the old
+            // ssab buffer. Always complete the Job before destroying / re-borrowing native resources to
+            // prevent a segfault from referencing freed memory.
+            // On the first load no Job has been scheduled, so Complete() on the default handle is a no-op.
             _geometryBuilder?.CurrentUpdateJobHandle.Complete();
 
             _nativeContext.LoadSsab(ssabData);
@@ -183,7 +183,7 @@ internal struct MaskPartData
             _maskPartData = null;
             _effectPartCount = 0;
             _instancePartCount = 0;
-            _geometryBuilder._lastBuiltDrawFrameNo = float.NaN; // 再ロード時は必ず再構築する
+            _geometryBuilder._lastBuiltDrawFrameNo = float.NaN; // always rebuild on reload
             unsafe
             {
                 if (_effectSlots != null)
@@ -206,7 +206,8 @@ internal struct MaskPartData
                         {
                             NativeMethods.ss_instance_slot_destroy((void*)_instanceChildren[i].InstanceSlot);
                         }
-                        // 子の Dispose は再帰 managed で例外を投げ得るため隔離し、兄弟の解放を止めない。
+                        // A child's Dispose is recursive managed code that can throw; isolate it so a
+                        // failure does not stop sibling releases.
                         try { _instanceChildren[i].Player?.Dispose(); }
                         catch (Exception e) { Debug.LogException(e); }
                     }
@@ -291,9 +292,10 @@ internal struct MaskPartData
                         uint packHash = pt.RefAnimePackHash;
                         uint nameHash = pt.RefAnimeNameHash;
 
-                        // 子アニメの SSAB を解決する。同一パック内なら自分自身の SSAB、別パックなら
-                        // 外部参照の SSAB が返る (SpriteStudioAnimeAsset.ResolveExternalSsab 参照)。
-                        // 実行時はファイルを読まず、インポート時に確定したハードリファレンスを辿るだけ。
+                        // Resolve the child animation's SSAB. Within the same pack this returns our own
+                        // SSAB; for another pack it returns the externally referenced SSAB (see
+                        // SpriteStudioAnimeAsset.ResolveExternalSsab). At runtime no file is read; it just
+                        // follows the hard references fixed at import time.
                         byte[] childSsab = _assetResolver?.Invoke(packHash, nameHash);
                         if (childSsab == null)
                         {
@@ -313,7 +315,7 @@ internal struct MaskPartData
                             childPlayer.Dispose();
                             continue;
                         }
-                        childPlayer.Stop(); // 親に駆動されるまで停止状態で待機 (可視性は step が制御)
+                        childPlayer.Stop(); // wait stopped until driven by the parent (step controls visibility)
 
                         void* slot = NativeMethods.ss_instance_slot_create();
                         _instanceChildren[i] = new InstanceChildState
@@ -371,7 +373,7 @@ internal struct MaskPartData
                 // Play() always heads out (rewinds to a start frame); "resume" is Pause()'s toggle,
                 // not Play(). So a fresh play must clear each slot's "last started key" memory, else a
                 // re-played animation would debounce an already-fired independent effect/instance as
-                // the same key and never re-fire it. Mirrors the Godot player's play().
+                // the same key and never re-fire it.
                 ResetSlotsPlaybackState();
                 if (startFrame < 0.0f) NativeMethods.ss_runtime_play(_handle.ptr);
                 else NativeMethods.ss_runtime_play_with_start_frame(_handle.ptr, startFrame);
@@ -383,8 +385,7 @@ internal struct MaskPartData
         /// instance children) so an explicit head-out re-fires independent effects/instances from
         /// scratch instead of debouncing the first key as the same one the slot last started. Called
         /// from Play(). The reset itself lives in the runtime (ss_effect_slot_reset /
-        /// ss_instance_slot_reset); the host only iterates the slots it owns. Mirrors the Godot
-        /// player's _reset_slots_playback_state().
+        /// ss_instance_slot_reset); the host only iterates the slots it owns.
         /// </summary>
         internal void ResetSlotsPlaybackState()
         {
@@ -508,9 +509,10 @@ internal struct MaskPartData
         public void SetLoop(int count) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_loop(_handle.ptr, count); } }
         public int GetLoop() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_loops(_handle.ptr) : 0; } }
 
-        // skip_frames (実時間追従) は Rust 側 (PlaybackController.is_skip_frames) が状態を保持する。
-        // ここは薄いパススルー。Rust の setup() は他の再生パラメータ (loop/style/speed) と同様に
-        // skip_frames を既定 (true) へ戻すため、望ましい値の再適用は PlaybackCore.Play 側でまとめて行う。
+        // skip_frames (real-time following) state is held on the Rust side
+        // (PlaybackController.is_skip_frames). This is a thin pass-through. Rust's setup() resets
+        // skip_frames to its default (true) just like the other playback parameters (loop/style/speed),
+        // so re-applying the desired value is done together in PlaybackCore.Play.
         public void SetSkipFrames(bool skip) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_skip_frames(_handle.ptr, skip); } }
         public bool IsSkipFrames() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_get_skip_frames(_handle.ptr); } }
 
@@ -560,12 +562,12 @@ internal struct MaskPartData
         }
 
         /// <summary>
-        /// 毎フレームのアニメーション更新処理
+        /// Per-frame animation update.
         /// </summary>
-        /// <param name="deltaTime">経過時間</param>
+        /// <param name="deltaTime">Elapsed time.</param>
         public void Tick(float deltaTime, bool subFrameEnabled)
         {
-            // 前回フレームで投げた Job が終わるのを確実に待機する (純粋なゼロコピーパイプラインのため)
+            // Reliably wait for the Job scheduled last frame to finish (for a pure zero-copy pipeline).
             _geometryBuilder?.CurrentUpdateJobHandle.Complete();
 
             if (!_handle.IsValid) return;
@@ -573,16 +575,16 @@ internal struct MaskPartData
             unsafe
             {
                 // Tick is executed strictly sequentially on the main thread (state mutability boundary)
-                // ss_runtime_update は delta を「ミリ秒」で受け取る (update_interval = 1000/fps)。
-                // Unity の Time.deltaTime は秒なので 1000 倍する (Godot 実装も delta_seconds * 1000)。
+                // ss_runtime_update takes delta in "milliseconds" (update_interval = 1000/fps).
+                // Unity's Time.deltaTime is in seconds, so multiply by 1000.
                 NativeMethods.ss_runtime_update(_handle.ptr, deltaTime * 1000.0f);
                 PollEvents();
             }
         }
 
         /// <summary>
-        /// Rust ランタイムに蓄積されたイベントを取り出し、C# 側のイベントとして発火する。
-        /// ss_runtime_update の直後に呼ばれる必要がある。
+        /// Drain the events accumulated in the Rust runtime and fire them as C#-side events.
+        /// Must be called immediately after ss_runtime_update.
         /// </summary>
         public void PollEvents()
         {
@@ -590,10 +592,11 @@ internal struct MaskPartData
 
             unsafe
             {
-                // is_end_frame_reached は終端到達フラグで、(1) 最終フレーム着地時 (再生継続中) と
-                // (2) 終端超過で停止した時の最大 2 update で true になり、停止後も true が貼り付く。
-                // OnAnimationFinished は「再生が終了して停止した瞬間」に 1 度だけ通知したいので、
-                // !is_playing && is_end_frame_reached の立ち上がり (false→true) でのみ発火する。
+                // is_end_frame_reached is the "reached the end" flag: it becomes true for up to 2 updates,
+                // (1) when landing on the final frame (still playing) and (2) when stopping after
+                // overrunning the end, and it stays stuck true after stopping. OnAnimationFinished should
+                // notify exactly once "at the moment playback ends and stops", so fire it only on the
+                // rising edge (false->true) of !is_playing && is_end_frame_reached.
                 bool finished = !NativeMethods.ss_runtime_is_playing(_handle.ptr)
                                 && NativeMethods.ss_runtime_is_end_frame_reached(_handle.ptr);
                 if (finished && !_prevFinished)
@@ -602,8 +605,8 @@ internal struct MaskPartData
                 }
                 _prevFinished = finished;
 
-                // is_looped は update() ごとに false へリセットされ、ループ境界を跨いだ update でのみ
-                // true になる (1 update 1 パルス) ため、そのまま発火してよい。
+                // is_looped is reset to false every update() and becomes true only on an update that
+                // crosses a loop boundary (one pulse per update), so it can be fired as-is.
                 if (NativeMethods.ss_runtime_is_looped(_handle.ptr))
                 {
                     OnAnimationLooped?.Invoke();
@@ -654,10 +657,10 @@ internal struct MaskPartData
                                 if (!sigOpt.HasValue || !sigOpt.Value.Value.HasValue) continue;
                                 var sig = sigOpt.Value;
                                 var val = sig.Value.Value;
-                                // 非アクティブ signal は通知しない (Godot / 移植ドキュメントと同じ)。
+                                // Do not notify inactive signals.
                                 if (!val.Active) continue;
 
-                                // command パラメータ (union: Bool/Index/Integer/Floating/Text) を展開。
+                                // Expand the command parameters (union: Bool/Index/Integer/Floating/Text).
                                 Dictionary<string, object> paramsMap = null;
                                 int paramCount = val.ParamsLength;
                                 for (int k = 0; k < paramCount; k++)
@@ -725,13 +728,14 @@ internal struct MaskPartData
             _isDisposed = true;
             System.GC.SuppressFinalize(this);
 
-            // 【最重要】ネイティブポインタを解放したりNativeArrayを破棄する直前に、
-            // 必ず実行中の Burst Job を同期（完了待機）してセグフォールトを防ぐ。
+            // [CRITICAL] Just before freeing native pointers or disposing NativeArrays, always
+            // synchronize (wait for completion of) any running Burst Job to prevent a segfault.
             try { _geometryBuilder?.CurrentUpdateJobHandle.Complete(); }
             catch (Exception e) { Debug.LogException(e); }
 
-            // 以降の解放グループは互いに独立。1 つが例外を投げても残りを必ず解放できるよう各々隔離する
-            // (ネイティブハンドルにはファイナライザ側の回収手段が無いため、ここで漏らすと永久リーク)。
+            // The release groups below are independent of each other. Isolate each so that if one throws
+            // the rest are still guaranteed to be released (native handles have no finalizer-side reclaim
+            // path, so leaking here is a permanent leak).
             try { _nativeContext?.Dispose(); }
             catch (Exception e) { Debug.LogException(e); }
             
@@ -757,7 +761,8 @@ internal struct MaskPartData
                         {
                             NativeMethods.ss_instance_slot_destroy((void*)_instanceChildren[i].InstanceSlot);
                         }
-                        // 子の Dispose は再帰 managed で例外を投げ得るため隔離し、兄弟の解放を止めない。
+                        // A child's Dispose is recursive managed code that can throw; isolate it so a
+                        // failure does not stop sibling releases.
                         try { _instanceChildren[i].Player?.Dispose(); }
                         catch (Exception e) { Debug.LogException(e); }
                     }
@@ -769,7 +774,7 @@ internal struct MaskPartData
             catch (Exception e) { Debug.LogException(e); }
         }
 
-        // エフェクト draw_plan (FlatBuffers, ネイティブ) を frame-data と同じ流儀で読み、
+        // Read the effect draw_plan (native FlatBuffers) in the same manner as frame-data, and
 
         public void PrepareFrameData(float deltaTime, bool advance, out System.IntPtr handle, out float drawFrame) => _geometryBuilder.PrepareFrameData(deltaTime, advance, out handle, out drawFrame);
         public void ScheduleMeshUpdate(float deltaTime) => _geometryBuilder.ScheduleMeshUpdate(deltaTime);

@@ -1,8 +1,8 @@
 Shader "SpriteStudio/AddOn/Blur"
 {
-    // Per-part AddOn: ss-blur (9-tap box blur), ported from the SS6 SDK / SSPlayerForGodot. _SsParam0 =
+    // Per-part AddOn: ss-blur (9-tap box blur), ported from the SS6 SDK. _SsParam0 =
     // focus shift. NOTE: ss-blur is the documented multiply-only PartColor exception — the fragment
-    // multiplies the averaged texel by the vertex colour instead of ss_partcolor_blend (mirrors ForGodot).
+    // multiplies the averaged texel by the vertex colour instead of ss_partcolor_blend.
     Properties
     {
         _MainTex ("Sprite Texture", 2D) = "white" {}
@@ -84,7 +84,7 @@ Shader "SpriteStudio/AddOn/Blur"
             half4 frag(ss_world_v2f IN) : SV_Target
             {
                 float4 avg = ss_addon_blur(_MainTex, IN.texcoord, _MainTex_TexelSize.xy, _SsParam0);
-                // ss-blur multiply-only PartColor exception (no ss_partcolor_blend; mirrors ForGodot).
+                // ss-blur multiply-only PartColor exception (no ss_partcolor_blend).
                 float3 rgb = avg.rgb * IN.color.rgb;
                 float alpha = avg.a * IN.color.a;
                 return ss_world_finalize(rgb, alpha, IN.partcolorVarg.w);
@@ -145,7 +145,7 @@ Shader "SpriteStudio/AddOn/Blur"
             half4 frag(ss_world_v2f IN) : SV_Target
             {
                 float4 avg = ss_addon_blur(_MainTex, IN.texcoord, _MainTex_TexelSize.xy, _SsParam0);
-                // ss-blur multiply-only PartColor exception (no ss_partcolor_blend; mirrors ForGodot).
+                // ss-blur multiply-only PartColor exception (no ss_partcolor_blend).
                 float3 rgb = avg.rgb * IN.color.rgb;
                 float alpha = avg.a * IN.color.a;
                 return ss_world_finalize(rgb, alpha, IN.partcolorVarg.w);

@@ -5,10 +5,10 @@ using UnityEditor.AssetImporters;
 namespace SpriteStudio.Editor
 {
     /// <summary>
-    /// .ssab インポーターの設定 UI。
-    /// マテリアル生成設定 (共有 .mat 方式) のみを公開する。
-    /// プレビューおよび imported-object のインスペクタ (SpriteStudioAnimeAssetEditor) は
-    /// ScriptedImporterEditor の標準描画に委譲する。
+    /// Settings UI for the .ssab importer.
+    /// Exposes only the material-generation settings (shared .mat approach).
+    /// The preview and the imported-object inspector (SpriteStudioAnimeAssetEditor) are
+    /// delegated to the ScriptedImporterEditor's default drawing.
     /// </summary>
     [CustomEditor(typeof(SpriteStudioSsabImporter))]
     public class SpriteStudioSsabImporterEditor : ScriptedImporterEditor
@@ -30,23 +30,23 @@ namespace SpriteStudio.Editor
             EditorGUILayout.LabelField("Material Settings", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(_generateMaterials, new GUIContent(
                 "Generate Materials",
-                "テクスチャ単位の共有マテリアル(.mat)を使用します。OFF の場合はマテリアルを割り当てません。"));
+                "Use a shared per-texture material (.mat). When OFF, no material is assigned."));
 
             using (new EditorGUI.DisabledScope(!_generateMaterials.boolValue))
             {
                 EditorGUILayout.PropertyField(_overrideShader, new GUIContent(
                     "Override Shader",
-                    "マテリアル生成に使うシェーダ。未指定なら SpriteStudio/Default。"));
+                    "Shader used for material generation. Defaults to SpriteStudio/Default when unset."));
             }
 
             EditorGUILayout.HelpBox(
-                "マテリアルはテクスチャ単位の共有 .mat として扱われます (Spine-Unity 方式)。" +
-                "同じテクスチャを参照する複数の .ssab が同一の .mat を共有します。",
+                "Materials are treated as shared per-texture .mat assets (Spine-Unity style). " +
+                "Multiple .ssab files referencing the same texture share the same .mat.",
                 MessageType.None);
 
             serializedObject.ApplyModifiedProperties();
 
-            // ScriptedImporterEditor では Apply/Revert を必ず描画する
+            // ScriptedImporterEditor must always draw Apply/Revert
             ApplyRevertGUI();
         }
     }

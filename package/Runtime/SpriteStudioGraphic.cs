@@ -5,12 +5,12 @@ using UnityEngine.Events;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// Layer 3: Canvas (uGUI) 用プレイヤーコンポーネント
-    /// CanvasRenderer に対して直接メッシュを送り込みます。
-    /// Unity UI の標準再構築フロー (Rebuild) を回避し、高効率な描画を実現します。
-    /// 再生ロジックは共有コア (SpriteStudioPlaybackCore) に委譲します。
-    /// play モードでは SpriteStudioUpdateManager がまとめて駆動し、edit モード (ExecuteAlways) では
-    /// 自前の LateUpdate でプレビュー更新します。
+    /// Layer 3: Player component for Canvas (uGUI).
+    /// Feeds meshes directly to the CanvasRenderer.
+    /// Bypasses Unity UI's standard rebuild flow (Rebuild) to achieve highly efficient rendering.
+    /// Playback logic is delegated to the shared core (SpriteStudioPlaybackCore).
+    /// In Play mode the SpriteStudioUpdateManager drives it in bulk; in edit mode (ExecuteAlways) it
+    /// updates the preview in its own LateUpdate.
     /// </summary>
     [RequireComponent(typeof(RectTransform))]
     [RequireComponent(typeof(CanvasRenderer))]
@@ -109,11 +109,12 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// 再生するアニメーションを指定し、データをセットアップします (先頭フレームで posed 表示)。
-        /// 再生は開始しません。開始するには <see cref="Play()"/> を呼びます。ループ/速度/スキップ等の
-        /// 再生設定はここでは適用されません (setup で既定値へ戻るため)。実行時に切り替えたあとで設定を
-        /// 反映するには <see cref="LoopCount"/> / <see cref="SpeedScale"/> / <see cref="SkipFrames"/> などの
-        /// プロパティを setup 後に設定してください (Godot プレイヤーと同じ流れ)。setup に成功すれば true。
+        /// Selects the animation to play and sets its data up (posed at the first frame).
+        /// Does not start playback; call <see cref="Play()"/> to start. Playback settings such as
+        /// loop/speed/skip are not applied here (setup resets them to defaults). To apply settings after
+        /// switching at runtime, set the <see cref="LoopCount"/> / <see cref="SpeedScale"/> /
+        /// <see cref="SkipFrames"/> properties after setup. Returns true if
+        /// setup succeeded.
         /// </summary>
         public bool SetAnimation(string animName)
         {
@@ -124,7 +125,7 @@ namespace SpriteStudio.Runtime
 
         // Push the serialized playback parameters (loop / speed / skip) to the runtime. SetAnimation only
         // sets the animation up; the Rust setup resets these to defaults, so they are applied separately
-        // afterwards — mirroring the Godot player, where loop/speed/skip are configured after the animation
+        // afterwards — loop/speed/skip are configured after the animation
         // is set. Direction/style (Reverse/PingPong) have no serialized default and stay at the setup
         // default (Forward/Normal) until set via their properties.
         private void ApplyPlaybackSettings()
@@ -136,34 +137,35 @@ namespace SpriteStudio.Runtime
             p.SetSkipFrames(_skipFrames);
         }
 
-        /// <summary>現在セットアップ済みのアニメーションを先頭から再生開始します。</summary>
+        /// <summary>Starts playing the currently set-up animation from the beginning.</summary>
         public void Play() { _core.Play(); _audioController?.ResumeAll(); }   // Explicit play lifts the suspend (SDK doc §4)
 
-        /// <summary>現在セットアップ済みのアニメーションを指定フレームから再生開始します。</summary>
+        /// <summary>Starts playing the currently set-up animation from the specified frame.</summary>
         public void Play(float startFrame) { _core.Play(startFrame); _audioController?.ResumeAll(); }
 
-        #region Playback Control (再生制御)
-        // 内部プレイヤー (Rust ランタイム) が既に備える再生制御をコンポーネントの公開 API として薄く露出する。
-        // 状態取得・シーク・一時停止・逆再生などはすべて native 側の実装で、ここは委譲のみ (新規ロジックなし)。
+        #region Playback Control
+        // Thinly expose, as the component's public API, the playback controls the internal player (Rust
+        // runtime) already provides. State queries, seek, pause, reverse playback, etc. are all implemented
+        // natively; this is delegation only (no new logic).
 
-        /// <summary>再生セッションが有効か。一時停止中でも true (停止/未再生で false)。</summary>
+        /// <summary>Whether a playback session is active. True even while paused (false when stopped / not playing).</summary>
         public bool IsPlaying => _core.Internal?.IsPlaying() ?? false;
 
-        /// <summary>一時停止中か (再生セッション中で、かつ pause されているときだけ true)。</summary>
+        /// <summary>Whether currently paused (true only while a playback session is active and paused).</summary>
         public bool IsPaused
         {
             get
             {
-                // ネイティブの is_pausing は初期値 true (未再生でも立っている) なので、
-                // 再生中であることと併せて判定する。
+                // The native is_pausing defaults to true (set even when not playing), so also check that
+                // playback is actually running.
                 var p = _core.Internal;
                 return p != null && p.IsPlaying() && p.IsPausing();
             }
         }
 
         /// <summary>
-        /// 再生の一時停止 / 再開をトグルします (現在フレームを保持)。ネイティブの is_pausing を切り替えます
-        /// (Godot プレイヤーの pause() と同じ。play() は先頭へ巻き戻すため再開には使えません)。
+        /// Toggles playback pause / resume (keeps the current frame). Flips the native is_pausing
+        /// (play() rewinds to the start, so it cannot be used to resume).
         /// </summary>
         public void Pause()
         {
@@ -176,20 +178,20 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        /// <summary>再生を停止する。</summary>
+        /// <summary>Stops playback.</summary>
         public void Stop() => _core.Internal?.Stop();
 
-        /// <summary>現在の再生フレーム (小数可)。set で任意フレームへシークする。</summary>
+        /// <summary>Current playback frame (fractional allowed). Set to seek to an arbitrary frame.</summary>
         public float CurrentFrame
         {
             get => _core.Internal?.GetFrame() ?? 0f;
             set => _core.Internal?.SetFrame(value);
         }
 
-        /// <summary>現在のアニメーションの総フレーム数 (終端フレーム + 1)。未ロード時は 0。</summary>
+        /// <summary>Total frame count of the current animation (end frame + 1). 0 when nothing is loaded.</summary>
         public int TotalFrames => _core.Internal?.GetTotalFrames() ?? 0;
 
-        /// <summary>再生フレームレート (fps)。set で実行時に変更する。未ロード時の get は 0。</summary>
+        /// <summary>Playback frame rate (fps). Set to change it at runtime. Get returns 0 when nothing is loaded.</summary>
         public int FrameRate
         {
             get => _core.Internal?.GetFrameRate() ?? 0;
@@ -197,8 +199,9 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// 逆再生 (Backward) か。<see cref="SetAnimation(string)"/> は毎回 Forward へ戻すため、
-        /// 逆再生で開始したい場合は SetAnimation 後 (Play 前後どちらでも可) に true を設定する。
+        /// Whether reverse (Backward) playback is on. <see cref="SetAnimation(string)"/> resets this to
+        /// Forward every time, so to start in reverse set it to true after SetAnimation (either before or
+        /// after Play).
         /// </summary>
         public bool Reverse
         {
@@ -211,8 +214,9 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// 往復 (PingPong) 再生か。<see cref="SetAnimation(string)"/> は毎回 Normal へ戻すため、
-        /// PingPong で開始したい場合は SetAnimation 後 (Play 前後どちらでも可) に true を設定する。
+        /// Whether ping-pong (round-trip) playback is on. <see cref="SetAnimation(string)"/> resets this to
+        /// Normal every time, so to start in ping-pong set it to true after SetAnimation (either before or
+        /// after Play).
         /// </summary>
         public bool PingPong
         {
@@ -225,7 +229,8 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// 再生範囲をフレームで限定する (SS6 の再生範囲指定のフレーム版。ラベル指定は未対応)。
+        /// Limits the playback range by frame (frame-based version of SS6's playback-range spec; label
+        /// specification is not supported).
         /// </summary>
         public void SetAnimationSection(int startFrame, int endFrame) => _core.Internal?.SetAnimationSection(startFrame, endFrame);
 
@@ -235,9 +240,9 @@ namespace SpriteStudio.Runtime
         {
             base.Start();
             if (string.IsNullOrEmpty(_animationName)) return;
-            // AutoPlay でなくても先頭フレームを posed 表示するため SetAnimation は常に行い、
-            // 実際の再生開始は AutoPlay のときだけにする。SetAnimation は再生設定を適用しないため
-            // setup 後に明示適用する (Godot のプロパティ適用順と同じ: animation -> loop/speed/skip -> play)。
+            // Always call SetAnimation so the first frame is posed even when AutoPlay is off; actually start
+            // playback only when AutoPlay is on. SetAnimation does not apply playback settings, so apply them
+            // explicitly after setup (property-application order: animation -> loop/speed/skip -> play).
             if (SetAnimation(_animationName))
             {
                 ApplyPlaybackSettings();
@@ -318,7 +323,7 @@ namespace SpriteStudio.Runtime
             _core.OnSignal += InvokeSignal;
             _core.OnAudio += InvokeAudio;
 
-            // edit モードでは設置直後に開始フレームの静止プレビューを構築する (LateUpdate で setup を消化)。
+            // In edit mode, build the start-frame static preview right after placement (setup consumed in LateUpdate).
             _editPreviewNeedsSetup = true;
         }
 
@@ -375,16 +380,17 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        // edit モードプレビューで一度だけ SetupAnimation すべきかのフラグ (OnEnable / OnValidate で立てる)。
+        // Flag for whether the edit-mode preview should SetupAnimation once (set in OnEnable / OnValidate).
         private bool _editPreviewNeedsSetup;
 
         private void LateUpdate()
         {
-            // play モードは SpriteStudioUpdateManager が集中管理する。
-            // edit モード (ExecuteAlways) の静止プレビューのみここで自前更新する。Start() は edit モードでは
-            // 走らず SetupAnimation がされないため、設置直後は空フレームを組んで「一瞬出て消える」。明示的に
-            // setup → 開始フレーム固定し、進行させず毎フレーム再構築/再アサートする (CanvasRenderer のメッシュが
-            // uGUI にクリアされても出続けるよう dirty-once ではなく毎フレーム ApplyAndRender する)。
+            // Play mode is centrally managed by SpriteStudioUpdateManager.
+            // Only the edit-mode (ExecuteAlways) static preview is updated here. Start() does not run in edit
+            // mode and SetupAnimation is never called, so right after placement an empty frame is built and it
+            // "flashes and disappears". Explicitly set up -> pin the start frame, and rebuild/reassert every
+            // frame without advancing (ApplyAndRender every frame rather than dirty-once, so the mesh keeps
+            // showing even after uGUI clears the CanvasRenderer's mesh).
             if (Application.isPlaying) return;
             // Self-heal if the .ssab was still importing when OnEnable ran (Editor restart race): pick the
             // ssab up once it is available (EnsureCreated is a no-op once loaded). Without this an empty
@@ -397,18 +403,19 @@ namespace SpriteStudio.Runtime
                 _core.Internal.SetFrame(_core.Internal.GetAnimationSectionStart());
                 _editPreviewNeedsSetup = false;
             }
-            _core.Internal.ScheduleMeshUpdate(0f); // 静止: 開始フレームを advance なしで構築
+            _core.Internal.ScheduleMeshUpdate(0f); // Static: build the start frame without advancing
             ApplyAndRender();
         }
 
 #if UNITY_EDITOR
-        // インスペクタはシリアライズ済みフィールドを直接書き換え、プロパティの setter を呼ばない。
-        // 再生中のインスペクタ変更をランタイム (Rust) へ反映するにはここで同期する。Graphic.OnValidate は
-        // UNITY_EDITOR 内のみで定義されるため override も #if UNITY_EDITOR で囲む。(アニメ名切替は対象外)
+        // The inspector writes the serialized fields directly and does not call the property setters.
+        // To reflect in-play inspector edits into the runtime (Rust), sync them here. Graphic.OnValidate is
+        // defined only within UNITY_EDITOR, so the override is wrapped in #if UNITY_EDITOR too. (Animation-name
+        // switching is out of scope.)
         protected override void OnValidate()
         {
             base.OnValidate();
-            // インスペクタ変更 (アニメ名等) で edit プレビューを setup から組み直す。
+            // An inspector change (animation name, etc.) rebuilds the edit preview from setup.
             _editPreviewNeedsSetup = true;
             if (_core.Internal == null) return;
             _core.Internal.SetSpeed(_speedScale);
@@ -418,7 +425,7 @@ namespace SpriteStudio.Runtime
         }
 #endif
 
-        // --- ISpriteStudioRenderable (SpriteStudioUpdateManager から駆動される) ---
+        // --- ISpriteStudioRenderable (driven by SpriteStudioUpdateManager) ---
 
         public void PrepareFrame(float deltaTime, out System.IntPtr handle, out float drawFrame)
         {
@@ -564,13 +571,13 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        // --- Canvas の Rebuild フローとの衝突回避 ---
-        // uGUI の Layout や Vertex の自動再構築が発動して
-        // 勝手にメッシュを破壊・再アロケーションするのを防ぐ
+        // --- Avoid conflicts with the Canvas Rebuild flow ---
+        // Prevent uGUI's automatic Layout/Vertex rebuild from firing and
+        // destroying/reallocating our mesh on its own
 
         public override void SetVerticesDirty()
         {
-            // 無効化: 標準の頂点再構築を発動させない
+            // Disabled: do not trigger the standard vertex rebuild
         }
 
         public override void SetMaterialDirty()
@@ -584,7 +591,7 @@ namespace SpriteStudio.Runtime
 
         protected override void OnPopulateMesh(VertexHelper vh)
         {
-            // 無効化: 勝手に UI Vertex に変換させない
+            // Disabled: do not let it convert to UI Vertex on its own
             vh.Clear();
         }
     }
