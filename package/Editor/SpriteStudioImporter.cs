@@ -8,13 +8,13 @@ using UnityEngine;
 namespace SpriteStudio.Editor
 {
     /// <summary>
-    /// 一括インポートのエントリポイント。
-    /// - ドロップ/指定されたパス(ファイル・フォルダ混在)を受け取り、
-    ///   フォルダの再帰走査は libssconverter (FFI) に委譲して配下の .sspj を収集する
-    ///   (<see cref="SpriteStudioDirectoryScan"/>)。
-    /// - 出力先の衝突を検出してダイアログ確認する (interactive 時)。
-    /// - 変換は <see cref="SpriteStudioConversionRunner"/> にキュー投入する
-    ///   (進捗表示・同時実行上限・ノンブロッキングはランナー側)。
+    /// Entry point for batch import.
+    /// - Accepts dropped/specified paths (a mix of files and folders) and delegates recursive folder
+    ///   traversal to libssconverter (FFI) to collect the .sspj files beneath them
+    ///   (<see cref="SpriteStudioDirectoryScan"/>).
+    /// - Detects output collisions and confirms via dialog (when interactive).
+    /// - Queues the conversion into <see cref="SpriteStudioConversionRunner"/>
+    ///   (progress display, concurrency limit, and non-blocking behavior are handled by the runner).
     /// </summary>
     public static class SpriteStudioImporter
     {
@@ -22,8 +22,8 @@ namespace SpriteStudio.Editor
         private const string DefaultOutputPath = "Assets/ssab_generated";
 
         /// <summary>
-        /// ドロップ/選択されたパス群をインポートする。
-        /// フォルダは libssconverter で再帰走査し、配下の .sspj をすべて一括変換する。
+        /// Imports the dropped/selected paths.
+        /// Folders are recursively scanned with libssconverter, and every .sspj beneath them is batch-converted.
         /// </summary>
         public static void ImportPaths(IEnumerable<string> paths, bool interactive = true)
         {
@@ -50,7 +50,7 @@ namespace SpriteStudio.Editor
                 return;
             }
 
-            // ディレクトリ走査は FFI に委譲 (非同期)。完了後に直接指定分と結合して変換する。
+            // Delegate directory traversal to the FFI (asynchronous). After it completes, combine with the directly specified files and convert.
             SpriteStudioDirectoryScan.Start(dirs, interactive, scanned =>
             {
                 var combined = new List<string>(directSspj);
@@ -84,7 +84,7 @@ namespace SpriteStudio.Editor
 
             if (interactive && !ConfirmNoCollision(jobs))
             {
-                return; // ユーザがキャンセル
+                return; // user canceled
             }
 
             foreach (var job in jobs)
@@ -100,7 +100,7 @@ namespace SpriteStudio.Editor
             public string OutDir;
         }
 
-        /// <summary>絶対パスで重複排除した .sspj 一覧を返す。</summary>
+        /// <summary>Returns the .sspj list de-duplicated by absolute path.</summary>
         private static List<string> Dedup(IEnumerable<string> sspjPaths)
         {
             var result = new List<string>();
@@ -114,7 +114,7 @@ namespace SpriteStudio.Editor
             return result;
         }
 
-        /// <summary>出力先ベースディレクトリ (絶対パス) を返す。無効なら null。</summary>
+        /// <summary>Returns the output base directory (absolute path). null if invalid.</summary>
         private static string ResolveOutputBaseDir()
         {
             string assetPath = EditorPrefs.GetString(OutputFolderPrefKey, DefaultOutputPath);
@@ -131,25 +131,25 @@ namespace SpriteStudio.Editor
         }
 
         /// <summary>
-        /// 出力衝突を検出し、あればダイアログで確認する。続行可なら true。
-        /// 衝突1: バッチ内で同一 stem (出力先が重なる)。
-        /// 衝突2: 既存出力先が別の .sspj 由来 (SourceMap 照合)。
+        /// Detects output collisions and, if any, confirms via dialog. Returns true if it is OK to proceed.
+        /// Collision 1: the same stem within the batch (outputs overlap).
+        /// Collision 2: an existing output originates from a different .sspj (checked against the SourceMap).
         /// </summary>
         private static bool ConfirmNoCollision(List<Job> jobs)
         {
             var messages = new List<string>();
 
-            // 衝突1: バッチ内 stem 重複
+            // Collision 1: duplicate stems within the batch
             var dupStems = jobs
                 .GroupBy(j => Path.GetFileName(j.OutDir), StringComparer.OrdinalIgnoreCase)
                 .Where(g => g.Count() > 1);
             foreach (var g in dupStems)
             {
-                messages.Add($"・同名 '{g.Key}' が {g.Count()} 件 (出力先が重複):\n    " +
+                messages.Add($"- '{g.Key}' appears {g.Count()} times (outputs overlap):\n    " +
                              string.Join("\n    ", g.Select(j => j.Sspj)));
             }
 
-            // 衝突2: 既存出力先が別 sspj 由来
+            // Collision 2: existing output originates from a different sspj
             foreach (var job in jobs)
             {
                 if (!Directory.Exists(job.OutDir)) continue;
@@ -160,18 +160,18 @@ namespace SpriteStudio.Editor
                     if (!string.IsNullOrEmpty(owner) &&
                         Path.GetFullPath(owner) != Path.GetFullPath(job.Sspj))
                     {
-                        messages.Add($"・出力先 '{Path.GetFileName(job.OutDir)}' は別プロジェクト由来:\n" +
-                                     $"    既存: {owner}\n    今回: {job.Sspj}");
-                        break; // この出力先は 1 回報告すれば十分
+                        messages.Add($"- Output '{Path.GetFileName(job.OutDir)}' originates from a different project:\n" +
+                                     $"    Existing: {owner}\n    This run: {job.Sspj}");
+                        break; // reporting this output once is enough
                     }
                 }
             }
 
             if (messages.Count == 0) return true;
 
-            string body = "以下の出力衝突が見つかりました。既存の生成物を上書きしますか?\n\n" +
+            string body = "The following output collisions were found. Overwrite the existing generated output?\n\n" +
                           string.Join("\n\n", messages);
-            return EditorUtility.DisplayDialog("SpriteStudio: 出力の衝突", body, "上書きして続行", "キャンセル");
+            return EditorUtility.DisplayDialog("SpriteStudio: Output collision", body, "Overwrite and continue", "Cancel");
         }
     }
 }

@@ -42,7 +42,7 @@ namespace SpriteStudio.Editor
                 warningStyle.normal.textColor = Color.yellow;
                 GUILayout.Label("Source SSPJ not found in map or doesn't exist.", warningStyle);
 
-                // リンク切れ修復: .sspj を選び直し、同じ出力フォルダの .ssab をまとめて再リンク+再変換
+                // Broken-link repair: re-pick the .sspj and batch re-link + reconvert the .ssab files in the same output folder
                 if (GUILayout.Button("Relink SSPJ..."))
                 {
                     SpriteStudioReconvertMenu.RelinkSsab(AssetDatabase.GetAssetPath(target));

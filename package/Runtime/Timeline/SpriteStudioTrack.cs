@@ -5,10 +5,10 @@ using UnityEngine.Timeline;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// SpriteStudioPlayer を駆動する専用 Timeline トラック。
-    /// クリップごとに SpriteStudio アニメーションを並べて配置でき、シークは Rust コアの
-    /// 時刻基準・決定論評価で行われるため、シークバーを前後に動かしても状態が破綻しない。
-    /// (バインド対象は SpriteStudioPlayer。Canvas 用 SpriteStudioGraphic は対象外。)
+    /// Dedicated Timeline track that drives a SpriteStudioPlayer.
+    /// SpriteStudio animations can be laid out clip by clip, and seeking is performed by the Rust core's
+    /// timestamp-based, deterministic evaluation, so scrubbing the seek bar back and forth never corrupts state.
+    /// (The bind target is SpriteStudioPlayer. The Canvas-side SpriteStudioGraphic is not supported.)
     /// </summary>
     [TrackColor(0.2f, 0.6f, 0.9f)]
     [TrackClipType(typeof(SpriteStudioPlayableAsset))]

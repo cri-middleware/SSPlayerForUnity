@@ -8,10 +8,10 @@ using UnityEngine;
 namespace SpriteStudio.Editor
 {
     /// <summary>
-    /// Project ブラウザの右クリックメニューから .ssab を再変換 (Reconvert) する。
-    /// SourceMap にリンクが無い/切れている場合は元 .sspj を選び直すダイアログを出し、
-    /// 同じ出力フォルダ内の他の .ssab も自動で再リンクする (スマート再リンク)。
-    /// 1 出力サブフォルダ = 1 .sspj 由来、という変換規約を利用する。
+    /// Reconverts a .ssab from the Project browser's right-click menu.
+    /// When the SourceMap link is missing/broken, it shows a dialog to re-pick the source .sspj
+    /// and automatically re-links the other .ssab files in the same output folder (smart relink).
+    /// This relies on the conversion convention that one output subfolder derives from one .sspj.
     /// </summary>
     public static class SpriteStudioReconvertMenu
     {
@@ -38,7 +38,7 @@ namespace SpriteStudio.Editor
                     continue;
                 }
 
-                // リンク欠落 → 出力フォルダ単位で 1 度だけ再リンクを試みる
+                // Missing link → attempt a relink once per output folder
                 string dir = (Path.GetDirectoryName(ssab) ?? string.Empty).Replace('\\', '/');
                 if (!dirsHandled.Add(dir)) continue;
 
@@ -62,9 +62,9 @@ namespace SpriteStudio.Editor
         }
 
         /// <summary>
-        /// 指定 .ssab のリンクを修復して再変換する共有エントリ。
-        /// ユーザに .sspj を選ばせ、同じ出力フォルダ内の全 .ssab を再リンクしてから再変換する。
-        /// Inspector の "Relink SSPJ..." ボタンからも呼ばれる。
+        /// Shared entry point that repairs the link for a given .ssab and reconverts it.
+        /// Prompts the user to pick a .sspj, re-links every .ssab in the same output folder, then reconverts.
+        /// Also called from the Inspector's "Relink SSPJ..." button.
         /// </summary>
         public static void RelinkSsab(string ssabAssetPath)
         {
@@ -77,8 +77,8 @@ namespace SpriteStudio.Editor
         }
 
         /// <summary>
-        /// .ssab の出力フォルダに対して .sspj を選ばせ、フォルダ内全 .ssab を再リンク
-        /// (SourceMap 登録) する。選んだ .sspj の絶対パスを返す (キャンセル時は null)。
+        /// Prompts for a .sspj for the .ssab's output folder and re-links every .ssab in that folder
+        /// (registers them in the SourceMap). Returns the absolute path of the chosen .sspj (null if cancelled).
         /// </summary>
         private static string RelinkDirectory(string ssabAssetPath)
         {
@@ -92,7 +92,7 @@ namespace SpriteStudio.Editor
                 return null;
             }
 
-            // 同じ出力フォルダ内の全 .ssab を、選んだ .sspj に再リンク (スマート再リンク)
+            // Re-link every .ssab in the same output folder to the chosen .sspj (smart relink)
             foreach (var ssab in Directory.GetFiles(dir, "*.ssab", SearchOption.AllDirectories))
             {
                 SpriteStudioSourceMap.Register(Path.GetFullPath(ssab), Path.GetFullPath(picked));

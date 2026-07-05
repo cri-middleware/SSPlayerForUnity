@@ -8,32 +8,33 @@ using SpriteStudio.SsRuntime;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// UpdateManager が「全 Schedule → 全 Apply」の2フェーズで駆動する対象。
+    /// A target driven by the UpdateManager in two phases: "Schedule all -> Apply all".
     /// </summary>
     internal interface ISpriteStudioRenderable
     {
-        /// <summary>前フレーム Job 完了待ち + advance + drawFrame/skip 確定。
-        /// out handle が Zero のときは get_frame_data / ConsumeFrame の対象外 (無効 or skip)。</summary>
+        /// <summary>Wait for the previous frame's Job + advance + settle drawFrame/skip.
+        /// When out handle is Zero this is excluded from get_frame_data / ConsumeFrame (invalid or skip).</summary>
         void PrepareFrame(float deltaTime, out IntPtr handle, out float drawFrame);
 
-        /// <summary>並列処理で取得した frame-data ポインタを消費し、Burst Job をスケジュール。</summary>
+        /// <summary>Consume the frame-data pointer obtained in parallel and schedule the Burst Job.</summary>
         void ConsumeFrame(IntPtr frameDataPtr, int len, float deltaTime);
 
-        /// <summary>Phase 2: Job 完了を待ち、メッシュへ反映・描画する。</summary>
+        /// <summary>Phase 2: wait for the Job to finish, then apply to the mesh and render.</summary>
         void ApplyAndRender();
     }
 
     /// <summary>
-    /// 全 SpriteStudio レンダラーを集中管理し、毎フレームの更新と描画を駆動する:
-    ///   1. Update (直列): 各プレイヤーを 1 フレーム進め (advance) + drawFrame/frame-skip 判定。
-    ///   2. Update (並列): 非 skip プレイヤーの get_frame_data を IJobParallelFor でワーカー並列実行する。
-    ///      get_frame_data はコンテキスト毎に独立 (グローバル可変状態なし) = 並行安全で、最重量の
-    ///      pose/行列/頂点/draw batch 計算をキャラ間で並列化する。完了をバリアで待つ。
-    ///   3. Update (直列): 取得した frame-data ポインタを消費しメッシュ構築 Burst Job を発行。
-    ///   4. LateUpdate: 全 Job 完了待ち + メッシュ反映。
+    /// Centrally manages all SpriteStudio renderers and drives the per-frame update and render:
+    ///   1. Update (serial): advance each player by 1 frame + decide drawFrame/frame-skip.
+    ///   2. Update (parallel): run get_frame_data for non-skip players across workers via IJobParallelFor.
+    ///      get_frame_data is independent per context (no global mutable state) = concurrency-safe, so the
+    ///      heaviest pose/matrix/vertex/draw batch computation is parallelized across characters. Wait for
+    ///      completion at a barrier.
+    ///   3. Update (serial): consume the obtained frame-data pointers and issue the mesh-build Burst Jobs.
+    ///   4. LateUpdate: wait for all Jobs + apply to the meshes.
     ///
-    /// play モードのみ集中管理する。edit モード (Graphic の ExecuteAlways プレビュー) は
-    /// 各コンポーネントが自前で _core.TickAndSchedule/ApplyAndRender を直列に呼ぶ (並列経路とは分離)。
+    /// Central management runs in play mode only. In edit mode (the Graphic ExecuteAlways preview), each
+    /// component calls _core.TickAndSchedule/ApplyAndRender serially on its own (separate from the parallel path).
     /// </summary>
     public static class SpriteStudioUpdateManager
     {
@@ -42,25 +43,26 @@ namespace SpriteStudio.Runtime
         private static int _tickCount = 0;
         private static SpriteStudioUpdateRunner _runner;
 
-        // 並列 get_frame_data 用の永続バッファ (grow-only, 定常ゼロ GC)。
+        // Persistent buffers for parallel get_frame_data (grow-only, steady-state zero GC).
         private static ISpriteStudioRenderable[] _pending = new ISpriteStudioRenderable[16];
         private static NativeArray<IntPtr> _jobHandles;
         private static NativeArray<float> _jobDrawFrames;
         private static NativeArray<IntPtr> _jobOutPtr;
         private static NativeArray<int> _jobOutLen;
 
-        /// <summary>get_frame_data をキャラ間で並列実行するか (false で全直列フォールバック = A/B 比較・回帰切り分け用)。</summary>
+        /// <summary>Whether to run get_frame_data in parallel across characters (false = full serial fallback = for A/B comparison / regression bisection).</summary>
         public static bool ParallelFrameData = true;
-        /// <summary>並列化する最小プレイヤー数。これ未満はワーカー起床コストを避けて直列実行する。</summary>
+        /// <summary>Minimum number of players to parallelize. Below this, run serially to avoid worker wake-up cost.</summary>
         public static int ParallelMinCount = 2;
-        /// <summary>IJobParallelFor の innerloopBatchCount。get_frame_data は 1 件が重いので 1 が最適
-        /// (各キャラを独立に全コアへ work-steal で分配)。大きくすると少数キャラで並列度が落ちる。</summary>
+        /// <summary>IJobParallelFor's innerloopBatchCount. Each get_frame_data is heavy, so 1 is optimal
+        /// (distributes each character independently across all cores via work-stealing). A larger value
+        /// reduces parallelism with few characters.</summary>
         public static int ParallelBatch = 1;
 
         /// <summary>
-        /// "Enter Play Mode without Domain Reload" 有効時、static フィールドは前回 play セッションの
-        /// 値を保持したまま次の play へ持ち越される。前セッションの stale な renderable / tick
-        /// スナップショットが残らないよう、play 開始時 (SubsystemRegistration) に必ずリセットする。
+        /// When "Enter Play Mode without Domain Reload" is enabled, static fields carry their values from
+        /// the previous play session into the next play. Always reset at play start
+        /// (SubsystemRegistration) so no stale renderable / tick snapshot from the prior session remains.
         /// </summary>
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         internal static void ResetStaticState()
@@ -70,8 +72,9 @@ namespace SpriteStudio.Runtime
             if (_pending != null) Array.Clear(_pending, 0, _pending.Length);
             _tickCount = 0;
             _runner = null;
-            // NativeArray は通常 Teardown (runner OnDestroy) で破棄済み。ドメインリロード無効時に
-            // 万一 IsCreated のまま持ち越されていたら、ここで破棄して次フレームに作り直させる。
+            // The NativeArrays are normally already disposed in Teardown (runner OnDestroy). If domain
+            // reload is disabled and one somehow carried over still IsCreated, dispose it here so it is
+            // rebuilt next frame.
             if (_jobHandles.IsCreated) _jobHandles.Dispose();
             if (_jobDrawFrames.IsCreated) _jobDrawFrames.Dispose();
             if (_jobOutPtr.IsCreated) _jobOutPtr.Dispose();
@@ -92,8 +95,8 @@ namespace SpriteStudio.Runtime
 
         private static void EnsureRunner()
         {
-            if (_runner != null) return;        // Unity の null チェック (破棄済みなら再生成)
-            if (!Application.isPlaying) return;  // play モードのみ集中管理 (edit は各コンポーネントが自前更新)
+            if (_runner != null) return;        // Unity null check (recreate if destroyed)
+            if (!Application.isPlaying) return;  // central management in play mode only (edit updates per component)
 
             var go = new GameObject("SpriteStudioUpdateRunner") { hideFlags = HideFlags.HideInHierarchy };
             UnityEngine.Object.DontDestroyOnLoad(go);
@@ -106,13 +109,13 @@ namespace SpriteStudio.Runtime
             _tickCount = count;
             if (count == 0) return;
 
-            // 反復中の Register/Unregister に備え、再利用バッファへスナップショットしてから処理する
+            // Guard against Register/Unregister during iteration: snapshot into a reused buffer first.
             if (_tickBuffer.Length < count) _tickBuffer = new ISpriteStudioRenderable[Mathf.NextPowerOfTwo(count)];
             _renderables.CopyTo(0, _tickBuffer, 0, count);
             EnsureJobCapacity(count);
 
-            // 1 フレーム進め、drawFrame と frame-skip を確定。
-            // 非 skip かつ有効なプレイヤーだけを並列 get_frame_data の入力へ詰める。
+            // Advance by 1 frame and settle drawFrame and frame-skip.
+            // Pack only the non-skip, valid players into the parallel get_frame_data input.
             int n = 0;
             for (int i = 0; i < count; i++)
             {
@@ -127,9 +130,10 @@ namespace SpriteStudio.Runtime
             }
             if (n == 0) return;
 
-            // get_frame_data はコンテキスト毎に独立 (グローバル可変状態なし・共有リソースは不変
-            // Send+Sync) のためキャラ間でワーカースレッド並列に実行できる。最重量の pose/行列/頂点/
-            // draw batch/FlatBuffer build を並列化する。.Complete() でメインスレッドはバリア待ちする。
+            // get_frame_data is independent per context (no global mutable state; shared resources are
+            // immutable Send+Sync), so it can run on worker threads in parallel across characters. This
+            // parallelizes the heaviest pose/matrix/vertex/draw batch/FlatBuffer build. .Complete() makes
+            // the main thread wait at the barrier.
             if (ParallelFrameData && n >= ParallelMinCount)
             {
                 new GetFrameDataJob
@@ -140,7 +144,7 @@ namespace SpriteStudio.Runtime
             }
             else
             {
-                // 直列フォールバック (少数 or トグル off)。ワーカー起床コストを避ける / A/B 比較用。
+                // Serial fallback (few players or toggle off). Avoids worker wake-up cost / for A/B comparison.
                 for (int i = 0; i < n; i++)
                 {
                     unsafe
@@ -153,11 +157,11 @@ namespace SpriteStudio.Runtime
                     }
                 }
             }
-            // 取得した frame-data ポインタを消費してメッシュ構築 Job を発行。
+            // Consume the obtained frame-data pointers and issue the mesh-build Jobs.
             for (int i = 0; i < n; i++)
             {
                 _pending[i].ConsumeFrame(_jobOutPtr[i], _jobOutLen[i], deltaTime);
-                _pending[i] = null; // スナップショットの参照を残さない
+                _pending[i] = null; // do not keep the snapshot reference alive
             }
         }
 
@@ -176,15 +180,15 @@ namespace SpriteStudio.Runtime
             if (_pending.Length < cap) _pending = new ISpriteStudioRenderable[cap];
         }
 
-        /// <summary>play モード終了時に永続 NativeArray を破棄する (runner OnDestroy から呼ぶ)。</summary>
+        /// <summary>Dispose the persistent NativeArrays when play mode ends (called from the runner's OnDestroy).</summary>
         internal static void Teardown()
         {
             if (_jobHandles.IsCreated) _jobHandles.Dispose();
             if (_jobDrawFrames.IsCreated) _jobDrawFrames.Dispose();
             if (_jobOutPtr.IsCreated) _jobOutPtr.Dispose();
             if (_jobOutLen.IsCreated) _jobOutLen.Dispose();
-            // マネージド側のスナップショット/登録も解放して stale 参照を持ち越さない
-            // (ドメインリロード無効時の保険。ResetStaticState と対になる)。
+            // Also release the managed-side snapshot / registrations so no stale reference carries over
+            // (a safeguard when domain reload is disabled; paired with ResetStaticState).
             _renderables.Clear();
             if (_tickBuffer != null) Array.Clear(_tickBuffer, 0, _tickBuffer.Length);
             if (_pending != null) Array.Clear(_pending, 0, _pending.Length);
@@ -196,16 +200,16 @@ namespace SpriteStudio.Runtime
         {
             if (_tickCount == 0) return;
 
-            // Phase 2: 全インスタンスの Job 完了待ち + メッシュ反映
+            // Phase 2: wait for every instance's Job + apply to the meshes.
             for (int i = 0; i < _tickCount; i++) _tickBuffer[i]?.ApplyAndRender();
 
-            // スナップショットの参照を残さない
+            // Do not keep the snapshot references alive.
             for (int i = 0; i < _tickCount; i++) _tickBuffer[i] = null;
             _tickCount = 0;
         }
     }
 
-    /// <summary>UpdateManager を毎フレーム駆動するための隠し MonoBehaviour (play モード時に1つだけ生成)。</summary>
+    /// <summary>Hidden MonoBehaviour that drives the UpdateManager every frame (exactly one is created in play mode).</summary>
     // Run early so the per-frame tick (Update/Schedule) and the apply + part-tracker mirror (LateUpdate)
     // complete before default-order user scripts: a user script reading a tracked Transform in its own
     // LateUpdate then sees this frame's value, not a stale one.
@@ -225,16 +229,16 @@ namespace SpriteStudio.Runtime
 
         private void OnDestroy()
         {
-            // play モード終了時に永続 NativeArray を破棄 (リーク検出回避)。
+            // Dispose the persistent NativeArrays when play mode ends (avoids leak detection).
             SpriteStudioUpdateManager.Teardown();
         }
     }
 
     /// <summary>
-    /// get_frame_data をキャラ間で並列実行する。get_frame_data はコンテキスト毎に独立
-    /// (グローバル可変状態なし・共有リソースは不変 Send+Sync) のため並行呼び出しが安全。
-    /// DllImport を呼ぶため [BurstCompile] は付けない (Burst から P/Invoke 不可)。各 index は
-    /// 自分のスロットだけを書くため WriteOnly でエイリアスなし。
+    /// Runs get_frame_data in parallel across characters. get_frame_data is independent per context
+    /// (no global mutable state; shared resources are immutable Send+Sync), so concurrent calls are safe.
+    /// [BurstCompile] is not applied because it calls a DllImport (P/Invoke is not allowed from Burst).
+    /// Each index writes only its own slot, so the outputs are WriteOnly with no aliasing.
     /// </summary>
     internal struct GetFrameDataJob : IJobParallelFor
     {

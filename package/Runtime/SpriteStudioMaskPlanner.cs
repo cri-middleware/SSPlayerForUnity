@@ -6,12 +6,14 @@ using SpriteStudio.SsRuntime;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// マスク (ステンシル) 描画のメタ情報を計算する責務を <see cref="SpriteStudioGeometryBuilder"/> から
-    /// 分離したコラボレータ。現フレームの「マスク writer 一覧」と「パーツ毎の (texture hash, blend)」を
-    /// 構築し、パーツ毎の頂点/インデックス数を mesh job の builder と一致する形で算出する。
+    /// Collaborator split out from <see cref="SpriteStudioGeometryBuilder"/> whose responsibility is computing
+    /// the mask (stencil) draw metadata. It builds the current frame's "mask writer list" and "per-part
+    /// (texture hash, blend)", and computes each part's vertex/index counts in a form that matches the mesh
+    /// job's builder.
     ///
-    /// 実際の draw batch / submesh 発行 (EmitMaskStep / Phase A/B) は共有状態 (_drawBatches/_submeshes) を
-    /// 触るためビルダー側に残す。本クラスは「計算」だけを担い、結果はアクセサ経由でビルダーが消費する。
+    /// The actual draw batch / submesh emission (EmitMaskStep / Phase A/B) touches shared state
+    /// (_drawBatches/_submeshes), so it stays on the builder side. This class handles only the "computation";
+    /// the builder consumes the results via accessors.
     /// </summary>
     internal sealed class SpriteStudioMaskPlanner : System.IDisposable
     {
@@ -33,7 +35,7 @@ namespace SpriteStudio.Runtime
 
         public int WriterCount { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => _maskWriterCount; }
 
-        // ホットパス (mask Phase A) のアクセサは元実装の生ポインタ性能に合わせ、bounds-check を回避して inline する。
+        // The hot-path (mask Phase A) accessors inline and bypass the bounds-check to match the original implementation's raw-pointer performance.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public unsafe MaskWriter GetWriter(int i)
             => ((MaskWriter*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskWriters))[i];
@@ -44,7 +46,7 @@ namespace SpriteStudio.Runtime
         public unsafe byte GetPartBlend(int partIndex)
             => ((byte*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskPartBlend))[partIndex];
 
-        /// <summary>現フレームの mask writer 一覧を構築する (mirrors _build_mask_writers)。</summary>
+        /// <summary>Build the current frame's mask writer list (mirrors _build_mask_writers).</summary>
         public unsafe void BuildWriters(ss.runtime.FrameData frameData, NativeArray<ushort> drawOrder,
             bool hasMaskParts, SpriteStudioInternalPlayer.MaskPartData[] maskPartData, int drawOrderLength, int partsLength)
         {
@@ -72,8 +74,8 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// 各パーツの (texture hash, blend) を draw batch から収集する。Mask twin はテクスチャ 0 を持ち、
-        /// 後続のカラーバッチが実テクスチャで上書きする。PartTypeMask は Mask バッチ (実テクスチャ) のみ。
+        /// Collect each part's (texture hash, blend) from the draw batches. A Mask twin has texture 0, and a
+        /// following color batch overwrites it with the real texture. PartTypeMask only has a Mask batch (real texture).
         /// </summary>
         public unsafe void BuildPartLookup(ss.runtime.FrameData frameData, NativeArray<ushort> drawOrder,
             int drawBatchesLength, int drawOrderLength, int partsLength)
@@ -109,8 +111,8 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// 指定 mesh-job kind でパーツが寄与する頂点/インデックス数 (job の builder と完全一致)。
-        /// Normal: 4/5(中心あり), Shape: ファン, Mesh: CSR スライス。false = 退化 (描画なし)。
+        /// The vertex/index count a part contributes for the given mesh-job kind (exactly matches the job's builder).
+        /// Normal: 4/5 (with center), Shape: fan, Mesh: CSR slice. false = degenerate (no draw).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public unsafe bool MaskPartVcIc(int p_idx, byte kind, in SpriteStudioGeometryBuilder.DrawFrame frame,

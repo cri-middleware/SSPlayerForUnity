@@ -6,16 +6,16 @@ using UnityEngine.Timeline;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// SpriteStudioTrack に配置するクリップ。この区間で再生する SpriteStudio アニメーション名を指定する。
+    /// A clip placed on a SpriteStudioTrack. Specifies the name of the SpriteStudio animation to play back over this range.
     /// </summary>
     [Serializable]
     public class SpriteStudioPlayableAsset : PlayableAsset, ITimelineClipAsset
     {
-        [Tooltip("このクリップ区間で再生する SpriteStudio アニメーション名 (パック名/アニメ名)")]
+        [Tooltip("Name of the SpriteStudio animation to play back over this clip range (pack name/animation name)")]
         public string AnimationName = "";
 
-        // SpriteStudio は 2 つのスケルタルアニメをブレンドできないため、クリップのブレンド/補間は公開しない
-        // (mixer は最大ウェイトのクリップ 1 つを決定論的に採用する)。
+        // SpriteStudio cannot blend two skeletal animations, so clip blending/interpolation is not exposed
+        // (the mixer deterministically adopts the single highest-weight clip).
         public ClipCaps clipCaps => ClipCaps.None;
 
         public override Playable CreatePlayable(PlayableGraph graph, GameObject owner)

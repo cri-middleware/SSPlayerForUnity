@@ -13,17 +13,17 @@ namespace SpriteStudio.Runtime
 
         // Moved from InternalPlayer
         
-        // --- Effect: draw_plan の読み取りと結合ジオメトリは EffectPlanBuffer が所有する ---
+        // --- Effect: EffectPlanBuffer owns the draw_plan reads and the merged geometry ---
         private readonly SpriteStudioEffectPlanBuffer _effectBuffer = new SpriteStudioEffectPlanBuffer();
 
-        // effect/instance スロットを持つパーツ index の疎なリスト (SetupSlots で確定)。
+        // Sparse list of part indices that own an effect/instance slot (finalized in SetupSlots).
 
-        // --- Mask: writer 一覧 / パーツ毎 (texHash,blend) / vc-ic 算出は MaskPlanner が所有する ---
-        // (実際の draw batch / submesh 発行 = EmitMaskStep / Phase A/B は共有状態を触るためビルダーに残す)
+        // --- Mask: MaskPlanner owns the writer list / per-part (texHash,blend) / vc-ic computation ---
+        // (the actual draw batch / submesh emission = EmitMaskStep / Phase A/B touches shared state, so it stays in the builder)
         private readonly SpriteStudioMaskPlanner _maskPlanner = new SpriteStudioMaskPlanner();
         // --- Instance ---
 internal NativeArray<InstanceMeshPointer> _instanceMeshes;
-        // Instance 子の UpdateMeshJob ハンドルを束ねる依存配列。永続 grow-only (A3: 毎フレ Temp 確保を回避)。
+        // Dependency array bundling the child Instances' UpdateMeshJob handles. Persistent, grow-only (A3: avoids a per-frame Temp allocation).
         internal NativeArray<JobHandle> _childHandles;
         public float _lastBuiltDrawFrameNo = float.NaN;
         public float _pendingDrawFrame;
@@ -32,8 +32,8 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
         public JobHandle CurrentUpdateJobHandle => _updateJobHandle;
 
-        // FrameData の vtable offset (parts / parts_color フィールド)。生成コードの Parts(j)=__offset(4) /
-        // PartsColor(j)=__offset(8) と一致。fill とレイアウト検証 (SpriteStudioRawLayoutCheck) の単一ソース。
+        // FrameData vtable offsets (parts / parts_color fields). Match the generated code's Parts(j)=__offset(4) /
+        // PartsColor(j)=__offset(8). Single source of truth for the fill and the layout check (SpriteStudioRawLayoutCheck).
         internal const int PartsVtoff = 4;
         internal const int PartsColorVtoff = 8;
 
@@ -108,17 +108,17 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         private ss.runtime.FrameData _lastFrameData;
         private bool _hasFrameData;
 #if ENABLE_SPAN_T && UNSAFE_BYTEBUFFER
-        // ゼロコピー: per-context の frame_data ネイティブバッファを直接 ByteBuffer に載せる。
+        // Zero-copy: place the per-context frame_data native buffer directly into the ByteBuffer.
         private NativeByteBufferAllocator _frameDataAllocator;
 #else
         private byte[] _frameDataArray;
 #endif
 
-        // ゼロアロケーションのため、Job 入出力バッファは永続確保し grow-only で再利用する。
-        // NativeArray.Length は確保容量、論理件数は別途 *_Count で保持する。
+        // For zero-allocation, the Job input/output buffers are persistently allocated and reused grow-only.
+        // NativeArray.Length is the allocated capacity; the logical count is tracked separately in *_Count.
         private NativeArray<SsVertex> _meshVertices;
-        // インデックスは 32bit。エフェクトの大量パーティクルや mesh/instance 合算で
-        // 頂点数が 65535 を超えても破綻しないようにする (ApplyToMesh は IndexFormat.UInt32)。
+        // Indices are 32-bit, so the vertex count exceeding 65535 (from an effect's many particles or the
+        // mesh/instance total) does not break (ApplyToMesh uses IndexFormat.UInt32).
         private NativeArray<uint> _meshIndices;
         private SpriteStudioBatchBuilder _batchBuilder = new SpriteStudioBatchBuilder();
 
@@ -131,13 +131,13 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         private int _indexCount;
         private ulong _topologySignature;
         private readonly SpriteStudioMeshUploader _meshUploader = new SpriteStudioMeshUploader();
-        // メッシュ境界 (要素 0=min, 1=max)。UpdateMeshJob が書き込み、MeshUploader が Mesh.bounds へ適用する。
+        // Mesh bounds (element 0=min, 1=max). UpdateMeshJob writes them and MeshUploader applies them to Mesh.bounds.
         private NativeArray<Vector3> _meshBounds;
 
         public int VertexCount => _vertexCount;
         public int IndexCount => _indexCount;
         public int DrawBatchCount => _batchBuilder.DrawBatchCount;
-        /// <summary>直近の ScheduleMeshUpdate で生成された描画バッチ (= SubMesh) の数。</summary>
+        /// <summary>Number of draw batches (= SubMeshes) produced by the most recent ScheduleMeshUpdate.</summary>
         public int SubmeshCount => _batchBuilder.SubmeshCount;
         public NativeArray<SubmeshInfo> Submeshes => _batchBuilder.Submeshes;
         public NativeArray<DrawBatchData> DrawBatches => _batchBuilder.DrawBatches;
@@ -164,10 +164,10 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         }
 
         /// <summary>
-        /// 前フレームの Job 完了を待ち、advance 指定時は 1 フレーム進め、
-        /// 描画フレーム番号と frame-skip を確定する。out handle が Zero のときは、このフレームは
-        /// このプレイヤーを並列 get_frame_data / ConsumeFrameData の対象から外す (ハンドル無効、または skip)。
-        /// advance=false は frame 駆動 (子 Instance / Timeline 制御) 用。
+        /// Wait for the previous frame's Job to complete, advance by one frame when advance is set, and
+        /// finalize the draw frame number and frame-skip. When the out handle is Zero, this player is
+        /// excluded from the parallel get_frame_data / ConsumeFrameData pass this frame (invalid handle, or skip).
+        /// advance=false is for frame-driven use (child Instance / Timeline control).
         /// </summary>
         public void PrepareFrameData(float deltaTime, bool advance, out System.IntPtr handle, out float drawFrame)
         {
@@ -175,10 +175,10 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             drawFrame = 0f;
             if (!_player._handle.IsValid) return;
 
-            // 永続バッファを書き換える前に、前フレームのジョブ完了を保証する
+            // Ensure the previous frame's job is complete before overwriting the persistent buffers.
             _updateJobHandle.Complete();
 
-            // ss_runtime_update は delta を「ミリ秒」で受け取る (update_interval = 1000/fps)。
+            // ss_runtime_update takes delta in milliseconds (update_interval = 1000/fps).
             if (advance)
             {
                 unsafe { NativeMethods.ss_runtime_update(_player._handle.ptr, deltaTime * 1000.0f); }
@@ -186,14 +186,15 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             }
 
             drawFrame = _player.SubFrameEnabled ? _player.GetFrame() : UnityEngine.Mathf.Floor(_player.GetFrame());
-            // SubFrame 有効時は小数のまま評価するため、終端フレーム (end_frame) を超過した浮動小数点数
-            // (例: 59.99) が渡されると、SSABの有効範囲外として扱われ、全てのパーツが消える原因になります。
-            // 常に定義されたフレーム範囲内に収まるようクランプします。
+            // When SubFrame is enabled the value is evaluated as a fraction, so a floating-point number that
+            // overshoots the end frame (end_frame) (e.g. 59.99) is treated as outside the SSAB valid range and
+            // causes every part to disappear. Clamp so it always stays within the defined frame range.
             drawFrame = UnityEngine.Mathf.Clamp(drawFrame, _player.GetAnimationSectionStart(), _player.GetAnimationSectionEnd());
 
-            // subFrame 無効・エフェクト/インスタンス無しで整数フレームが前回ビルドと同一なら、SoA 出力は
-            // 完全に同一になる。FFI・集計・Job を省いて前フレームのジオメトリをそのまま再利用する。
-            // エフェクトは粒子が毎フレーム進み、インスタンスは子アニメが独立に進むため除外する。
+            // With subFrame disabled and no effect/instance parts, if the integer frame matches the previous
+            // build the SoA output is exactly identical, so skip the FFI, aggregation and Job and reuse the
+            // previous frame's geometry as-is. Effects (particles advance every frame) and instances (child
+            // animations advance independently) are excluded.
             _frameSkipped = false;
             if (!_player.SubFrameEnabled && !_player._hasEffectParts && !_player._hasInstanceParts
                 && _vertexCount > 0 && drawFrame == _lastBuiltDrawFrameNo)
@@ -216,9 +217,9 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         public void InvalidateFrameCache() => _lastBuiltDrawFrameNo = float.NaN;
 
         /// <summary>
-        /// 直列の便宜ラッパ。advance せず get_frame_data を同期取得してメッシュ構築まで 1 メソッドで行う。
-        /// 子 Instance (frame 駆動) と編集モードプレビューが使う。Play モードのトップレベルは
-        /// SpriteStudioUpdateManager が PrepareFrameData → 並列 get_frame_data → ConsumeFrameData に分割する。
+        /// Serial convenience wrapper. Fetches get_frame_data synchronously without advancing and builds the
+        /// mesh, all in one method. Used by child Instances (frame-driven) and the edit-mode preview. Top-level
+        /// Play mode is split by SpriteStudioUpdateManager into PrepareFrameData -> parallel get_frame_data -> ConsumeFrameData.
         /// </summary>
         public void ScheduleMeshUpdate(float deltaTime)
         {
@@ -235,8 +236,8 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
 
         /// <summary>
-        /// 並列 GetFrameDataJob が取得した frame-data ポインタ (job 出力) を消費し、
-        /// SoA を読み出してメッシュ構築 Burst Job を発行する。ptr==Zero / len==0 はジオメトリ無しとして扱う。
+        /// Consume the frame-data pointer obtained by the parallel GetFrameDataJob (its job output), read out
+        /// the SoA, and dispatch the mesh-building Burst Job. ptr==Zero / len==0 is treated as no geometry.
         /// </summary>
         public void ConsumeFrameData(System.IntPtr frameDataPtrRaw, int len, float deltaTime)
         {
@@ -256,9 +257,10 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 float drawFrameNo = _pendingDrawFrame;
 #if ENABLE_SPAN_T && UNSAFE_BYTEBUFFER
-                // ゼロコピー: per-context の frame_data ネイティブバッファを直接 ByteBuffer に載せる。
-                // 読み取りは本メソッド内 (同期) で完結する。子の get_frame_data は別 context の別バッファに
-                // 書くので親バッファを汚さない (SDK: get_frame_data は &mut self 借用 = context 毎)。
+                // Zero-copy: place the per-context frame_data native buffer directly into the ByteBuffer.
+                // Reading completes within this method (synchronously). A child's get_frame_data writes to a
+                // different buffer in a different context, so it does not corrupt the parent buffer
+                // (SDK: get_frame_data borrows &mut self = per-context).
                 if (_frameDataAllocator == null)
                 {
                     _frameDataAllocator = new NativeByteBufferAllocator();
@@ -272,7 +274,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     _frameDataArray = new byte[UnityEngine.Mathf.Max(len, 4096)];
                     _frameDataByteBuffer = new Google.FlatBuffers.ByteBuffer(_frameDataArray);
                 }
-                // ゼロGC: 既存のbyte[]にポインタからメモリコピー (フォールバック)
+                // Zero-GC: copy memory from the pointer into the existing byte[] (fallback)
                 System.Runtime.InteropServices.Marshal.Copy((System.IntPtr)frameDataPtr, _frameDataArray, 0, len);
                 _frameDataByteBuffer.Position = 0; // Reset ByteBuffer offset
 #endif
@@ -281,8 +283,9 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 _lastFrameData = frameData;
                 _hasFrameData = true;
 
-                // FrameData テーブルの Table ビュー。parts / parts_color / draw_order の連続 vector の先頭位置
-                // (tFrame.__vector(vtoff)) を取り、生ポインタ直読みと既存 drawOrder コピーで共用する。
+                // Table view of the FrameData table. Take the start position of the contiguous parts /
+                // parts_color / draw_order vectors (tFrame.__vector(vtoff)), shared by the raw-pointer direct
+                // reads and the existing drawOrder copy.
                 var tFrame = new Google.FlatBuffers.Table(
                     _frameDataByteBuffer.GetInt(_frameDataByteBuffer.Position) + _frameDataByteBuffer.Position, _frameDataByteBuffer);
 
@@ -318,12 +321,13 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 float fps = _player.GetFrameRate();
                 if (fps <= 0f) fps = 60f;
 
-                // エフェクト plan テーブルの確保・default クリアと結合バッファの件数リセットをまとめて行う。
+                // Allocate the effect plan table, clear it to default, and reset the merged buffer's count, all together.
                 _effectBuffer.BeginFrame(partsLength);
 
-                // active な instance パーツだけを sparse に処理する (index は SetupSlots で確定)。非 active 部は
-                // 会計ループ・Burst Job から default が読まれ得るため、事前に一括 MemClear しておく
-                // (partsLength 個別 default 書込みより遥かに安く、「どのパーツが読まれるか」に依存せず安全)。
+                // Process only active instance parts sparsely (indices finalized in SetupSlots). Since the
+                // accounting loop and the Burst Job may read the default from inactive slots, MemClear the whole
+                // thing up front (far cheaper than writing partsLength individual defaults, and safe regardless
+                // of which parts get read).
                 if (partsLength > 0)
                 {
                     Unity.Collections.LowLevel.Unsafe.UnsafeUtility.MemClear(
@@ -331,11 +335,11 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         (long)partsLength * Unity.Collections.LowLevel.Unsafe.UnsafeUtility.SizeOf<InstanceMeshPointer>());
                 }
 
-                // active な effect/instance スロットを step し、結合バッファ / 子メッシュポインタを充填する。
+                // Step the active effect/instance slots and fill the merged buffer / child mesh pointers.
                 StepEffects(drawFrameNo, deltaTime, fps, parentLooped);
                 int childHandleCount = StepInstances(drawFrameNo, deltaTime, parentLooped, partsLength);
 
-                // maxBatches も active な effect/instance パーツのみ集計 (非 active は default=0寄与なので不要)。
+                // maxBatches also aggregates only active effect/instance parts (inactive contribute default=0, so unneeded).
                 int maxBatches = drawBatchesLength;
                 for (int k = 0; k < _player._effectPartCount; k++)
                 {
@@ -348,8 +352,8 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     int i = _player._instancePartIndices[k];
                     if (_instanceMeshes[i].Vertices != null)
                     {
-                        // Instance は子メッシュ全体を 1 draw batch として取り込むが、テクスチャ単位の SubMesh は
-                        // 子の submesh 数ぶん発生する。submesh 数 + 1 (draw batch ぶん) を見込む。
+                        // An Instance takes the whole child mesh in as one draw batch, but the per-texture
+                        // SubMeshes number as many as the child's submesh count. Budget submesh count + 1 (for the draw batch).
                         maxBatches += _player._instanceChildren[i].Player.SubmeshCount + 1;
                     }
                 }
@@ -359,7 +363,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 // colour-suppressed restore); the pre-write phase adds at most one per writer.
                 if (_player._hasMaskParts) maxBatches += partsLength * 2 + _maskPlanner.WriterCount;
 
-                // 永続バッファを grow-only で確保 (毎フレーム new しない)
+                // Allocate the persistent buffers grow-only (do not new every frame)
                 _batchBuilder.BeginFrame(maxBatches);
                 SpriteStudioNativeBuffers.EnsureCapacity(ref _drawOrder, drawOrderLength);
                 SpriteStudioNativeBuffers.EnsureCapacity(ref _partStates, partsLength);
@@ -369,11 +373,11 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 _partCount = partsLength;
                 _partColorCount = partsColorLength;
 
-                // PartState を先に充填し、下のバッチ集計 (Normal の needsCenter 判定) が
-                // UpdateFlag を FlatBuffer から再デコードせず _partStates から読めるようにする。
+                // Fill PartState first so the batch aggregation below (Normal's needsCenter test) can read
+                // UpdateFlag from _partStates instead of re-decoding it from the FlatBuffer.
                 var pStates = (PartStateData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_partStates);
-                // per-element accessor (frameData.Parts(i)) を撲滅し、parts の連続 struct-vector
-                // (vtable offset 4・144B stride の固定 struct) を RawPartState ミラーで直読みする。
+                // Eliminate the per-element accessor (frameData.Parts(i)) and read the contiguous parts
+                // struct-vector (fixed struct at vtable offset 4, 144B stride) directly via the RawPartState mirror.
                 int partsVecOff = tFrame.__offset(PartsVtoff);
                 if (partsVecOff != 0)
                 {
@@ -390,9 +394,9 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     }
                 }
 
-                // DrawOrder ([ushort] vector) も先に充填し、バッチ集計ループは _drawOrder から読む。
-                // 連続 scalar vector なので per-element でなく一括 memcpy する (effect ジオメトリと同様)。
-                // draw_order は FrameData の field 6 → vtable offset 16。
+                // Fill DrawOrder ([ushort] vector) first too, so the batch aggregation loop reads from _drawOrder.
+                // It is a contiguous scalar vector, so memcpy the whole thing rather than per-element (as with effect geometry).
+                // draw_order is FrameData field 6 -> vtable offset 16.
                 SpriteStudioNativeBuffers.CopyFbVector(tFrame, 16, frameDataPtr, _drawOrder, 0, drawOrderLength);
 
                 // Build the per-frame mask writer list (mirrors _build_mask_writers). Behaviour-neutral
@@ -457,15 +461,16 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 SpriteStudioNativeBuffers.EnsureCapacity(ref _meshVertices, totalVertices);
                 SpriteStudioNativeBuffers.EnsureCapacity(ref _meshIndices, totalIndices);
-                SpriteStudioNativeBuffers.EnsureCapacity(ref _meshBounds, 2); // Job が min/max を書き込む
+                SpriteStudioNativeBuffers.EnsureCapacity(ref _meshBounds, 2); // the Job writes min/max
                 _vertexCount = totalVertices;
                 _indexCount = totalIndices;
 
-                // index アップロードキャッシュ用のトポロジシグネチャ (前フレームと同一なら index/submesh は
-                // 再送不要)。Effect は QuadCount/Offset が毎フレーム変わり自然に不一致 = キャッシュされない。
+                // Topology signature for the index upload cache (if identical to the previous frame, the
+                // index/submesh need no re-upload). For effects, QuadCount/Offset change every frame and
+                // naturally mismatch = not cached.
                 _topologySignature = _batchBuilder.ComputeTopologySignature(totalVertices, totalIndices);
 
-                // エフェクトが無くても Job が参照するため、結合配列は最低 1 要素を確保しておく。
+                // Keep at least 1 element in the merged arrays because the Job references them even with no effects.
                 _effectBuffer.EnsureGeometryMinimum();
 
                 JobHandle deps = default;
@@ -510,21 +515,21 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     Bounds = _meshBounds
                 }.Schedule(deps);
 
-                // 次フレームこの整数フレームと一致すれば再構築を省く基準。
+                // Baseline for skipping the rebuild next frame if that integer frame matches this one.
                 _lastBuiltDrawFrameNo = drawFrameNo;
             }
         }
 
         /// <summary>
-        /// 発行済みのメッシュ構築ジョブの完了を待ち、構築済みジオメトリを Unity の Mesh へ反映する。
-        /// 実際のアップロード (頂点/index/submesh/bounds と再送スキップのキャッシュ) は
-        /// <see cref="SpriteStudioMeshUploader"/> へ委譲する。
+        /// Wait for the dispatched mesh-building job to complete and apply the built geometry to Unity's Mesh.
+        /// The actual upload (vertices/index/submesh/bounds and the re-upload-skip cache) is delegated to
+        /// <see cref="SpriteStudioMeshUploader"/>.
         /// </summary>
         /// <param name="use16BitIndices">Canvas path: route to the high-level 16-bit upload
         /// (CanvasRenderer rejects the low-level mesh on Windows/D3D12 -> device removed). World path = false.</param>
         public void ApplyToMesh(UnityEngine.Mesh targetMesh, bool perBatchSubmesh = false, bool use16BitIndices = false)
         {
-            // Mesh に適用する前に Job の完了を待機 (Job はビルダーが所有)。
+            // Wait for the Job to complete before applying to the Mesh (the Job is owned by the builder).
             _updateJobHandle.Complete();
 
             _meshUploader.Apply(targetMesh, perBatchSubmesh, use16BitIndices, new SpriteStudioMeshUploader.UploadData(
@@ -532,7 +537,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 _batchBuilder.Submeshes, _batchBuilder.SubmeshCount, _topologySignature, _meshBounds));
         }
 
-        /// <summary>active な effect スロットを step し、可視なものの draw_plan を結合バッファへ追記する。</summary>
+        /// <summary>Step the active effect slots and append the visible ones' draw_plan into the merged buffer.</summary>
         private unsafe void StepEffects(float drawFrameNo, float deltaTime, float fps, bool parentLooped)
         {
             for (int k = 0; k < _player._effectPartCount; k++)
@@ -542,16 +547,16 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 var step = NativeMethods.ss_effect_slot_step((void*)_player._effectSlots[i].EffectSlot, ev, drawFrameNo, deltaTime, fps, parentLooped, false, 3);
                 if (step.visible && step.draw_plan_len > 0)
                     _effectBuffer.SetPlan(i, _effectBuffer.Append(step.draw_plan_buf, (int)step.draw_plan_len));
-                // 非 visible は MemClear 済の default のまま
+                // Non-visible stays at the MemClear'd default
             }
         }
 
-        /// <summary>active な instance スロットを step し、可視な子の mesh ポインタ/Job ハンドルを収集する。
-        /// 返り値は依存に束ねる子 Job ハンドル数 (CombineDependencies 用)。</summary>
+        /// <summary>Step the active instance slots and collect visible children's mesh pointers / Job handles.
+        /// Returns the number of child Job handles to bundle as dependencies (for CombineDependencies).</summary>
         private unsafe int StepInstances(float drawFrameNo, float deltaTime, bool parentLooped, int partsLength)
         {
             int childHandleCount = 0;
-            // _childHandles への書き込みは可視 instance のときだけ。永続 grow-only で毎フレームの Temp 確保を避ける。
+            // Writes to _childHandles only for visible instances. Persistent grow-only to avoid a per-frame Temp allocation.
             if (_player._hasInstanceParts)
                 SpriteStudioNativeBuffers.EnsureCapacity(ref _childHandles, partsLength);
 
@@ -559,7 +564,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             {
                 int i = _player._instancePartIndices[k];
                 var childPlayer = _player._instanceChildren[i].Player;
-                if (childPlayer == null) continue; // _instanceMeshes[i] は MemClear 済 default
+                if (childPlayer == null) continue; // _instanceMeshes[i] stays at the MemClear'd default
 
                 var ev = NativeMethods.ss_runtime_get_active_event_instance(_player._handle.ptr, (uint)i);
                 var step = NativeMethods.ss_instance_slot_step((void*)_player._instanceChildren[i].InstanceSlot, ev, childPlayer._handle.ptr, _player._instanceChildren[i].PreviousFrame, drawFrameNo, deltaTime, parentLooped);
@@ -571,12 +576,14 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 if (step.visible)
                 {
-                    // 独立インスタンスは Rust 側 controller が唯一のフレーム真実で、SetFrame(=set_frame_no) は
-                    // その controller を直接書き換える。次フレームの child_ctx.update() は書き戻された現在フレーム
-                    // から delta 進めるため、ここで Floor/Clamp 済みの値を書き戻すと 1tick<1frame で進む独立子の
-                    // 小数進行が毎フレーム切り捨てられ、整数フレームを跨げず凍結する。よって controller には生の
-                    // child_frame_no を書き戻す (非独立は set_frame_relative で parent_frame から再計算するため無関係)。
-                    // 表示用のフレーム範囲クランプは子自身の PrepareFrameData が get_frame_data 前に行うので不要。
+                    // For an independent instance the Rust-side controller is the sole frame truth, and
+                    // SetFrame(=set_frame_no) rewrites that controller directly. The next frame's
+                    // child_ctx.update() advances by delta from the written-back current frame, so writing back a
+                    // Floor/Clamp'd value here truncates every frame the fractional progress of an independent
+                    // child that advances 1tick<1frame, so it cannot cross an integer frame and freezes. Hence
+                    // write the raw child_frame_no back to the controller (irrelevant for non-independent, which
+                    // recomputes from parent_frame via set_frame_relative).
+                    // The display-side frame-range clamp is unneeded here because the child's own PrepareFrameData does it before get_frame_data.
                     float childDrawFrame = childPlayer.SubFrameEnabled ? step.child_frame_no : UnityEngine.Mathf.Floor(step.child_frame_no);
                     _player._instanceChildren[i].PreviousFrame = childDrawFrame;
                     childPlayer.SetFrame(step.child_frame_no);
@@ -591,17 +598,17 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         IndexCount = childPlayer.IndexCount
                     };
                 }
-                // 非 visible は MemClear 済の default のまま
+                // Non-visible stays at the MemClear'd default
             }
             return childHandleCount;
         }
 
-        /// <summary>frameData の PartsColor から _partColors を充填する (4 隅の頂点カラー)。</summary>
+        /// <summary>Fill _partColors from frameData's PartsColor (the 4 corner vertex colors).</summary>
         private unsafe void FillPartColors(byte* frameDataPtr, Google.FlatBuffers.Table tFrame, int partsColorLength)
         {
-            // per-element 入れ子 accessor (frameData.PartsColor(i)) を撲滅し、parts_color の連続
-            // struct-vector (vtable offset 8・36B stride) を RawPartColor ミラーで直読みする。
-            // U8Rect は ARGB バイト順なので Color32(R,G,B,A) へ並べ替える (従来挙動と同一)。
+            // Eliminate the per-element nested accessor (frameData.PartsColor(i)) and read the contiguous
+            // parts_color struct-vector (vtable offset 8, 36B stride) directly via the RawPartColor mirror.
+            // U8Rect is in ARGB byte order, so reorder into Color32(R,G,B,A) (identical to the prior behavior).
             int vecOff = tFrame.__offset(PartsColorVtoff);
             if (vecOff == 0) return;
             RawPartColor* raw = (RawPartColor*)(frameDataPtr + tFrame.__vector(vecOff));
@@ -620,8 +627,8 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         }
 
         /// <summary>
-        /// 現在の draw batch / submesh 構造から index アップロードキャッシュ判定用の FNV-1a シグネチャを算出する。
-        /// _vertexCount / _indexCount 確定後に呼ぶこと。
+        /// Compute the FNV-1a signature for the index-upload cache decision from the current draw batch /
+        /// submesh structure. Call after _vertexCount / _indexCount are finalized.
         /// </summary>
         
 
@@ -918,9 +925,9 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         
     }
 
-    // === FlatBuffer の固定 struct-vector を per-element accessor 無しで直読みするための生レイアウトミラー ===
-    // framedata_generated.cs の PartState(144B) / PartAttributePartColor(36B) / U8Rect とバイト互換。
-    // ⚠ .fbs を再生成してレイアウトが変わったらここも更新する (起動時 sizeof assert で総量 drift を検出)。
+    // === Raw layout mirrors for reading FlatBuffer fixed struct-vectors directly, without a per-element accessor ===
+    // Byte-compatible with framedata_generated.cs's PartState(144B) / PartAttributePartColor(36B) / U8Rect.
+    // Warning: if you regenerate the .fbs and the layout changes, update these too (the startup sizeof assert detects total-size drift).
     [StructLayout(LayoutKind.Explicit, Size = 8)]
     internal struct RawCorner   // U8Rect(ARGB) + Rate (SsAttributePartColorKeyValueColor)
     {
@@ -942,7 +949,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 144)]
-    internal struct RawPartState   // PartState (使用フィールドのみ宣言・残りは Size で確保)
+    internal struct RawPartState   // PartState (only the used fields are declared; the rest is reserved via Size)
     {
         [FieldOffset(0)]   public ulong UpdateFlag;
         [FieldOffset(48)]  public float Alpha;
@@ -954,7 +961,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static unsafe void Validate()
         {
-            // (1) 総量 drift (フィールド増減) を捕捉。
+            // (1) Catch total-size drift (fields added/removed).
             UnityEngine.Debug.Assert(Unity.Collections.LowLevel.Unsafe.UnsafeUtility.SizeOf<RawPartState>() == 144,
                 "RawPartState size != 144: framedata PartState layout changed - update the mirror struct");
             UnityEngine.Debug.Assert(Unity.Collections.LowLevel.Unsafe.UnsafeUtility.SizeOf<RawPartColor>() == 36,
@@ -963,9 +970,10 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 "RawCorner size != 8: framedata color-corner layout changed - update the mirror struct");
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-            // (2) 同サイズの並べ替え等も捕捉する roundtrip: 生成ビルダーで既知の sentinel struct を書き、
-            //     生成 accessor とミラーの両方で同一バッファを読んで一致を確認する。.fbs を再生成して
-            //     field offset / vtable offset がズレた瞬間にここが赤くなる (= サイレント drift の自動検出)。
+            // (2) Roundtrip that also catches same-size reorderings: write a known sentinel struct with the
+            //     generated builder, then read the same buffer via both the generated accessor and the mirror
+            //     and confirm they match. The moment a .fbs regeneration shifts a field offset / vtable offset,
+            //     this goes red (= automatic detection of silent drift).
             var b = new Google.FlatBuffers.FlatBufferBuilder(256);
 
             ss.runtime.FrameData.StartPartsVector(b, 1);
@@ -990,8 +998,8 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 13,14,15,16, 3.5f); // Rb
             var pcVec = b.EndVector();
 
-            // FrameData の required フィールド (draw_order / draw_batches / mask_indices) を空ベクタで満たす
-            // (EndFrameData が presence を要求する。中身は本検証では未使用)。
+            // Satisfy FrameData's required fields (draw_order / draw_batches / mask_indices) with empty vectors
+            // (EndFrameData requires their presence; the contents are unused in this check).
             ss.runtime.FrameData.StartDrawOrderVector(b, 0);
             var drawOrderVec = b.EndVector();
             ss.runtime.FrameData.StartDrawBatchesVector(b, 0);

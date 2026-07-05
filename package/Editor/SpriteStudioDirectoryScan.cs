@@ -8,22 +8,23 @@ using UnityEngine;
 namespace SpriteStudio.Editor
 {
     /// <summary>
-    /// ドロップ/指定されたディレクトリを libssconverter (FFI) の scan API で再帰走査し、
-    /// 配下の .sspj を収集する非同期セッション。
+    /// An asynchronous session that recursively scans a dropped/specified directory with libssconverter's
+    /// (FFI) scan API and collects the .sspj files beneath it.
     ///
-    /// ディレクトリ走査そのものはネイティブ側 (`ss_converter_scan_dir` … ) に委譲し、
-    /// C# は EditorApplication.update でポーリングしてノンブロッキングに進捗を見るだけにする。
-    /// 走査は別スレッドで動くためエディタは固まらない。バジェット(深さ/件数/時間)で暴走を防ぐ。
+    /// Directory traversal itself is delegated to the native side (`ss_converter_scan_dir` ...); C# just
+    /// polls in EditorApplication.update and observes progress non-blockingly.
+    /// The scan runs on a separate thread so the editor does not freeze. A budget (depth/count/time)
+    /// prevents runaway scans.
     /// </summary>
     internal sealed class SpriteStudioDirectoryScan
     {
-        // 既定バジェット (Godot 版と同値)
+        // Default budget (same values as the Godot version)
         private const uint DefaultMaxDepth = 16;
         private const ulong DefaultMaxMillis = 5000;
         private static readonly nuint DefaultMaxEntries = 50000;
 
-        // 「上限なし再スキャン」用 (depth は十分大きく / 件数は最大 / 時間無制限)
-        // nuint.MaxValue は .NET Standard 2.1 に無いため ulong.MaxValue からキャストして最大値を得る。
+        // For "unbounded rescan" (depth is large enough / count is the max / time is unlimited)
+        // nuint.MaxValue does not exist in .NET Standard 2.1, so obtain the max by casting from ulong.MaxValue.
         private const uint UnboundedMaxDepth = 64;
         private const ulong UnboundedMaxMillis = 0;
         private static readonly nuint UnboundedMaxEntries = unchecked((nuint)ulong.MaxValue);
@@ -33,7 +34,7 @@ namespace SpriteStudio.Editor
         private readonly bool _interactive;
         private readonly Action<List<string>> _onComplete;
 
-        private IntPtr _ctx;          // 走査中の context (なければ Zero)
+        private IntPtr _ctx;          // The context currently scanning (Zero if none)
         private string _currentDir;
         private int _progressId = -1;
         private bool _canceled;
@@ -45,7 +46,7 @@ namespace SpriteStudio.Editor
             _onComplete = onComplete;
         }
 
-        /// <summary>ディレクトリ群を非同期走査し、完了時に収集した .sspj 一覧で onComplete を呼ぶ。</summary>
+        /// <summary>Scans the directories asynchronously and, on completion, calls onComplete with the collected .sspj list.</summary>
         public static void Start(IList<string> dirs, bool interactive, Action<List<string>> onComplete)
         {
             var session = new SpriteStudioDirectoryScan(dirs, interactive, onComplete);
@@ -95,9 +96,9 @@ namespace SpriteStudio.Editor
 
         private void Poll()
         {
-            // EditorApplication.update から呼ばれる。例外が漏れると Unity が update デリゲートを
-            // 解除し、セッションが進行不能 (進捗バー固定・onComplete 未呼び出し) に陥る。
-            // 例外時は安全に終了させて自己回復する。
+            // Called from EditorApplication.update. If an exception leaks, Unity unregisters the update
+            // delegate and the session becomes stuck (progress bar frozen, onComplete never called).
+            // On exception, terminate safely and self-recover.
             try
             {
                 PollInner();
@@ -105,9 +106,10 @@ namespace SpriteStudio.Editor
             catch (Exception e)
             {
                 Debug.LogError($"[SSPlayer] Directory scan poll error: {e.Message}");
-                // 走査スレッドが実行中の context は destroy しない (この SDK の destroy は join せず
-                // Box を解放するだけのため、実行中だと UAF になりうる)。停止要求のみ出して放棄する
-                // (稀なエラー経路での 1 context リークは UAF 回避とのトレードオフで許容)。
+                // Do not destroy a context whose scan thread is still running (this SDK's destroy does not
+                // join, it only frees the Box, so destroying while running could cause a UAF). Issue only an
+                // abort request and abandon it (leaking one context on this rare error path is accepted as a
+                // trade-off for avoiding a UAF).
                 if (_ctx != IntPtr.Zero)
                 {
                     AbortCurrent();
@@ -136,12 +138,13 @@ namespace SpriteStudio.Editor
 
                     if (!SpriteStudio.SsConverter.NativeMethods.ss_converter_is_finished(ctx))
                     {
-                        return; // まだ走査中
+                        return; // still scanning
                     }
 
-                    // 完了 (is_finished=true、走査スレッドは終了済み) → 結果を回収。
-                    // 回収中に例外が出ても context を必ず破棄し _ctx を解放する。finished 後なので
-                    // destroy は安全で、leak と _ctx 詰まり (= 以降のディレクトリが進まない) を防ぐ。
+                    // Finished (is_finished=true, the scan thread has ended) -> collect the results.
+                    // Even if collection throws, always destroy the context and release _ctx. Since it is
+                    // finished, destroy is safe, and this prevents a leak and a stuck _ctx (= no further
+                    // directories progress).
                     bool budgetExceeded = false;
                     var dirResults = new List<string>();
                     try
@@ -167,11 +170,11 @@ namespace SpriteStudio.Editor
                     }
                 }
 
-                // 再スキャンが始まっていなければ次のディレクトリへ
+                // If a rescan has not started, move on to the next directory
                 if (_ctx == IntPtr.Zero) PumpNextDir();
             }
 
-            // 走査中の context が無く、キュー枯渇 or キャンセル → セッション終了
+            // No context is scanning and the queue is drained or canceled -> end the session
             if (_ctx == IntPtr.Zero && (_canceled || _dirs.Count == 0))
             {
                 Finish();
@@ -194,19 +197,19 @@ namespace SpriteStudio.Editor
             }
 
             int choice = EditorUtility.DisplayDialogComplex(
-                "SpriteStudio: スキャン上限に到達",
-                $"'{_currentDir}'\n{dirResults.Count} 件の .sspj が見つかりました (走査上限に到達)。\nどうしますか?",
-                "見つかった分を使う", "キャンセル", "上限なしで再スキャン");
+                "SpriteStudio: Scan limit reached",
+                $"'{_currentDir}'\nFound {dirResults.Count} .sspj file(s) (scan limit reached).\nWhat would you like to do?",
+                "Use what was found", "Cancel", "Rescan without limit");
 
             switch (choice)
             {
-                case 0: // 見つかった分を使う
+                case 0: // Use what was found
                     _results.AddRange(dirResults);
                     break;
-                case 1: // キャンセル (セッション全体を停止)
+                case 1: // Cancel (stop the whole session)
                     _canceled = true;
                     break;
-                default: // 2: 上限なしで再スキャン (同ディレクトリをやり直し、partial は捨てる)
+                default: // 2: Rescan without limit (redo the same directory, discard the partial results)
                     StartScan(_currentDir, UnboundedMaxDepth, UnboundedMaxEntries, UnboundedMaxMillis);
                     break;
             }

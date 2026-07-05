@@ -36,7 +36,7 @@ namespace SpriteStudio.Runtime.Tests
         public void Play_WithoutAnimeAsset_LogsWarningOrDoesNothing()
         {
             var player = _go.AddComponent<SpriteStudioPlayer>();
-            // 落ちないことを確認
+            // Confirm it does not crash
             Assert.DoesNotThrow(() => { player.SetAnimation("dummy"); player.Play(); });
         }
 

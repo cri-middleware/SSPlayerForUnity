@@ -2,20 +2,20 @@ using System;
 using NUnit.Framework;
 using UnityEngine.TestTools.Constraints;
 using SpriteStudio.Runtime;
-using Is = UnityEngine.TestTools.Constraints.Is; // AllocatingGCMemory 用 (NUnit の Is と衝突するためエイリアス)
+using Is = UnityEngine.TestTools.Constraints.Is; // for AllocatingGCMemory (aliased because it collides with NUnit's Is)
 
 namespace SpriteStudio.Runtime.EditModeTests
 {
     /// <summary>
-    /// <see cref="SpriteStudioUpdateManager"/> の文書化済み不変条件を EditMode で決定的に検証する。
-    /// EditMode では <c>Application.isPlaying == false</c> のため EnsureRunner が runner GameObject を
-    /// 生成せず、テストが Schedule/Apply を「手動で1回ずつ」駆動して内部状態を直接確認できる。
+    /// Deterministically verifies the documented invariants of <see cref="SpriteStudioUpdateManager"/> in EditMode.
+    /// In EditMode <c>Application.isPlaying == false</c>, so EnsureRunner does not create a runner GameObject,
+    /// letting the tests drive Schedule/Apply "manually, one at a time" and inspect the internal state directly.
     /// </summary>
     public class SpriteStudioUpdateManagerTests
     {
         /// <summary>
-        /// get_frame_data を呼ばない (handle=Zero) ので純マネージドで完結するテストダブル。
-        /// PrepareFrame/ApplyAndRender にフックを刺し、tick 反復中の動的解除を再現できる。
+        /// A test double that stays fully managed because it never calls get_frame_data (handle=Zero).
+        /// Hooks into PrepareFrame/ApplyAndRender let it reproduce dynamic unregistration during tick iteration.
         /// </summary>
         private sealed class FakeRenderable : ISpriteStudioRenderable
         {
@@ -28,7 +28,7 @@ namespace SpriteStudio.Runtime.EditModeTests
             public void PrepareFrame(float deltaTime, out IntPtr handle, out float drawFrame)
             {
                 PrepareCount++;
-                handle = IntPtr.Zero; // Zero → 並列 get_frame_data / ConsumeFrame の対象外 (ネイティブ非依存)
+                handle = IntPtr.Zero; // Zero → excluded from parallel get_frame_data / ConsumeFrame (no native dependency)
                 drawFrame = 0f;
                 OnPrepare?.Invoke();
             }
@@ -70,19 +70,19 @@ namespace SpriteStudio.Runtime.EditModeTests
         {
             var a = new FakeRenderable();
             SpriteStudioUpdateManager.Register(a);
-            SpriteStudioUpdateManager.Register(a); // 二重登録は無視されるはず
+            SpriteStudioUpdateManager.Register(a); // duplicate registration should be ignored
 
             SpriteStudioUpdateManager.Schedule(0.016f);
             SpriteStudioUpdateManager.Apply();
 
-            Assert.AreEqual(1, a.PrepareCount, "重複登録が許されると PrepareCount が 2 になってしまう");
+            Assert.AreEqual(1, a.PrepareCount, "PrepareCount would become 2 if duplicate registration were allowed");
         }
 
         [Test]
         public void Unregister_DuringPrepare_DoesNotThrow()
         {
-            // tick (Schedule) 反復中に他要素が破棄/解除されても NRE を起こさない、という
-            // 文書化済み不変条件 (スナップショット _tickCount 反復) を検証する。
+            // Verify the documented invariant (snapshot _tickCount iteration) that other elements being
+            // destroyed/unregistered during tick (Schedule) iteration does not cause an NRE.
             var a = new FakeRenderable();
             var b = new FakeRenderable();
             var c = new FakeRenderable();
@@ -90,7 +90,7 @@ namespace SpriteStudio.Runtime.EditModeTests
             SpriteStudioUpdateManager.Register(b);
             SpriteStudioUpdateManager.Register(c);
 
-            // a の PrepareFrame 中に b/c を解除する (フレーム途中の動的破棄をシミュレート)。
+            // Unregister b/c during a's PrepareFrame (simulates dynamic destruction mid-frame).
             a.OnPrepare = () =>
             {
                 SpriteStudioUpdateManager.Unregister(b);
@@ -112,7 +112,7 @@ namespace SpriteStudio.Runtime.EditModeTests
             SpriteStudioUpdateManager.Register(a);
             SpriteStudioUpdateManager.Register(b);
 
-            // Apply フェーズ中の動的解除でも落ちないこと (スナップショット反復の保証)。
+            // Should not crash on dynamic unregistration during the Apply phase either (snapshot-iteration guarantee).
             a.OnApply = () => SpriteStudioUpdateManager.Unregister(b);
 
             Assert.DoesNotThrow(() =>
@@ -125,7 +125,7 @@ namespace SpriteStudio.Runtime.EditModeTests
         [Test]
         public void ResetStaticState_ClearsRegistrations()
         {
-            // "Enter Play Mode without Domain Reload" 相当: 前セッションの登録が次へ持ち越されない。
+            // Equivalent to "Enter Play Mode without Domain Reload": registrations from the previous session don't carry over.
             var a = new FakeRenderable();
             SpriteStudioUpdateManager.Register(a);
             SpriteStudioUpdateManager.ResetStaticState();
@@ -133,14 +133,14 @@ namespace SpriteStudio.Runtime.EditModeTests
             SpriteStudioUpdateManager.Schedule(0.016f);
             SpriteStudioUpdateManager.Apply();
 
-            Assert.AreEqual(0, a.PrepareCount, "ResetStaticState 後は登録が消えているはず");
+            Assert.AreEqual(0, a.PrepareCount, "Registrations should be cleared after ResetStaticState");
         }
 
         [Test]
         public void Schedule_Apply_SteadyState_DoesNotAllocate()
         {
-            // 文書化済み「ゼロアロケーション」不変条件のガード。定常状態の Schedule/Apply が
-            // GC を発生させないことを検証する (バッファ/容量はウォームアップで確保済みにする)。
+            // Guard for the documented "zero allocation" invariant. Verify that steady-state Schedule/Apply
+            // does not trigger GC (buffers/capacity are pre-reserved during warm-up).
             var renderables = new FakeRenderable[4];
             for (int i = 0; i < renderables.Length; i++)
             {
@@ -148,10 +148,10 @@ namespace SpriteStudio.Runtime.EditModeTests
                 SpriteStudioUpdateManager.Register(renderables[i]);
             }
 
-            // 計測対象は「同一のデリゲートインスタンス」を使い、計測前に複数回呼んで
-            // (a) _tickBuffer / job 用 NativeArray の容量確保、(b) ラムダ本体と UpdateManager
-            // メソッドの JIT を済ませておく。AllocatingGCMemory はデリゲートをウォームアップ
-            // しないため、初回呼び出しの JIT アロケーションを拾わないようにこの順序が必須。
+            // Use "the same delegate instance" as the measurement target and call it several times before
+            // measuring to (a) reserve capacity for _tickBuffer / the job's NativeArray and (b) JIT the lambda
+            // body and the UpdateManager methods. AllocatingGCMemory does not warm up the delegate, so this
+            // ordering is essential to avoid picking up first-call JIT allocations.
             TestDelegate steadyTick = () =>
             {
                 SpriteStudioUpdateManager.Schedule(0.016f);

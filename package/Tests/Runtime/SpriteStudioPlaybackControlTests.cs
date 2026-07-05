@@ -10,22 +10,24 @@ using UnityEngine.UI;
 namespace SpriteStudio.Runtime.Tests
 {
     /// <summary>
-    /// Tier 1 で SpriteStudioPlayer / SpriteStudioGraphic に追加した再生制御 API
+    /// Verifies the playback-control API added to SpriteStudioPlayer / SpriteStudioGraphic in Tier 1
     /// (IsPlaying / IsPaused / Pause / Stop / CurrentFrame / TotalFrames /
-    ///  FrameRate / Reverse / PingPong / SetAnimationSection) を検証する。
+    ///  FrameRate / Reverse / PingPong / SetAnimationSection).
     ///
-    /// これらは内部プレイヤー (Rust ランタイム) への薄い委譲なので 2 層で確認する:
-    ///   (A) コンポーネント層 — ネイティブ状態が同期的に反映される委譲・ラウンドトリップ・null 安全性。
-    ///       [ExecuteAlways] により AddComponent で OnEnable が走り、AnimeAsset 割当 → Play まで同期実行されるため、
-    ///       フレーム駆動 (UpdateManager / yield) なしで決定論的に検証できる。
-    ///   (B) 内部プレイヤー層 — 手動 Tick による前進挙動 (Pause トグルで停止 / 再トグルで現フレーム継続 /
-    ///       逆再生で減少 / 区間設定の反映)。コンポーネントの Pause 等が委譲する先のセマンティクスを担保する。
+    /// These are thin delegations to the internal player (Rust runtime), so we check them at two layers:
+    ///   (A) Component layer — delegations that synchronously reflect native state, round-trips, and null safety.
+    ///       Thanks to [ExecuteAlways], AddComponent runs OnEnable and executes AnimeAsset assignment through Play
+    ///       synchronously, so we can verify deterministically without frame driving (UpdateManager / yield).
+    ///   (B) Internal-player layer — advance behavior via manual Tick (Pause toggle halts / re-toggle resumes at
+    ///       the current frame / reverse playback decreases the frame / section settings are reflected). This
+    ///       nails down the semantics that the component's Pause etc. delegate to.
     ///
-    /// フィクスチャは既存の Ringo を流用する。アニメ長に依存する前提は Assume で守る (短アニメ時は inconclusive)。
+    /// The fixture reuses the existing Ringo. Assumptions that depend on animation length are guarded with Assume
+    /// (inconclusive for short animations).
     /// </summary>
     public class SpriteStudioPlaybackControlTests
     {
-        private const string RingoAssetPath = "Ringo/Ringo"; // Resources.Load 用
+        private const string RingoAssetPath = "Ringo/Ringo"; // for Resources.Load
         private const string RingoSsabPath = "../../package/Tests/Runtime/Resources/Ringo/Ringo.ssab";
 
         private byte[] _ringo;
@@ -51,7 +53,7 @@ namespace SpriteStudio.Runtime.Tests
         [TearDown]
         public void TearDown()
         {
-            // GameObject を破棄 → OnDisable → _core.Dispose() で native リソースも解放される。
+            // Destroying the GameObject → OnDisable → _core.Dispose() also releases native resources.
             foreach (var go in _objects) if (go != null) Object.DestroyImmediate(go);
             _objects.Clear();
             foreach (var a in _assets) if (a != null) Object.DestroyImmediate(a);
@@ -62,14 +64,14 @@ namespace SpriteStudio.Runtime.Tests
 
         private SpriteStudioAnimeAsset MakeAsset()
         {
-            Assert.IsNotNull(_ringo, "Ringo.ssab が必要です。");
+            Assert.IsNotNull(_ringo, "Ringo.ssab is required.");
             var asset = ScriptableObject.CreateInstance<SpriteStudioAnimeAsset>();
             asset.SsabData = _ringo;
             _assets.Add(asset);
             return asset;
         }
 
-        // Ringo の "walk" を再生中の Player を返す (アセット割当 → Play まで同期実行される)。
+        // Returns a Player already playing Ringo's "walk" (asset assignment through Play runs synchronously).
         private SpriteStudioPlayer MakePlayingPlayer(string anim = "walk")
         {
             var go = new GameObject("Tier1PlaybackPlayer");
@@ -82,23 +84,23 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         // ============================================================
-        // (A) コンポーネント層: 同期的な委譲・ラウンドトリップ
+        // (A) Component layer: synchronous delegation / round-trips
         // ============================================================
 
         [Test]
         public void Play_MarksPlaying_NotPaused()
         {
             var player = MakePlayingPlayer();
-            Assert.IsTrue(player.IsPlaying, "Play 後は再生中のはず");
-            Assert.IsFalse(player.IsPaused, "Play 直後は一時停止していないはず");
+            Assert.IsTrue(player.IsPlaying, "Should be playing after Play");
+            Assert.IsFalse(player.IsPaused, "Should not be paused right after Play");
         }
 
         [Test]
         public void AfterPlay_TotalFrames_And_FrameRate_ArePositive()
         {
             var player = MakePlayingPlayer();
-            Assert.Greater(player.TotalFrames, 0, "総フレーム数は正のはず");
-            Assert.Greater(player.FrameRate, 0, "フレームレートは正のはず");
+            Assert.Greater(player.TotalFrames, 0, "Total frame count should be positive");
+            Assert.Greater(player.FrameRate, 0, "Frame rate should be positive");
         }
 
         [Test]
@@ -106,8 +108,8 @@ namespace SpriteStudio.Runtime.Tests
         {
             var player = MakePlayingPlayer();
             player.Pause();
-            Assert.IsTrue(player.IsPaused, "Pause 後は一時停止中のはず");
-            Assert.IsTrue(player.IsPlaying, "一時停止中も再生セッションは有効 (IsPlaying=true) のはず");
+            Assert.IsTrue(player.IsPaused, "Should be paused after Pause");
+            Assert.IsTrue(player.IsPlaying, "The playback session should stay active (IsPlaying=true) even while paused");
         }
 
         [Test]
@@ -116,7 +118,7 @@ namespace SpriteStudio.Runtime.Tests
             var player = MakePlayingPlayer();
             player.Pause(); // toggle: playing -> paused
             player.Pause(); // toggle: paused -> playing
-            Assert.IsFalse(player.IsPaused, "Pause を再度呼ぶ (トグル) と一時停止が解除されるはず");
+            Assert.IsFalse(player.IsPaused, "Calling Pause again (toggle) should clear the paused state");
             Assert.IsTrue(player.IsPlaying);
         }
 
@@ -125,17 +127,17 @@ namespace SpriteStudio.Runtime.Tests
         {
             var player = MakePlayingPlayer();
             player.Stop();
-            Assert.IsFalse(player.IsPlaying, "Stop 後は再生中でないはず");
+            Assert.IsFalse(player.IsPlaying, "Should not be playing after Stop");
         }
 
         [Test]
         public void CurrentFrame_Seek_RoundTrips()
         {
             var player = MakePlayingPlayer();
-            player.Pause(); // 進行で値が変わらないように一時停止
+            player.Pause(); // pause so the value doesn't change from advancing
             float target = Mathf.Min(2f, Mathf.Max(0f, player.TotalFrames - 1));
             player.CurrentFrame = target;
-            Assert.AreEqual(target, player.CurrentFrame, 0.001f, "シーク値が取得できるはず");
+            Assert.AreEqual(target, player.CurrentFrame, 0.001f, "The seeked value should be readable");
         }
 
         [Test]
@@ -143,9 +145,9 @@ namespace SpriteStudio.Runtime.Tests
         {
             var player = MakePlayingPlayer();
             player.Reverse = true;
-            Assert.IsTrue(player.Reverse, "Reverse=true が反映されるはず");
+            Assert.IsTrue(player.Reverse, "Reverse=true should be reflected");
             player.Reverse = false;
-            Assert.IsFalse(player.Reverse, "Reverse=false が反映されるはず");
+            Assert.IsFalse(player.Reverse, "Reverse=false should be reflected");
         }
 
         [Test]
@@ -153,25 +155,25 @@ namespace SpriteStudio.Runtime.Tests
         {
             var player = MakePlayingPlayer();
             player.PingPong = true;
-            Assert.IsTrue(player.PingPong, "PingPong=true が反映されるはず");
+            Assert.IsTrue(player.PingPong, "PingPong=true should be reflected");
             player.PingPong = false;
-            Assert.IsFalse(player.PingPong, "PingPong=false が反映されるはず");
+            Assert.IsFalse(player.PingPong, "PingPong=false should be reflected");
         }
 
         [Test]
         public void ReverseAndPingPong_AreIndependent()
         {
-            // Reverse / PingPong の setter は直交軸 (direction / style) をネイティブから読んで温存する。
-            // 片方の設定がもう片方を潰さないことを確認する (Tier 1 で実装したカスタムロジックの回帰テスト)。
+            // The Reverse / PingPong setters read the orthogonal axis (direction / style) from native and preserve it.
+            // Verify that setting one doesn't clobber the other (regression test for the custom logic added in Tier 1).
             var player = MakePlayingPlayer();
             player.Reverse = true;
             player.PingPong = true;
-            Assert.IsTrue(player.Reverse, "PingPong 設定で Reverse が消えないはず");
-            Assert.IsTrue(player.PingPong, "Reverse 設定で PingPong が消えないはず");
+            Assert.IsTrue(player.Reverse, "Setting PingPong should not clear Reverse");
+            Assert.IsTrue(player.PingPong, "Setting Reverse should not clear PingPong");
 
             player.Reverse = false;
             Assert.IsFalse(player.Reverse);
-            Assert.IsTrue(player.PingPong, "Reverse 解除で PingPong が消えないはず");
+            Assert.IsTrue(player.PingPong, "Clearing Reverse should not clear PingPong");
         }
 
         [Test]
@@ -189,7 +191,7 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         // ============================================================
-        // (A') null 安全性: 内部プレイヤー未生成 / 破棄後でも例外を出さず既定値を返す
+        // (A') null safety: return defaults without throwing even when the internal player is uncreated / disposed
         // ============================================================
 
         [Test]
@@ -197,17 +199,17 @@ namespace SpriteStudio.Runtime.Tests
         {
             var go = new GameObject("Tier1Assetless");
             _objects.Add(go);
-            var player = go.AddComponent<SpriteStudioPlayer>(); // AnimeAsset 未設定 → アニメ未 setup
+            var player = go.AddComponent<SpriteStudioPlayer>(); // AnimeAsset not set → animation not set up
 
-            // 未再生/未ロードでも状態系は破綻しない既定を返す。
+            // Even when never played / never loaded, the state accessors return sane defaults without breaking.
             Assert.IsFalse(player.IsPlaying);
             Assert.IsFalse(player.IsPaused);
             Assert.AreEqual(0, player.FrameRate);
             Assert.AreEqual(0f, player.CurrentFrame, 0.001f);
             Assert.IsFalse(player.Reverse);
             Assert.IsFalse(player.PingPong);
-            // TotalFrames は未ロード時にネイティブ既定 (end_frame=0 → 1) になり得るため値は問わず、
-            // getter/setter が例外を出さないことだけ確認する。
+            // TotalFrames can fall back to the native default (end_frame=0 → 1) when not loaded, so we don't
+            // assert its value — only that the getters/setters don't throw.
 
             Assert.DoesNotThrow(() =>
             {
@@ -225,7 +227,7 @@ namespace SpriteStudio.Runtime.Tests
             var player = MakePlayingPlayer();
             player.gameObject.SetActive(false); // OnDisable → _core.Dispose() → Internal=null
 
-            Assert.IsFalse(player.IsPlaying, "破棄後は再生中でないはず");
+            Assert.IsFalse(player.IsPlaying, "Should not be playing after disposal");
             Assert.AreEqual(0, player.TotalFrames);
 
             Assert.DoesNotThrow(() =>
@@ -238,7 +240,7 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         // ============================================================
-        // (A'') Graphic (uGUI) 版も同じ API を持つことのスモークテスト
+        // (A'') Smoke test that the Graphic (uGUI) version exposes the same API
         // ============================================================
 
         [Test]
@@ -253,7 +255,7 @@ namespace SpriteStudio.Runtime.Tests
             graphic.SetAnimation("walk");
             graphic.Play();
 
-            Assert.IsTrue(graphic.IsPlaying, "Play 後は再生中のはず");
+            Assert.IsTrue(graphic.IsPlaying, "Should be playing after Play");
             Assert.Greater(graphic.TotalFrames, 0);
 
             graphic.Pause();
@@ -267,46 +269,46 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         // ============================================================
-        // (B) 内部プレイヤー層: 手動 Tick による前進挙動 (決定論的)
+        // (B) Internal-player layer: advance behavior via manual Tick (deterministic)
         // ============================================================
 
         [Test]
         public void Internal_Pause_Halts_And_Resume_ContinuesFromCurrentFrame()
         {
-            Assert.IsNotNull(_ringo, "Ringo.ssab が必要です。");
+            Assert.IsNotNull(_ringo, "Ringo.ssab is required.");
             using (var player = new SpriteStudioInternalPlayer())
             {
                 player.LoadSsab(_ringo);
-                Assert.IsTrue(player.SetupAnimation("walk"), "walk アニメが見つかるはず");
-                player.SetLoop(-1);          // 範囲端での停止/巻き戻しを避け、単調増加で検証する
+                Assert.IsTrue(player.SetupAnimation("walk"), "The walk animation should be found");
+                player.SetLoop(-1);          // avoid stopping/rewinding at the range ends; verify with monotonic increase
                 player.Play();
-                player.SetSkipFrames(false); // 1 Tick = 1 frame (フレーム数で決定論的に進める)
+                player.SetSkipFrames(false); // 1 Tick = 1 frame (advance deterministically by frame count)
 
                 int total = player.GetTotalFrames();
                 int step = Mathf.Max(2, total / 5);
-                Assume.That(total, Is.GreaterThan(step * 2), "walk が短すぎる (このテストには step*2 未満で 1 周しない長さが必要)");
+                Assume.That(total, Is.GreaterThan(step * 2), "walk is too short (this test needs a length that doesn't loop within step*2 frames)");
 
                 for (int i = 0; i < step; i++) player.Tick(1f / 60f, false);
                 float f0 = player.GetFrame();
-                Assert.Greater(f0, 0f, "再生でフレームが進むはず");
+                Assert.Greater(f0, 0f, "Playback should advance the frame");
 
-                // 一時停止中は進まない (ネイティブ pause() は is_pausing のトグル)
+                // No advance while paused (native pause() toggles is_pausing)
                 player.Pause();
                 for (int i = 0; i < step; i++) player.Tick(1f / 60f, false);
-                Assert.AreEqual(f0, player.GetFrame(), 0.5f, "一時停止中はフレームが進まないはず");
+                Assert.AreEqual(f0, player.GetFrame(), 0.5f, "The frame should not advance while paused");
 
-                // 再開: play() は先頭へ巻き戻すため使えない。pause() を再トグルすると現在フレームを
-                // 保持したまま再開する (コンポーネントの Pause() トグルが委譲する経路と同じ)。
+                // Resume: play() rewinds to the start so it can't be used. Re-toggling pause() resumes while
+                // keeping the current frame (the same path the component's Pause() toggle delegates to).
                 player.Pause(); // toggle: paused -> playing
                 for (int i = 0; i < step; i++) player.Tick(1f / 60f, false);
-                Assert.Greater(player.GetFrame(), f0, "再開 (pause トグル) は現フレームから継続するはず (先頭に戻らない)");
+                Assert.Greater(player.GetFrame(), f0, "Resume (pause toggle) should continue from the current frame (not return to the start)");
             }
         }
 
         [Test]
         public void Internal_Reverse_DecreasesFrame()
         {
-            Assert.IsNotNull(_ringo, "Ringo.ssab が必要です。");
+            Assert.IsNotNull(_ringo, "Ringo.ssab is required.");
             using (var player = new SpriteStudioInternalPlayer())
             {
                 player.LoadSsab(_ringo);
@@ -317,20 +319,20 @@ namespace SpriteStudio.Runtime.Tests
 
                 int total = player.GetTotalFrames();
                 int mid = Mathf.Max(3, total / 2);
-                Assume.That(total, Is.GreaterThan(mid), "walk が短すぎる (mid より長い長さが必要)");
+                Assume.That(total, Is.GreaterThan(mid), "walk is too short (needs a length longer than mid)");
                 player.SetFrame(mid);
 
                 player.SetPlaybackStyle(1, 0); // 1=Backward, 0=Normal
                 float before = player.GetFrame();
                 for (int i = 0; i < 2; i++) player.Tick(1f / 60f, false);
-                Assert.Less(player.GetFrame(), before, "逆再生中はフレームが減少するはず");
+                Assert.Less(player.GetFrame(), before, "The frame should decrease during reverse playback");
             }
         }
 
         [Test]
         public void Internal_SetAnimationSection_UpdatesBounds()
         {
-            Assert.IsNotNull(_ringo, "Ringo.ssab が必要です。");
+            Assert.IsNotNull(_ringo, "Ringo.ssab is required.");
             using (var player = new SpriteStudioInternalPlayer())
             {
                 player.LoadSsab(_ringo);
@@ -338,11 +340,11 @@ namespace SpriteStudio.Runtime.Tests
 
                 int total = player.GetTotalFrames();
                 int end = Mathf.Min(3, total - 1);
-                Assume.That(end, Is.GreaterThan(1), "walk が短すぎる (区間検証には 4 フレーム以上必要)");
+                Assume.That(end, Is.GreaterThan(1), "walk is too short (section verification needs at least 4 frames)");
 
                 player.SetAnimationSection(1, end);
-                Assert.AreEqual(1, player.GetAnimationSectionStart(), "区間開始が反映されるはず");
-                Assert.AreEqual(end, player.GetAnimationSectionEnd(), "区間終了が反映されるはず");
+                Assert.AreEqual(1, player.GetAnimationSectionStart(), "The section start should be reflected");
+                Assert.AreEqual(end, player.GetAnimationSectionEnd(), "The section end should be reflected");
             }
         }
     }

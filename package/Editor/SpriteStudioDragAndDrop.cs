@@ -6,8 +6,8 @@ using System.Collections.Generic;
 namespace SpriteStudio.Editor
 {
     /// <summary>
-    /// .ssab アセットを Scene ビューや Hierarchy ビューにドラッグ＆ドロップした際の処理
-    /// Spine Unity のように SpriteStudioPlayer または Canvas 用の SpriteStudioGraphic の生成を選択できるようにします。
+    /// Handles drag and drop of a .ssab asset into the Scene view or the Hierarchy view.
+    /// Like Spine-Unity, it lets you choose whether to create a SpriteStudioPlayer or a SpriteStudioGraphic for a Canvas.
     /// </summary>
     [InitializeOnLoad]
     public static class SpriteStudioDragAndDrop
@@ -37,11 +37,11 @@ namespace SpriteStudio.Editor
             {
 var hoverTarget = EditorUtility.EntityIdToObject(instanceID) as GameObject;
                 
-                // アイテムが存在する場合、マウスカーソルがそのアイテムの Rect 内にあるか判定する
+                // If an item exists, check whether the mouse cursor is inside that item's Rect
                 if (hoverTarget != null && !selectionRect.Contains(e.mousePosition))
                     return;
 
-                // Hierarchy ウィンドウ上でのドラッグ＆ドロップ処理
+                // Handle drag and drop within the Hierarchy window
                 if (HandleDragAndDrop(e, hoverTarget, null))
                 {
                     e.Use();
@@ -88,7 +88,7 @@ var hoverTarget = EditorUtility.EntityIdToObject(instanceID) as GameObject;
                     }
                     else
                     {
-                        // 3D モードの場合、Z=0 の平面と交差する位置を求める
+                        // In 3D mode, find where the ray intersects the Z=0 plane
                         Plane plane = new Plane(Vector3.forward, Vector3.zero);
                         if (plane.Raycast(ray, out float enter))
                         {
@@ -123,7 +123,7 @@ var hoverTarget = EditorUtility.EntityIdToObject(instanceID) as GameObject;
 
             foreach (var asset in assets)
             {
-                // ユニークな名前を生成する (例: "Asset", "Asset (1)", "Asset (2)")
+                // Generate a unique name (e.g. "Asset", "Asset (1)", "Asset (2)")
                 string uniqueName = GameObjectUtility.GetUniqueNameForSibling(parent != null ? parent.transform : null, asset.name);
                 GameObject go = new GameObject(uniqueName);
                 
@@ -134,7 +134,7 @@ var hoverTarget = EditorUtility.EntityIdToObject(instanceID) as GameObject;
 
                 if (isUI)
                 {
-                    // UI 用の場合、親が Canvas 配下でなければ Canvas を探して親にする
+                    // For UI, if the parent isn't under a Canvas, find a Canvas and parent to it
                     if (parent == null || parent.GetComponentInParent<Canvas>() == null)
                     {
 Canvas canvas = UnityEngine.Object.FindFirstObjectByType<Canvas>();
@@ -145,7 +145,7 @@ Canvas canvas = UnityEngine.Object.FindFirstObjectByType<Canvas>();
                         }
                         else
                         {
-                            // Canvas が存在しない場合は新規作成する
+                            // If no Canvas exists, create a new one
                             var canvasGo = new GameObject("Canvas");
                             canvas = canvasGo.AddComponent<Canvas>();
                             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -176,14 +176,14 @@ var eventSystem = UnityEngine.Object.FindFirstObjectByType<UnityEngine.EventSyst
                     var rectTransform = go.GetComponent<RectTransform>();
                     if (spawnPosition.HasValue && parent == null)
                     {
-                        // Scene ビューへのドロップかつ親がない場合は、中央などの適切な位置にする
-                        // Canvas のスケールなどが絡むため、とりあえず AnchoredPosition を 0 にしておく
+                        // For a drop into the Scene view with no parent, place it at a sensible spot such as the center.
+                        // Canvas scaling etc. is involved, so just set AnchoredPosition to 0 for now.
                         rectTransform.anchoredPosition = Vector2.zero;
                     }
                 }
                 else
                 {
-                    // 通常の SpriteStudioPlayer
+                    // Regular SpriteStudioPlayer
                     var player = go.AddComponent<SpriteStudioPlayer>();
                     player.AnimeAsset = asset;
                     

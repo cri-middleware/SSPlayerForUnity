@@ -6,9 +6,9 @@ using UnityEditor;
 namespace SpriteStudio.Editor
 {
     /// <summary>
-    /// Importer Window の "Recent SSPJs" を EditorPrefs に永続化する共有ヘルパ。
-    /// Window と一括変換 (<see cref="SpriteStudioImporter"/>) の双方から利用する。
-    /// 既存の保存フォーマット (キー / JSON 形状) と互換。
+    /// Shared helper that persists the Importer Window's "Recent SSPJs" list to EditorPrefs.
+    /// Used by both the Window and the batch conversion (<see cref="SpriteStudioImporter"/>).
+    /// Compatible with the existing storage format (key / JSON shape).
     /// </summary>
     internal static class SpriteStudioRecentFiles
     {
@@ -21,7 +21,7 @@ namespace SpriteStudio.Editor
             public List<string> list = new List<string>();
         }
 
-        /// <summary>新しいリスト(コピー)を返す。呼び出し側でそのまま列挙しても安全。</summary>
+        /// <summary>Returns a fresh list (a copy). Safe for the caller to enumerate directly.</summary>
         public static List<string> Get()
         {
             string json = EditorPrefs.GetString(PrefKey, "[]");

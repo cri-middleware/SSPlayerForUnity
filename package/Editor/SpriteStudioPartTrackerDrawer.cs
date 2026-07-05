@@ -13,7 +13,7 @@ namespace SpriteStudio.Editor
     public class SpriteStudioPartTrackerDrawer : PropertyDrawer
     {
         private static readonly GUIContent _partNameLabel = new GUIContent("Part Name",
-            "追従対象のパーツ名 (ssab の PartData.Name)。");
+            "Name of the part to follow (ssab PartData.Name).");
 
         // Cache the parsed part-name list per asset to avoid re-parsing the ssab every repaint.
         private static SpriteStudioAnimeAsset _cachedAsset;

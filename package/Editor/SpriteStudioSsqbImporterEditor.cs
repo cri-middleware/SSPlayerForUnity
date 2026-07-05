@@ -6,9 +6,9 @@ using SpriteStudio.Runtime;
 namespace SpriteStudio.Editor
 {
     /// <summary>
-    /// .ssqb インポーターのインスペクタ。
-    /// .ssqb はインポート設定を持たないため、解析済みシーケンスの概要を読み取り専用で表示し、
-    /// ランタイム再生が未実装である旨を明示する。
+    /// Inspector for the .ssqb importer.
+    /// .ssqb has no import settings, so it shows a read-only summary of the parsed sequences
+    /// and makes clear that runtime playback is not yet implemented.
     /// </summary>
     [CustomEditor(typeof(SpriteStudioSsqbImporter))]
     public class SpriteStudioSsqbImporterEditor : ScriptedImporterEditor
@@ -34,8 +34,8 @@ namespace SpriteStudio.Editor
             }
 
             EditorGUILayout.HelpBox(
-                ".ssqb はアニメ再生リスト (シーケンス) です。現状は Unity がデータとして認識・参照する" +
-                "ところまでをサポートします (ランタイム再生は未実装)。",
+                ".ssqb is an animation playlist (sequence). Currently support extends to Unity recognizing and " +
+                "referencing it as data (runtime playback is not yet implemented).",
                 MessageType.Info);
 
             ApplyRevertGUI();

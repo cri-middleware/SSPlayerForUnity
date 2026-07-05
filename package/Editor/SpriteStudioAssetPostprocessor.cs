@@ -8,7 +8,7 @@ namespace SpriteStudio.Editor
     {
         private static System.Collections.Generic.HashSet<string> delayedSsabChecks = new System.Collections.Generic.HashSet<string>();
         private static bool isDelayCallRegistered = false;
-        // 同一内容 (mtime 一致) の .sspj を毎インポートで再変換しないためのセッション内ダーティチェック。
+        // Session-scoped dirty check so an unchanged .sspj (matching mtime) is not reconverted on every import.
         private static readonly System.Collections.Generic.Dictionary<string, System.DateTime> convertedSspjMtime
             = new System.Collections.Generic.Dictionary<string, System.DateTime>();
 
@@ -50,7 +50,7 @@ namespace SpriteStudio.Editor
             {
                 if (str.EndsWith(".sspj"))
                 {
-                    // 非同期変換を開始する (完了時に SpriteStudioConversionRunner が Refresh する)
+                    // Start async conversion (SpriteStudioConversionRunner refreshes on completion)
                     ConvertSspj(str);
                 }
                 else if (str.EndsWith(".ssab"))
@@ -81,8 +81,8 @@ namespace SpriteStudio.Editor
                 isDelayCallRegistered = true;
             }
 
-            // .ssab の移動/削除に追従して source map を再キー/prune する (stale エントリ防止)。
-            // .sspj は Model B で外部任意パスのため Unity の move/delete イベントには現れない。
+            // Follow .ssab moves/deletes to re-key/prune the source map (prevents stale entries).
+            // Under Model B, .sspj files live at arbitrary external paths, so they never appear in Unity's move/delete events.
             bool sourceMapDirty = false;
             for (int i = 0; i < movedAssets.Length; i++)
             {
@@ -228,14 +228,14 @@ namespace SpriteStudio.Editor
         }
 
         /// <summary>
-        /// .ssab が参照するテクスチャに対応する共有マテリアル(.mat)を、隣接位置に1つだけ自動生成する。
-        /// 生成したものがあれば true を返す (= 呼び出し側が .ssab を再インポートして参照させる)。
-        /// テクスチャ解決は <see cref="SpriteStudioAnimeAssetBuilder.EnumerateTextures"/> と共有する。
+        /// Auto-generates a single shared material (.mat) next to each texture referenced by the .ssab.
+        /// Returns true if anything was created (so the caller can reimport the .ssab to pick it up).
+        /// Texture resolution is shared with <see cref="SpriteStudioAnimeAssetBuilder.EnumerateTextures"/>.
         /// </summary>
         private static bool EnsureExternalMaterials(string ssabPath)
         {
-            // 遅延処理 (delayCall) が走る頃には .ssab が削除/移動されていることがある
-            // (アセット削除、リネーム、テストの後始末など)。存在しなければ何もしない。
+            // By the time the delayed callback (delayCall) runs, the .ssab may have been deleted/moved
+            // (asset deletion, rename, test teardown, etc.). If it no longer exists, do nothing.
             if (string.IsNullOrEmpty(ssabPath) || !File.Exists(ssabPath)) return false;
 
             var importer = AssetImporter.GetAtPath(ssabPath) as SpriteStudioSsabImporter;
@@ -271,19 +271,19 @@ namespace SpriteStudio.Editor
         {
             string sspjAbsolutePath = Path.GetFullPath(sspjPath);
 
-            // ダーティチェック: 同一内容 (mtime 一致) の .sspj をインポートのたびに再変換しない。
-            // 無変更リインポートや変換完了後 Refresh での無駄な再変換 (連鎖) を防ぐ。mtime が
-            // 変わっていれば変換する。取得失敗時は安全側で従来どおり変換する。
+            // Dirty check: don't reconvert an unchanged .sspj (matching mtime) on every import.
+            // Prevents wasteful reconversion (chaining) on no-op reimports or on the Refresh after a
+            // conversion completes. If the mtime changed, convert. If it can't be read, convert as before to be safe.
             try
             {
                 var mtime = File.GetLastWriteTimeUtc(sspjAbsolutePath);
                 if (convertedSspjMtime.TryGetValue(sspjAbsolutePath, out var prev) && prev == mtime)
                 {
-                    return false; // このセッションで既に最新を変換済み
+                    return false; // Already converted the latest version this session
                 }
                 convertedSspjMtime[sspjAbsolutePath] = mtime;
             }
-            catch { /* mtime 取得不可なら従来どおり変換 */ }
+            catch { /* If the mtime can't be read, convert as before */ }
 
             SpriteStudioImporterWindow.RunConvertDirect(sspjAbsolutePath);
             return true;

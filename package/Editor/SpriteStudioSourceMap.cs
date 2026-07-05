@@ -60,9 +60,9 @@ namespace SpriteStudio.Editor
 
             try
             {
-                // 一時ファイルへ書いてからアトミックに置換する。直接上書き中にエディタが落ちると
-                // JSON が壊れ、次回ロードで全リンクが失われる (GetMap が catch して空にリセットする)
-                // ため、temp → File.Replace で原子性を確保する。同一ディレクトリなので同一ボリューム。
+                // Write to a temp file, then swap atomically. If the editor crashes mid-overwrite the
+                // JSON is corrupted and all links are lost on the next load (GetMap catches and resets to empty),
+                // so temp -> File.Replace guarantees atomicity. Same directory, so same volume.
                 string tmp = MAP_FILE_PATH + ".tmp";
                 File.WriteAllText(tmp, json);
                 if (File.Exists(MAP_FILE_PATH))
@@ -81,8 +81,8 @@ namespace SpriteStudio.Editor
         }
 
         /// <summary>
-        /// .ssab → .sspj のリンクを登録する。<paramref name="save"/>=false のときは辞書だけ更新し、
-        /// 保存しない (大量登録時に呼び出し側でまとめて <see cref="SaveMap"/> を 1 回呼ぶため)。
+        /// Registers the .ssab → .sspj link. When <paramref name="save"/>=false, only the dictionary is updated
+        /// and nothing is saved (so callers can batch many registrations and call <see cref="SaveMap"/> once).
         /// </summary>
         public static void Register(string ssabAbsolutePath, string sspjAbsolutePath, bool save = true)
         {
@@ -94,8 +94,8 @@ namespace SpriteStudio.Editor
             if (save) SaveMap();
         }
 
-        /// <summary>.ssab が削除されたとき、対応するリンクを除去する (stale エントリ防止)。
-        /// 除去できたら true。<paramref name="save"/>=false なら呼び出し側でまとめて保存する。</summary>
+        /// <summary>Removes the corresponding link when a .ssab is deleted (prevents stale entries).
+        /// Returns true if a link was removed. When <paramref name="save"/>=false, the caller saves in a batch.</summary>
         public static bool RemoveSsab(string ssabPath, bool save = true)
         {
             var map = GetMap();
@@ -105,8 +105,8 @@ namespace SpriteStudio.Editor
             return removed;
         }
 
-        /// <summary>.ssab が移動/リネームされたとき、キーを付け替える (リンク先 .sspj は維持)。
-        /// 付け替えたら true。<paramref name="save"/>=false なら呼び出し側でまとめて保存する。</summary>
+        /// <summary>Re-keys the entry when a .ssab is moved/renamed (the linked .sspj is preserved).
+        /// Returns true if the key was moved. When <paramref name="save"/>=false, the caller saves in a batch.</summary>
         public static bool RenameSsab(string fromSsabPath, string toSsabPath, bool save = true)
         {
             var map = GetMap();
@@ -135,8 +135,8 @@ namespace SpriteStudio.Editor
             string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
             absolutePath = Path.GetFullPath(absolutePath);
 
-            // Path.GetRelativePath は別ドライブ等で相対化できない場合は絶対パスをそのまま返す
-            // (旧 Uri.MakeRelativeUri 実装のフォールバックと同等)。区切り文字は '/' に正規化する。
+            // Path.GetRelativePath returns the absolute path unchanged when it can't be made relative (e.g. a different drive)
+            // (equivalent to the old Uri.MakeRelativeUri fallback). Normalize separators to '/'.
             return Path.GetRelativePath(projectRoot, absolutePath).Replace('\\', '/');
         }
 

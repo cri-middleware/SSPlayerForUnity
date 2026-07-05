@@ -36,9 +36,10 @@ namespace SpriteStudio.Runtime
         public string CommandId;
 
         /// <summary>
-        /// Signal コマンドのパラメータ (param_id -> 値)。値の実体は bool / int / float / string のいずれかで、
-        /// FlatBuffers の SignalCommandParamValue union に対応する。パラメータが無い場合は null。
-        /// Godot 実装 (onSignal が渡す Dictionary) と等価。UnityEvent ではシリアライズされず実行時のみ有効。
+        /// Signal command parameters (param_id -> value). Each value is one of bool / int / float / string,
+        /// corresponding to the FlatBuffers SignalCommandParamValue union. Null when there are no parameters.
+        /// Equivalent to the Godot implementation (the Dictionary onSignal passes). Not serialized by
+        /// UnityEvent; valid only at runtime.
         /// </summary>
         [NonSerialized] public Dictionary<string, object> Params;
     }
