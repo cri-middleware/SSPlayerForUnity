@@ -100,6 +100,95 @@ Shader "SpriteStudio/Default"
             }
             ENDHLSL
         }
+
+        // --- Editor Scene-view selection / picking (Unity 6 renders these dedicated passes into the
+        // selection-outline and object-id buffers; they are honored under both URP and Built-in). Without
+        // them a custom-shader MeshRenderer draws but cannot be clicked in the Scene view. These reuse the
+        // forward pass's vertex stage + discard so the pick hit-area follows the drawn silhouette:
+        // transparent texels and faded parts are clipped, so clicks pass through them. ---
+        Pass
+        {
+            Name "SceneSelectionPass"
+            Tags { "LightMode" = "SceneSelectionPass" }
+            Cull Off
+            ZWrite On
+            HLSLPROGRAM
+            #pragma vertex ss_world_vert
+            #pragma fragment frag
+            #include "UnityCG.cginc"
+
+            sampler2D _MainTex;
+            cbuffer UnityPerMaterial
+            {
+                float4 _MainTex_ST;
+                float4 _MainTex_TexelSize;
+                float _InputPMA;
+                float _OutputPMA;
+                float _NotDiscard;
+                float _SrcBlend;
+                float _DstBlend;
+                float _BlendOp;
+                float _StencilRef;
+                float _StencilComp;
+                float _StencilPass;
+                float _StencilReadMask;
+                float _StencilWriteMask;
+            };
+            #include "Includes/SpriteStudioVertex.hlsl"
+
+            // Editor-set globals (not per-material) identifying the object / sub-pixel value.
+            int _ObjectId;
+            int _PassValue;
+
+            half4 frag(ss_world_v2f IN) : SV_Target
+            {
+                float alpha = ss_world_sample(IN).a * IN.color.a;
+                if (ss_should_discard(alpha, 0.0, _NotDiscard)) discard;
+                return half4(_ObjectId, _PassValue, 1.0, 1.0);
+            }
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "Picking"
+            Tags { "LightMode" = "Picking" }
+            Cull Off
+            ZWrite On
+            HLSLPROGRAM
+            #pragma vertex ss_world_vert
+            #pragma fragment frag
+            #include "UnityCG.cginc"
+
+            sampler2D _MainTex;
+            cbuffer UnityPerMaterial
+            {
+                float4 _MainTex_ST;
+                float4 _MainTex_TexelSize;
+                float _InputPMA;
+                float _OutputPMA;
+                float _NotDiscard;
+                float _SrcBlend;
+                float _DstBlend;
+                float _BlendOp;
+                float _StencilRef;
+                float _StencilComp;
+                float _StencilPass;
+                float _StencilReadMask;
+                float _StencilWriteMask;
+            };
+            #include "Includes/SpriteStudioVertex.hlsl"
+
+            float4 _SelectionID; // editor-set global
+
+            half4 frag(ss_world_v2f IN) : SV_Target
+            {
+                float alpha = ss_world_sample(IN).a * IN.color.a;
+                if (ss_should_discard(alpha, 0.0, _NotDiscard)) discard;
+                return _SelectionID;
+            }
+            ENDHLSL
+        }
     }
 
     // === Built-in Render Pipeline SubShader ===
@@ -161,6 +250,67 @@ Shader "SpriteStudio/Default"
                 float alpha = tex.a * IN.color.a;
                 // [finalize] discard test, PMA finalize, and the world additive alpha multiplier.
                 return ss_world_finalize(rgb, alpha, IN.partcolorVarg.w);
+            }
+            ENDHLSL
+        }
+
+        // --- Editor Scene-view selection / picking (see the URP SubShader above for the rationale;
+        // reuses the forward vertex stage + discard so the hit-area follows the drawn silhouette). ---
+        Pass
+        {
+            Name "SceneSelectionPass"
+            Tags { "LightMode" = "SceneSelectionPass" }
+            Cull Off
+            ZWrite On
+            HLSLPROGRAM
+            #pragma vertex ss_world_vert
+            #pragma fragment frag
+            #include "UnityCG.cginc"
+
+            sampler2D _MainTex;
+            float4 _MainTex_TexelSize;
+            float _InputPMA;
+            float _OutputPMA;
+            float _NotDiscard;
+            #include "Includes/SpriteStudioVertex.hlsl"
+
+            int _ObjectId;
+            int _PassValue;
+
+            half4 frag(ss_world_v2f IN) : SV_Target
+            {
+                float alpha = ss_world_sample(IN).a * IN.color.a;
+                if (ss_should_discard(alpha, 0.0, _NotDiscard)) discard;
+                return half4(_ObjectId, _PassValue, 1.0, 1.0);
+            }
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "Picking"
+            Tags { "LightMode" = "Picking" }
+            Cull Off
+            ZWrite On
+            HLSLPROGRAM
+            #pragma vertex ss_world_vert
+            #pragma fragment frag
+            #include "UnityCG.cginc"
+
+            sampler2D _MainTex;
+            float4 _MainTex_TexelSize;
+            float _InputPMA;
+            float _OutputPMA;
+            float _NotDiscard;
+            #include "Includes/SpriteStudioVertex.hlsl"
+
+            float4 _SelectionID;
+
+            half4 frag(ss_world_v2f IN) : SV_Target
+            {
+                float alpha = ss_world_sample(IN).a * IN.color.a;
+                if (ss_should_discard(alpha, 0.0, _NotDiscard)) discard;
+                return _SelectionID;
             }
             ENDHLSL
         }
