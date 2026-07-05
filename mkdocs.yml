@@ -8,7 +8,7 @@ edit_uri: "edit/main/docs/"
 
 theme:
   name: material
-  language: ja
+  language: en
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
@@ -32,31 +32,53 @@ theme:
 
 plugins:
   - search
+  - callouts
   - i18n:
       docs_structure: folder
       languages:
-        - locale: ja
-          name: 日本語
+        - locale: en
+          name: English
           default: true
           build: true
+        - locale: ja
+          name: 日本語
+          build: true
+          nav_translations:
+            Home: ホーム
+            For Users: 利用者向けガイド
+            Installation: インストール
+            Basic Usage: 基本的な使い方
+            Asset Import & Editor Integration: アセットのインポートとエディタ連携
+            Scripting & Events: スクリプト制御とイベント
+            Performance Tuning & Advanced Settings: パフォーマンスチューニングと高度な設定
+            Customization & Automation: カスタマイズ・自動化ガイド
+            CLI Conversion & CI/CD: 各種コンバート機能と CI/CD
+            For Player & SDK Developers: Player・SDK 開発者向けガイド
+            Build Guide: ビルドガイド
+            License: ライセンス
+            Third-Party Notices: サードパーティライセンス
 
 nav:
   - Home: index.md
-  - Setup:
+  - For Users:
       - Installation: setup/install.md
-      - Build Guide: setup/build.md
-  - Workflow:
       - Basic Usage: workflow/usage_basic.md
       - Asset Import & Editor Integration: workflow/usage_asset_pipeline.md
       - Scripting & Events: workflow/usage_scripting.md
-  - Advanced Topics:
-      - CLI Conversion & CI/CD: workflow/import.md
       - Performance Tuning & Advanced Settings: workflow/tips.md
+  - Customization & Automation:
+      - CLI Conversion & CI/CD: workflow/import.md
+  - For Player & SDK Developers:
+      - Build Guide: setup/build.md
   - License:
       - License: license.md
       - Third-Party Notices: third_party_notices.md
 
 markdown_extensions:
+  - toc:
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
   - admonition
   - pymdownx.details
   - pymdownx.superfences:
@@ -69,10 +91,16 @@ markdown_extensions:
       line_spans: __span
       pygments_lang_class: true
   - pymdownx.inlinehilite
-  - pymdownx.snippets
+  - pymdownx.snippets:
+      base_path:
+        - .
+      check_paths: true
 
 extra:
   alternate:
-    - name: 日本語
+    - name: English
       link: ./
+      lang: en
+    - name: 日本語
+      link: ./ja/
       lang: ja
