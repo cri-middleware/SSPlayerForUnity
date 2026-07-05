@@ -18,12 +18,12 @@ Write-Host "Extracting C# runtime..."
 Expand-Archive -Path $zipPath -DestinationPath $TEMP_DIR -Force
 
 New-Item -ItemType Directory -Path $OUTPUT_DIR -Force | Out-Null
-# 古いファイルがあれば削除してクリーンアップ
+# Clean up: remove any stale files
 if (Test-Path "$OUTPUT_DIR\*") {
     Remove-Item -Path "$OUTPUT_DIR\*" -Recurse -Force
 }
 
-# C# 用のソースコードのみをパッケージ内にコピー
+# Copy only the C# source into the package
 Copy-Item -Path "$TEMP_DIR\flatbuffers-$VERSION\net\FlatBuffers\*.cs" -Destination $OUTPUT_DIR -Force
 
 Write-Host "Cleaning up..."

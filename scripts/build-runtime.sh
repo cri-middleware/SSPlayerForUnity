@@ -82,7 +82,7 @@ if [[ "$IS_HOST_BUILD" == "true" ]]; then
     fi
     SRC_DIR="target/$BUILD_MODE"
 else
-    # クロスコンパイルまたは特殊なビルド
+    # Cross-compilation or a special build
     case "$PLATFORM" in
         macos)
             ./scripts/release-macos.sh $BUILD_MODE
