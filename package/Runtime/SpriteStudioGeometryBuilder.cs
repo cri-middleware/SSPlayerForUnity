@@ -359,8 +359,9 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 // Masking emits per-part submeshes (no batch merge) plus extra write/restore steps, so
                 // grow the batch/submesh budget. Each part contributes up to ~2 steps (test+write or
-                // colour-suppressed restore); the pre-write phase adds at most one per writer.
-                if (_player._hasMaskParts) maxBatches += partsLength * 2 + _maskPlanner.WriterCount;
+                // colour-suppressed restore); Phase A pre-writes and Phase C clipping-closes each add at
+                // most one per writer. (EmitMaskStep self-grows, so an under-estimate is never fatal.)
+                if (_player._hasMaskParts) maxBatches += partsLength * 2 + _maskPlanner.WriterCount * 2;
 
                 // Allocate the persistent buffers grow-only (do not new every frame)
                 _batchBuilder.BeginFrame(maxBatches);
@@ -448,6 +449,32 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         ProcessMaskBatch(b, partsLength, ref frame, frameData, ref totalVertices, ref totalIndices);
                     }
                 }
+
+                // Mask Phase C: close every clipping mask's scope. A clipping mask writes its stencil at
+                // its own rank (Phase B) to affect all parts drawn after it, but - unlike a pure mask,
+                // which is pre-written in Phase A and removed at its own rank - it has no removal step, so
+                // its isolated stencil bits would stay set past the object's draw and leak into other SS
+                // objects sharing the stencil buffer this frame. Emit the inverse write at the very end of
+                // the draw (after every clipped part, ColorMask 0 so nothing is drawn) to return the bits
+                // to zero. This mirrors the pure-mask Phase A/B pair, making every writer balanced.
+                if (_player.MaskActive)
+                {
+                    for (int wi = 0; wi < _maskPlanner.WriterCount; wi++)
+                    {
+                        var w = _maskPlanner.GetWriter(wi);
+                        if (!w.IsClipping) continue;
+                        int wp = w.PartIndex;
+                        if (wp < 0 || wp >= partsLength) continue;
+                        var md = _player._maskPartData[wp];
+                        if (!_maskPlanner.MaskPartVcIc(wp, md.DrawKind, frame, _partStates, out int wvc, out int wic)) continue;
+                        // Inverse of the Phase B clipping write (wop = MaskInfluence ? Invert : Incr).
+                        byte rop = w.OpInvert ? StencilOpInvert : StencilOpDecr;
+                        float threshold = md.DrawKind == SsDrawBatchKind.Shape ? -1f : w.Threshold;
+                        _batchBuilder.EmitMaskStep(md.DrawKind, w.DrawRank, wvc, wic, _maskPlanner.GetPartTexHash(wp), _maskPlanner.GetPartBlend(wp),
+                            StencilRole.Write, rop, 0, threshold, ref totalVertices, ref totalIndices);
+                    }
+                }
+
                 FillPartColors(frameDataPtr, tFrame, partsColorLength);
 
                 if (totalVertices == 0 || totalIndices == 0)
