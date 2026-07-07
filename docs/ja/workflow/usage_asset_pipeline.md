@@ -23,6 +23,13 @@ Unity 上で再生・制御可能な専用の最適化バイナリ（**`.ssab`**
 生成されたアセットを Hierarchy ウィンドウや Scene ビューへドラッグ＆ドロップして、`SpriteStudioPlayer` / `SpriteStudioGraphic` を配置しましょう（詳細は [基本的な使い方](./usage_basic.md) を参照）。
 
 > [!TIP]
+> 
+> <video autoplay loop muted playsinline width="100%">
+>   <source src="../../../assets/1-sspj_import.webm" type="video/webm">
+> </video>
+> <img src="../../assets/1-sspj_import.webp" width="100%" style="display: none;">
+
+> [!TIP]
 > フォルダごとドロップすると、その中の `.sspj` を再帰的に `.ssab` へ一括変換します。詳しくは [各種コンバート機能と CI/CD](./import.md) を参照してください。
 
 ---
@@ -36,6 +43,9 @@ Unity で作業中に「もう少しアニメーションを微調整したい�
 3. その下にある **「Open SSPJ」ボタン** をクリックします。
 
 この操作により、SpriteStudio が起動して元となる `.sspj` ファイルが開き、すぐに編集作業に入ることができます。
+
+> [!NOTE]
+> ![インスペクタから SSPJ を開く](../../assets/5-open_sspj_from_inspector.png)
 
 > [!NOTE]
 > 同等の操作は **Window > SpriteStudio > Importer** の **Recent SSPJs** リストからも行えます（行を右クリック →「Open SSPJ」）。
@@ -56,6 +66,13 @@ SpriteStudio 側でアニメーションを修正して保存したら、Unity �
 
 > [!TIP]
 > SpriteStudio Importer ウィンドウの **Recent SSPJs** からも再変換できます（行をクリック、または右クリック →「Reconvert」）。同一内容（更新日時が同一）の `.sspj` は無駄な再変換をスキップします。
+
+> [!TIP]
+> 
+> <video autoplay loop muted playsinline width="100%">
+>   <source src="../../../assets/2-fast_iteration_inspector.webm" type="video/webm">
+> </video>
+> <img src="../../assets/2-fast_iteration_inspector.webp" width="100%" style="display: none;">
 
 ---
 
