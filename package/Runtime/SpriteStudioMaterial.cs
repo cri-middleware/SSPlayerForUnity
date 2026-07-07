@@ -50,9 +50,11 @@ namespace SpriteStudio.Runtime
     ///
     /// Factors are the SDK OpenGL canonical table, keyed by the ssab enum value. The target we
     /// match is the SS authoring tool / SDK output, which uses STRAIGHT (non-premultiplied) alpha,
-    /// so InputPMA / OutputPMA are 0 here. (Premultiplying Mul / Mulalpha / Invert would darken
-    /// those modes at fractional alpha vs the authoring output.) Mix stays premultiplied because it
-    /// is mathematically identical either way.
+    /// so InputPMA is 0 for every blend. (Un-premultiplying a straight-alpha texture would brighten
+    /// the input at fractional alpha.) Mix must also stay InputPMA = 0: the plain-Mix path uses the
+    /// base material (shader default InputPMA = 0), so setting it to 1 here only for the variant
+    /// paths (masked / AddOn Mix, via CreateVariant) would make those parts disagree with plain Mix
+    /// at antialiased edges under Linear colorspace. Keeping 0 here keeps every Mix path consistent.
     ///
     /// Key off the ssab BlendType values, not names: Mul / Mulalpha can be swapped relative to their
     /// names (ssab Mul = alpha-ignored multiply).
@@ -74,7 +76,7 @@ namespace SpriteStudio.Runtime
             switch (blendType)
             {
                 case 0: // Mix
-                    return new State { Src = BlendMode.One, Dst = BlendMode.OneMinusSrcAlpha, Op = BlendOp.Add, InputPMA = 1, OutputPMA = 1, NotDiscard = 0 };
+                    return new State { Src = BlendMode.One, Dst = BlendMode.OneMinusSrcAlpha, Op = BlendOp.Add, InputPMA = 0, OutputPMA = 1, NotDiscard = 0 };
                 case 1: // Mul (alpha NOT considered = pure multiply)
                     return new State { Src = BlendMode.Zero, Dst = BlendMode.SrcColor, Op = BlendOp.Add, InputPMA = 0, OutputPMA = 0, NotDiscard = 0 };
                 case 2: // Add
