@@ -162,18 +162,21 @@ bool ss_should_discard(float alpha, float threshold, float notDiscard)
 }
 
 // [output mediation point] Finalize the color into premultiplied alpha, then the output half of the
-//  colorspace seam. Pass-through PMA when outputPMA <= 0.5. alpha == 0 collapses to black (PMA
-//  convention), then ss_gamma_to_linear so the composed sRGB
-//  result is decoded for the hardware linear->sRGB framebuffer encode (no-op in Gamma projects). RGB
-//  only - alpha stays linear.
+//  colorspace seam. First decode the composed sRGB colour to linear (ss_gamma_to_linear, so the
+//  hardware linear->sRGB framebuffer encode lands right; no-op in Gamma projects), THEN premultiply by
+//  alpha. Order matters: premultiply is a coverage weight and MUST happen in linear space. Doing it in
+//  sRGB space first (rgb*a, then decode) computes pow(rgb*a) = pow(rgb)*pow(a), i.e. FG_lin * a^gamma,
+//  which under-weights the source at fractional alpha and shows up as a dark fringe at antialiased part
+//  edges under Linear colorspace. Pass-through PMA when outputPMA <= 0.5. alpha == 0 collapses to black
+//  (PMA convention). RGB only - alpha stays linear.
 //  Note: masking (stencil) is handled on a separate path (Stencil block), not here.
 float4 ss_output_color(float4 color, float outputPMA)
 {
+    color.rgb = ss_gamma_to_linear(color.rgb);
     if (outputPMA > 0.5)
     {
         color.rgb = (color.a <= 0.0) ? float3(0.0, 0.0, 0.0) : color.rgb * color.a;
     }
-    color.rgb = ss_gamma_to_linear(color.rgb);
     return color;
 }
 
