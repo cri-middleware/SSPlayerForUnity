@@ -12,8 +12,8 @@ A high-performance plugin for playing back animations (`.ssab`) created with **[
   SpriteStudio 7 is a dedicated editor for skeletal- and mesh-based 2D animation — bone rigging, mesh deformation, and particle effects made for animators. It unlocks expression that's tedious or impractical to build with Unity's native animation tools, and since the motion is authored outside Unity and exported as a `.ssab`, artists can iterate in their own tool without touching the engine.
 - **Characters, effects, and whole scenes — all in one editor**
   Particle effects are a first-class part type, authored on the same timeline as your characters — there's no separate effect system to bolt on. And you're not limited to a single rigged character: combine characters, backgrounds, effects, and UI into an entire cutscene or full-screen sequence, and play it back in Unity as one animation.
-- **Your existing PNG art, running as a native Unity component**
-  Textures load through Unity's standard pipeline, so the raster (PNG) art you already have works as-is — no re-authoring into vectors. `SpriteStudioPlayer` (world space) and `SpriteStudioGraphic` (uGUI Canvas) drop into your scene like any other component, driven from C# or sequenced on Timeline.
+- **Renders in both world space and on a uGUI Canvas**
+  `SpriteStudioPlayer` draws in world space (MeshRenderer) and `SpriteStudioGraphic` draws on a uGUI Canvas (CanvasRenderer) — the same animation drops into either context like any other component, driven from C# or sequenced on Timeline. On a Canvas it automatically follows uGUI **Mask** / **RectMask2D**.
 - **A seamless SpriteStudio ⇄ Unity asset pipeline**
   Drop a `.sspj` into Unity and it's automatically converted to an optimized `.ssab` and a ready-to-use `SpriteStudioAnimeAsset`; re-edit in SpriteStudio and your Unity assets update instantly. Because the animation lives in assets separate from the scene, you avoid the Git conflicts that come with scene-embedded animation.
 - **A low-memory, high-performance native runtime**
