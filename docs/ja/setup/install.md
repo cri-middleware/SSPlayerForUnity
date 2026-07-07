@@ -42,8 +42,8 @@ Unity 側の C# スクリプトを改造したり、パッケージの中身を�
    git clone https://github.com/cri-middleware/SSPlayerForUnity.git
    ```
 2. ネイティブライブラリ（`libssruntime`）をダウンロード・配置するために、`scripts/` フォルダ内にあるセットアップスクリプトを実行します。
-   - **Windows**: `scripts\setup-download.bat` （または `scripts\setup-download.ps1`）
-   - **Mac/Linux**: `./scripts/setup-download.sh`
+   - **Windows**: `scripts\download-sdk.ps1`
+   - **Mac/Linux**: `./scripts/download-sdk.sh`
 3. 準備が整った `package/` フォルダを、ご自身の Unity プロジェクトの `Packages/` 配下にコピーするか、Package Manager の **Add package from disk...** から `package.json` を指定して追加します。
 
 ---

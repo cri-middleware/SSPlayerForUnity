@@ -39,16 +39,17 @@ For detailed instructions, please refer to the documents in the `docs/` folder. 
 
 We provide multiple paths depending on your needs. This player supports Unity 6.3 LTS and later, and works in both URP and BRP.
 
-### 1. Try out the Sample Project
-1. **Get the Repo**: Clone or download this repository.
-2. **Prepare**: Run `./scripts/setup-download.sh` (Mac/Linux) or `scripts\setup-download.bat` (Windows) to download the native libraries.
-3. **Open**: Open `examples/UnityTestProject` in Unity Hub.
-4. **Check**: Open the `sprs.unity` scene and press Play to instantly see the animations in action.
-
-### 2. Import into your Project
+### 1. Import into your Project
 1. **Install**: Open Unity's Package Manager, choose "Add package from URL..." and enter the package URL from GitHub Releases (or download the tarball directly).
 2. **Import**: Open **Window > SpriteStudio > Importer** from the Unity menu, then drag and drop your `.sspj` file to convert it automatically.
-3. **Play**: Attach `SpriteStudioPlayer` to a GameObject, assign the generated `SpriteStudioAnimeAsset`, and play!
+3. **Place**: Drag the generated `SpriteStudioAnimeAsset` from the Project window into the Hierarchy (or Scene view), pick `SpriteStudioPlayer` (world space) or `SpriteStudioGraphic` (uGUI Canvas), then set the **Animation Name** and press Play.
+
+### 2. Try out the Sample Project
+`examples/UnityTestProject` is a minimal project with the SpriteStudio package already linked — it bundles no scene or assets of its own.
+1. **Get the Repo**: Clone or download this repository.
+2. **Prepare**: Run `./scripts/download-sdk.sh` (Mac/Linux) or `scripts\download-sdk.ps1` (Windows) to fetch and place the native library (`libssruntime`).
+3. **Open**: Open `examples/UnityTestProject` in Unity Hub.
+4. **Try it**: Import your own `.sspj` via **Window > SpriteStudio > Importer**, then place a player just like in step 1.
 
 For advanced setups like compiling from source or modifying the package, please refer to the [Installation Guide](./docs/en/setup/install.md).
 
@@ -60,9 +61,9 @@ For details such as data flow diagrams, key features, and system requirements, p
 
 ## 🎬 Samples
 
-A sample project is available under the [examples folder](./examples/). Run `setup-download` first (see Quick Start) to fetch the assets, then open it in Unity Hub.
+A sample project is available under the [examples folder](./examples/).
 
-- [UnityTestProject](./examples/UnityTestProject) — Open the `sprs.unity` scene to see characters, all part types, and particle effects playing back.
+- [UnityTestProject](./examples/UnityTestProject) — A minimal Unity project with the SpriteStudio package already linked (no bundled scene or assets). Run `download-sdk` first (see Quick Start), open it in Unity Hub, then import your own `.sspj` to try the plugin in a clean project.
 
 ## 🔗 Related Repositories
 

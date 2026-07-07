@@ -39,16 +39,17 @@
 
 ご自身の目的に合わせて導入方法を選択してください。本プレイヤーは Unity 6.3 LTS 以降に対応しており、URP と BRP のいずれでも動作します。
 
-### 1. サンプルで動作確認する
-1. **取得**: 本リポジトリをクローンまたはダウンロードします。
-2. **準備**: `./scripts/setup-download.sh` (Mac/Linux) または `scripts\setup-download.bat` (Windows) を実行してネイティブライブラリをダウンロードします。
-3. **開く**: Unity Hub から `examples/UnityTestProject` を開きます。
-4. **確認**: `sprs.unity` シーンを開いて再生することで、すぐにアニメーションの動作を確認できます。
-
-### 2. プロジェクトへ導入する
+### 1. プロジェクトへ導入する
 1. **インストール**: Unity の Package Manager を開き、「Add package from URL...」から GitHub Releases のパッケージ URL を入力してインストールします（または直接ダウンロードして追加）。
 2. **インポート**: Unity メニューから **Window > SpriteStudio > Importer** を開き、`.sspj` をドラッグ＆ドロップして自動変換します。
-3. **再生**: GameObject に `SpriteStudioPlayer` をアタッチし、生成された `SpriteStudioAnimeAsset` をセットして再生します。
+3. **配置**: 生成された `SpriteStudioAnimeAsset` を Project ウィンドウから Hierarchy（または Scene ビュー）へドラッグ＆ドロップし、`SpriteStudioPlayer`（ワールド空間）または `SpriteStudioGraphic`（uGUI Canvas）を選んで、**Animation Name** を設定して再生します。
+
+### 2. サンプルで動作確認する
+`examples/UnityTestProject` は SpriteStudio パッケージがあらかじめリンクされた最小構成のプロジェクトです（シーンやアセットは同梱していません）。
+1. **取得**: 本リポジトリをクローンまたはダウンロードします。
+2. **準備**: `./scripts/download-sdk.sh` (Mac/Linux) または `scripts\download-sdk.ps1` (Windows) を実行してネイティブライブラリ（`libssruntime`）を取得・配置します。
+3. **開く**: Unity Hub から `examples/UnityTestProject` を開きます。
+4. **試す**: **Window > SpriteStudio > Importer** から自分の `.sspj` を取り込み、手順 1 と同様にプレイヤーを配置します。
 
 カスタマイズを目的とした導入手順（手動ビルド等）の詳細は [インストールガイド](./docs/ja/setup/install.md) を参照してください。
 
@@ -60,9 +61,9 @@
 
 ## 🎬 サンプル
 
-[examples フォルダ](./examples/) にサンプルプロジェクトがあります。先に `setup-download`（クイックスタート参照）を実行してアセットを取得し、Unity Hub から開いてください。
+[examples フォルダ](./examples/) にサンプルプロジェクトがあります。
 
-- [UnityTestProject](./examples/UnityTestProject) — `sprs.unity` シーンを開くと、キャラクター・全パーツ種・パーティクルエフェクトの再生を確認できます。
+- [UnityTestProject](./examples/UnityTestProject) — SpriteStudio パッケージがあらかじめリンクされた最小構成の Unity プロジェクトです（シーン・アセットは同梱なし）。先に `download-sdk`（クイックスタート参照）を実行し、Unity Hub から開いて、自分の `.sspj` を取り込むとクリーンなプロジェクトでプラグインを試せます。
 
 ## 🔗 関連リポジトリ
 
