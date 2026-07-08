@@ -20,16 +20,13 @@
 
 最も簡単で確実な方法です。GitHub Releases で配布されているコンパイル済みの Unity パッケージを利用します。
 
-### 方法 A: Package Manager から URL で追加する
-1. Unity メニューから **Window > Package Manager** を開きます。
-2. 左上の **＋** ボタンから **Add package from URL...** （または git URL）を選択します。
-3. リリースページに記載されている `.tgz` またはパッケージ用 URL を入力して **Add** を押します。
+1. パッケージの tarball をダウンロードします。下記の恒久リンクは常に最新リリースを指します。
+   - [`jp.co.cri-mw.optpix.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.optpix.ssplayer-unity.tgz)
+   - 特定バージョンを選びたい場合は、[GitHub Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) ページから `.tgz` アセットをダウンロードしてください。
+2. Unity メニューから **Window > Package Manager** を開きます。
+3. 左上の **＋** ボタンから **Add package from tarball...** を選び、ダウンロードしたファイルを選択します。
 
-   *(※ 実際の URL は [GitHub Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) の最新版を参照してください)*
-
-### 方法 B: ダウンロードしてローカルから追加する
-1. [GitHub Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) から最新の成果物（`.tgz` など）を直接ダウンロードします。
-2. Package Manager の **＋** ボタンから **Add package from tarball...** を選び、ダウンロードしたファイルを選択します。
+> **注意:** Package Manager の *Add package from URL...*（git URL）ではこのパッケージを導入できません。ネイティブプラグインのバイナリはリリースの tarball のみに同梱されるため、必ずダウンロードした `.tgz` を *Add package from tarball...* で追加してください。
 
 ---
 
@@ -41,9 +38,9 @@ Unity 側の C# スクリプトを改造したり、パッケージの中身を�
    ```sh
    git clone https://github.com/cri-middleware/SSPlayerForUnity.git
    ```
-2. ネイティブライブラリ（`libssruntime`）をダウンロード・配置するために、`scripts/` フォルダ内にあるセットアップスクリプトを実行します。
-   - **Windows**: `scripts\setup-download.bat` （または `scripts\setup-download.ps1`）
-   - **Mac/Linux**: `./scripts/setup-download.sh`
+2. ネイティブライブラリ（`libssruntime` / `libssconverter`）をダウンロード・配置するために、`scripts/` フォルダ内にあるダウンロードスクリプトを実行します。
+   - **Windows**: `.\scripts\download-sdk.ps1`
+   - **Mac/Linux**: `./scripts/download-sdk.sh`
 3. 準備が整った `package/` フォルダを、ご自身の Unity プロジェクトの `Packages/` 配下にコピーするか、Package Manager の **Add package from disk...** から `package.json` を指定して追加します。
 
 ---

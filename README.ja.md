@@ -41,12 +41,12 @@
 
 ### 1. サンプルで動作確認する
 1. **取得**: 本リポジトリをクローンまたはダウンロードします。
-2. **準備**: `./scripts/setup-download.sh` (Mac/Linux) または `scripts\setup-download.bat` (Windows) を実行してネイティブライブラリをダウンロードします。
+2. **準備**: `./scripts/download-sdk.sh` (Mac/Linux) または `.\scripts\download-sdk.ps1` (Windows) を実行してネイティブライブラリをダウンロードします。
 3. **開く**: Unity Hub から `examples/UnityTestProject` を開きます。
 4. **確認**: `sprs.unity` シーンを開いて再生することで、すぐにアニメーションの動作を確認できます。
 
 ### 2. プロジェクトへ導入する
-1. **インストール**: Unity の Package Manager を開き、「Add package from URL...」から GitHub Releases のパッケージ URL を入力してインストールします（または直接ダウンロードして追加）。
+1. **インストール**: GitHub Releases からパッケージの tarball（恒久リンク・常に最新リリース）— [`jp.co.cri-mw.optpix.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.optpix.ssplayer-unity.tgz) — をダウンロードし、Unity の Package Manager で **Add package from tarball...** を選んで指定します。*(「Add package from URL...」/ git URL では導入できません。ネイティブバイナリは tarball のみに同梱されるためです。)*
 2. **インポート**: Unity メニューから **Window > SpriteStudio > Importer** を開き、`.sspj` をドラッグ＆ドロップして自動変換します。
 3. **再生**: GameObject に `SpriteStudioPlayer` をアタッチし、生成された `SpriteStudioAnimeAsset` をセットして再生します。
 

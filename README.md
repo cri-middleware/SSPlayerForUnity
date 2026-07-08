@@ -41,12 +41,12 @@ We provide multiple paths depending on your needs. This player supports Unity 6.
 
 ### 1. Try out the Sample Project
 1. **Get the Repo**: Clone or download this repository.
-2. **Prepare**: Run `./scripts/setup-download.sh` (Mac/Linux) or `scripts\setup-download.bat` (Windows) to download the native libraries.
+2. **Prepare**: Run `./scripts/download-sdk.sh` (Mac/Linux) or `.\scripts\download-sdk.ps1` (Windows) to download the native libraries.
 3. **Open**: Open `examples/UnityTestProject` in Unity Hub.
 4. **Check**: Open the `sprs.unity` scene and press Play to instantly see the animations in action.
 
 ### 2. Import into your Project
-1. **Install**: Open Unity's Package Manager, choose "Add package from URL..." and enter the package URL from GitHub Releases (or download the tarball directly).
+1. **Install**: Download the package tarball from GitHub Releases (stable link, always the latest release) — [`jp.co.cri-mw.optpix.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.optpix.ssplayer-unity.tgz) — then in Unity's Package Manager choose **Add package from tarball...** and select it. *(Package Manager's "Add package from URL..." / git URL does not work for this package, since the native binaries ship only in the tarball.)*
 2. **Import**: Open **Window > SpriteStudio > Importer** from the Unity menu, then drag and drop your `.sspj` file to convert it automatically.
 3. **Play**: Attach `SpriteStudioPlayer` to a GameObject, assign the generated `SpriteStudioAnimeAsset`, and play!
 

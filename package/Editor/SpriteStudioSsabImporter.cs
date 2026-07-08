@@ -9,7 +9,7 @@ namespace SpriteStudio.Editor
     /// The build work is delegated to <see cref="SpriteStudioAnimeAssetBuilder"/>.
     /// </summary>
     [ScriptedImporter(4, "ssab")]
-    [UnityEngine.Icon("Packages/com.spritestudio.ssruntime/Editor/Icons/ssab_icon.png")]
+    [UnityEngine.Icon("Packages/jp.co.cri-mw.optpix.ssplayer-unity/Editor/Icons/ssab_icon.png")]
     public class SpriteStudioSsabImporter : ScriptedImporter
     {
         [Tooltip("Use a shared per-texture material (.mat). When OFF, no material is assigned.")]

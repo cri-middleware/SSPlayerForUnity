@@ -1,6 +1,14 @@
-package/Runtime/Plugins
+# Native plugin binaries are fetched by scripts/download-sdk.sh (release) or
+# built by scripts/build-runtime.sh (local); do NOT commit them. Their .meta
+# (Unity PluginImporter platform settings) ARE committed so the UPM tarball
+# packed in CI — where no Unity runs to regenerate them — imports correctly.
+# Ignore everything under Plugins but keep the directory tree traversable; the
+# .meta themselves are re-included by the global "!package/**/*.meta" below.
+package/Runtime/Plugins/**
+!package/Runtime/Plugins/**/
 package/Runtime/Bindings/*.g.cs
-package/Editor/Plugins
+package/Editor/Plugins/**
+!package/Editor/Plugins/**/
 package/Editor/Bindings/*.g.cs
 
 # .ssab -> .sspj reconversion link. Under Model B the .sspj lives at an arbitrary external path, so the

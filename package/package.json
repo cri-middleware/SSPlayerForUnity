@@ -1,6 +1,6 @@
 {
-  "name": "com.spritestudio.ssruntime",
-  "version": "7.0.0-alpha01",
+  "name": "jp.co.cri-mw.optpix.ssplayer-unity",
+  "version": "7.0.0-beta01",
   "displayName": "SSPlayer For Unity",
   "description": "SPriteStudio 7 Player Library",
   "unity": "6000.3",

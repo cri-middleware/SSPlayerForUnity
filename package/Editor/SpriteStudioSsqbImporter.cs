@@ -16,7 +16,7 @@ namespace SpriteStudio.Editor
     /// far as making the .ssqb recognizable and referenceable as data by Unity.
     /// </summary>
     [ScriptedImporter(1, "ssqb")]
-    [UnityEngine.Icon("Packages/com.spritestudio.ssruntime/Editor/Icons/ssqb_icon.png")]
+    [UnityEngine.Icon("Packages/jp.co.cri-mw.optpix.ssplayer-unity/Editor/Icons/ssqb_icon.png")]
     public class SpriteStudioSsqbImporter : ScriptedImporter
     {
         public override void OnImportAsset(AssetImportContext ctx)
