@@ -12,8 +12,8 @@ A high-performance plugin for playing back animations (`.ssab`) created with **[
   SpriteStudio 7 is a dedicated editor for skeletal- and mesh-based 2D animation — bone rigging, mesh deformation, and particle effects made for animators. It unlocks expression that's tedious or impractical to build with Unity's native animation tools, and since the motion is authored outside Unity and exported as a `.ssab`, artists can iterate in their own tool without touching the engine.
 - **Characters, effects, and whole scenes — all in one editor**
   Particle effects are a first-class part type, authored on the same timeline as your characters — there's no separate effect system to bolt on. And you're not limited to a single rigged character: combine characters, backgrounds, effects, and UI into an entire cutscene or full-screen sequence, and play it back in Unity as one animation.
-- **Your existing PNG art, running as a native Unity component**
-  Textures load through Unity's standard pipeline, so the raster (PNG) art you already have works as-is — no re-authoring into vectors. `SpriteStudioPlayer` (world space) and `SpriteStudioGraphic` (uGUI Canvas) drop into your scene like any other component, driven from C# or sequenced on Timeline.
+- **Renders in both world space and on a uGUI Canvas**
+  `SpriteStudioPlayer` draws in world space (MeshRenderer) and `SpriteStudioGraphic` draws on a uGUI Canvas (CanvasRenderer) — the same animation drops into either context like any other component, driven from C# or sequenced on Timeline. On a Canvas it automatically follows uGUI **Mask** / **RectMask2D**.
 - **A seamless SpriteStudio ⇄ Unity asset pipeline**
   Drop a `.sspj` into Unity and it's automatically converted to an optimized `.ssab` and a ready-to-use `SpriteStudioAnimeAsset`; re-edit in SpriteStudio and your Unity assets update instantly. Because the animation lives in assets separate from the scene, you avoid the Git conflicts that come with scene-embedded animation.
 - **A low-memory, high-performance native runtime**
@@ -39,16 +39,17 @@ For detailed instructions, please refer to the documents in the `docs/` folder. 
 
 We provide multiple paths depending on your needs. This player supports Unity 6.3 LTS and later, and works in both URP and BRP.
 
-### 1. Try out the Sample Project
-1. **Get the Repo**: Clone or download this repository.
-2. **Prepare**: Run `./scripts/download-sdk.sh` (Mac/Linux) or `.\scripts\download-sdk.ps1` (Windows) to download the native libraries.
-3. **Open**: Open `examples/UnityTestProject` in Unity Hub.
-4. **Check**: Open the `sprs.unity` scene and press Play to instantly see the animations in action.
-
-### 2. Import into your Project
+### 1. Import into your Project
 1. **Install**: Download the package tarball from GitHub Releases (stable link, always the latest release) — [`jp.co.cri-mw.optpix.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.optpix.ssplayer-unity.tgz) — then in Unity's Package Manager choose **Add package from tarball...** and select it. *(Package Manager's "Add package from URL..." / git URL does not work for this package, since the native binaries ship only in the tarball.)*
 2. **Import**: Open **Window > SpriteStudio > Importer** from the Unity menu, then drag and drop your `.sspj` file to convert it automatically.
-3. **Play**: Attach `SpriteStudioPlayer` to a GameObject, assign the generated `SpriteStudioAnimeAsset`, and play!
+3. **Place**: Drag the generated `SpriteStudioAnimeAsset` from the Project window into the Hierarchy (or Scene view), pick `SpriteStudioPlayer` (world space) or `SpriteStudioGraphic` (uGUI Canvas), then set the **Animation Name** and press Play.
+
+### 2. Try out the Sample Project
+`examples/UnityTestProject` is a minimal project with the SpriteStudio package already linked — it bundles no scene or assets of its own.
+1. **Get the Repo**: Clone or download this repository.
+2. **Prepare**: Run `./scripts/download-sdk.sh` (Mac/Linux) or `scripts\download-sdk.ps1` (Windows) to fetch and place the native library (`libssruntime`).
+3. **Open**: Open `examples/UnityTestProject` in Unity Hub.
+4. **Try it**: Import your own `.sspj` via **Window > SpriteStudio > Importer**, then place a player just like in step 1.
 
 For advanced setups like compiling from source or modifying the package, please refer to the [Installation Guide](./docs/en/setup/install.md).
 
@@ -60,9 +61,9 @@ For details such as data flow diagrams, key features, and system requirements, p
 
 ## 🎬 Samples
 
-A sample project is available under the [examples folder](./examples/). Run `setup-download` first (see Quick Start) to fetch the assets, then open it in Unity Hub.
+A sample project is available under the [examples folder](./examples/).
 
-- [UnityTestProject](./examples/UnityTestProject) — Open the `sprs.unity` scene to see characters, all part types, and particle effects playing back.
+- [UnityTestProject](./examples/UnityTestProject) — A minimal Unity project with the SpriteStudio package already linked (no bundled scene or assets). Run `download-sdk` first (see Quick Start), open it in Unity Hub, then import your own `.sspj` to try the plugin in a clean project.
 
 ## 🔗 Related Repositories
 

@@ -38,8 +38,8 @@ This method is for when you want to modify the Unity-side C# scripts or work dir
    ```sh
    git clone https://github.com/cri-middleware/SSPlayerForUnity.git
    ```
-2. Run the download script in the `scripts/` folder to fetch and place the native libraries (`libssruntime` / `libssconverter`).
-   - **Windows**: `.\scripts\download-sdk.ps1`
+2. Run the setup script in the `scripts/` folder to download and place the native library (`libssruntime`).
+   - **Windows**: `scripts\download-sdk.ps1`
    - **Mac/Linux**: `./scripts/download-sdk.sh`
 3. Copy the prepared `package/` folder under your Unity project's `Packages/` directory, or add it via **Add package from disk...** in Package Manager by specifying its `package.json`.
 

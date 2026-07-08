@@ -23,6 +23,13 @@ That alone runs the conversion, generating a `SpriteStudioAnimeAsset` (a Scripta
 Drag and drop the generated asset onto the Hierarchy window or Scene view to place a `SpriteStudioPlayer` / `SpriteStudioGraphic` (see [Basic Usage](./usage_basic.md) for details).
 
 > [!TIP]
+> 
+> <video autoplay loop muted playsinline width="100%">
+>   <source src="../../assets/1-sspj_import.webm" type="video/webm">
+> </video>
+> <img src="../../assets/1-sspj_import.webp" width="100%" style="display: none;">
+
+> [!TIP]
 > If you drop a whole folder, the `.sspj` files inside it are recursively batch-converted to `.ssab`. See [Conversion Features and CI/CD](./import.md) for details.
 
 ---
@@ -36,6 +43,9 @@ If, while working in Unity, you think "I'd like to fine-tune the animation a bit
 3. Click the **"Open SSPJ" button** below it.
 
 This launches SpriteStudio, opens the original `.sspj` file, and lets you start editing right away.
+
+> [!NOTE]
+> ![Opening SSPJ from the Inspector](../../assets/5-open_sspj_from_inspector.png)
 
 > [!NOTE]
 > The equivalent operation is also available from the **Recent SSPJs** list in **Window > SpriteStudio > Importer** (right-click a row → "Open SSPJ").
@@ -56,6 +66,13 @@ With just the following operation, your changes are reflected instantly in the g
 
 > [!TIP]
 > You can also reconvert from **Recent SSPJs** in the SpriteStudio Importer window (click a row, or right-click → "Reconvert"). A `.sspj` with identical content (same modification date) skips unnecessary reconversion.
+
+> [!TIP]
+> 
+> <video autoplay loop muted playsinline width="100%">
+>   <source src="../../assets/2-fast_iteration_inspector.webm" type="video/webm">
+> </video>
+> <img src="../../assets/2-fast_iteration_inspector.webp" width="100%" style="display: none;">
 
 ---
 
