@@ -1,0 +1,110 @@
+name: Release
+
+# Run manually from the Actions tab. The release version/tag come from the UPM
+# package version in package/package.json (independent of SDK_VERSION.txt, which
+# only pins which native SDK libs download-sdk.sh fetches).
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: 'Upload the package to GitHub Releases'
+        type: boolean
+        default: true
+      prerelease:
+        description: 'Mark the GitHub Release as a pre-release (excludes it from releases/latest, breaking the stable download URL). Keep false so the latest/download link resolves.'
+        type: boolean
+        default: false
+
+# Needed to create the release and upload assets.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve release metadata from package.json
+        id: meta
+        run: |
+          NAME=$(jq -r .name package/package.json)
+          VERSION=$(jq -r .version package/package.json)
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      # Fetches the pre-built SpriteStudio SDK libs into the package plugin dirs.
+      # ssruntime -> package/Runtime/Plugins/ (iOS/WebGL static, others dynamic);
+      # ssconverter -> package/Editor/Plugins/ (win/mac, dynamic only).
+      # These binaries are gitignored, so this step is required before packing.
+      # NOTE: the SpriteStudio-SDK release is still private, so this step cannot
+      # succeed yet. It goes green once that repo/release is made public (planned),
+      # at which point download-sdk.sh's plain curl works with no extra auth.
+      - name: Download SpriteStudio SDK libs
+        run: bash scripts/download-sdk.sh
+
+      # Sanity-check that native libs actually landed in BOTH plugin dirs before
+      # packaging. Match any platform binary (static or dynamic) rather than a
+      # single VERSION marker, so this keeps holding as the lib set grows.
+      - name: Verify SDK libs present
+        run: |
+          set -e
+          for dir in package/Runtime/Plugins package/Editor/Plugins; do
+            count=$(find "$dir" -type f \
+              \( -name '*.dylib' -o -name '*.so' -o -name '*.dll' \
+                 -o -name '*.a' -o -name '*.lib' -o -name '*.bundle' \) | wc -l)
+            echo "$dir: $count native lib(s)"
+            if [ "$count" -eq 0 ]; then
+              echo "::error::No native libraries found in $dir"
+              exit 1
+            fi
+          done
+          # The csbindgen FFI bindings are compile-critical; a tarball without
+          # them would not build for consumers.
+          for f in package/Runtime/Bindings/SSRuntimeMethods.g.cs \
+                   package/Editor/Bindings/SSConverterMethods.g.cs; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Missing FFI binding: $f"
+              exit 1
+            fi
+          done
+          ls -R package/Runtime/Plugins package/Editor/Plugins
+
+      # Pack the UPM package as a tarball via `npm pack` (pack-release.sh copies
+      # LICENSE / Third Party Notices into package/ and produces `<name>-<version>.tgz`
+      # at the repo root). Also make a version-less alias so README/docs can point
+      # at a stable `releases/latest/download/<name>.tgz` URL that never goes stale.
+      - name: Pack UPM package
+        id: pkg
+        run: |
+          bash scripts/pack-release.sh
+          VERSIONED="${{ steps.meta.outputs.name }}-${{ steps.meta.outputs.version }}.tgz"
+          ALIAS="${{ steps.meta.outputs.name }}.tgz"
+          test -f "$VERSIONED"
+          cp "$VERSIONED" "$ALIAS"
+          echo "versioned=$VERSIONED" >> "$GITHUB_OUTPUT"
+          echo "alias=$ALIAS" >> "$GITHUB_OUTPUT"
+          tar -tzf "$VERSIONED" | head -n 20
+
+      # Always keep the package as a workflow artifact so a run is useful even
+      # when the Releases upload is turned off.
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.pkg.outputs.versioned }}
+          path: ${{ steps.pkg.outputs.versioned }}
+          if-no-files-found: error
+
+      - name: Upload package to release
+        if: ${{ inputs.upload }}
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: SSPlayer for Unity ${{ steps.meta.outputs.tag }}
+          draft: true
+          prerelease: ${{ inputs.prerelease }}
+          # Ship both the version-pinned tarball and the stable alias filename.
+          files: |
+            ${{ steps.pkg.outputs.versioned }}
+            ${{ steps.pkg.outputs.alias }}

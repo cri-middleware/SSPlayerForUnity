@@ -22,7 +22,7 @@ try {
     } else {
         Write-Host "Warning: npm is not installed. Falling back to tar."
         Write-Host "Creating tarball using standard tar..."
-        $tarName = "com.spritestudio.ssruntime-release.tgz"
+        $tarName = "jp.co.cri-mw.optpix.ssplayer-unity-release.tgz"
         tar -czf $tarName $packageDir\
         Write-Host "Created $tarName"
     }

@@ -31,7 +31,7 @@ if command -v npm > /dev/null; then
 else
     echo "Warning: npm is not installed. Falling back to tar."
     echo "Creating tarball using standard tar..."
-    TAR_NAME="com.spritestudio.ssruntime-release.tgz"
+    TAR_NAME="jp.co.cri-mw.optpix.ssplayer-unity-release.tgz"
     tar -czf "${TAR_NAME}" "${PACKAGE_DIR}/"
     echo "Created ${TAR_NAME}"
 fi

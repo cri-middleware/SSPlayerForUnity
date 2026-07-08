@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "com.spritestudio.ssruntime": {
+    "jp.co.cri-mw.optpix.ssplayer-unity": {
       "version": "file:../../../package",
       "depth": 0,
       "source": "local",

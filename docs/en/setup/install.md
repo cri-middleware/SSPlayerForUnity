@@ -20,16 +20,13 @@ All dependent packages are standard Unity packages, so Package Manager resolves 
 
 This is the easiest and most reliable method. It uses the precompiled Unity package distributed on GitHub Releases.
 
-### Method A: Add by URL from Package Manager
-1. Open **Window > Package Manager** from the Unity menu.
-2. Click the **＋** button in the top left and select **Add package from URL...** (or git URL).
-3. Enter the `.tgz` or package URL listed on the release page and press **Add**.
+1. Download the package tarball. The stable link below always points to the latest release:
+   - [`jp.co.cri-mw.optpix.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.optpix.ssplayer-unity.tgz)
+   - To pick a specific version instead, download the `.tgz` asset from the [GitHub Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) page.
+2. Open **Window > Package Manager** from the Unity menu.
+3. Click the **＋** button in the top left, select **Add package from tarball...**, and choose the downloaded file.
 
-   *(Note: For the actual URL, refer to the latest version on [GitHub Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases).)*
-
-### Method B: Download and add locally
-1. Download the latest artifact (such as `.tgz`) directly from [GitHub Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases).
-2. From the **＋** button in Package Manager, select **Add package from tarball...** and choose the downloaded file.
+> **Note:** Package Manager's *Add package from URL...* (git URL) cannot install this package. The native plugin binaries are distributed only inside the release tarball, so always use *Add package from tarball...* with the downloaded `.tgz`.
 
 ---
 

@@ -57,7 +57,7 @@ namespace SpriteStudio.Editor
 
             // Shader.Find can return null depending on import order, so load it directly from the path.
             var shader = AssetDatabase.LoadAssetAtPath<Shader>(
-                "Packages/com.spritestudio.ssruntime/Runtime/Resources/Shaders/SpriteStudioDefault.shader");
+                "Packages/jp.co.cri-mw.optpix.ssplayer-unity/Runtime/Resources/Shaders/SpriteStudioDefault.shader");
             if (shader == null) shader = Shader.Find("SpriteStudio/Default");
             return shader;
         }
