@@ -38,6 +38,13 @@ Once selected, a GameObject is created, and **the asset you just dropped is auto
 > - If you drop multiple assets at once, they are all placed together.
 > - You can also place a world player from the **"Instantiate in Scene"** button in the `SpriteStudioAnimeAsset` Inspector.
 
+> [!TIP]
+> 
+> <video autoplay loop muted playsinline width="100%">
+>   <source src="../../assets/3-setup_drag_and_drop.webm" type="video/webm">
+> </video>
+> <img src="../../assets/3-setup_drag_and_drop.webp" width="100%" style="display: none;">
+
 ### Method B: Add the component manually
 
 This method uses an empty GameObject to which you add the component yourself.
@@ -100,6 +107,13 @@ These are the settings common to both `SpriteStudioPlayer` and `SpriteStudioGrap
 | **Shader Catalog** | (none) | A catalog of per-part AddOn / custom shaders (see [Advanced Settings](./tips.md)) |
 | **Part Trackers** | (empty) | Settings that make a Transform follow a specified part (see [Scripting Control and Events](./usage_scripting.md)) |
 
+> [!TIP]
+> 
+> <video autoplay loop muted playsinline width="100%">
+>   <source src="../../assets/4-inspector_preview.webm" type="video/webm">
+> </video>
+> <img src="../../assets/4-inspector_preview.webp" width="100%" style="display: none;">
+
 ## Preview in edit mode
 
 Both components run with `[ExecuteAlways]`, so when you place them in a scene, a **static preview of the start frame** is displayed. However, playback does not advance in edit mode. To check the animation's motion, enter **Play mode**.
@@ -112,3 +126,10 @@ This plugin also supports SpriteStudio's "Mask" feature.
 - **Canvas (`SpriteStudioGraphic`)**: SpriteStudio's internal masks are suppressed, and instead it follows uGUI's **Mask** / **RectMask2D** (placing these on a parent clips the content).
 
 For details, see [Performance Tuning and Advanced Settings](./tips.md#masking-and-clipping).
+
+> [!TIP]
+> 
+> <video autoplay loop muted playsinline width="100%">
+>   <source src="../../assets/6-mask.webm" type="video/webm">
+> </video>
+> <img src="../../assets/6-mask.webp" width="100%" style="display: none;">

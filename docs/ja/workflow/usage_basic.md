@@ -38,6 +38,13 @@
 > - 複数のアセットを同時にドロップした場合は、まとめて設置されます。
 > - `SpriteStudioAnimeAsset` のインスペクタにある **「Instantiate in Scene」** ボタンからもワールド用プレイヤーを設置できます。
 
+> [!TIP]
+> 
+> <video autoplay loop muted playsinline width="100%">
+>   <source src="../../../assets/3-setup_drag_and_drop.webm" type="video/webm">
+> </video>
+> <img src="../../assets/3-setup_drag_and_drop.webp" width="100%" style="display: none;">
+
 ### 方法 B: コンポーネントを手動で追加する
 
 空の GameObject を用意し、自分でコンポーネントを追加する方法です。
@@ -100,6 +107,13 @@ public class Sample : MonoBehaviour
 | **Shader Catalog** | （なし） | パーツ単位の AddOn / カスタムシェーダのカタログ（[高度な設定](./tips.md) 参照） |
 | **Part Trackers** | （空） | 指定パーツに Transform を追従させる設定（[スクリプト制御とイベント](./usage_scripting.md) 参照） |
 
+> [!TIP]
+> 
+> <video autoplay loop muted playsinline width="100%">
+>   <source src="../../../assets/4-inspector_preview.webm" type="video/webm">
+> </video>
+> <img src="../../assets/4-inspector_preview.webp" width="100%" style="display: none;">
+
 ## 編集モードでのプレビュー
 
 両コンポーネントは `[ExecuteAlways]` で動作し、シーンに設置すると**開始フレームの静止プレビュー**が表示されます。ただし編集モードでは再生は進みません。アニメーションの動きを確認するには **Play モード**に入ってください。
@@ -112,3 +126,10 @@ public class Sample : MonoBehaviour
 - **Canvas（`SpriteStudioGraphic`）**: SpriteStudio 内部のマスクは抑止され、代わりに uGUI の **Mask** / **RectMask2D** に追従します（親にこれらを置くとクリップされます）。
 
 詳細は [パフォーマンスチューニングと高度な設定](./tips.md#マスク--クリッピング) を参照してください。
+
+> [!TIP]
+> 
+> <video autoplay loop muted playsinline width="100%">
+>   <source src="../../../assets/6-mask.webm" type="video/webm">
+> </video>
+> <img src="../../assets/6-mask.webp" width="100%" style="display: none;">

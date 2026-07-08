@@ -12,8 +12,8 @@
   SpriteStudio 7 は、ボーン・メッシュ変形・パーティクルエフェクトをアニメーター向けに備えた、skeletal／メッシュ変形ベースの 2D アニメーション専用エディタです。Unity 標準のアニメーション機能では手間がかかる／現実的でない表現を実現でき、さらに動きは Unity の外で作り込んで `.ssab` として書き出すため、アニメーターはエンジンに触れず自分のツールだけで反復作業を進められます。
 - **キャラクター・エフェクト・シーン全体を、一つのエディタで**
   パーティクルエフェクトはキャラクターと同じタイムライン上で扱える標準の部品で、別途エフェクトシステムを組み合わせる必要がありません。さらにキャラクター単体にとどまらず、背景・エフェクト・UI を組み合わせたカットシーンや画面全体の演出を丸ごと構築し、Unity 上で 1 つのアニメーションとして再生できます。
-- **手持ちの PNG 素材を、そのまま Unity ネイティブのコンポーネントで**
-  テクスチャは Unity 標準の画像パイプラインで読み込むため、お持ちのラスター（PNG）素材をベクターへ作り直すことなくそのまま使えます。`SpriteStudioPlayer`（ワールド空間）や `SpriteStudioGraphic`（uGUI Canvas）は通常のコンポーネントとしてシーンに配置でき、C# や Timeline から制御できます。
+- **ワールド空間にも uGUI Canvas にも対応**
+  `SpriteStudioPlayer`（MeshRenderer）はワールド空間に、`SpriteStudioGraphic`（CanvasRenderer）は uGUI の Canvas 上に描画できます。同じアニメーションを通常のコンポーネントと同じ感覚でどちらにも配置でき、C# や Timeline から制御できます。Canvas 上では uGUI の **Mask** / **RectMask2D** にも自動追従します。
 - **SpriteStudio ⇄ Unity のシームレスなアセットパイプライン**
   `.sspj` を Unity にドロップするだけで、最適化バイナリ `.ssab` とすぐに使える `SpriteStudioAnimeAsset` が自動生成され、SpriteStudio で編集し直せば Unity 側のアセットも即座に更新されます。アニメーションはシーンから分離したアセットとして管理されるため、シーンに埋め込むアニメーションで起きがちな Git コンフリクトも回避できます。
 - **省メモリ・ハイパフォーマンスなネイティブランタイム**
@@ -39,16 +39,17 @@
 
 ご自身の目的に合わせて導入方法を選択してください。本プレイヤーは Unity 6.3 LTS 以降に対応しており、URP と BRP のいずれでも動作します。
 
-### 1. サンプルで動作確認する
-1. **取得**: 本リポジトリをクローンまたはダウンロードします。
-2. **準備**: `./scripts/setup-download.sh` (Mac/Linux) または `scripts\setup-download.bat` (Windows) を実行してネイティブライブラリをダウンロードします。
-3. **開く**: Unity Hub から `examples/UnityTestProject` を開きます。
-4. **確認**: `sprs.unity` シーンを開いて再生することで、すぐにアニメーションの動作を確認できます。
-
-### 2. プロジェクトへ導入する
+### 1. プロジェクトへ導入する
 1. **インストール**: Unity の Package Manager を開き、「Add package from URL...」から GitHub Releases のパッケージ URL を入力してインストールします（または直接ダウンロードして追加）。
 2. **インポート**: Unity メニューから **Window > SpriteStudio > Importer** を開き、`.sspj` をドラッグ＆ドロップして自動変換します。
-3. **再生**: GameObject に `SpriteStudioPlayer` をアタッチし、生成された `SpriteStudioAnimeAsset` をセットして再生します。
+3. **配置**: 生成された `SpriteStudioAnimeAsset` を Project ウィンドウから Hierarchy（または Scene ビュー）へドラッグ＆ドロップし、`SpriteStudioPlayer`（ワールド空間）または `SpriteStudioGraphic`（uGUI Canvas）を選んで、**Animation Name** を設定して再生します。
+
+### 2. サンプルで動作確認する
+`examples/UnityTestProject` は SpriteStudio パッケージがあらかじめリンクされた最小構成のプロジェクトです（シーンやアセットは同梱していません）。
+1. **取得**: 本リポジトリをクローンまたはダウンロードします。
+2. **準備**: `./scripts/download-sdk.sh` (Mac/Linux) または `scripts\download-sdk.ps1` (Windows) を実行してネイティブライブラリ（`libssruntime`）を取得・配置します。
+3. **開く**: Unity Hub から `examples/UnityTestProject` を開きます。
+4. **試す**: **Window > SpriteStudio > Importer** から自分の `.sspj` を取り込み、手順 1 と同様にプレイヤーを配置します。
 
 カスタマイズを目的とした導入手順（手動ビルド等）の詳細は [インストールガイド](./docs/ja/setup/install.md) を参照してください。
 
@@ -60,9 +61,9 @@
 
 ## 🎬 サンプル
 
-[examples フォルダ](./examples/) にサンプルプロジェクトがあります。先に `setup-download`（クイックスタート参照）を実行してアセットを取得し、Unity Hub から開いてください。
+[examples フォルダ](./examples/) にサンプルプロジェクトがあります。
 
-- [UnityTestProject](./examples/UnityTestProject) — `sprs.unity` シーンを開くと、キャラクター・全パーツ種・パーティクルエフェクトの再生を確認できます。
+- [UnityTestProject](./examples/UnityTestProject) — SpriteStudio パッケージがあらかじめリンクされた最小構成の Unity プロジェクトです（シーン・アセットは同梱なし）。先に `download-sdk`（クイックスタート参照）を実行し、Unity Hub から開いて、自分の `.sspj` を取り込むとクリーンなプロジェクトでプラグインを試せます。
 
 ## 🔗 関連リポジトリ
 
