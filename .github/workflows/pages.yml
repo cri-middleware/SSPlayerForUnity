@@ -1,0 +1,56 @@
+name: Deploy Pages
+
+# Publish the MkDocs site to GitHub Pages via the artifact method (no gh-pages
+# branch). Matches SSPlayerForRenPy / SSPlayerForWeb.
+#
+# Triggers on release publish and manual dispatch only (never on push) — this
+# keeps deploy semantics identical to the sibling projects. Unity ships docs
+# only (no Web demo), so there is no demo-download step here.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# Artifact-based Pages deploy needs pages/id-token; contents:read is for the
+# checkout. Note: no contents:write — the gh-pages branch is gone.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: 3.x
+          cache: pip
+          cache-dependency-path: docs/requirements.txt
+
+      - name: Install docs dependencies
+        run: pip install -r docs/requirements.txt
+
+      # --strict fails the build on broken links / missing nav entries.
+      - name: Build docs
+        run: mkdocs build --strict
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
