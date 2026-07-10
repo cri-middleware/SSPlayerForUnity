@@ -13,6 +13,7 @@
     - [アセットのインポートとエディタ連携](./workflow/usage_asset_pipeline.md): 初回の `.sspj` インポートはこちら
     - [スクリプト制御とイベント](./workflow/usage_scripting.md): C# / Timeline からの制御とイベント受信
     - [パフォーマンスチューニングと高度な設定](./workflow/tips.md): 大量描画・最適化のための設定
+    - [SS6Player からのマイグレーション](./migration_from_ss6.md): 旧 SS6Player for Unity からの移行ガイド
 - **カスタマイズ・自動化ガイド** — CLI や CI/CD に組み込む
     - [各種コンバート機能と CI/CD](./workflow/import.md): `ssconverter-cli` によるバッチ変換・自動化
 - **Player・SDK 開発者向けガイド** — ネイティブをソースからビルドする
