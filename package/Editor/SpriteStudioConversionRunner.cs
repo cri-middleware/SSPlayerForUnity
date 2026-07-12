@@ -141,7 +141,7 @@ namespace SpriteStudio.Editor
                     fixed (byte* sspjPtr = sspjBytes)
                     fixed (byte* outDirPtr = outDirBytes)
                     {
-                        SpriteStudio.SsConverter.NativeMethods.ss_converter_convert(context, sspjPtr, outDirPtr, null);
+                        SpriteStudio.SsConverter.NativeMethods.ss_converter_convert(context, sspjPtr, outDirPtr, false, null);
                     }
 
                     _active.Add(new Active
