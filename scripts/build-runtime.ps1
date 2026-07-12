@@ -205,7 +205,24 @@ if ($IS_HOST_BUILD) {
 
 echo "Copying libraries from $SRC_DIR to $RUNTIME_LIB_OUT and $EDITOR_LIB_OUT..."
 
-if (Test-Path "$SRC_DIR/$($LIB_PREFIX)ssruntime$LIB_EXT") {
+if ($PLATFORM -eq "macos") {
+    # Runtime ships as a .bundle (Unity's documented macOS native-plugin format).
+    # Prefer the bundle release-macos.sh already built; otherwise wrap the
+    # freshly built host/debug dylib into an equivalent one.
+    $srcBundle = "$SRC_DIR/ssruntime.bundle"
+    $destBundle = "$RUNTIME_LIB_OUT/ssruntime.bundle"
+    if (Test-Path $srcBundle) {
+        if (Test-Path $destBundle) { Remove-Item -Recurse -Force $destBundle }
+        Copy-Item -Recurse -Force $srcBundle "$RUNTIME_LIB_OUT/"
+    } elseif (Test-Path "$SRC_DIR/libssruntime.dylib") {
+        # Wrap via the SDK's shared packaging helper (single source of truth).
+        # This branch only runs on macOS, so `sh` is available.
+        $sdkVer = ""
+        $m = Select-String -Path "$SDK_DIR/Cargo.toml" -Pattern '^version = "(.*)"' | Select-Object -First 1
+        if ($m) { $sdkVer = $m.Matches[0].Groups[1].Value }
+        & sh "$SDK_DIR/scripts/make-macos-bundle.sh" "$SRC_DIR/libssruntime.dylib" $destBundle $sdkVer
+    }
+} elseif (Test-Path "$SRC_DIR/$($LIB_PREFIX)ssruntime$LIB_EXT") {
     Copy-Item "$SRC_DIR/$($LIB_PREFIX)ssruntime$LIB_EXT" "$RUNTIME_LIB_OUT/" -Force
 } elseif (Test-Path "$SRC_DIR/ssruntime$LIB_EXT") {
     Copy-Item "$SRC_DIR/ssruntime$LIB_EXT" "$RUNTIME_LIB_OUT/ssruntime$LIB_EXT" -Force

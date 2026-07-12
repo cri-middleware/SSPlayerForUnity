@@ -201,7 +201,21 @@ if [[ "$PLATFORM" == "windows" ]]; then
     copy_lib "ssruntime.dll" "${RUNTIME_LIB_OUT}" "ssruntime.dll" || copy_lib "libssruntime.dll" "${RUNTIME_LIB_OUT}" "ssruntime.dll"
     copy_lib "ssconverter.dll" "${EDITOR_LIB_OUT}" "ssconverter.dll" || copy_lib "libssconverter.dll" "${EDITOR_LIB_OUT}" "ssconverter.dll"
 elif [[ "$PLATFORM" == "macos" ]]; then
-    copy_lib "libssruntime.dylib" "${RUNTIME_LIB_OUT}" "libssruntime.dylib"
+    # Runtime ships as a .bundle (Unity's documented macOS native-plugin format).
+    # Prefer the bundle release-macos.sh already built (cross/release path);
+    # otherwise wrap the freshly built host/debug dylib via the SDK's shared
+    # packaging helper — the single source of truth for the bundle layout.
+    if [[ -d "${SDK_DIR}/${SRC_DIR}/ssruntime.bundle" ]]; then
+        /bin/rm -rf "${RUNTIME_LIB_OUT}/ssruntime.bundle"
+        cp -R "${SDK_DIR}/${SRC_DIR}/ssruntime.bundle" "${RUNTIME_LIB_OUT}/"
+    elif [[ -f "${SDK_DIR}/${SRC_DIR}/libssruntime.dylib" ]]; then
+        sdk_ver=$(sed -n 's/^version = "\(.*\)"/\1/p' "${SDK_DIR}/Cargo.toml" | head -1)
+        "${SDK_DIR}/scripts/make-macos-bundle.sh" \
+            "${SDK_DIR}/${SRC_DIR}/libssruntime.dylib" \
+            "${RUNTIME_LIB_OUT}/ssruntime.bundle" \
+            "${sdk_ver}"
+    fi
+    # Editor converter stays a plain dylib.
     copy_lib "libssconverter.dylib" "${EDITOR_LIB_OUT}" "libssconverter.dylib"
 elif [[ "$PLATFORM" == "linux" ]]; then
     copy_lib "libssruntime.so" "${RUNTIME_LIB_OUT}" "libssruntime.so"
