@@ -54,7 +54,7 @@ copy() {
 }
 
 echo "Placing ssruntime into Runtime/Plugins (iOS/WebGL static, others dynamic)..."
-copy "${DYNAMIC}/libs/macos/libssruntime.dylib"              "${RUNTIME_PLUGINS}/macOS"
+copy "${DYNAMIC}/libs/macos/ssruntime.bundle"            "${RUNTIME_PLUGINS}/macOS"
 copy "${DYNAMIC}/libs/windows/x86_64/ssruntime.dll"          "${RUNTIME_PLUGINS}/Windows/x86_64"
 copy "${DYNAMIC}/libs/linux/x86_64/libssruntime.so"          "${RUNTIME_PLUGINS}/Linux/x86_64"
 copy "${DYNAMIC}/libs/android/arm64-v8a/libssruntime.so"     "${RUNTIME_PLUGINS}/Android/arm64-v8a"

@@ -57,7 +57,7 @@ try {
     }
 
     Write-Host "Placing ssruntime into Runtime/Plugins (iOS/WebGL static, others dynamic)..."
-    Copy-Sdk "$dynamic/libs/macos/libssruntime.dylib"            "$runtimePlugins/macOS"
+    Copy-Sdk "$dynamic/libs/macos/ssruntime.bundle"              "$runtimePlugins/macOS"
     Copy-Sdk "$dynamic/libs/windows/x86_64/ssruntime.dll"        "$runtimePlugins/Windows/x86_64"
     Copy-Sdk "$dynamic/libs/linux/x86_64/libssruntime.so"        "$runtimePlugins/Linux/x86_64"
     Copy-Sdk "$dynamic/libs/android/arm64-v8a/libssruntime.so"   "$runtimePlugins/Android/arm64-v8a"
