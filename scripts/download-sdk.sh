@@ -28,7 +28,7 @@ trap 'rm -rf "$TMP"' EXIT
 #   dynamic : .dylib / .so / .dll / dynamic xcframework
 echo "Target SDK Version: ${TARGET_VERSION}"
 for kind in static dynamic; do
-    url="${BASE_URL}/spritestudio7-sdk-${kind}-libs.zip"
+    url="${BASE_URL}/spritestudio-sdk-${kind}-libs.zip"
     echo "Downloading ${url}"
     curl -fL -o "${TMP}/${kind}.zip" "$url"
     unzip -q -o "${TMP}/${kind}.zip" -d "${TMP}/${kind}"

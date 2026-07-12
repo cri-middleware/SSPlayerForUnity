@@ -31,7 +31,7 @@ try {
     #   dynamic : .dylib / .so / .dll / dynamic xcframework
     Write-Host "Target SDK Version: $targetVersion"
     foreach ($kind in @("static", "dynamic")) {
-        $url = "$baseUrl/spritestudio7-sdk-$kind-libs.zip"
+        $url = "$baseUrl/spritestudio-sdk-$kind-libs.zip"
         Write-Host "Downloading $url"
         $zip = "$tmp/$kind.zip"
         Invoke-WebRequest -Uri $url -OutFile $zip
