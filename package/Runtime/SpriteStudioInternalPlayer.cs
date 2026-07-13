@@ -502,6 +502,43 @@ internal struct MaskPartData
                 && _geometryBuilder.TryGetPartState(partIndex, out hidden, out localScaleX, out localScaleY);
         }
 
+        /// <summary>
+        /// Resolved colour of a part on the current frame, with any per-part colour override folded in.
+        /// False when the part carries no colour this frame. Inspection hook (the render path reads the
+        /// colours in bulk).
+        /// </summary>
+        internal bool TryGetPartColor(int partIndex, out ss.runtime.PartAttributePartColor partColor)
+        {
+            partColor = default;
+            return _geometryBuilder != null && _geometryBuilder.TryGetPartColor(partIndex, out partColor);
+        }
+
+        /// <summary>Local UVs per part in the native array: 5 pairs (4 corners + centre).</summary>
+        internal const int LocalUvStride = 10;
+
+        /// <summary>
+        /// The part's local UVs for the current frame (<see cref="LocalUvStride"/> floats), with any per-part
+        /// cell override folded in — this is the sampled image, so a cell swap shows up here. A part that
+        /// draws no cell keeps an all-zero block. False when the handle is invalid, the index is out of
+        /// range, or the destination is too small. Inspection hook (the mesh job reads the UVs in bulk).
+        /// </summary>
+        internal bool TryGetPartUvs(int partIndex, float[] destination)
+        {
+            if (partIndex < 0 || destination == null || destination.Length < LocalUvStride) return false;
+            unsafe
+            {
+                if (!_handle.IsValid) return false;
+                float* data = null;
+                nuint len = 0;
+                NativeMethods.ss_runtime_get_local_uvs(_handle.ptr, &data, &len);
+                if (data == null) return false;
+                long baseIndex = (long)partIndex * LocalUvStride;
+                if (baseIndex + LocalUvStride > (long)len) return false;
+                for (int i = 0; i < LocalUvStride; i++) destination[i] = data[baseIndex + i];
+                return true;
+            }
+        }
+
         public void SetPlaybackDirection(int direction, int style) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_playback_direction(_handle.ptr, direction, style); } }
         public int GetPlaybackDirection() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_playback_direction(_handle.ptr) : 0; } }
         public int GetPlaybackStyle() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_playback_style(_handle.ptr) : 0; } }
@@ -517,6 +554,246 @@ internal struct MaskPartData
         public bool IsSkipFrames() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_get_skip_frames(_handle.ptr); } }
 
         public bool SubFrameEnabled { get; set; } = false;
+        #endregion
+
+        #region Part Overrides
+        // Per-part runtime overrides (color / cell / visibility): an imperative "make this part this
+        // colour / cell / hidden now" that wins over both the keyframe and the blend, applied by the
+        // runtime on the resolved pose. The runtime owns the override table and its whole lifecycle
+        // (HoldUntilNextAnimation is cleared on setup_animation, Permanent is re-validated, and a
+        // reset / new ssab clears everything), so the player keeps no copy and never re-applies.
+        //
+        // Parts are addressed by index. Indices are positional over the asset's parts and stable
+        // within one asset, so callers resolve a name once via ResolvePartIndex and reuse the index.
+        // The name-based overloads here do exactly that; an unknown name resolves to -1 and the call
+        // is a no-op returning false.
+        //
+        // A successful set/clear invalidates the frame-skip cache: an override changes the pose
+        // without changing the frame number, so a paused (or otherwise unchanged) frame would
+        // otherwise reuse the previous geometry and swallow the change.
+
+        /// <summary>
+        /// Force-hide a part (<paramref name="hide"/> = true) or revert it to the animation
+        /// (false). With <paramref name="cascade"/> the force-hide propagates to the part's
+        /// descendants. Visibility has no priority mode. False if the part is unknown or the call
+        /// is rejected.
+        /// </summary>
+        public bool SetPartVisibilityOverride(int partIndex, bool hide, bool cascade = false)
+        {
+            unsafe
+            {
+                if (!_handle.IsValid || partIndex < 0) return false;
+                // force: 0 = clear/revert, 1 = force-hide (2 = force-visible is reserved by the runtime).
+                byte force = hide ? (byte)1 : (byte)0;
+                if (!NativeMethods.ss_runtime_set_part_visibility_override(_handle.ptr, (uint)partIndex, force, cascade ? (byte)1 : (byte)0))
+                    return false;
+                _geometryBuilder?.InvalidateFrameCache();
+                return true;
+            }
+        }
+
+        /// <inheritdoc cref="SetPartVisibilityOverride(int, bool, bool)"/>
+        public bool SetPartVisibilityOverride(string partName, bool hide, bool cascade = false)
+            => SetPartVisibilityOverride(ResolvePartIndex(partName), hide, cascade);
+
+        /// <summary>Clear a part's visibility override (revert to the animation).</summary>
+        public bool ClearPartVisibilityOverride(int partIndex)
+        {
+            unsafe
+            {
+                if (!_handle.IsValid || partIndex < 0) return false;
+                if (!NativeMethods.ss_runtime_clear_part_visibility_override(_handle.ptr, (uint)partIndex)) return false;
+                _geometryBuilder?.InvalidateFrameCache();
+                return true;
+            }
+        }
+
+        /// <inheritdoc cref="ClearPartVisibilityOverride(int)"/>
+        public bool ClearPartVisibilityOverride(string partName) => ClearPartVisibilityOverride(ResolvePartIndex(partName));
+
+        /// <summary>
+        /// Override a part's colour with a single value (all four corners). Applies to Normal parts
+        /// only; other part types silently ignore it (the call still returns true). The colour is
+        /// interpreted in the same 8-bit sRGB space as the authored PartColor and the runtime
+        /// pre-multiplies alpha itself — do not pre-multiply or gamma-convert it here.
+        /// </summary>
+        public bool SetPartColorOverride(int partIndex, SpriteStudioBlendOp blendOp, Color color,
+            SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
+        {
+            unsafe
+            {
+                if (!_handle.IsValid || partIndex < 0) return false;
+                if (!NativeMethods.ss_runtime_set_part_color_override(_handle.ptr, (uint)partIndex, (byte)blendOp, PackRgba(color), (byte)priority))
+                    return false;
+                _geometryBuilder?.InvalidateFrameCache();
+                return true;
+            }
+        }
+
+        /// <inheritdoc cref="SetPartColorOverride(int, SpriteStudioBlendOp, Color, SpriteStudioOverridePriority)"/>
+        public bool SetPartColorOverride(string partName, SpriteStudioBlendOp blendOp, Color color,
+            SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
+            => SetPartColorOverride(ResolvePartIndex(partName), blendOp, color, priority);
+
+        /// <summary>
+        /// Override a part's colour with four distinct corners (left-top, right-top, left-bottom,
+        /// right-bottom). Same contract as the single-colour form.
+        /// </summary>
+        public bool SetPartColorOverride(int partIndex, SpriteStudioBlendOp blendOp,
+            Color leftTop, Color rightTop, Color leftBottom, Color rightBottom,
+            SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
+        {
+            unsafe
+            {
+                if (!_handle.IsValid || partIndex < 0) return false;
+                // Corner order is the runtime's: lt, rt, lb, rb.
+                uint* corners = stackalloc uint[4];
+                corners[0] = PackRgba(leftTop);
+                corners[1] = PackRgba(rightTop);
+                corners[2] = PackRgba(leftBottom);
+                corners[3] = PackRgba(rightBottom);
+                if (!NativeMethods.ss_runtime_set_part_color_override_corners(_handle.ptr, (uint)partIndex, (byte)blendOp, corners, (byte)priority))
+                    return false;
+                _geometryBuilder?.InvalidateFrameCache();
+                return true;
+            }
+        }
+
+        /// <inheritdoc cref="SetPartColorOverride(int, SpriteStudioBlendOp, Color, Color, Color, Color, SpriteStudioOverridePriority)"/>
+        public bool SetPartColorOverride(string partName, SpriteStudioBlendOp blendOp,
+            Color leftTop, Color rightTop, Color leftBottom, Color rightBottom,
+            SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
+            => SetPartColorOverride(ResolvePartIndex(partName), blendOp, leftTop, rightTop, leftBottom, rightBottom, priority);
+
+        /// <summary>Clear a part's colour override (revert to the animation).</summary>
+        public bool ClearPartColorOverride(int partIndex)
+        {
+            unsafe
+            {
+                if (!_handle.IsValid || partIndex < 0) return false;
+                if (!NativeMethods.ss_runtime_clear_part_color_override(_handle.ptr, (uint)partIndex)) return false;
+                _geometryBuilder?.InvalidateFrameCache();
+                return true;
+            }
+        }
+
+        /// <inheritdoc cref="ClearPartColorOverride(int)"/>
+        public bool ClearPartColorOverride(string partName) => ClearPartColorOverride(ResolvePartIndex(partName));
+
+        /// <summary>
+        /// Make a part draw a different cell. The cell is named by its cellmap (without the .ssce
+        /// extension) and its cell name, and is resolved immediately — an unresolvable cell returns
+        /// false. Applies to Normal and mask parts only; other part types silently ignore it. Empty
+        /// names revert the part to the animation.
+        /// </summary>
+        public bool SetPartCellOverride(int partIndex, string cellmapName, string cellName,
+            SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
+        {
+            unsafe
+            {
+                if (!_handle.IsValid || partIndex < 0) return false;
+                // (0, 0) is the runtime's "follow the animation" sentinel; empty names hash to 0.
+                if (!NativeMethods.ss_runtime_set_part_cell_override(_handle.ptr, (uint)partIndex,
+                        HashName(cellmapName), HashName(cellName), (byte)priority))
+                    return false;
+                _geometryBuilder?.InvalidateFrameCache();
+                return true;
+            }
+        }
+
+        /// <inheritdoc cref="SetPartCellOverride(int, string, string, SpriteStudioOverridePriority)"/>
+        public bool SetPartCellOverride(string partName, string cellmapName, string cellName,
+            SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
+            => SetPartCellOverride(ResolvePartIndex(partName), cellmapName, cellName, priority);
+
+        /// <summary>Clear a part's cell override (revert to the animation).</summary>
+        public bool ClearPartCellOverride(int partIndex)
+        {
+            unsafe
+            {
+                if (!_handle.IsValid || partIndex < 0) return false;
+                if (!NativeMethods.ss_runtime_clear_part_cell_override(_handle.ptr, (uint)partIndex)) return false;
+                _geometryBuilder?.InvalidateFrameCache();
+                return true;
+            }
+        }
+
+        /// <inheritdoc cref="ClearPartCellOverride(int)"/>
+        public bool ClearPartCellOverride(string partName) => ClearPartCellOverride(ResolvePartIndex(partName));
+
+        /// <summary>Clear every per-part override on this player.</summary>
+        public bool ClearAllPartOverrides()
+        {
+            unsafe
+            {
+                if (!_handle.IsValid) return false;
+                if (!NativeMethods.ss_runtime_clear_all_part_overrides(_handle.ptr)) return false;
+                _geometryBuilder?.InvalidateFrameCache();
+                return true;
+            }
+        }
+
+        /// <summary>Names of the cellmaps in the loaded ssab (empty if nothing is loaded). For discovering cell-override targets.</summary>
+        public string[] GetCellMapNames()
+        {
+            if (!_ssab.HasValue) return System.Array.Empty<string>();
+            var binary = _ssab.Value;
+            var names = new string[binary.CellmapsLength];
+            for (int i = 0; i < binary.CellmapsLength; i++)
+            {
+                var cm = binary.Cellmaps(i);
+                names[i] = cm.HasValue ? cm.Value.Name : null;
+            }
+            return names;
+        }
+
+        /// <summary>Names of the cells in the named cellmap (empty if unknown). For discovering cell-override targets.</summary>
+        public string[] GetCellNames(string cellmapName)
+        {
+            if (!_ssab.HasValue || string.IsNullOrEmpty(cellmapName)) return System.Array.Empty<string>();
+            var binary = _ssab.Value;
+            for (int i = 0; i < binary.CellmapsLength; i++)
+            {
+                var cmObj = binary.Cellmaps(i);
+                if (!cmObj.HasValue || cmObj.Value.Name != cellmapName) continue;
+                var cm = cmObj.Value;
+                var names = new string[cm.CellsLength];
+                for (int j = 0; j < cm.CellsLength; j++)
+                {
+                    var cell = cm.Cells(j);
+                    names[j] = cell.HasValue ? cell.Value.Name : null;
+                }
+                return names;
+            }
+            return System.Array.Empty<string>();
+        }
+
+        /// <summary>Pack a colour into the 0xRRGGBBAA the override C-API expects (8-bit sRGB, no gamma conversion).</summary>
+        private static uint PackRgba(Color color)
+        {
+            uint r = (uint)(Mathf.Clamp01(color.r) * 255f + 0.5f);
+            uint g = (uint)(Mathf.Clamp01(color.g) * 255f + 0.5f);
+            uint b = (uint)(Mathf.Clamp01(color.b) * 255f + 0.5f);
+            uint a = (uint)(Mathf.Clamp01(color.a) * 255f + 0.5f);
+            return (r << 24) | (g << 16) | (b << 8) | a;
+        }
+
+        /// <summary>
+        /// FNV-1a hash of a name, via the runtime's own exported hasher so cell overrides key on
+        /// exactly the hashes the asset was built with. An empty name hashes to 0 (the sentinel).
+        /// </summary>
+        internal static uint HashName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return 0u;
+            unsafe
+            {
+                var bytes = System.Text.Encoding.UTF8.GetBytes(name + "\0");
+                fixed (byte* p = bytes)
+                {
+                    return NativeMethods.ss_runtime_hash_string(p);
+                }
+            }
+        }
         #endregion
 
         public bool SetupAnimation(string animationName)

@@ -131,20 +131,24 @@ Timeline); keep struct layouts intact for Burst/FFI.
 - **Done when**: world-player tint/opacity verified visually + a test on the delta hook; document any SS6 feature
   intentionally dropped.
 
-## ⛔ Tier 2 — Per-part runtime overrides (color / cell / visibility)  (SDK Phase 2)
+## ✅ Tier 2 — Per-part runtime overrides (color / cell / visibility)  (SDK Phase 2)
 
-- **Blocked on**: `SpriteStudio-SDK/ROADMAP.md` Phase 2 **Override Layer API** (runtime state + FFI:
-  set/clear per-part color, cell-ref, visibility). Track the FFI names there; regenerate bindings after it lands.
-- **Goal**: port SS6 `PartsColorChange` (blend op Mix/Add/Sub/Mul, single or 4-vertex RGBA, opacity),
-  `CellChangeParts` (cell-map + cell index, sentinel = follow data), `HideSet` (force show/hide, cascade to
-  children). SS6 reference: `FunctionParts.cs`, `FunctionCell.cs`.
-- **Steps (after SDK FFI exists)**:
-  1. Regenerate `SSRuntimeMethods.g.cs`; add thin wrappers in `SpriteStudioInternalPlayer` (resolve part name→index
-     via `ResolvePartIndex`).
-  2. Add component API mirroring SS6 names, incl. the `KindIgnoreAttribute` priority mode (overwrite-on-next-key /
-     hold-until-next-anim / permanent) — the SDK item calls this the shared "priority mode".
-  3. Mirror on `SpriteStudioGraphic`.
-- **Done when**: tests set an override mid-playback and assert it survives/clears per the priority mode.
+- **Shipped**: the SDK's Override Layer API (per-part color / cell / visibility, applied on the resolved pose
+  so an override wins over both keyframe and blend) is exposed on the Player.
+- **Surface**: `SetPartColorOverride` (single color + four-corner form), `SetPartCellOverride`,
+  `SetPartVisibilityOverride` (force-hide + cascade), their `Clear*` counterparts, `ClearAllPartOverrides`,
+  `FindPartIndex`, and `GetCellMapNames` / `GetCellNames` for discovering cell-override targets. Each takes a
+  part **name or index** and returns `false` when the part is unknown or the runtime rejects the call.
+  Priority mode (`SpriteStudioOverridePriority`: overwrite-on-next-keyframe / hold-until-next-animation /
+  permanent) applies to color and cell; visibility is a plain force-hide flag, cleared by any new animation.
+- **Where**: wrappers in `SpriteStudioInternalPlayer` (part name→index via `ResolvePartIndex`), component API
+  mirrored on `SpriteStudioPlayer` and `SpriteStudioGraphic`, enums in `SpriteStudioPartOverride.cs`. The
+  runtime owns the override table and its lifecycle, so the Player caches nothing and never re-applies.
+  Cell names are hashed with the runtime's own `ss_runtime_hash_string` (FNV-1a). A set/clear invalidates the
+  frame-skip cache so an override also shows on a paused / static frame.
+- **Tests**: `package/Tests/Runtime/SpriteStudioPartOverrideTests.cs` — the validation contract plus read-back
+  of the resolved pose (hide flag / part color / cell identity), incl. cascade, and the priority-mode
+  lifecycle (hold-until-next-animation cleared by `SetupAnimation`, permanent survives it).
 - **Note**: **Flip** (`FlipSetParts`) is intentionally NOT part of this — SDK ROADMAP keeps flip as Player-side
   post-processing (scale negation + UV swap). Implement it here as a separate small Player task if needed.
 
