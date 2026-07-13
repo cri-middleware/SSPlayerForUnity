@@ -164,6 +164,26 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         }
 
         /// <summary>
+        /// Resolved colour of a part on the last consumed frame — the blend type and the four corners as
+        /// the mesh job sees them, so any per-part colour override is already folded in. False when no
+        /// frame has been consumed, the index is out of range, or the part carries no colour this frame.
+        /// The render path reads the colours in bulk; this is a per-part inspection hook.
+        /// </summary>
+        internal bool TryGetPartColor(int partIndex, out ss.runtime.PartAttributePartColor partColor)
+        {
+            partColor = default;
+            if (!_hasFrameData || partIndex < 0 || partIndex >= _lastFrameData.PartsLength) return false;
+            var p = _lastFrameData.Parts(partIndex);
+            if (!p.HasValue) return false;
+            short colorIndex = p.Value.PartColor;
+            if (colorIndex < 0 || colorIndex >= _lastFrameData.PartsColorLength) return false;
+            var c = _lastFrameData.PartsColor(colorIndex);
+            if (!c.HasValue) return false;
+            partColor = c.Value;
+            return true;
+        }
+
+        /// <summary>
         /// Wait for the previous frame's Job to complete, advance by one frame when advance is set, and
         /// finalize the draw frame number and frame-skip. When the out handle is Zero, this player is
         /// excluded from the parallel get_frame_data / ConsumeFrameData pass this frame (invalid handle, or skip).

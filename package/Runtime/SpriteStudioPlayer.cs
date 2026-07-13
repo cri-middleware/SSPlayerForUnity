@@ -299,6 +299,88 @@ namespace SpriteStudio.Runtime
 
         #endregion
 
+        #region Part Overrides
+        // Per-part runtime overrides (colour / cell / visibility), the SS6 PartsColorChange /
+        // CellChangeParts / HideSet equivalents. They win over both the keyframe and the blend. The
+        // runtime owns the override table and its lifecycle (see SpriteStudioOverridePriority), so
+        // nothing is cached or re-applied here. Every method returns false when the part is unknown
+        // or the runtime rejects the call (bad blend op / priority, unresolvable cell).
+        //
+        // Part indices are stable within one asset: resolve a name once with FindPartIndex and pass
+        // the index if you set overrides often.
+
+        /// <summary>Resolve a part name to its index, or -1 if the part is not in the loaded asset.</summary>
+        public int FindPartIndex(string partName) => _core.Internal?.ResolvePartIndex(partName) ?? -1;
+
+        /// <summary>Force-hide a part (or revert it to the animation), optionally cascading to its descendants.</summary>
+        public bool SetPartVisibilityOverride(string partName, bool hide, bool cascade = false)
+            => _core.Internal?.SetPartVisibilityOverride(partName, hide, cascade) ?? false;
+
+        /// <inheritdoc cref="SetPartVisibilityOverride(string, bool, bool)"/>
+        public bool SetPartVisibilityOverride(int partIndex, bool hide, bool cascade = false)
+            => _core.Internal?.SetPartVisibilityOverride(partIndex, hide, cascade) ?? false;
+
+        /// <summary>Clear a part's visibility override (revert to the animation).</summary>
+        public bool ClearPartVisibilityOverride(string partName) => _core.Internal?.ClearPartVisibilityOverride(partName) ?? false;
+
+        /// <inheritdoc cref="ClearPartVisibilityOverride(string)"/>
+        public bool ClearPartVisibilityOverride(int partIndex) => _core.Internal?.ClearPartVisibilityOverride(partIndex) ?? false;
+
+        /// <summary>Override a Normal part's colour with a single value (all four corners).</summary>
+        public bool SetPartColorOverride(string partName, SpriteStudioBlendOp blendOp, Color color,
+            SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
+            => _core.Internal?.SetPartColorOverride(partName, blendOp, color, priority) ?? false;
+
+        /// <inheritdoc cref="SetPartColorOverride(string, SpriteStudioBlendOp, Color, SpriteStudioOverridePriority)"/>
+        public bool SetPartColorOverride(int partIndex, SpriteStudioBlendOp blendOp, Color color,
+            SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
+            => _core.Internal?.SetPartColorOverride(partIndex, blendOp, color, priority) ?? false;
+
+        /// <summary>Override a Normal part's colour with four distinct corners (left-top, right-top, left-bottom, right-bottom).</summary>
+        public bool SetPartColorOverride(string partName, SpriteStudioBlendOp blendOp,
+            Color leftTop, Color rightTop, Color leftBottom, Color rightBottom,
+            SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
+            => _core.Internal?.SetPartColorOverride(partName, blendOp, leftTop, rightTop, leftBottom, rightBottom, priority) ?? false;
+
+        /// <inheritdoc cref="SetPartColorOverride(string, SpriteStudioBlendOp, Color, Color, Color, Color, SpriteStudioOverridePriority)"/>
+        public bool SetPartColorOverride(int partIndex, SpriteStudioBlendOp blendOp,
+            Color leftTop, Color rightTop, Color leftBottom, Color rightBottom,
+            SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
+            => _core.Internal?.SetPartColorOverride(partIndex, blendOp, leftTop, rightTop, leftBottom, rightBottom, priority) ?? false;
+
+        /// <summary>Clear a part's colour override (revert to the animation).</summary>
+        public bool ClearPartColorOverride(string partName) => _core.Internal?.ClearPartColorOverride(partName) ?? false;
+
+        /// <inheritdoc cref="ClearPartColorOverride(string)"/>
+        public bool ClearPartColorOverride(int partIndex) => _core.Internal?.ClearPartColorOverride(partIndex) ?? false;
+
+        /// <summary>Make a Normal / mask part draw a different cell, named by its cellmap (without .ssce) and cell name.</summary>
+        public bool SetPartCellOverride(string partName, string cellmapName, string cellName,
+            SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
+            => _core.Internal?.SetPartCellOverride(partName, cellmapName, cellName, priority) ?? false;
+
+        /// <inheritdoc cref="SetPartCellOverride(string, string, string, SpriteStudioOverridePriority)"/>
+        public bool SetPartCellOverride(int partIndex, string cellmapName, string cellName,
+            SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
+            => _core.Internal?.SetPartCellOverride(partIndex, cellmapName, cellName, priority) ?? false;
+
+        /// <summary>Clear a part's cell override (revert to the animation).</summary>
+        public bool ClearPartCellOverride(string partName) => _core.Internal?.ClearPartCellOverride(partName) ?? false;
+
+        /// <inheritdoc cref="ClearPartCellOverride(string)"/>
+        public bool ClearPartCellOverride(int partIndex) => _core.Internal?.ClearPartCellOverride(partIndex) ?? false;
+
+        /// <summary>Clear every per-part override on this player.</summary>
+        public bool ClearAllPartOverrides() => _core.Internal?.ClearAllPartOverrides() ?? false;
+
+        /// <summary>Names of the cellmaps in the loaded asset (for discovering cell-override targets).</summary>
+        public string[] GetCellMapNames() => _core.Internal?.GetCellMapNames() ?? System.Array.Empty<string>();
+
+        /// <summary>Names of the cells in the named cellmap (for discovering cell-override targets).</summary>
+        public string[] GetCellNames(string cellmapName) => _core.Internal?.GetCellNames(cellmapName) ?? System.Array.Empty<string>();
+
+        #endregion
+
         private void Start()
         {
             if (string.IsNullOrEmpty(_animationName)) return;

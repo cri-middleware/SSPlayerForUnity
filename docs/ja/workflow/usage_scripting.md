@@ -228,6 +228,56 @@ void HandleUserData(SpriteStudioUserData data)
 - ターゲットをプレイヤーの**子**に置くとローカル変換が完全一致します。別階層に置いた場合はワールド位置・回転が一致し、スケールは近似になります。
 - アニメーションに存在しないパーツ名を指定した場合、ターゲットは自動的に非アクティブ化されます。
 
+## パーツオーバーライド（カラー / セル / 表示）
+
+パーツ単位のランタイムオーバーライドは、「このパーツを**今**この色に / このセルに / 非表示に」とスクリプトから指示する機能です。オーバーライドはキーフレームにもアニメーションのブレンドにも勝つため、アニメーションと取り合いになりません。`SpriteStudioPlayer` / `SpriteStudioGraphic` の両方で使えます。
+
+```csharp
+var player = GetComponent<SpriteStudioPlayer>();
+
+// パーツを赤く着色（乗算）。通常（画像）パーツに適用されます。
+player.SetPartColorOverride("body", SpriteStudioBlendOp.Mul, Color.red);
+
+// 別のセルを描画させる（セルマップ名は ".ssce" を付けずに指定）。
+player.SetPartCellOverride("body", "Ringo", "effect3");
+
+// パーツを強制非表示にする（子孫にもカスケード）。
+player.SetPartVisibilityOverride("body", hide: true, cascade: true);
+
+// 解除
+player.ClearPartColorOverride("body");
+player.ClearAllPartOverrides();
+```
+
+| メソッド | 説明 |
+|---|---|
+| `FindPartIndex(name)` | パーツインデックス。アセットに無ければ `-1` |
+| `SetPartColorOverride(part, blendOp, color, priority)` | カラーオーバーライド（単色。4隅指定のオーバーロードもあり：左上・右上・左下・右下） |
+| `SetPartCellOverride(part, cellmapName, cellName, priority)` | 別のセルを描画させる |
+| `SetPartVisibilityOverride(part, hide, cascade)` | 強制非表示（`hide: false` でアニメーションに戻す） |
+| `ClearPartColorOverride` / `ClearPartCellOverride` / `ClearPartVisibilityOverride` | 1パーツの1オーバーライドを解除 |
+| `ClearAllPartOverrides()` | そのプレイヤーの全オーバーライドを解除 |
+| `GetCellMapNames()` / `GetCellNames(cellmap)` | セルオーバーライドに指定できるセルマップ名 / セル名の列挙 |
+
+各メソッドは**パーツ名**と**パーツインデックス**のどちらでも指定でき、パーツが不明な場合やランタイムが受け付けなかった場合は `false` を返します。パーツインデックスは同一アセット内で安定しているので、頻繁にオーバーライドするなら `FindPartIndex` で一度解決してインデックスを使い回してください。
+
+### 優先モード（priority mode）
+
+カラーとセルのオーバーライドはアニメーションと競合するため、`SpriteStudioOverridePriority` を取ります（表示にはありません。単なる強制非表示フラグで、アニメーションを設定し直すと必ずクリアされます）。
+
+| 優先モード | 挙動 |
+|---|---|
+| `OverwriteOnNextKeyframe` | アニメーションがその属性を駆動するフレームではキーフレームが取り返す。アニメーションが触れないフレームでのみオーバーライドが見える |
+| `HoldUntilNextAnimation`（既定） | 現在のアニメーション中は勝ち続け、新しいアニメーションを設定するとクリアされる |
+| `Permanent` | 勝ち続け、アニメーション変更をまたいでも持続する |
+
+### 注意点
+
+- **カラー**は通常パーツ、**セル**は通常パーツとマスクパーツに適用されます。それ以外の種別のパーツでは黙って無視されます（呼び出し自体は `true` を返します）。
+- 色はオーサリングされた Part Color と同じ 8bit sRGB 空間として解釈され、アルファはランタイム側で pre-multiply されます。自前で変換せず、オーサリングどおりの色を渡してください。
+- セルオーバーライドは設定時に解決されるため、存在しないセルマップ名 / セル名はその場で失敗します（`false` を返します）。
+- オーバーライドはランタイムが保持し、そのライフサイクルもランタイムが管理します。アニメーション変更後に再適用する必要はありません。意図に合った優先モードを選んでください。
+
 ## Timeline からの駆動
 
 `SpriteStudioPlayer` は `ITimeControl` を実装しており、Unity の Timeline トラックから再生時刻を制御できます。Timeline 用のトラック / アセットも同梱されています。
