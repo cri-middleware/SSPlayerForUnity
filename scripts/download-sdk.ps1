@@ -7,7 +7,7 @@ $runtimePlugins = "$pkg/Runtime/Plugins"
 $editorPlugins = "$pkg/Editor/Plugins"
 $runtimeBindings = "$pkg/Runtime/Bindings"
 $editorBindings = "$pkg/Editor/Bindings"
-$versionFile = "$rootDirectory/SDK_VERSION.txt"
+$versionFile = "$baseDirectory/SDK_VERSION.txt"
 # Version stamps are written to both plugin dirs; the runtime one gates the skip.
 $stamp = "$runtimePlugins/VERSION"
 
@@ -23,18 +23,42 @@ if (Test-Path $stamp) {
 $baseUrl = "https://github.com/cri-middleware/SpriteStudio-SDK/releases/download/$targetVersion"
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
 New-Item -ItemType Directory -Path $tmp | Out-Null
+$sumsFile = "$tmp/SHA256SUMS"
 
 try {
+    # Verify <file> against the release's SHA256SUMS manifest entry for
+    # <asset-name> before extracting, so a corrupted or tampered download fails
+    # loudly. Get-FileHash returns an upper-case hash; sha256sum writes
+    # lower-case, so compare case-insensitively.
+    function Assert-Sha256($file, $name) {
+        $expected = $null
+        foreach ($line in Get-Content $sumsFile) {
+            $parts = $line -split '\s+', 2
+            if ($parts.Count -eq 2 -and $parts[1].Trim() -eq $name) { $expected = $parts[0].ToLower(); break }
+        }
+        if (-not $expected) {
+            Write-Error "No checksum entry for $name in SHA256SUMS"
+        }
+        $actual = (Get-FileHash -Algorithm SHA256 -Path $file).Hash.ToLower()
+        if ($expected -ne $actual) {
+            Write-Error "Checksum mismatch for $name`n  expected: $expected`n  actual:   $actual"
+        }
+        Write-Host "Checksum OK: $name"
+    }
+
     # The SDK release publishes two zips. Each unzips to output/<kind>/runtime/,
     # holding libs/<platform>/ plus include/, VERSION and the license notices.
     #   static  : .a / .lib / static xcframework
     #   dynamic : .dylib / .so / .dll / dynamic xcframework
     Write-Host "Target SDK Version: $targetVersion"
+    Write-Host "Downloading checksum manifest: $baseUrl/SHA256SUMS"
+    Invoke-WebRequest -Uri "$baseUrl/SHA256SUMS" -OutFile $sumsFile
     foreach ($kind in @("static", "dynamic")) {
-        $url = "$baseUrl/spritestudio-sdk-$kind-libs.zip"
-        Write-Host "Downloading $url"
+        $asset = "spritestudio-sdk-$kind-libs.zip"
+        Write-Host "Downloading $baseUrl/$asset"
         $zip = "$tmp/$kind.zip"
-        Invoke-WebRequest -Uri $url -OutFile $zip
+        Invoke-WebRequest -Uri "$baseUrl/$asset" -OutFile $zip
+        Assert-Sha256 $zip $asset
         Expand-Archive -Path $zip -DestinationPath "$tmp/$kind" -Force
     }
 

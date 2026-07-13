@@ -81,7 +81,7 @@ graph LR
 | Dependencies | Burst / Mathematics / Collections / Timeline (all standard Unity packages) |
 | Supported Platforms | Windows / macOS / Linux / Android / iOS / WebGL (for native libraries, see the [Build Guide](./setup/build.md)) |
 
-> **Note:** The current package version is `7.0.0-alpha01`. The API may change without notice.
+> **Note:** The current package version is `7.0.0-beta.1`. The API may change without notice.
 
 ## License
 
