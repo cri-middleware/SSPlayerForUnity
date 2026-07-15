@@ -93,7 +93,7 @@ public class Sample : MonoBehaviour
 | **SpriteStudio Asset** | （なし） | 再生対象の `SpriteStudioAnimeAsset` |
 | **Animation Name** | `""` | 再生するアニメーション名 |
 | **Auto Play** | `true` | シーンの実行起動時に自動再生するか |
-| **Loop Count** | `-1` | ループ回数（`-1` = 無限 / `1` = 1 回 / `n` = n 回） |
+| **Loop Count** | `-1` | ループ回数（`-1` = 無限 / `1` = 1 回 / `n` = n 回 / `0` = 無限、`-1` の別名） |
 | **Speed Scale** | `1.0` | 再生速度の倍率 |
 | **Sub Frame Enabled** | `false` | フレーム間補間（サブフレーム描画）を行うか |
 | **Skip Frames** | `true` | 実時間追従。ON = 経過時間ぶん進める / OFF = 毎 update で 1 フレームずつ |

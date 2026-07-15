@@ -93,7 +93,7 @@ These are the settings common to both `SpriteStudioPlayer` and `SpriteStudioGrap
 | **SpriteStudio Asset** | (none) | The `SpriteStudioAnimeAsset` to play back |
 | **Animation Name** | `""` | The name of the animation to play |
 | **Auto Play** | `true` | Whether to play back automatically when the scene starts running |
-| **Loop Count** | `-1` | Number of loops (`-1` = infinite / `1` = once / `n` = n times) |
+| **Loop Count** | `-1` | Number of loops (`-1` = infinite / `1` = once / `n` = n times / `0` = infinite, a synonym for `-1`) |
 | **Speed Scale** | `1.0` | Playback speed multiplier |
 | **Sub Frame Enabled** | `false` | Whether to perform inter-frame interpolation (sub-frame rendering) |
 | **Skip Frames** | `true` | Real-time tracking. ON = advance by the elapsed time / OFF = advance one frame per update |

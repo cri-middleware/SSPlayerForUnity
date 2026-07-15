@@ -144,7 +144,7 @@ internal struct MaskPartData
         private ss.format.SsAnimeBinary? _ssab;
         private ss.format.AnimationData? _currentAnimation;
 
-        // Edge detection for OnAnimationFinished (previous value of !is_playing && is_end_frame_reached).
+        // Rising-edge memory for OnAnimationFinished (previous value of is_finished).
         private bool _prevFinished;
 
         // True once an ssab has been loaded into the native runtime. Lets the owner (PlaybackCore /
@@ -375,6 +375,9 @@ internal struct MaskPartData
                 // re-played animation would debounce an already-fired independent effect/instance as
                 // the same key and never re-fire it.
                 ResetSlotsPlaybackState();
+                // Re-arm the OnAnimationFinished edge so replaying a finished animation reports its
+                // next completion.
+                _prevFinished = false;
                 if (startFrame < 0.0f) NativeMethods.ss_runtime_play(_handle.ptr);
                 else NativeMethods.ss_runtime_play_with_start_frame(_handle.ptr, startFrame);
             }
@@ -869,13 +872,10 @@ internal struct MaskPartData
 
             unsafe
             {
-                // is_end_frame_reached is the "reached the end" flag: it becomes true for up to 2 updates,
-                // (1) when landing on the final frame (still playing) and (2) when stopping after
-                // overrunning the end, and it stays stuck true after stopping. OnAnimationFinished should
-                // notify exactly once "at the moment playback ends and stops", so fire it only on the
-                // rising edge (false->true) of !is_playing && is_end_frame_reached.
-                bool finished = !NativeMethods.ss_runtime_is_playing(_handle.ptr)
-                                && NativeMethods.ss_runtime_is_end_frame_reached(_handle.ptr);
+                // is_finished stays true from the moment every configured loop has played until the next
+                // play/setup, so fire OnAnimationFinished only on its rising edge. Nothing here early-returns
+                // on !is_playing, which makes _prevFinished the sole dedupe -- do not drop it.
+                bool finished = NativeMethods.ss_runtime_is_finished(_handle.ptr);
                 if (finished && !_prevFinished)
                 {
                     OnAnimationFinished?.Invoke();

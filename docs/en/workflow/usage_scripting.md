@@ -79,7 +79,7 @@ These properties correspond to the inspector items. Changing them at runtime is 
 | `AnimeAsset` | `SpriteStudioAnimeAsset` | Playback target asset (swappable) |
 | `AnimationName` | `string` | Animation name |
 | `AutoPlay` | `bool` | Auto-play at startup |
-| `LoopCount` | `int` | Loop count (`-1` = infinite) |
+| `LoopCount` | `int` | Loop count (`-1` or `0` = infinite / `n` = n times) |
 | `SpeedScale` | `float` | Playback speed multiplier |
 | `SubFrameEnabled` | `bool` | Sub-frame interpolation |
 | `SkipFrames` | `bool` | Real-time tracking (see [Advanced Settings](./tips.md)) |
@@ -93,8 +93,8 @@ You can receive five types of events as the animation progresses. Both `C# event
 | Event | C# event | UnityEvent field | Payload | Trigger timing |
 |---|---|---|---|---|
 | Playback started | `OnAnimationStarted` | `OnAnimationStartedEvent` | None | When playback starts after calling `Play()` |
-| Playback finished | `OnAnimationFinished` | `OnAnimationFinishedEvent` | None | When playback reaches the end and stops |
-| Loop | `OnAnimationLooped` | `OnAnimationLoopedEvent` | None | When a loop returns to the beginning |
+| Playback finished | `OnAnimationFinished` | `OnAnimationFinishedEvent` | None | When every configured loop has played. Never under an infinite `LoopCount`, and not on `Stop()` |
+| Loop | `OnAnimationLooped` | `OnAnimationLoopedEvent` | None | Each time a loop returns to the beginning. The final loop finishes instead |
 | User data | `OnUserData` | `OnUserDataEvent` | `SpriteStudioUserData` | When a frame with a UserData key is reached |
 | Signal | `OnSignal` | `OnSignalEvent` | `SpriteStudioSignal` | When a frame with a Signal command is reached |
 | Audio | `OnAudio` | `OnAudioEvent` | `SpriteStudioAudio` | When a frame with an Audio event is reached |

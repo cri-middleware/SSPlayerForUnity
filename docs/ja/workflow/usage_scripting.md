@@ -79,7 +79,7 @@ _player.Play();
 | `AnimeAsset` | `SpriteStudioAnimeAsset` | 再生対象アセット（差し替え可） |
 | `AnimationName` | `string` | アニメーション名 |
 | `AutoPlay` | `bool` | 起動時自動再生 |
-| `LoopCount` | `int` | ループ回数（`-1` = 無限） |
+| `LoopCount` | `int` | ループ回数（`-1` または `0` = 無限 / `n` = n 回） |
 | `SpeedScale` | `float` | 再生速度倍率 |
 | `SubFrameEnabled` | `bool` | サブフレーム補間 |
 | `SkipFrames` | `bool` | 実時間追従（[高度な設定](./tips.md) 参照） |
@@ -93,8 +93,8 @@ _player.Play();
 | イベント | C# event | UnityEvent フィールド | ペイロード | 発火タイミング |
 |---|---|---|---|---|
 | 再生開始 | `OnAnimationStarted` | `OnAnimationStartedEvent` | なし | `Play()` を呼んで再生を開始したとき |
-| 再生終了 | `OnAnimationFinished` | `OnAnimationFinishedEvent` | なし | 再生が終端に達して停止したとき |
-| ループ | `OnAnimationLooped` | `OnAnimationLoopedEvent` | なし | ループで先頭へ戻ったとき |
+| 再生終了 | `OnAnimationFinished` | `OnAnimationFinishedEvent` | なし | 指定した `LoopCount` をすべて再生し終えたとき。無限ループでは発火せず、`Stop()` でも発火しない |
+| ループ | `OnAnimationLooped` | `OnAnimationLoopedEvent` | なし | ループで先頭へ戻るたび。最終周はループせず再生終了になる |
 | ユーザーデータ | `OnUserData` | `OnUserDataEvent` | `SpriteStudioUserData` | UserData キーのフレーム到達時 |
 | シグナル | `OnSignal` | `OnSignalEvent` | `SpriteStudioSignal` | Signal コマンドのフレーム到達時 |
 | オーディオ | `OnAudio` | `OnAudioEvent` | `SpriteStudioAudio` | Audio イベントのフレーム到達時 |

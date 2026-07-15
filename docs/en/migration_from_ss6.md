@@ -67,18 +67,17 @@ _player.Play();
 | `StatusGetPause(track)` | `IsPaused` | |
 | `CountGetAnimation()` | (query via `SpriteStudioAnimeAsset`) | |
 
-### 3-3. ⚠️ The loop-count value has changed
+### 3-3. Loop count
 
-`timesPlay` and `LoopCount` use **different values for an infinite loop** — the most common migration pitfall.
+`timesPlay` values port across unchanged.
 
 | Meaning | SS6Player `timesPlay` | Current version `LoopCount` |
 |---|---|---|
-| Infinite loop | `0` | **`-1`** |
+| Infinite loop | `0` | `-1` (preferred) or `0` |
 | Play once (no loop) | `1` | `1` |
 | Play n times | `n` | `n` |
-| Do not play | (n/a) | `0` |
 
-> Wherever SS6Player used `timesPlay = 0` (infinite), use `LoopCount = -1` in this version. Be careful **not** to copy it as `LoopCount = 0`, which means "do not play".
+> `-1` is the canonical value for an infinite loop, and the default. `0` is accepted as a synonym for it — so a `timesPlay = 0` copied over still loops forever. There is no value meaning "do not play"; simply don't call `Play()`.
 
 ### 3-4. Reverse and speed are now separate
 
