@@ -612,7 +612,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 if (childPlayer == null) continue; // _instanceMeshes[i] stays at the MemClear'd default
 
                 var ev = NativeMethods.ss_runtime_get_active_event_instance(_player._handle.ptr, (uint)i);
-                var step = NativeMethods.ss_instance_slot_step((void*)_player._instanceChildren[i].InstanceSlot, ev, childPlayer._handle.ptr, _player._instanceChildren[i].PreviousFrame, drawFrameNo, deltaTime, parentLooped);
+                var step = NativeMethods.ss_instance_slot_step((void*)_player._instanceChildren[i].InstanceSlot, ev, childPlayer._handle.ptr, drawFrameNo, deltaTime, parentLooped);
 
                 if (step.transitioned)
                 {
@@ -629,8 +629,6 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     // write the raw child_frame_no back to the controller (irrelevant for non-independent, which
                     // recomputes from parent_frame via set_frame_relative).
                     // The display-side frame-range clamp is unneeded here because the child's own PrepareFrameData does it before get_frame_data.
-                    float childDrawFrame = childPlayer.SubFrameEnabled ? step.child_frame_no : UnityEngine.Mathf.Floor(step.child_frame_no);
-                    _player._instanceChildren[i].PreviousFrame = childDrawFrame;
                     childPlayer.SetFrame(step.child_frame_no);
                     childPlayer.ScheduleMeshUpdate(deltaTime);
 
