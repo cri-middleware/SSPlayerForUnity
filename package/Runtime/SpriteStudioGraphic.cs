@@ -60,7 +60,7 @@ namespace SpriteStudio.Runtime
             set => _autoPlay = value;
         }
 
-        [Tooltip("Loop count. -1 = infinite loop / 1 = play once / n = play n times")]
+        [Tooltip("Loop count. -1 = infinite loop (0 is a synonym) / 1 = play once / n = play n times")]
         [SerializeField] private int _loopCount = -1;
         public int LoopCount
         {
