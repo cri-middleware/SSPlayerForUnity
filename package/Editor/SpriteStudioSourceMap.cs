@@ -15,26 +15,61 @@ namespace SpriteStudio.Editor
         {
             public List<string> SsabPaths = new List<string>();
             public List<string> SspjPaths = new List<string>();
+            // Project-shared conversion output folder (asset path). Kept in the same file as the
+            // map — the Godot player does the same with [general] output_directory in its
+            // .ssplayer_sources.cfg — so the whole team converts into the same folder.
+            // Missing in pre-existing files; JsonUtility then leaves the default "" (= unset).
+            public string OutputFolder = "";
         }
 
         private static Dictionary<string, string> _map;
+        private static string _outputFolder;
 
         public static Dictionary<string, string> GetMap()
         {
-            if (_map != null) return _map;
+            EnsureLoaded();
+            return _map;
+        }
+
+        /// <summary>
+        /// The team-shared conversion output folder (asset path such as "Assets/ssab_generated").
+        /// Returns <paramref name="defaultAssetPath"/> when unset. Callers validate the folder
+        /// themselves (it may not exist in this checkout).
+        /// </summary>
+        public static string GetOutputFolder(string defaultAssetPath)
+        {
+            EnsureLoaded();
+            return string.IsNullOrEmpty(_outputFolder) ? defaultAssetPath : _outputFolder;
+        }
+
+        public static void SetOutputFolder(string assetPath)
+        {
+            EnsureLoaded();
+            _outputFolder = assetPath ?? "";
+            SaveMap();
+        }
+
+        private static void EnsureLoaded()
+        {
+            if (_map != null) return;
 
             _map = new Dictionary<string, string>();
+            _outputFolder = "";
             if (File.Exists(MAP_FILE_PATH))
             {
                 try
                 {
                     string json = File.ReadAllText(MAP_FILE_PATH);
                     var data = JsonUtility.FromJson<SourceMapData>(json);
-                    if (data != null && data.SsabPaths.Count == data.SspjPaths.Count)
+                    if (data != null)
                     {
-                        for (int i = 0; i < data.SsabPaths.Count; i++)
+                        _outputFolder = data.OutputFolder ?? "";
+                        if (data.SsabPaths.Count == data.SspjPaths.Count)
                         {
-                            _map[data.SsabPaths[i]] = data.SspjPaths[i];
+                            for (int i = 0; i < data.SsabPaths.Count; i++)
+                            {
+                                _map[data.SsabPaths[i]] = data.SspjPaths[i];
+                            }
                         }
                     }
                 }
@@ -43,7 +78,6 @@ namespace SpriteStudio.Editor
                     Debug.LogError($"[SSPlayer] Failed to load source map: {e.Message}");
                 }
             }
-            return _map;
         }
 
         public static void SaveMap()
@@ -51,6 +85,7 @@ namespace SpriteStudio.Editor
             if (_map == null) return;
 
             var data = new SourceMapData();
+            data.OutputFolder = _outputFolder ?? "";
             foreach (var kvp in _map)
             {
                 data.SsabPaths.Add(kvp.Key);
@@ -88,8 +123,16 @@ namespace SpriteStudio.Editor
         {
             var map = GetMap();
             string ssabRel = GetRelativePath(ssabAbsolutePath);
-            string sspjRel = GetRelativePath(sspjAbsolutePath);
 
+            // The keys are meant to be assets of THIS project (Open SSPJ / Reconvert targets).
+            // Conversions whose output lies outside the project root — e.g. test fixtures generated
+            // into Application.temporaryCachePath — can never be looked up as assets and would only
+            // pollute the committed file with machine-local paths, so they are not recorded.
+            // (GetRelativePath normalizes separators to '/', and returns the path unchanged —
+            // still rooted — when it cannot be made relative at all.)
+            if (Path.IsPathRooted(ssabRel) || ssabRel.StartsWith("../")) return;
+
+            string sspjRel = GetRelativePath(sspjAbsolutePath);
             map[ssabRel] = sspjRel;
             if (save) SaveMap();
         }
