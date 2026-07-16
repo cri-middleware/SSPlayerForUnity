@@ -107,8 +107,11 @@ This powerful editor-to-editor integration feature (`Open SSPJ` and `Reconvert`)
 > [!TIP]
 > **File path sharing and smart relinking in team development**
 >
-> The integration information from importing via the SpriteStudio Importer window (the `.ssab` ↔ `.sspj` binding) is saved as a **relative path** in `ProjectSettings/SpriteStudioSourceMap.json` directly under the Unity project.
+> The integration information from importing via the SpriteStudio Importer window (the `.ssab` ↔ `.sspj` binding) and the **Output Folder setting** are saved as **project-relative paths** in `ProjectSettings/SpriteStudioSourceMap.json` directly under the Unity project (only paths that cannot be relativized — such as a `.sspj` on another drive — fall back to absolute paths).
 >
 > By sharing this file through a version control system such as Git, the path integration is maintained even when another team member does `git clone` on their PC, and they can use `Open SSPJ` and `Reconvert` as-is.
 >
 > Even if the link to a `.sspj` breaks—for example, due to a change in folder structure—it is easy to repair. Pressing the **"Relink SSPJ..."** button shown in the `SpriteStudioAnimeAsset` Inspector opens a dialog asking for the new location of the `.sspj`. Simply relinking a single file here also **smart-relinks and reconverts, all at once,** the other related `.ssab` files in the same output folder, so repair takes little effort.
+
+> [!NOTE]
+> The **Recent SSPJs** history in the Importer window is personal workflow state, so it is not shared: it is stored in `UserSettings/SpriteStudioRecentFiles.json` (`UserSettings/` is excluded from Git by Unity convention).

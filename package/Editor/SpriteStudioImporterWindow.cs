@@ -9,7 +9,6 @@ namespace SpriteStudio.Editor
     public class SpriteStudioImporterWindow : EditorWindow
     {
         private DefaultAsset outputFolder = null;
-        private const string OUTPUT_FOLDER_PREF_KEY = "SpriteStudio_OutputFolder";
         private const string DEFAULT_OUTPUT_PATH = "Assets/ssab_generated";
 
         private Vector2 scrollPosition;
@@ -27,7 +26,7 @@ namespace SpriteStudio.Editor
 
         private void OnEnable()
         {
-            string savedPath = EditorPrefs.GetString(OUTPUT_FOLDER_PREF_KEY, DEFAULT_OUTPUT_PATH);
+            string savedPath = SpriteStudioSourceMap.GetOutputFolder(DEFAULT_OUTPUT_PATH);
             if (string.IsNullOrEmpty(savedPath) || !AssetDatabase.IsValidFolder(savedPath))
             {
                 savedPath = DEFAULT_OUTPUT_PATH;
@@ -66,7 +65,7 @@ namespace SpriteStudio.Editor
             {
                 if (outputFolder != null)
                 {
-                    EditorPrefs.SetString(OUTPUT_FOLDER_PREF_KEY, AssetDatabase.GetAssetPath(outputFolder));
+                    SpriteStudioSourceMap.SetOutputFolder(AssetDatabase.GetAssetPath(outputFolder));
                 }
             }
 
@@ -77,7 +76,7 @@ namespace SpriteStudio.Editor
                     AssetDatabase.CreateFolder("Assets", "ssab_generated");
                 }
                 outputFolder = AssetDatabase.LoadAssetAtPath<DefaultAsset>(DEFAULT_OUTPUT_PATH);
-                EditorPrefs.SetString(OUTPUT_FOLDER_PREF_KEY, DEFAULT_OUTPUT_PATH);
+                SpriteStudioSourceMap.SetOutputFolder(DEFAULT_OUTPUT_PATH);
             }
 
             if (GUILayout.Button("Reveal", GUILayout.Width(60)))

@@ -11,11 +11,6 @@ package/Editor/Plugins/**
 !package/Editor/Plugins/**/
 package/Editor/Bindings/*.g.cs
 
-# .ssab -> .sspj reconversion link. Under Model B the .sspj lives at an arbitrary external path, so the
-# value is machine-local (meaningless on another machine / checkout). It is generated under each project's
-# ProjectSettings/, so it is not tracked.
-SpriteStudioSourceMap.json
-
 # Owner-private local notes/memos. By the owner's convention, any file OR directory
 # whose name begins with "_" is local-only (the same role as "."-prefixed tool files;
 # "_" is used only to avoid confusion with "."). Never commit these unless explicitly

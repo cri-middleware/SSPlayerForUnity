@@ -107,8 +107,11 @@ SpriteStudio 側でアニメーションを修正して保存したら、Unity �
 > [!TIP]
 > **チーム開発時のファイルパス共有とスマート再リンク**
 >
-> SpriteStudio Importer ウィンドウ経由でインポートした際の連携情報（`.ssab` ↔ `.sspj` のひも付け）は、Unity プロジェクト直下の `ProjectSettings/SpriteStudioSourceMap.json` に **相対パス** で保存されます。
+> SpriteStudio Importer ウィンドウ経由でインポートした際の連携情報（`.ssab` ↔ `.sspj` のひも付け）と **Output Folder 設定**は、Unity プロジェクト直下の `ProjectSettings/SpriteStudioSourceMap.json` に **プロジェクト相対パス** で保存されます（プロジェクト外の `.sspj` など相対化できないパスのみ絶対パスになります）。
 >
 > このファイルを Git 等のバージョン管理システムで共有することで、チームの別メンバーが PC に `git clone` した場合でもパスの連携が維持され、そのまま `Open SSPJ` や `Reconvert` を利用できます。
 >
 > 万が一、フォルダ構造の変更などにより `.sspj` へのリンクが切れてしまった場合でも簡単に修復できます。`SpriteStudioAnimeAsset` のインスペクタに表示される **「Relink SSPJ...」** ボタンを押すと、新しい `.sspj` の場所を尋ねるダイアログが表示されます。ここで 1 つのファイルを再リンクするだけで、同じ出力フォルダ内にある他の関連 `.ssab` も**まとめてスマート再リンク＋再変換**されるため、修復の手間がかかりません。
+
+> [!NOTE]
+> Importer ウィンドウの **Recent SSPJs** 履歴は個人の作業状態のため共有対象ではなく、`UserSettings/SpriteStudioRecentFiles.json` に保存されます（`UserSettings/` は Unity の慣習により Git 管理外です）。
