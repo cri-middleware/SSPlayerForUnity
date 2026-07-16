@@ -122,7 +122,7 @@ internal struct MaskPartData
             }
         }
 
-        internal struct InstanceChildState { public System.IntPtr InstanceSlot; public SpriteStudioInternalPlayer Player; public float PreviousFrame; }
+        internal struct InstanceChildState { public System.IntPtr InstanceSlot; public SpriteStudioInternalPlayer Player; }
         internal InstanceChildState[] _instanceChildren;
         internal int[] _instancePartIndices;
         internal int _instancePartCount;
@@ -321,8 +321,7 @@ internal struct MaskPartData
                         _instanceChildren[i] = new InstanceChildState
                         {
                             InstanceSlot = (System.IntPtr)slot,
-                            Player = childPlayer,
-                            PreviousFrame = 0f
+                            Player = childPlayer
                         };
                         _instancePartIndices[_instancePartCount++] = i;
                         _hasInstanceParts = true;
