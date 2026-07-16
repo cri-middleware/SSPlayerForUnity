@@ -66,11 +66,14 @@ namespace SpriteStudio.Runtime
             }
 
             // 3. Fallback (a safeguard for when 1 does not match due to operational differences in the pack
-            //    name hash): search for an ssab that actually contains the requested animation name hash,
-            //    in the order self -> external references. Resolves without depending on pack_hash.
+            //    name hash): search for an ssab that actually contains the requested animation name hash.
+            //    Resolves without depending on pack_hash. Reaching here means the part named a pack that
+            //    is not ours — 2 already returned for the ones that are — so the external references are
+            //    searched first and our own SSAB is the last resort. Preferring self here picks the wrong
+            //    animation whenever both packs happen to share an animation name, and feeds SetupSlots a
+            //    child that is its own parent.
             if (nameHash != 0)
             {
-                if (ContainsAnimationHash(nameHash)) return SsabData;
                 if (ExternalReferences != null)
                 {
                     for (int i = 0; i < ExternalReferences.Count; i++)
@@ -79,6 +82,7 @@ namespace SpriteStudio.Runtime
                         if (ext != null && ext.ContainsAnimationHash(nameHash)) return ext.SsabData;
                     }
                 }
+                if (ContainsAnimationHash(nameHash)) return SsabData;
             }
 
             return null;

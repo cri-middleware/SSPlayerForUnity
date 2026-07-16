@@ -153,6 +153,16 @@ internal struct MaskPartData
         public bool HasSsab => _hasSsab;
         private bool _hasSsab;
 
+        // The ssab this player was loaded with, and the ones loaded above it. SetupSlots walks the
+        // *pack's* Instance parts, so a part that resolves back to an ssab already on this chain makes
+        // LoadSsab -> SetupSlots recurse until the stack dies — taking the Editor with it. Resolution
+        // has two fallbacks that can return the resolver's own SsabData (a same-pack reference, and the
+        // animation-name-hash search that runs when the pack hash does not match), so this is reachable
+        // whenever an import leaves ExternalReferences unpopulated. Identity, not content: the resolver
+        // hands back the very `byte[]` held by the asset.
+        private byte[] _ssabData;
+        private HashSet<byte[]> _ancestorSsabs;
+
         /// <summary>
         /// Load SsabData (a byte array) and bind the resources.
         /// Recursively creates child players if there are Instance parts.
@@ -160,6 +170,7 @@ internal struct MaskPartData
         public void LoadSsab(byte[] ssabData, AssetResolver resolver = null)
         {
             _assetResolver = resolver;
+            _ssabData = ssabData;
 
             // On a reload (runtime asset swap) an in-flight Burst Job may still be borrowing the old
             // ssab buffer. Always complete the Job before destroying / re-borrowing native resources to
@@ -232,6 +243,11 @@ internal struct MaskPartData
                 if (_partNames == null || _partNames.Length < partsLength) _partNames = new string[partsLength];
                 else System.Array.Clear(_partNames, 0, partsLength);
 
+                // What an Instance child may not resolve to: this ssab, or any above it. Handed to every
+                // child so the chain grows one link per level.
+                var chain = _ancestorSsabs == null ? new HashSet<byte[]>() : new HashSet<byte[]>(_ancestorSsabs);
+                if (_ssabData != null) chain.Add(_ssabData);
+
                 for (int i = 0; i < partsLength; i++)
                 {
                     var pObj = binary.Parts(i);
@@ -303,10 +319,17 @@ internal struct MaskPartData
                             continue;
                         }
 
+                        if (chain.Contains(childSsab))
+                        {
+                            UnityEngine.Debug.LogWarning($"[SpriteStudioInternalPlayer] Instance part {i}: referenced animation (pack=0x{packHash:X8}, name=0x{nameHash:X8}) resolved to an SSAB already being loaded, which would recurse forever. Skipping the part. The AnimeAsset's external references are most likely unpopulated, so resolution fell back to its own SSAB — reimport it.");
+                            continue;
+                        }
+
                         var childPlayer = new SpriteStudioInternalPlayer { SubFrameEnabled = SubFrameEnabled };
                         // Inherit the parent's suppression so children (re)created on load match the
                         // Canvas/world choice; the public setter also propagates to existing children.
                         childPlayer._suppressInternalMask = _suppressInternalMask;
+                        childPlayer._ancestorSsabs = chain;
                         childPlayer.LoadSsab(childSsab, _assetResolver);
 
                         if (!childPlayer.SetupAnimationByHash(nameHash))
