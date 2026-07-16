@@ -11,6 +11,9 @@ EDITOR_BINDINGS="${PKG}/Editor/Bindings"
 VERSION_FILE="${SCRIPTDIR}/SDK_VERSION.txt"
 # Version stamps are written to both plugin dirs; the runtime one gates the skip.
 STAMP="${RUNTIME_PLUGINS}/VERSION"
+# Downloaded zips are cached here (gitignored) so a re-run reuses them instead of
+# re-downloading; extraction still uses a throwaway temp.
+CACHE_DIR="${SCRIPTDIR}/.sdk-cache"
 
 TARGET_VERSION=$(tr -d ' \r\n' < "$VERSION_FILE")
 
@@ -20,51 +23,58 @@ if [ -f "$STAMP" ] && [ "$(tr -d ' \r\n' < "$STAMP")" = "$TARGET_VERSION" ]; the
 fi
 
 BASE_URL="https://github.com/cri-middleware/SpriteStudio-SDK/releases/download/${TARGET_VERSION}"
+# Persistent cache for the downloaded zips (kept across runs); extraction uses a
+# throwaway temp removed on exit.
+mkdir -p "$CACHE_DIR"
+SUMS_FILE="${CACHE_DIR}/SHA256SUMS"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-SUMS_FILE="${TMP}/SHA256SUMS"
 
-# Verify <file> against the release's SHA256SUMS manifest entry for <asset-name>
-# before extracting, so a corrupted or tampered download fails loudly. Uses
-# sha256sum (Linux) or shasum -a 256 (macOS); matches the entry by asset name.
-verify_sha256() {
-    local file="$1" name="$2" expected actual
-    expected=$(awk -v n="$name" '$2 == n {print $1}' "$SUMS_FILE")
-    if [ -z "$expected" ]; then
-        echo "ERROR: no checksum entry for ${name} in SHA256SUMS" >&2
-        exit 1
-    fi
+sha256_of() {
     if command -v sha256sum >/dev/null 2>&1; then
-        actual=$(sha256sum "$file" | awk '{print $1}')
+        sha256sum "$1" | awk '{print $1}'
     else
-        actual=$(shasum -a 256 "$file" | awk '{print $1}')
+        shasum -a 256 "$1" | awk '{print $1}'
     fi
-    if [ "$expected" != "$actual" ]; then
-        echo "ERROR: checksum mismatch for ${name}" >&2
-        echo "  expected: ${expected}" >&2
-        echo "  actual:   ${actual}" >&2
-        exit 1
-    fi
-    echo "Checksum OK: ${name}"
 }
 
-# The SDK release publishes two zips. Each unzips to output/<kind>/runtime/,
-# holding libs/<platform>/ plus include/, VERSION and the license notices.
+# The SDK release publishes two flat zips: libs/<platform>/ plus include/,
+# bindings/, VERSION and the license notices at the archive root.
 #   static  : .a / .lib / static xcframework
 #   dynamic : .dylib / .so / .dll / dynamic xcframework
 echo "Target SDK Version: ${TARGET_VERSION}"
+# Fetch the checksum manifest (small): it both verifies integrity and decides
+# whether an already-cached zip can be reused without re-downloading.
 echo "Downloading checksum manifest: ${BASE_URL}/SHA256SUMS"
 curl -fL -o "$SUMS_FILE" "${BASE_URL}/SHA256SUMS"
 for kind in static dynamic; do
     asset="spritestudio-sdk-${kind}-libs.zip"
-    echo "Downloading ${BASE_URL}/${asset}"
-    curl -fL -o "${TMP}/${kind}.zip" "${BASE_URL}/${asset}"
-    verify_sha256 "${TMP}/${kind}.zip" "$asset"
-    unzip -q -o "${TMP}/${kind}.zip" -d "${TMP}/${kind}"
+    # Keep the release asset's own name so it matches the SHA256SUMS entry.
+    zip="${CACHE_DIR}/${asset}"
+    expected=$(awk -v n="$asset" '$2 == n {print $1}' "$SUMS_FILE")
+    if [ -z "$expected" ]; then
+        echo "ERROR: no checksum entry for ${asset} in SHA256SUMS" >&2
+        exit 1
+    fi
+    # Reuse the cached zip when it already matches the manifest; else download.
+    if [ -f "$zip" ] && [ "$(sha256_of "$zip")" = "$expected" ]; then
+        echo "Reusing cached ${asset}"
+    else
+        echo "Downloading ${BASE_URL}/${asset}"
+        curl -fL -o "$zip" "${BASE_URL}/${asset}"
+        if [ "$(sha256_of "$zip")" != "$expected" ]; then
+            echo "ERROR: checksum mismatch for ${asset}" >&2
+            rm -f "$zip"
+            exit 1
+        fi
+    fi
+    echo "Checksum OK: ${asset}"
+    unzip -q -o "$zip" -d "${TMP}/${kind}"
 done
 
-STATIC="${TMP}/static/output/static/runtime"
-DYNAMIC="${TMP}/dynamic/output/dynamic/runtime"
+# Flat archives: libs/, include/, bindings/, VERSION sit at the extraction root.
+STATIC="${TMP}/static"
+DYNAMIC="${TMP}/dynamic"
 
 # copy <src> <dst-dir>: fail fast if the source is missing so a change in the
 # SDK zip layout surfaces here instead of shipping an incomplete package.
