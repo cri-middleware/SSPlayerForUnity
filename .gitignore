@@ -11,6 +11,9 @@ package/Editor/Plugins/**
 !package/Editor/Plugins/**/
 package/Editor/Bindings/*.g.cs
 
+# Cached SDK release zips (scripts/download-sdk.*); reused across runs, never committed.
+/scripts/.sdk-cache/
+
 # .ssab -> .sspj reconversion link. Under Model B the .sspj lives at an arbitrary external path, so the
 # value is machine-local (meaningless on another machine / checkout). It is generated under each project's
 # ProjectSettings/, so it is not tracked.
