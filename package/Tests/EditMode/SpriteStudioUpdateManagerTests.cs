@@ -40,6 +40,10 @@ namespace SpriteStudio.Runtime.EditModeTests
                 ApplyCount++;
                 OnApply?.Invoke();
             }
+
+            // handle is always Zero, so this renderable is never in the parallel get_frame_data set and
+            // the update manager's post-prepare re-validation never needs a real live handle from it.
+            public IntPtr GetLiveHandle() => IntPtr.Zero;
         }
 
         [SetUp]

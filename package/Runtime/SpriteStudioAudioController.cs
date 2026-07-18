@@ -6,7 +6,7 @@ namespace SpriteStudio.Runtime
     /// <summary>
     /// Built-in audio playback helper embedded in Player / Graphic (a plain C# class, not a MonoBehaviour).
     /// Routes one audio event to the override hook (SpriteStudioAudioBackend) if present, otherwise to
-    /// built-in AudioClip playback (per SDK doc 11_optional_features.ja.md §4).
+    /// built-in AudioClip playback.
     ///
     /// Resolution order: per-object backend > global backend > built-in (ResolveAudioClip).
     /// Built-in playback **manages active sounds per part**. The identity key = (PartIndex,

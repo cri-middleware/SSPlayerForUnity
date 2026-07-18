@@ -21,6 +21,12 @@ namespace SpriteStudio.Runtime
 
         /// <summary>Phase 2: wait for the Job to finish, then apply to the mesh and render.</summary>
         void ApplyAndRender();
+
+        /// <summary>The player's current native handle, or Zero if it has since been disposed. Re-checked
+        /// after the prepare pass so a player disposed by another player's event callback (fired from
+        /// PollEvents during PrepareFrame) is dropped from the parallel get_frame_data set instead of
+        /// leaving a freed handle for the job to dereference.</summary>
+        IntPtr GetLiveHandle();
     }
 
     /// <summary>
@@ -129,6 +135,32 @@ namespace SpriteStudio.Runtime
                 }
             }
             if (n == 0) return;
+
+            // A user event callback fired during a player's PrepareFrame (PollEvents) can disable or
+            // destroy a DIFFERENT player that was already prepared earlier in this loop, freeing its
+            // native handle while that handle still sits in the job set — the parallel get_frame_data
+            // would then dereference freed memory (use-after-free). Now that the whole prepare pass (and
+            // all its callbacks) has run, re-validate each captured handle against its player's current
+            // live handle and compact out any that no longer match (disposed / invalidated).
+            {
+                int valid = 0;
+                for (int i = 0; i < n; i++)
+                {
+                    if (_pending[i].GetLiveHandle() == _jobHandles[i])
+                    {
+                        if (valid != i)
+                        {
+                            _jobHandles[valid] = _jobHandles[i];
+                            _jobDrawFrames[valid] = _jobDrawFrames[i];
+                            _pending[valid] = _pending[i];
+                        }
+                        valid++;
+                    }
+                }
+                for (int i = valid; i < n; i++) _pending[i] = null;
+                n = valid;
+                if (n == 0) return;
+            }
 
             // get_frame_data is independent per context (no global mutable state; shared resources are
             // immutable Send+Sync), so it can run on worker threads in parallel across characters. This

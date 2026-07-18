@@ -96,6 +96,13 @@ jobs:
           path: ${{ steps.pkg.outputs.versioned }}
           if-no-files-found: error
 
+      # NOTE: the release is created as a DRAFT (draft: true below). Drafts are excluded from
+      # `releases/latest`, so the stable download URL used by README/docs
+      # (releases/latest/download/jp.co.cri-mw.optpix.ssplayer-unity.tgz) does NOT resolve until a
+      # human publishes the draft from the GitHub Releases UI. Publishing the draft is also what emits
+      # the `release: published` event that triggers the Deploy Pages workflow. So after a green run:
+      # review the draft, then click "Publish release" — and keep it a full (non-prerelease) release so
+      # `latest` resolves.
       - name: Upload package to release
         if: ${{ inputs.upload }}
         uses: softprops/action-gh-release@v3

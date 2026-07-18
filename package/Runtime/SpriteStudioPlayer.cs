@@ -636,6 +636,9 @@ namespace SpriteStudio.Runtime
             _core.Internal.PrepareFrameData(deltaTime, !_timelineControlled, out handle, out drawFrame);
         }
 
+        /// <inheritdoc/>
+        public System.IntPtr GetLiveHandle() => _core.Internal != null ? _core.Internal.NativeHandle : System.IntPtr.Zero;
+
         public void ConsumeFrame(System.IntPtr frameDataPtr, int len, float deltaTime)
         {
             if (_core.Internal == null) return;

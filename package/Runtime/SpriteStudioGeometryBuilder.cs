@@ -11,8 +11,6 @@ namespace SpriteStudio.Runtime
     {
         private readonly SpriteStudioInternalPlayer _player;
 
-        // Moved from InternalPlayer
-        
         // --- Effect: EffectPlanBuffer owns the draw_plan reads and the merged geometry ---
         private readonly SpriteStudioEffectPlanBuffer _effectBuffer = new SpriteStudioEffectPlanBuffer();
 

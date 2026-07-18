@@ -146,12 +146,20 @@ struct SpriteStudioUserData
     bool HasPoint;  Vector2 PointValue;
 }
 
-// Signal: Params はパラメータが無ければ null（実行時のみ有効・非シリアライズ）
+// Signal: パラメータは型付き（boxing なし）。GetParam / TryGetParam で取得（実行時のみ有効）
 struct SpriteStudioSignal
 {
     string PartName; int PartIndex;
     bool Active; string CommandId;
-    Dictionary<string, object> Params; // 値は bool / int / float / string のいずれか
+    int ParamCount;                                    // コマンドパラメータ数
+    SpriteStudioSignalParam GetParam(int index);       // 0 <= index < ParamCount
+    bool TryGetParam(string id, out SpriteStudioSignalParam p);
+}
+// パラメータ1件: Type に対応するアクセサで読む（Bool / Index / Integer / Floating / Text）
+struct SpriteStudioSignalParam
+{
+    string Id; SpriteStudioSignalParamType Type;
+    bool AsBool; int AsIndex; int AsInteger; float AsFloating; string AsText;
 }
 
 // Audio: SoundName で対象音を識別

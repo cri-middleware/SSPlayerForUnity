@@ -44,7 +44,7 @@ There are two types of imported binaries.
 
 This plugin's Tick / mesh construction loop produces no GC allocations (it reuses `NativeArray` and writes directly to `Mesh.SetVertexBufferData`).
 
-However, **event notifications** are an exception. In particular, Signal event parameters (the `Params` dictionary) allocate managed memory at notification time. In animations that fire Signals in large numbers or at high frequency, this can cause hitches on mobile / WebGL. It is not something that happens constantly; it scales with the number and burstiness of Signals.
+**Event notifications** allocate only where unavoidable. Signal command parameters are decoded into a reusable, typed buffer (read via `SpriteStudioSignal.GetParam` / `TryGetParam`), so numeric parameters allocate nothing. What remains is the managed strings that must be materialized for part names, command ids, and string-typed parameters — unavoidable, and scaling with the number and burstiness of Signals, so animations that fire Signals in large numbers or at high frequency can still cause minor hitches on mobile / WebGL.
 
 ## Custom Shaders / AddOn (Per-Part)
 
