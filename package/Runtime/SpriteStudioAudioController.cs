@@ -56,7 +56,7 @@ namespace SpriteStudio.Runtime
             var key = new VoiceKey(ev.PartIndex, ev.SoundListNameHash, ev.SoundNameHash);
             if (_voices.TryGetValue(key, out var voice))
             {
-                // Refire (same key): stop the previous one and replay (SDK doc §4, prevents duplicate playback).
+                // Refire (same key): stop the previous one and replay (prevents duplicate playback).
                 StartVoice(voice, clip, volume, ev.LoopNum);
                 return;
             }
@@ -72,13 +72,13 @@ namespace SpriteStudio.Runtime
         /// <summary>Stops all sounds (call on disable / destroy).</summary>
         public void StopAll() => Sweep(loopsOnly: false);
 
-        /// <summary>Pauses all playing sounds (synced with animation pause, SDK doc §4).</summary>
+        /// <summary>Pauses all playing sounds (synced with animation pause).</summary>
         public void PauseAll()
         {
             foreach (var kv in _voices) kv.Value.Source.Pause();
         }
 
-        /// <summary>Resumes paused sounds (synced with animation resume / play, SDK doc §4).</summary>
+        /// <summary>Resumes paused sounds (synced with animation resume / play).</summary>
         public void ResumeAll()
         {
             foreach (var kv in _voices) kv.Value.Source.UnPause();

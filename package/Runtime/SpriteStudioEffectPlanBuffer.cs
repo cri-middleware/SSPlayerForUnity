@@ -7,7 +7,7 @@ using SpriteStudio.SsRuntime;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// A collaborator split out from <see cref="SpriteStudioGeometryBuilder"/> whose responsibility is to
+    /// A collaborator of <see cref="SpriteStudioGeometryBuilder"/> whose responsibility is to
     /// read the effect draw_plan (native FlatBuffer) in the same manner as frame-data and pack every effect
     /// part's geometry (verts/uvs/colors/indices) into concatenated buffers. The Burst Job reads the
     /// concatenated buffers.

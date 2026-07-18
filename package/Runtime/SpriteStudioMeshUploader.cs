@@ -7,7 +7,7 @@ using SpriteStudio.SsRuntime;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// Collaborator split out from <see cref="SpriteStudioGeometryBuilder"/> whose responsibility is uploading
+    /// Collaborator of <see cref="SpriteStudioGeometryBuilder"/> whose responsibility is uploading
     /// the built geometry (vertices / indices / SubMesh / bounds) to Unity's <see cref="Mesh"/>.
     ///
     /// Internally holds an "index cache": while the topology (index/submesh structure) matches the previous

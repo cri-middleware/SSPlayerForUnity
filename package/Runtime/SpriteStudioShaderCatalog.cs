@@ -36,7 +36,7 @@ namespace SpriteStudio.Runtime
                      "folds into the shared default path.")]
             public bool IsPerPart = true;
 
-            [Tooltip("Reserved for the future Canvas (uGUI) AddOn path. Leave empty for now (world-only).")]
+            [Tooltip("Reserved for the Canvas (uGUI) AddOn path. Currently unused — leave empty (world-only).")]
             public Shader CanvasShader;
         }
 
