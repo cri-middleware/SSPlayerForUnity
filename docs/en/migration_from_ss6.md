@@ -139,13 +139,13 @@ void HandleFinished() { /* no return value; the auto-destroy behavior is gone */
 
 > - The `FunctionPlayEnd` behavior where "returning `false` auto-destroys the GameObject" no longer exists. If you need that, call `Destroy()` explicitly inside `OnAnimationFinished`.
 > - Use the `UnityEvent` variants (`OnUserDataEvent`, etc.) to wire methods on other components directly in the inspector.
-> - For the event data structs (`SpriteStudioUserData` / `SpriteStudioSignal` / `SpriteStudioAudio`), see [Scripting & Events](./workflow/usage_scripting.md).
+> - For the event data structs (`SpriteStudioUserData` / `SpriteStudioSignal` / `SpriteStudioAudio`), see [Scripting & Events](./workflow/usage_scripting.md#structure-of-the-received-event-data).
 
 ## 5. Other Notes and Behavioral Differences
 
 - **Multi-track / cross-fade**: There is no direct equivalent to SS6Player's multi-track layering or `TrackTransition()` (cross-fade). If you need layered playback, **use multiple components** together.
 - **Effects**: No standalone component like SS6Player's `Script_SpriteStudio6_RootEffect` is needed. Animations containing effect parts are **played inline** within `SpriteStudioPlayer` / `SpriteStudioGraphic`.
-- **Attaching GameObjects to parts**: Instead of SS6Player's `TrackConnectParts()` / `InstanceGet()`, use the **Part Trackers** feature of `SpriteStudioPlayer` (drive an arbitrary `Transform` to follow a named part). See [Scripting & Events](./workflow/usage_scripting.md).
+- **Attaching GameObjects to parts**: Instead of SS6Player's `TrackConnectParts()` / `InstanceGet()`, use the **Part Trackers** feature of `SpriteStudioPlayer` (drive an arbitrary `Transform` to follow a named part). See [Scripting & Events](./workflow/usage_scripting.md#part-tracking-following-a-specified-part).
 - **Timeline**: Still supported. `SpriteStudioPlayer` implements `ITimeControl`, so you can drive playback time from a Timeline track.
-- **Supported environment**: This version targets **Unity 6.3 LTS (6000.3) or later** and supports URP / Built-in RP. See the [documentation index](./index.md) for details.
+- **Supported environment**: This version targets **Unity 6.3 LTS (6000.3) or later** and supports URP / Built-in RP. See the [documentation index](./index.md#supported-environment) for details.
 - **Cell swapping, colliders, and other advanced features**: Equivalents to SS6Player's `CellChangeParts()` or collider integration differ in availability in this version. Check the current documentation and public API for the latest support status.
