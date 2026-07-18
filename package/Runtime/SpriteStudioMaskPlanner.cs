@@ -6,7 +6,7 @@ using SpriteStudio.SsRuntime;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// Collaborator split out from <see cref="SpriteStudioGeometryBuilder"/> whose responsibility is computing
+    /// Collaborator of <see cref="SpriteStudioGeometryBuilder"/> whose responsibility is computing
     /// the mask (stencil) draw metadata. It builds the current frame's "mask writer list" and "per-part
     /// (texture hash, blend)", and computes each part's vertex/index counts in a form that matches the mesh
     /// job's builder.

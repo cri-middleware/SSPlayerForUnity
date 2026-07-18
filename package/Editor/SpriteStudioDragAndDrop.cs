@@ -177,7 +177,7 @@ var eventSystem = UnityEngine.Object.FindFirstObjectByType<UnityEngine.EventSyst
                     if (spawnPosition.HasValue && parent == null)
                     {
                         // For a drop into the Scene view with no parent, place it at a sensible spot such as the center.
-                        // Canvas scaling etc. is involved, so just set AnchoredPosition to 0 for now.
+                        // Canvas scaling makes an exact screen position ambiguous, so anchor it at the parent's origin.
                         rectTransform.anchoredPosition = Vector2.zero;
                     }
                 }

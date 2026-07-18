@@ -201,7 +201,7 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>Starts playing the currently set-up animation from the beginning.</summary>
-        public void Play() { _core.Play(); _audioController?.ResumeAll(); }   // Explicit play lifts the suspend (SDK doc §4)
+        public void Play() { _core.Play(); _audioController?.ResumeAll(); }   // Explicit play lifts the suspend
 
         /// <summary>Starts playing the currently set-up animation from the specified frame.</summary>
         public void Play(float startFrame) { _core.Play(startFrame); _audioController?.ResumeAll(); }
@@ -233,7 +233,7 @@ namespace SpriteStudio.Runtime
         public void Pause()
         {
             _core.Internal?.Pause();
-            // Sync audio with the animation pause/resume (SDK doc §4). Pause is a toggle, so branch on the resulting state.
+            // Sync audio with the animation pause/resume. Pause is a toggle, so branch on the resulting state.
             if (_audioController != null && _core.Internal != null)
             {
                 if (_core.Internal.IsPausing()) _audioController.PauseAll();
@@ -489,7 +489,7 @@ namespace SpriteStudio.Runtime
         private void InvokeAudio(SpriteStudioAudio data)
         {
             OnAudioEvent?.Invoke(data);   // Notification (observation channel) always fires regardless of playback direction.
-            // Built-in/Backend playback (zero-config). Only while running and playing forward (SDK doc §4: no sound on reverse playback).
+            // Built-in/Backend playback (zero-config). Only while running and playing forward (no sound on reverse playback).
             if (_playAudio && Application.isPlaying && (_core.Internal?.IsPlayingForward() ?? false))
             {
                 if (_audioController == null) _audioController = new SpriteStudioAudioController(gameObject);

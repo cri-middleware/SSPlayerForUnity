@@ -14,14 +14,12 @@ namespace SpriteStudio.Runtime
         // --- Effect: EffectPlanBuffer owns the draw_plan reads and the merged geometry ---
         private readonly SpriteStudioEffectPlanBuffer _effectBuffer = new SpriteStudioEffectPlanBuffer();
 
-        // Sparse list of part indices that own an effect/instance slot (finalized in SetupSlots).
-
         // --- Mask: MaskPlanner owns the writer list / per-part (texHash,blend) / vc-ic computation ---
         // (the actual draw batch / submesh emission = EmitMaskStep / Phase A/B touches shared state, so it stays in the builder)
         private readonly SpriteStudioMaskPlanner _maskPlanner = new SpriteStudioMaskPlanner();
         // --- Instance ---
 internal NativeArray<InstanceMeshPointer> _instanceMeshes;
-        // Dependency array bundling the child Instances' UpdateMeshJob handles. Persistent, grow-only (A3: avoids a per-frame Temp allocation).
+        // Dependency array bundling the child Instances' UpdateMeshJob handles. Persistent, grow-only (avoids a per-frame Temp allocation).
         internal NativeArray<JobHandle> _childHandles;
         public float _lastBuiltDrawFrameNo = float.NaN;
         public float _pendingDrawFrame;

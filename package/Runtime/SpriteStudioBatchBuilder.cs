@@ -6,7 +6,7 @@ using SpriteStudio.SsRuntime;
 namespace SpriteStudio.Runtime
 {
     // BlendType is the ssab BlendType (0..7) used to resolve the per-blend material variant.
-    // Effect submeshes keep Mix here (their additive path is handled in-shader for now).
+    // Effect submeshes keep Mix here; their additive path is handled in-shader.
     // Stencil role of a submesh. None = a plain colour submesh (existing behaviour). Write =
     // the SpriteStudio/MaskWrite pass (ColorMask 0) that increments/decrements/inverts the
     // isolated stencil bits (covers both the pure-mask "write" and its "restore"; the op
