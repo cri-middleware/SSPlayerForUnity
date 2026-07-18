@@ -20,6 +20,13 @@ namespace SpriteStudio.Runtime
         internal SsPlayerHandle _handle => _nativeContext.Handle;
         private unsafe void* _resourceHandle => _nativeContext.ResourceHandle;
 
+        /// <summary>
+        /// Current native runtime handle as an <see cref="System.IntPtr"/>, or Zero when the handle is
+        /// invalid (e.g. after <see cref="Dispose"/>). Lets the update manager re-check a player's
+        /// liveness after the prepare pass without dereferencing a possibly-freed raw pointer.
+        /// </summary>
+        public System.IntPtr NativeHandle { get { unsafe { return _handle.IsValid ? (System.IntPtr)_handle.ptr : System.IntPtr.Zero; } } }
+
         public delegate byte[] AssetResolver(uint packHash, uint nameHash);
         private AssetResolver _assetResolver;
 
@@ -51,7 +58,7 @@ namespace SpriteStudio.Runtime
         }
 
         
-        // --- Moved from Partial Classes ---
+        // --- Effect / mask / instance-slot state ---
 
         internal struct EffectSlotState { public System.IntPtr EffectSlot; }
         internal EffectSlotState[] _effectSlots;
@@ -147,6 +154,16 @@ internal struct MaskPartData
         // Rising-edge memory for OnAnimationFinished (previous value of is_finished).
         private bool _prevFinished;
 
+        // Grow-only backing buffer for SpriteStudioSignal parameters, filled per PollEvents pass and sliced
+        // per signal (each signal gets a distinct [start, count) range) — no per-signal allocation and no
+        // boxing. Reset at the start of each poll; a signal's slice stays valid until the next poll on this
+        // player. See SpriteStudioSignal / AppendSignalParam.
+        private SpriteStudioSignalParam[] _signalParamBuffer;
+        private int _signalParamCount;
+        // Re-entrancy guard: a callback that re-enters PollEvents on this same player would reset the param
+        // buffer under the outer dispatch and corrupt the slices it is still reading. Skip the nested poll.
+        private bool _pollingEvents;
+
         // True once an ssab has been loaded into the native runtime. Lets the owner (PlaybackCore /
         // player) detect "Internal created but ssab not yet loaded" — which happens when OnEnable runs
         // before the .ssab finishes importing on an Editor restart — and self-heal by loading it later.
@@ -178,12 +195,36 @@ internal struct MaskPartData
             // On the first load no Job has been scheduled, so Complete() on the default handle is a no-op.
             _geometryBuilder?.CurrentUpdateJobHandle.Complete();
 
-            _nativeContext.LoadSsab(ssabData);
+            // Reject data that is not an .ssab at all by checking the "SSAB" FlatBuffers file identifier
+            // before handing the bytes to the native runtime. A full structural FlatBuffer verification
+            // is deliberately not used here: the bundled FlatBuffers verifier mis-handles buffers larger
+            // than ~32 KB and would reject valid assets. This identifier check is a format sanity check —
+            // it is not a guarantee that the payload is internally well-formed.
+            if (ssabData == null || ssabData.Length < 8
+                || !ss.format.SsAnimeBinary.SsAnimeBinaryBufferHasIdentifier(new Google.FlatBuffers.ByteBuffer(ssabData)))
+            {
+                _hasSsab = false;
+                Debug.LogError("[SpriteStudioInternalPlayer] Refused to load .ssab: missing \"SSAB\" identifier.");
+                return;
+            }
+
+            // Keep the native load + slot setup from throwing out through the owning component's OnEnable
+            // on malformed input or an unexpected edge (e.g. resource exhaustion).
+            try
+            {
+                _nativeContext.LoadSsab(ssabData);
             
-            var bb = new Google.FlatBuffers.ByteBuffer(ssabData);
-            _ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
-            SetupSlots(_ssab.Value);
-            _hasSsab = true;
+                var bb = new Google.FlatBuffers.ByteBuffer(ssabData);
+                _ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
+                SetupSlots(_ssab.Value);
+                _hasSsab = true;
+            }
+            catch (Exception e)
+            {
+                _hasSsab = false;
+                Debug.LogError("[SpriteStudioInternalPlayer] Failed to load .ssab.");
+                Debug.LogException(e);
+            }
         }
 
         private void SetupSlots(ss.format.SsAnimeBinary binary)
@@ -325,29 +366,42 @@ internal struct MaskPartData
                             continue;
                         }
 
+                        // childPlayer allocates native runtime/resource handles in its constructor and in
+                        // LoadSsab BEFORE it is stored into _instanceChildren below. If any step here
+                        // throws, it would never be Disposed — and the finalizer only frees the GCHandle
+                        // pin, not the native handles — so it would leak native memory permanently.
+                        // Dispose it on any failure, then keep loading the remaining parts.
                         var childPlayer = new SpriteStudioInternalPlayer { SubFrameEnabled = SubFrameEnabled };
-                        // Inherit the parent's suppression so children (re)created on load match the
-                        // Canvas/world choice; the public setter also propagates to existing children.
-                        childPlayer._suppressInternalMask = _suppressInternalMask;
-                        childPlayer._ancestorSsabs = chain;
-                        childPlayer.LoadSsab(childSsab, _assetResolver);
-
-                        if (!childPlayer.SetupAnimationByHash(nameHash))
+                        try
                         {
-                            UnityEngine.Debug.LogWarning($"[SpriteStudioInternalPlayer] Instance part {i}: animation hash 0x{nameHash:X8} not found in the resolved SSAB.");
-                            childPlayer.Dispose();
-                            continue;
+                            // Inherit the parent's suppression so children (re)created on load match the
+                            // Canvas/world choice; the public setter also propagates to existing children.
+                            childPlayer._suppressInternalMask = _suppressInternalMask;
+                            childPlayer._ancestorSsabs = chain;
+                            childPlayer.LoadSsab(childSsab, _assetResolver);
+
+                            if (!childPlayer.SetupAnimationByHash(nameHash))
+                            {
+                                UnityEngine.Debug.LogWarning($"[SpriteStudioInternalPlayer] Instance part {i}: animation hash 0x{nameHash:X8} not found in the resolved SSAB.");
+                                childPlayer.Dispose();
+                                continue;
+                            }
+                            childPlayer.Stop(); // wait stopped until driven by the parent (step controls visibility)
+
+                            void* slot = NativeMethods.ss_instance_slot_create();
+                            _instanceChildren[i] = new InstanceChildState
+                            {
+                                InstanceSlot = (System.IntPtr)slot,
+                                Player = childPlayer
+                            };
+                            _instancePartIndices[_instancePartCount++] = i;
+                            _hasInstanceParts = true;
                         }
-                        childPlayer.Stop(); // wait stopped until driven by the parent (step controls visibility)
-
-                        void* slot = NativeMethods.ss_instance_slot_create();
-                        _instanceChildren[i] = new InstanceChildState
+                        catch (Exception e)
                         {
-                            InstanceSlot = (System.IntPtr)slot,
-                            Player = childPlayer
-                        };
-                        _instancePartIndices[_instancePartCount++] = i;
-                        _hasInstanceParts = true;
+                            UnityEngine.Debug.LogException(e);
+                            try { childPlayer.Dispose(); } catch (Exception e2) { UnityEngine.Debug.LogException(e2); }
+                        }
                     }
                 }
             }
@@ -891,7 +945,14 @@ internal struct MaskPartData
         public void PollEvents()
         {
             if (!_handle.IsValid) return;
-
+            // A callback fired below can re-enter PollEvents on this same player; that nested pass would
+            // reset the shared signal-param buffer and corrupt the slices the outer callback is reading, so
+            // skip it (events are drained once per legitimate poll).
+            if (_pollingEvents) return;
+            _pollingEvents = true;
+            _signalParamCount = 0; // start this pass's per-signal slice buffer fresh
+            try
+            {
             unsafe
             {
                 // is_finished stays true from the moment every configured loop has played until the next
@@ -959,8 +1020,11 @@ internal struct MaskPartData
                                 // Do not notify inactive signals.
                                 if (!val.Active) continue;
 
-                                // Expand the command parameters (union: Bool/Index/Integer/Floating/Text).
-                                Dictionary<string, object> paramsMap = null;
+                                // Decode the command parameters (union: Bool/Index/Integer/Floating/Text)
+                                // into the grow-only per-player buffer as typed values (no boxing). This
+                                // signal owns the slice [paramStart, paramStart + written).
+                                int paramStart = _signalParamCount;
+                                int written = 0;
                                 int paramCount = val.ParamsLength;
                                 for (int k = 0; k < paramCount; k++)
                                 {
@@ -970,17 +1034,18 @@ internal struct MaskPartData
                                     var paramId = param.ParamId;
                                     if (paramId == null) continue;
 
-                                    object boxed;
+                                    SpriteStudioSignalParam decoded;
                                     switch (param.ValueType)
                                     {
-                                        case ss.format.SignalCommandParamValue.Bool:     boxed = param.ValueAsBool().Value; break;
-                                        case ss.format.SignalCommandParamValue.Index:    boxed = param.ValueAsIndex().Value; break;
-                                        case ss.format.SignalCommandParamValue.Integer:  boxed = param.ValueAsInteger().Value; break;
-                                        case ss.format.SignalCommandParamValue.Floating: boxed = param.ValueAsFloating().Value; break;
-                                        case ss.format.SignalCommandParamValue.Text:     boxed = param.ValueAsText().Value; break;
+                                        case ss.format.SignalCommandParamValue.Bool:     decoded = new SpriteStudioSignalParam(paramId, param.ValueAsBool().Value); break;
+                                        case ss.format.SignalCommandParamValue.Index:    decoded = new SpriteStudioSignalParam(paramId, SpriteStudioSignalParamType.Index, param.ValueAsIndex().Value); break;
+                                        case ss.format.SignalCommandParamValue.Integer:  decoded = new SpriteStudioSignalParam(paramId, SpriteStudioSignalParamType.Integer, param.ValueAsInteger().Value); break;
+                                        case ss.format.SignalCommandParamValue.Floating: decoded = new SpriteStudioSignalParam(paramId, param.ValueAsFloating().Value); break;
+                                        case ss.format.SignalCommandParamValue.Text:     decoded = new SpriteStudioSignalParam(paramId, param.ValueAsText().Value); break;
                                         default: continue;
                                     }
-                                    (paramsMap ??= new Dictionary<string, object>())[paramId] = boxed;
+                                    AppendSignalParam(decoded);
+                                    written++;
                                 }
 
                                 var ev = new SpriteStudioSignal
@@ -989,7 +1054,9 @@ internal struct MaskPartData
                                     PartName = PartNameAt(sig.PartIndex),
                                     Active = val.Active,
                                     CommandId = val.CommandId,
-                                    Params = paramsMap
+                                    _params = _signalParamBuffer,
+                                    _paramStart = paramStart,
+                                    ParamCount = written,
                                 };
                                 OnSignal.Invoke(ev);
                             }
@@ -1018,6 +1085,22 @@ internal struct MaskPartData
                     }
                 }
             }
+            }
+            finally
+            {
+                _pollingEvents = false;
+            }
+        }
+
+        // Append one decoded parameter to the grow-only signal-param buffer (see _signalParamBuffer).
+        // Struct copy only; the buffer allocates once and grows rarely, so steady state is zero-GC.
+        private void AppendSignalParam(in SpriteStudioSignalParam param)
+        {
+            if (_signalParamBuffer == null)
+                _signalParamBuffer = new SpriteStudioSignalParam[8];
+            else if (_signalParamCount >= _signalParamBuffer.Length)
+                System.Array.Resize(ref _signalParamBuffer, _signalParamBuffer.Length * 2);
+            _signalParamBuffer[_signalParamCount++] = param;
         }
 
 
@@ -1035,9 +1118,11 @@ internal struct MaskPartData
             // The release groups below are independent of each other. Isolate each so that if one throws
             // the rest are still guaranteed to be released (native handles have no finalizer-side reclaim
             // path, so leaking here is a permanent leak).
-            try { _nativeContext?.Dispose(); }
-            catch (Exception e) { Debug.LogException(e); }
-            
+            //
+            // Order matters: destroy handles derived from the native resource/runtime (effect slots
+            // created from the resource, instance children that hold their own contexts) BEFORE the
+            // native context that owns the resource/runtime, so a derived handle is never freed after
+            // its backing resource.
             unsafe
             {
                 if (_effectSlots != null)
@@ -1068,6 +1153,9 @@ internal struct MaskPartData
                     _instanceChildren = null;
                 }
             }
+
+            try { _nativeContext?.Dispose(); }
+            catch (Exception e) { Debug.LogException(e); }
 
             try { _geometryBuilder?.Dispose(); }
             catch (Exception e) { Debug.LogException(e); }

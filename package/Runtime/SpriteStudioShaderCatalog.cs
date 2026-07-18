@@ -9,7 +9,7 @@ namespace SpriteStudio.Runtime
     /// Per-part custom shader / AddOn catalog: maps a SpriteStudio shader id (the string authored in
     /// the SpriteStudio editor, e.g. "ss-sepia") to a Unity Shader and its dispatch class.
     ///
-    /// Resolution mirrors the design draft (§2-3): the runtime returns a 32-bit id hash
+    /// Resolution works as follows: the runtime returns a 32-bit id hash
     /// (FrameData PartAttributeShader.IdHash); this catalog resolves it by hashing each registered id
     /// name with the SDK's canonical string hash (ss_runtime_hash_string), so the hash always matches
     /// the value the converter baked into the .ssab — no per-asset baking and no hash reimplementation.

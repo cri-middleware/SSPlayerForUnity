@@ -146,12 +146,20 @@ struct SpriteStudioUserData
     bool HasPoint;  Vector2 PointValue;
 }
 
-// Signal: Params is null if there are no parameters (valid only at runtime, non-serialized)
+// Signal: parameters are typed (no boxing); read them via GetParam / TryGetParam (runtime only)
 struct SpriteStudioSignal
 {
     string PartName; int PartIndex;
     bool Active; string CommandId;
-    Dictionary<string, object> Params; // value is one of bool / int / float / string
+    int ParamCount;                                    // number of command parameters
+    SpriteStudioSignalParam GetParam(int index);       // 0 <= index < ParamCount
+    bool TryGetParam(string id, out SpriteStudioSignalParam p);
+}
+// One parameter: read the accessor matching Type (Bool / Index / Integer / Floating / Text)
+struct SpriteStudioSignalParam
+{
+    string Id; SpriteStudioSignalParamType Type;
+    bool AsBool; int AsIndex; int AsInteger; float AsFloating; string AsText;
 }
 
 // Audio: identifies the target sound by SoundName

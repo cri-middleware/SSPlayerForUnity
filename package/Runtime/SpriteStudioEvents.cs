@@ -27,6 +27,40 @@ namespace SpriteStudio.Runtime
     [Serializable]
     public class UserDataUnityEvent : UnityEvent<SpriteStudioUserData> {}
 
+    /// <summary>Type tag for a <see cref="SpriteStudioSignalParam"/> value (mirrors the FlatBuffers
+    /// SignalCommandParamValue union).</summary>
+    public enum SpriteStudioSignalParamType : byte { Bool, Index, Integer, Floating, Text }
+
+    /// <summary>
+    /// A single Signal command parameter: an id and a typed value, stored without boxing. Read the value
+    /// through the accessor matching <see cref="Type"/> (e.g. <see cref="AsInteger"/> when Type is Integer).
+    /// </summary>
+    public readonly struct SpriteStudioSignalParam
+    {
+        public readonly string Id;
+        public readonly SpriteStudioSignalParamType Type;
+        private readonly bool _bool;
+        private readonly int _int;      // Index or Integer
+        private readonly float _float;
+        private readonly string _text;
+
+        internal SpriteStudioSignalParam(string id, bool value) { Id = id; Type = SpriteStudioSignalParamType.Bool; _bool = value; _int = 0; _float = 0f; _text = null; }
+        internal SpriteStudioSignalParam(string id, SpriteStudioSignalParamType type, int value) { Id = id; Type = type; _int = value; _bool = false; _float = 0f; _text = null; }
+        internal SpriteStudioSignalParam(string id, float value) { Id = id; Type = SpriteStudioSignalParamType.Floating; _float = value; _bool = false; _int = 0; _text = null; }
+        internal SpriteStudioSignalParam(string id, string value) { Id = id; Type = SpriteStudioSignalParamType.Text; _text = value; _bool = false; _int = 0; _float = 0f; }
+
+        /// <summary>Value when <see cref="Type"/> is Bool.</summary>
+        public bool AsBool => _bool;
+        /// <summary>Value when <see cref="Type"/> is Index.</summary>
+        public int AsIndex => _int;
+        /// <summary>Value when <see cref="Type"/> is Integer.</summary>
+        public int AsInteger => _int;
+        /// <summary>Value when <see cref="Type"/> is Floating.</summary>
+        public float AsFloating => _float;
+        /// <summary>Value when <see cref="Type"/> is Text.</summary>
+        public string AsText => _text;
+    }
+
     [Serializable]
     public struct SpriteStudioSignal
     {
@@ -35,12 +69,42 @@ namespace SpriteStudio.Runtime
         public bool Active;
         public string CommandId;
 
+        // Backing store for the parameters, owned and reused by the player (grow-only, no per-signal
+        // allocation, no boxing). Access parameters via ParamCount / GetParam / TryGetParam — never these
+        // fields directly. A signal's slice is valid until the next event poll on the same player; copy any
+        // values you need to keep beyond the OnSignal callback.
+        [NonSerialized] internal SpriteStudioSignalParam[] _params;
+        [NonSerialized] internal int _paramStart;
+
+        /// <summary>Number of command parameters carried by this signal (0 if none). Not serialized.</summary>
+        [NonSerialized] public int ParamCount;
+
         /// <summary>
-        /// Signal command parameters (param_id -> value). Each value is one of bool / int / float / string,
-        /// corresponding to the FlatBuffers SignalCommandParamValue union. Null when there are no parameters.
-        /// Not serialized by UnityEvent; valid only at runtime.
+        /// The command parameter at <paramref name="index"/> (0 &lt;= index &lt; <see cref="ParamCount"/>).
+        /// Zero-allocation and un-boxed. Valid until the next event poll on this player.
         /// </summary>
-        [NonSerialized] public Dictionary<string, object> Params;
+        public SpriteStudioSignalParam GetParam(int index)
+        {
+            if ((uint)index >= (uint)ParamCount)
+                throw new ArgumentOutOfRangeException(nameof(index));
+            return _params[_paramStart + index];
+        }
+
+        /// <summary>
+        /// Find a parameter by its id. Returns false when this signal has no parameter with that id.
+        /// If several parameters share an id, the first one is returned; use <see cref="GetParam"/> with
+        /// <see cref="ParamCount"/> to enumerate all parameters positionally.
+        /// </summary>
+        public bool TryGetParam(string id, out SpriteStudioSignalParam param)
+        {
+            for (int i = 0; i < ParamCount; i++)
+            {
+                var p = _params[_paramStart + i];
+                if (p.Id == id) { param = p; return true; }
+            }
+            param = default;
+            return false;
+        }
     }
 
     [Serializable]

@@ -14,7 +14,7 @@ namespace SpriteStudio.Runtime
     /// the user catalog) fold to the shared default path. The shader is located by name with Shader.Find
     /// and cached. NOTE: in a player build, Shader.Find only finds shaders kept in the build — the AddOn
     /// shaders still need a build-inclusion anchor (Always Included Shaders or a referencing asset);
-    /// that is a separate packaging step (TODO) and does not affect the editor.
+    /// that is a separate packaging step and does not affect the Editor.
     /// </summary>
     public static class SpriteStudioAddOnRegistry
     {
