@@ -236,7 +236,7 @@ Configure it by adding entries to the **Part Trackers** list of `SpriteStudioPla
 - Placing the target as a **child** of the player makes the local transform match exactly. When placed in a separate hierarchy, world position and rotation match, and scale is approximate.
 - If you specify a part name that does not exist in the animation, the target is automatically deactivated.
 
-## Part Overrides (Color / Cell / Visibility)
+## Part Overrides (Part Color / Cell / Visibility)
 
 Per-part runtime overrides let a script say "make this part this color / this cell / hidden **now**". An override wins over both the keyframe and any animation blending, so it does not have to fight the animation. Available on both `SpriteStudioPlayer` and `SpriteStudioGraphic`.
 
@@ -260,24 +260,26 @@ player.ClearAllPartOverrides();
 | Method | Description |
 |---|---|
 | `FindPartIndex(name)` | Part index, or `-1` if the part is not in the asset |
-| `SetPartColorOverride(part, blendOp, color, priority)` | Color override (single color, or a four-corner overload: left-top, right-top, left-bottom, right-bottom) |
+| `SetPartColorOverride(part, blendOp, color, priority)` | Part Color override (single color, or a four-corner overload: left-top, right-top, left-bottom, right-bottom) |
 | `SetPartCellOverride(part, cellmapName, cellName, priority)` | Draw a different cell |
 | `SetPartVisibilityOverride(part, hide, cascade)` | Force-hide (`hide: false` reverts to the animation) |
 | `ClearPartColorOverride` / `ClearPartCellOverride` / `ClearPartVisibilityOverride` | Clear one override on one part |
 | `ClearAllPartOverrides()` | Clear every override on the player |
 | `GetCellMapNames()` / `GetCellNames(cellmap)` | Discover the cellmap / cell names you can pass to a cell override |
 
-Every method takes either a **part name** or a **part index**, and returns `false` when the part is unknown or the runtime rejects the call. Part indices are stable within one asset, so resolve a name once with `FindPartIndex` and reuse the index if you set overrides frequently.
+The `part` argument of every method takes either a **part name** or a **part index**, and the call returns `false` when the part is unknown or the runtime rejects it.
+
+> **Using part indices**: A part index is stable within one asset (the same `.ssab`), so if you set overrides frequently, we recommend resolving the part name to a part index once with `FindPartIndex` and reusing that index.
 
 ### Priority mode
 
-Color and cell overrides conflict with the animation, so they take a `SpriteStudioOverridePriority` (visibility does not — it is a plain force-hide flag, and any new animation clears it):
+Part Color and cell overrides conflict with the animation, so they take a `SpriteStudioOverridePriority` (visibility does not — it is a plain force-hide flag, and any new animation clears it):
 
 | Priority | Behavior |
 |---|---|
-| `OverwriteOnNextKeyframe` | The keyframe reclaims the attribute on any frame the animation drives it, so the override only shows on frames the animation leaves that attribute alone |
-| `HoldUntilNextAnimation` (default) | The override wins for the current animation and is cleared when a new animation is set up |
-| `Permanent` | The override wins and survives animation changes |
+| `OverwriteOnNextKeyframe` | The override applies until the animation data updates that attribute |
+| `HoldUntilNextAnimation` (default) | The override wins for the current animation, and is cleared when a new animation is set up |
+| `Permanent` | The override applies as long as the same animation data (`.ssab`) is loaded (it survives animation changes) |
 
 ### Notes
 

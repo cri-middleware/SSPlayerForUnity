@@ -32,7 +32,7 @@ _player.Play();
 | `SetAnimation(string animName)` | メソッド | アニメーションを指定しデータをロード（再生は開始しない）。成功で `true` |
 | `Play()` | メソッド | セットアップ済みアニメを先頭から再生開始 |
 | `Play(float startFrame)` | メソッド | セットアップ済みアニメを指定フレームから再生開始 |
-| `Pause()` | メソッド | 一時停止／再開のトグル（現在フレームを保持。`play()` は先頭へ巻き戻すため再開には使えない） |
+| `Pause()` | メソッド | 一時停止／再開のトグル（現在フレームを保持。`Play()` は先頭へ巻き戻すため再開には使えない） |
 | `Stop()` | メソッド | 再生を停止 |
 | `IsPlaying` | `bool`（読取） | 再生セッションが有効か（一時停止中でも `true`） |
 | `IsPaused` | `bool`（読取） | 一時停止中か |
@@ -171,7 +171,6 @@ struct SpriteStudioAudio
 }
 ```
 
-> [!NOTE]
 > **Audio イベントについて**: 本プラグインは Audio の発生を**通知**します。実際の音の再生（`AudioSource` での発音）はアプリ側で行ってください。再生に必要な `AudioClip` は `SpriteStudioAnimeAsset.Sounds` に解決済みで保持されています。
 
 ### 実装例: アニメーションの連続再生
@@ -236,9 +235,9 @@ void HandleUserData(SpriteStudioUserData data)
 - ターゲットをプレイヤーの**子**に置くとローカル変換が完全一致します。別階層に置いた場合はワールド位置・回転が一致し、スケールは近似になります。
 - アニメーションに存在しないパーツ名を指定した場合、ターゲットは自動的に非アクティブ化されます。
 
-## パーツオーバーライド（カラー / セル / 表示）
+## パーツオーバーライド（パーツカラー / セル / 表示指定）
 
-パーツ単位のランタイムオーバーライドは、「このパーツを**今**この色に / このセルに / 非表示に」とスクリプトから指示する機能です。オーバーライドはキーフレームにもアニメーションのブレンドにも勝つため、アニメーションと取り合いになりません。`SpriteStudioPlayer` / `SpriteStudioGraphic` の両方で使えます。
+パーツ単位のランタイムオーバーライドは、「このパーツを**今**この色に / このセルに / 非表示に」とスクリプトから指示する機能です。オーバーライドはキーフレームやアニメーションのブレンドよりも優先されるので、アニメーションと取り合いになりません。`SpriteStudioPlayer` / `SpriteStudioGraphic` の両方で使えます。
 
 ```csharp
 var player = GetComponent<SpriteStudioPlayer>();
@@ -260,24 +259,26 @@ player.ClearAllPartOverrides();
 | メソッド | 説明 |
 |---|---|
 | `FindPartIndex(name)` | パーツインデックス。アセットに無ければ `-1` |
-| `SetPartColorOverride(part, blendOp, color, priority)` | カラーオーバーライド（単色。4隅指定のオーバーロードもあり：左上・右上・左下・右下） |
-| `SetPartCellOverride(part, cellmapName, cellName, priority)` | 別のセルを描画させる |
+| `SetPartColorOverride(part, blendOp, color, priority)` | パーツカラーオーバーライド（単色。4隅指定のオーバーロードもあり：左上・右上・左下・右下） |
+| `SetPartCellOverride(part, cellmapName, cellName, priority)` | 別のセルで描画する |
 | `SetPartVisibilityOverride(part, hide, cascade)` | 強制非表示（`hide: false` でアニメーションに戻す） |
 | `ClearPartColorOverride` / `ClearPartCellOverride` / `ClearPartVisibilityOverride` | 1パーツの1オーバーライドを解除 |
 | `ClearAllPartOverrides()` | そのプレイヤーの全オーバーライドを解除 |
 | `GetCellMapNames()` / `GetCellNames(cellmap)` | セルオーバーライドに指定できるセルマップ名 / セル名の列挙 |
 
-各メソッドは**パーツ名**と**パーツインデックス**のどちらでも指定でき、パーツが不明な場合やランタイムが受け付けなかった場合は `false` を返します。パーツインデックスは同一アセット内で安定しているので、頻繁にオーバーライドするなら `FindPartIndex` で一度解決してインデックスを使い回してください。
+各メソッドの `part` は**パーツ名**と**パーツインデックス**のどちらでも指定でき、パーツが不明な場合やランタイムが受け付けなかった場合は `false` を返します。
+
+> **パーツインデックスの使い方について**: パーツインデックスは同一アセット（同じ `.ssab`）内では安定しているので、頻繁にオーバーライドするなら `FindPartIndex` で一度パーツ名をパーツインデックスに解決して、そのインデックスを使い回すことを推奨します。
 
 ### 優先モード（priority mode）
 
-カラーとセルのオーバーライドはアニメーションと競合するため、`SpriteStudioOverridePriority` を取ります（表示にはありません。単なる強制非表示フラグで、アニメーションを設定し直すと必ずクリアされます）。
+パーツカラーとセルのオーバーライドはアニメーションと競合するため、`SpriteStudioOverridePriority` を取ります（表示指定にはありません。単なる強制非表示フラグで、アニメーションを設定し直すと必ずクリアされます）。
 
 | 優先モード | 挙動 |
 |---|---|
-| `OverwriteOnNextKeyframe` | アニメーションがその属性を駆動するフレームではキーフレームが取り返す。アニメーションが触れないフレームでのみオーバーライドが見える |
-| `HoldUntilNextAnimation`（既定） | 現在のアニメーション中は勝ち続け、新しいアニメーションを設定するとクリアされる |
-| `Permanent` | 勝ち続け、アニメーション変更をまたいでも持続する |
+| `OverwriteOnNextKeyframe` | アニメーションデータが当該アトリビュートを更新するまで、オーバーライドが適用される |
+| `HoldUntilNextAnimation`（既定） | 現在のアニメーション中は勝ち続け、新しいアニメーションを設定するとオーバーライドが解除される |
+| `Permanent` | 同じアニメーションデータ（.ssab）である間、オーバーライドが適用される (アニメーション変更をまたいでも持続) |
 
 ### 注意点
 
