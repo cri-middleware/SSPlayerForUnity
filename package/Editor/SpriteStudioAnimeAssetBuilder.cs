@@ -221,9 +221,10 @@ namespace SpriteStudio.Editor
             // 2. Parse
             var bb = new Google.FlatBuffers.ByteBuffer(asset.SsabData);
             // Input validation: reject anything that is not converter output (e.g. an unrelated file that
-            // merely has the .ssab extension) and surface an error that explains the cause.
-            // Reading the identifier needs the leading offset (4) + magic (4), so at least 8 bytes are required.
-            if (asset.SsabData.Length < 8 || !ss.format.SsAnimeBinary.SsAnimeBinaryBufferHasIdentifier(bb))
+            // merely has the .ssab extension) and surface an error that explains the cause. Shared with the
+            // runtime loader (SpriteStudioInternalPlayer.LoadSsab) so the importer and the runtime cannot
+            // disagree about what is loadable.
+            if (!SpriteStudioSsabFormat.IsSsabBuffer(asset.SsabData))
             {
                 ctx.LogImportError($"[SpriteStudioSsabImporter] Not a valid .ssab (FlatBuffers 'SSAB' identifier missing): {ctx.assetPath}");
                 ctx.AddObjectToAsset("MainAsset", asset);

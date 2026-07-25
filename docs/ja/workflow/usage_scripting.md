@@ -171,6 +171,8 @@ struct SpriteStudioAudio
 }
 ```
 
+> **Signal パラメータの有効期間について**: `GetParam` / `TryGetParam` が返す値は、プレイヤーが所有して使い回すバッファへのビューです（アロケーションと boxing を避けるための仕組みです）。`SpriteStudioSignal` とそこから読み出した `SpriteStudioSignalParam` が有効なのは、そのプレイヤーの次のイベントポーリングまで（通常は次フレームまで）です。コールバックの外へ持ち越す場合（フィールドへの保存、コルーチンからの参照、キューイングなど）は、**値そのものをコピー**してください（`p.AsInteger` / `p.AsText` など）。`SpriteStudioSignal` を保持したままにすると、後で別の Signal のパラメータをエラーなく返すようになります。
+
 > **Audio イベントについて**: 本プラグインは Audio の発生を**通知**します。実際の音の再生（`AudioSource` での発音）はアプリ側で行ってください。再生に必要な `AudioClip` は `SpriteStudioAnimeAsset.Sounds` に解決済みで保持されています。
 
 ### 実装例: アニメーションの連続再生

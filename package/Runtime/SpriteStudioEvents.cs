@@ -76,8 +76,12 @@ namespace SpriteStudio.Runtime
         [NonSerialized] internal SpriteStudioSignalParam[] _params;
         [NonSerialized] internal int _paramStart;
 
-        /// <summary>Number of command parameters carried by this signal (0 if none). Not serialized.</summary>
-        [NonSerialized] public int ParamCount;
+        /// <summary>
+        /// Number of command parameters carried by this signal (0 if none). Not serialized.
+        /// Read-only from outside the package: the count indexes a player-owned buffer, so a signal that
+        /// did not come from an event poll always reports 0 rather than pointing at nothing.
+        /// </summary>
+        public int ParamCount { get; internal set; }
 
         /// <summary>
         /// The command parameter at <paramref name="index"/> (0 &lt;= index &lt; <see cref="ParamCount"/>).
@@ -85,7 +89,7 @@ namespace SpriteStudio.Runtime
         /// </summary>
         public SpriteStudioSignalParam GetParam(int index)
         {
-            if ((uint)index >= (uint)ParamCount)
+            if (_params == null || (uint)index >= (uint)ParamCount)
                 throw new ArgumentOutOfRangeException(nameof(index));
             return _params[_paramStart + index];
         }
@@ -97,6 +101,11 @@ namespace SpriteStudio.Runtime
         /// </summary>
         public bool TryGetParam(string id, out SpriteStudioSignalParam param)
         {
+            if (_params == null)
+            {
+                param = default;
+                return false;
+            }
             for (int i = 0; i < ParamCount; i++)
             {
                 var p = _params[_paramStart + i];

@@ -511,7 +511,9 @@ namespace SpriteStudio.Runtime
         }
 
         /// <inheritdoc/>
-        public System.IntPtr GetLiveHandle() => _core.Internal != null ? _core.Internal.NativeHandle : System.IntPtr.Zero;
+        // Explicit implementation: only the update manager needs this, and a raw native pointer must not
+        // become part of the package's public API.
+        System.IntPtr ISpriteStudioRenderable.GetLiveHandle() => _core.Internal != null ? _core.Internal.NativeHandle : System.IntPtr.Zero;
 
         public void ConsumeFrame(System.IntPtr frameDataPtr, int len, float deltaTime)
         {
