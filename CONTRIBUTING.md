@@ -1,0 +1,145 @@
+# Contributing to SSPlayerForUnity
+
+Thank you for your interest in contributing to SSPlayerForUnity! We welcome all kinds of contributions, including bug reports, feature requests, documentation improvements, and code contributions.
+
+## Table of Contents
+- [Code of Conduct](#code-of-conduct)
+- [How Can I Contribute?](#how-can-i-contribute)
+- [Development Environment](#development-environment)
+- [Coding Standards](#coding-standards)
+
+## Code of Conduct
+Please refer to [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
+
+## How Can I Contribute?
+
+### Technical Constraints & Guiding Principles
+This player is a thin C# "Body" driving the SpriteStudio-SDK Rust "Brain" (`libssruntime`) over csbindgen-generated FFI. To keep it fast and predictable, please follow these principles:
+
+- **Unity idioms first:** match the C# conventions and the existing style of the file you touch.
+- **Standard packages only:** Burst, Mathematics, Collections, and Timeline. Please do not introduce third-party dependencies.
+- **Zero allocation in the hot path:** the tick / mesh-update loop must not allocate GC memory. Reuse `NativeArray`, and upload meshes with `SetVertexBufferData`.
+- **FFI safety:** native handles (`SsPlayerHandle`) are `IDisposable`. Always `JobHandle.Complete()` before freeing native resources - a running Burst job will segfault otherwise.
+- **Respect the layer split:** `SpriteStudioInternalPlayer` owns the native lifecycle, FFI, and `IDisposable`; all per-frame geometry (frame-data decode, effect / instance / mask batching, Burst scheduling, mesh upload) lives in `SpriteStudioGeometryBuilder`, its collaborators, and `SpriteStudioMeshJob`. Add rendering features there rather than in the player component, and preserve the struct layouts Burst and the FFI depend on.
+- **SDK separation:** the core animation logic lives in the `SpriteStudio-SDK` submodule (Rust `libssruntime` / `libssconverter`). Changes to the core or the algorithms belong in the SDK repository; Unity-specific rendering belongs in `package/`.
+- **Generated code is never hand-edited:** regenerate the FFI bindings and FlatBuffers accessors with the provided scripts and commit the result.
+
+### Reporting Bugs
+If you find a bug, please open a GitHub Issue and include:
+- A clear, descriptive title.
+- Steps to reproduce.
+- Your Unity version, render pipeline (URP / BRP), and target platform.
+- Expected vs. actual behavior.
+
+*Note: If you need to send proprietary `.sspj` projects to reproduce the bug, please do not attach them to public issues. See [SUPPORT.md](./SUPPORT.md) for how to contact us privately.*
+
+*Note: If the same problem reproduces on other SpriteStudio players, it most likely belongs to the shared core - please report it in [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK/issues) instead.*
+
+### Pull Requests
+1. Fork the repository and create your branch from `develop`.
+2. Keep the tests in `package/Tests/` green, and add coverage when you change core logic or the geometry builder.
+3. Submit a Pull Request with a clear description of the changes. Use [Conventional Commits](https://www.conventionalcommits.org/) (e.g. `feat(runtime): …`).
+
+## Development Environment
+
+### Prerequisites
+- Unity, matching the `unity` field in [`package/package.json`](./package/package.json).
+- A Rust toolchain (`rustup`) - only if you build `libssruntime` / `libssconverter` from source.
+- The `SpriteStudio-SDK` submodule: `git submodule update --init --recursive`.
+
+### Setup
+```bash
+./scripts/download-sdk.sh          # fetch prebuilt native libraries
+./scripts/download-flatbuffers.sh  # set up the FlatBuffers C# source
+```
+
+### Build from source (optional)
+```bash
+./scripts/build-runtime.sh   # builds the native libraries and regenerates the FFI bindings
+```
+
+### Tests
+```bash
+./scripts/run-tests.sh       # headless; do not run while the Unity Editor has the project open
+```
+With the Editor open, use the Unity Test Runner instead. Windows users: every script has a `.ps1` counterpart.
+
+## Coding Standards
+
+- Follow the existing C# style of the file you edit (naming, `#nullable` usage where present, member ordering).
+- Keep the tick loop allocation-free, and prefer Burst-compatible constructs in job code.
+- Document public API surface that users are expected to call; the user-facing docs live in `docs/en/` and `docs/ja/` - update **both** when behavior changes.
+
+---
+Contributions to this project are considered to be made under the terms of the project's [LICENSE.md](./LICENSE.md).
+
+---
+
+# SSPlayerForUnity への貢献
+
+SSPlayerForUnity への貢献にご関心をお寄せいただきありがとうございます。不具合報告、機能要望、ドキュメントの改善、コードの貢献など、あらゆる形の貢献を歓迎します。
+
+## 行動規範
+[CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) を参照してください。
+
+## 貢献の方法
+
+### 技術的な制約と方針
+本 Player は、csbindgen が生成する FFI を介して SpriteStudio-SDK の Rust 製「Brain」（`libssruntime`）を駆動する、薄い C# 製の「Body」です。速度と予測可能性を保つため、以下の方針に従ってください。
+
+- **まず Unity の作法に従う:** 編集するファイルの C# の規約と既存スタイルに合わせてください。
+- **標準パッケージのみ:** Burst / Mathematics / Collections / Timeline。サードパーティ依存の追加はご遠慮ください。
+- **ホットパスでのアロケーション禁止:** tick／メッシュ更新ループで GC アロケーションを発生させないでください。`NativeArray` を再利用し、メッシュ更新は `SetVertexBufferData` で行います。
+- **FFI の安全性:** ネイティブハンドル（`SsPlayerHandle`）は `IDisposable` です。ネイティブリソースの解放前には必ず `JobHandle.Complete()` を呼んでください。実行中の Burst ジョブがあるとクラッシュします。
+- **レイヤー分離の遵守:** `SpriteStudioInternalPlayer` がネイティブのライフサイクル・FFI・`IDisposable` を持ち、フレームごとのジオメトリ処理（フレームデータのデコード、エフェクト／インスタンス／マスクのバッチング、Burst のスケジューリング、メッシュのアップロード）は `SpriteStudioGeometryBuilder` とその協調クラス、`SpriteStudioMeshJob` にあります。描画機能の追加は Player コンポーネントではなくそちらへ。Burst と FFI が依存する構造体レイアウトは維持してください。
+- **SDK との分離:** アニメーションのコアロジックは `SpriteStudio-SDK` サブモジュール（Rust の `libssruntime` / `libssconverter`）にあります。コアやアルゴリズムの変更は SDK リポジトリへ、Unity 固有の描画は `package/` へ。
+- **生成コードは手編集しない:** FFI バインディングと FlatBuffers アクセサーは、付属スクリプトで再生成してコミットしてください。
+
+### 不具合の報告
+不具合を見つけた場合は、GitHub Issue に以下を含めてご投稿ください。
+- 明確で説明的なタイトル
+- 再現手順
+- Unity のバージョン、レンダーパイプライン（URP / BRP）、対象プラットフォーム
+- 期待する動作と実際の動作
+
+*注: 再現のために非公開の `.sspj` プロジェクトを送付する必要がある場合、公開 Issue には添付しないでください。非公開の連絡方法は [SUPPORT.md](./SUPPORT.md) を参照してください。*
+
+*注: 他の SpriteStudio Player でも同じ問題が再現する場合、共通コア側の問題である可能性が高いため、[SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK/issues) へご報告ください。*
+
+### プルリクエスト
+1. リポジトリを fork し、`develop` からブランチを作成してください。
+2. `package/Tests/` のテストをグリーンに保ち、コアロジックやジオメトリビルダーを変更した場合はテストを追加してください。
+3. 変更内容を明確に記載した PR を作成してください。コミットは [Conventional Commits](https://www.conventionalcommits.org/)（例: `feat(runtime): …`）に従ってください。
+
+## 開発環境
+
+### 前提
+- Unity（バージョンは [`package/package.json`](./package/package.json) の `unity` フィールドに準拠）
+- Rust ツールチェーン（`rustup`）— `libssruntime` / `libssconverter` をソースからビルドする場合のみ
+- `SpriteStudio-SDK` サブモジュール: `git submodule update --init --recursive`
+
+### セットアップ
+```bash
+./scripts/download-sdk.sh          # ビルド済みネイティブライブラリの取得
+./scripts/download-flatbuffers.sh  # FlatBuffers の C# ソースを配置
+```
+
+### ソースからのビルド（任意）
+```bash
+./scripts/build-runtime.sh   # ネイティブライブラリのビルドと FFI バインディングの再生成
+```
+
+### テスト
+```bash
+./scripts/run-tests.sh       # ヘッドレス実行。Unity エディターでプロジェクトを開いたままでは実行しないでください
+```
+エディターを開いている場合は Unity Test Runner を使用してください。Windows では各スクリプトの `.ps1` 版を使います。
+
+## コーディング規約
+
+- 編集するファイルの既存の C# スタイル（命名、`#nullable` の扱い、メンバー順）に従ってください。
+- tick ループはアロケーションフリーに保ち、ジョブ内では Burst 互換の記述を優先してください。
+- 利用者が呼び出す公開 API にはドキュメントを付けてください。利用者向けドキュメントは `docs/en/` と `docs/ja/` にあり、挙動を変更したときは **両方** を更新してください。
+
+---
+本プロジェクトへの貢献は、プロジェクトの [LICENSE.md](./LICENSE.md) に同意したものとみなされます。
