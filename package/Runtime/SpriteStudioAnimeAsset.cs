@@ -72,6 +72,8 @@ namespace SpriteStudio.Runtime
             //    searched first and our own SSAB is the last resort. Preferring self here picks the wrong
             //    animation whenever both packs happen to share an animation name, and feeds SetupSlots a
             //    child that is its own parent.
+            //    Both branches are a guess made off a name collision, so neither resolves silently: the
+            //    caller gets a warning naming what was picked, and the import that caused it.
             if (nameHash != 0)
             {
                 if (ExternalReferences != null)
@@ -79,10 +81,20 @@ namespace SpriteStudio.Runtime
                     for (int i = 0; i < ExternalReferences.Count; i++)
                     {
                         var ext = ExternalReferences[i];
-                        if (ext != null && ext.ContainsAnimationHash(nameHash)) return ext.SsabData;
+                        if (ext != null && ext.ContainsAnimationHash(nameHash))
+                        {
+                            Debug.LogWarning($"[SpriteStudioAnimeAsset] '{name}': Instance reference (pack=0x{packHash:X8}, name=0x{nameHash:X8}) matched no pack hash, so it was resolved by animation name to the external reference '{ext.name}'. Reimport the assets if that is not the intended animation.");
+                            return ext.SsabData;
+                        }
                     }
                 }
-                if (ContainsAnimationHash(nameHash)) return SsabData;
+                if (ContainsAnimationHash(nameHash))
+                {
+                    // Instance parts are pack-level, so a child that is this very pack would recurse; the
+                    // player detects that and skips the part. Say so here, where the cause is visible.
+                    Debug.LogWarning($"[SpriteStudioAnimeAsset] '{name}': Instance reference (pack=0x{packHash:X8}, name=0x{nameHash:X8}) matched neither a pack hash nor an external reference, so it fell back to this pack's own animation of that name. The Instance part will be skipped — reimport the AnimeAsset to repopulate its external references.");
+                    return SsabData;
+                }
             }
 
             return null;

@@ -136,31 +136,10 @@ namespace SpriteStudio.Runtime
             }
             if (n == 0) return;
 
-            // A user event callback fired during a player's PrepareFrame (PollEvents) can disable or
-            // destroy a DIFFERENT player that was already prepared earlier in this loop, freeing its
-            // native handle while that handle still sits in the job set — the parallel get_frame_data
-            // would then dereference freed memory (use-after-free). Now that the whole prepare pass (and
-            // all its callbacks) has run, re-validate each captured handle against its player's current
-            // live handle and compact out any that no longer match (disposed / invalidated).
-            {
-                int valid = 0;
-                for (int i = 0; i < n; i++)
-                {
-                    if (_pending[i].GetLiveHandle() == _jobHandles[i])
-                    {
-                        if (valid != i)
-                        {
-                            _jobHandles[valid] = _jobHandles[i];
-                            _jobDrawFrames[valid] = _jobDrawFrames[i];
-                            _pending[valid] = _pending[i];
-                        }
-                        valid++;
-                    }
-                }
-                for (int i = valid; i < n; i++) _pending[i] = null;
-                n = valid;
-                if (n == 0) return;
-            }
+            // Now that the whole prepare pass (and all its callbacks) has run, drop any player whose
+            // handle was invalidated in the middle of it.
+            n = RevalidateAndCompact(_jobHandles, _jobDrawFrames, _pending, n);
+            if (n == 0) return;
 
             // get_frame_data is independent per context (no global mutable state; shared resources are
             // immutable Send+Sync), so it can run on worker threads in parallel across characters. This
@@ -195,6 +174,36 @@ namespace SpriteStudio.Runtime
                 _pending[i].ConsumeFrame(_jobOutPtr[i], _jobOutLen[i], deltaTime);
                 _pending[i] = null; // do not keep the snapshot reference alive
             }
+        }
+
+        /// <summary>
+        /// Drop from the parallel get_frame_data input set every player whose captured handle no longer
+        /// matches its current live handle, keeping the survivors packed and index-aligned across the three
+        /// parallel arrays (handle / drawFrame / renderable). Returns the surviving count; the dropped tail
+        /// of <paramref name="pending"/> is nulled so no stale reference is kept alive.
+        ///
+        /// Why it is needed: a user event callback fired during a player's PrepareFrame (PollEvents) can
+        /// disable or destroy a DIFFERENT player that was already prepared earlier in the pass, freeing its
+        /// native handle while that handle still sits in the job set — get_frame_data would then
+        /// dereference freed memory (use-after-free).
+        /// </summary>
+        internal static int RevalidateAndCompact(NativeArray<IntPtr> handles, NativeArray<float> drawFrames,
+                                                 ISpriteStudioRenderable[] pending, int n)
+        {
+            int valid = 0;
+            for (int i = 0; i < n; i++)
+            {
+                if (pending[i].GetLiveHandle() != handles[i]) continue;   // disposed / recreated: drop it
+                if (valid != i)
+                {
+                    handles[valid] = handles[i];
+                    drawFrames[valid] = drawFrames[i];
+                    pending[valid] = pending[i];
+                }
+                valid++;
+            }
+            for (int i = valid; i < n; i++) pending[i] = null;
+            return valid;
         }
 
         private static void EnsureJobCapacity(int count)

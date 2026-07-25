@@ -171,6 +171,9 @@ struct SpriteStudioAudio
 }
 ```
 
+> [!IMPORTANT]
+> **Lifetime of Signal parameters**: `GetParam` / `TryGetParam` return a view into a buffer owned and recycled by the player, which is how they avoid allocating and boxing. A `SpriteStudioSignal` and the `SpriteStudioSignalParam` values read from it are only valid until the next event poll on that player — usually the next frame. If you need a value after the callback returns (storing it in a field, reading it from a coroutine, queueing it), **copy the value itself** (`p.AsInteger`, `p.AsText`, …); keeping the `SpriteStudioSignal` around will report another signal's parameters later, with no error.
+
 > [!NOTE]
 > **About Audio events**: This plugin **notifies** the occurrence of Audio. Perform the actual sound playback (producing sound via `AudioSource`) on the application side. The `AudioClip` needed for playback is already resolved and held in `SpriteStudioAnimeAsset.Sounds`.
 

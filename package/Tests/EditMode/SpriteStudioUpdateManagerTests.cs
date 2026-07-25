@@ -1,5 +1,6 @@
 using System;
 using NUnit.Framework;
+using Unity.Collections;
 using UnityEngine.TestTools.Constraints;
 using SpriteStudio.Runtime;
 using Is = UnityEngine.TestTools.Constraints.Is; // for AllocatingGCMemory (aliased because it collides with NUnit's Is)
@@ -25,10 +26,22 @@ namespace SpriteStudio.Runtime.EditModeTests
             public Action OnPrepare;
             public Action OnApply;
 
+            /// <summary>
+            /// Handle reported by PrepareFrame. Zero (the default) keeps this renderable out of the
+            /// parallel get_frame_data set entirely, so most tests stay fully managed. A non-zero value is
+            /// a dummy pointer that must never reach get_frame_data — set it only in tests that also make
+            /// GetLiveHandle disagree with it, so the re-validation drops the entry first.
+            /// </summary>
+            public IntPtr Handle = IntPtr.Zero;
+
+            /// <summary>Handle reported by GetLiveHandle. Set it to Zero (or to a different value) to
+            /// simulate a player disposed / recreated by another player's event callback mid-pass.</summary>
+            public IntPtr LiveHandle = IntPtr.Zero;
+
             public void PrepareFrame(float deltaTime, out IntPtr handle, out float drawFrame)
             {
                 PrepareCount++;
-                handle = IntPtr.Zero; // Zero → excluded from parallel get_frame_data / ConsumeFrame (no native dependency)
+                handle = Handle;
                 drawFrame = 0f;
                 OnPrepare?.Invoke();
             }
@@ -41,9 +54,7 @@ namespace SpriteStudio.Runtime.EditModeTests
                 OnApply?.Invoke();
             }
 
-            // handle is always Zero, so this renderable is never in the parallel get_frame_data set and
-            // the update manager's post-prepare re-validation never needs a real live handle from it.
-            public IntPtr GetLiveHandle() => IntPtr.Zero;
+            public IntPtr GetLiveHandle() => LiveHandle;
         }
 
         [SetUp]
@@ -138,6 +149,90 @@ namespace SpriteStudio.Runtime.EditModeTests
             SpriteStudioUpdateManager.Apply();
 
             Assert.AreEqual(0, a.PrepareCount, "Registrations should be cleared after ResetStaticState");
+        }
+
+        [Test]
+        public void RevalidateAndCompact_DropsInvalidatedPlayers_AndKeepsRowsAligned()
+        {
+            // The handles here are dummy values: RevalidateAndCompact only compares them, never dereferences.
+            var a = new FakeRenderable { LiveHandle = (IntPtr)1 };                 // still live
+            var b = new FakeRenderable { LiveHandle = IntPtr.Zero };               // disposed mid-prepare
+            var c = new FakeRenderable { LiveHandle = (IntPtr)3 };                 // still live
+            var d = new FakeRenderable { LiveHandle = (IntPtr)99 };                // recreated: different context
+
+            var handles = new NativeArray<IntPtr>(new[] { (IntPtr)1, (IntPtr)2, (IntPtr)3, (IntPtr)4 }, Allocator.Temp);
+            var drawFrames = new NativeArray<float>(new[] { 1f, 2f, 3f, 4f }, Allocator.Temp);
+            var pending = new ISpriteStudioRenderable[] { a, b, c, d };
+            try
+            {
+                int n = SpriteStudioUpdateManager.RevalidateAndCompact(handles, drawFrames, pending, 4);
+
+                Assert.AreEqual(2, n, "only the players whose handle is still live may stay in the job set");
+                // The three arrays are consumed by index, so a compaction that shuffles them out of step
+                // would hand a player another player's frame data.
+                Assert.AreSame(a, pending[0]);
+                Assert.AreEqual((IntPtr)1, handles[0]);
+                Assert.AreEqual(1f, drawFrames[0]);
+                Assert.AreSame(c, pending[1]);
+                Assert.AreEqual((IntPtr)3, handles[1]);
+                Assert.AreEqual(3f, drawFrames[1]);
+                Assert.IsNull(pending[2], "the dropped tail must not keep snapshot references alive");
+                Assert.IsNull(pending[3], "the dropped tail must not keep snapshot references alive");
+            }
+            finally
+            {
+                handles.Dispose();
+                drawFrames.Dispose();
+            }
+        }
+
+        [Test]
+        public void RevalidateAndCompact_KeepsEveryStillLivePlayer()
+        {
+            // The guard must not cost a player that was never touched.
+            var a = new FakeRenderable { LiveHandle = (IntPtr)1 };
+            var b = new FakeRenderable { LiveHandle = (IntPtr)2 };
+
+            var handles = new NativeArray<IntPtr>(new[] { (IntPtr)1, (IntPtr)2 }, Allocator.Temp);
+            var drawFrames = new NativeArray<float>(new[] { 1f, 2f }, Allocator.Temp);
+            var pending = new ISpriteStudioRenderable[] { a, b };
+            try
+            {
+                Assert.AreEqual(2, SpriteStudioUpdateManager.RevalidateAndCompact(handles, drawFrames, pending, 2));
+                Assert.AreSame(a, pending[0]);
+                Assert.AreSame(b, pending[1]);
+            }
+            finally
+            {
+                handles.Dispose();
+                drawFrames.Dispose();
+            }
+        }
+
+        [Test]
+        public void Schedule_DropsPlayersInvalidatedDuringPrepare()
+        {
+            // A user event callback fired from PollEvents during one player's PrepareFrame can destroy
+            // players that were already prepared this pass. Every fake is invalidated here, so the whole
+            // set is dropped and Schedule returns before get_frame_data — if the re-validation regressed,
+            // it would call the native get_frame_data with these dummy handles instead.
+            var a = new FakeRenderable { Handle = (IntPtr)1, LiveHandle = (IntPtr)1 };
+            var b = new FakeRenderable { Handle = (IntPtr)2, LiveHandle = (IntPtr)2 };
+            SpriteStudioUpdateManager.Register(a);
+            SpriteStudioUpdateManager.Register(b);
+
+            a.OnPrepare = () =>
+            {
+                a.LiveHandle = IntPtr.Zero;
+                b.LiveHandle = IntPtr.Zero;
+            };
+
+            SpriteStudioUpdateManager.Schedule(0.016f);
+
+            Assert.AreEqual(1, a.PrepareCount);
+            Assert.AreEqual(1, b.PrepareCount);
+            Assert.AreEqual(0, a.ConsumeCount, "a player whose handle was freed mid-pass must not be consumed");
+            Assert.AreEqual(0, b.ConsumeCount, "a player whose handle was freed mid-pass must not be consumed");
         }
 
         [Test]

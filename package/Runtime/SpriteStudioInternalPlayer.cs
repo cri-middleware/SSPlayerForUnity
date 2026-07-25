@@ -24,8 +24,10 @@ namespace SpriteStudio.Runtime
         /// Current native runtime handle as an <see cref="System.IntPtr"/>, or Zero when the handle is
         /// invalid (e.g. after <see cref="Dispose"/>). Lets the update manager re-check a player's
         /// liveness after the prepare pass without dereferencing a possibly-freed raw pointer.
+        /// Internal on purpose: a raw native pointer must not become package API (handing it to an
+        /// arbitrary DllImport crashes the runtime with no diagnostic).
         /// </summary>
-        public System.IntPtr NativeHandle { get { unsafe { return _handle.IsValid ? (System.IntPtr)_handle.ptr : System.IntPtr.Zero; } } }
+        internal System.IntPtr NativeHandle { get { unsafe { return _handle.IsValid ? (System.IntPtr)_handle.ptr : System.IntPtr.Zero; } } }
 
         public delegate byte[] AssetResolver(uint packHash, uint nameHash);
         private AssetResolver _assetResolver;
@@ -160,9 +162,6 @@ internal struct MaskPartData
         // player. See SpriteStudioSignal / AppendSignalParam.
         private SpriteStudioSignalParam[] _signalParamBuffer;
         private int _signalParamCount;
-        // Re-entrancy guard: a callback that re-enters PollEvents on this same player would reset the param
-        // buffer under the outer dispatch and corrupt the slices it is still reading. Skip the nested poll.
-        private bool _pollingEvents;
 
         // True once an ssab has been loaded into the native runtime. Lets the owner (PlaybackCore /
         // player) detect "Internal created but ssab not yet loaded" — which happens when OnEnable runs
@@ -170,15 +169,22 @@ internal struct MaskPartData
         public bool HasSsab => _hasSsab;
         private bool _hasSsab;
 
-        // The ssab this player was loaded with, and the ones loaded above it. SetupSlots walks the
-        // *pack's* Instance parts, so a part that resolves back to an ssab already on this chain makes
-        // LoadSsab -> SetupSlots recurse until the stack dies — taking the Editor with it. Resolution
-        // has two fallbacks that can return the resolver's own SsabData (a same-pack reference, and the
-        // animation-name-hash search that runs when the pack hash does not match), so this is reachable
-        // whenever an import leaves ExternalReferences unpopulated. Identity, not content: the resolver
-        // hands back the very `byte[]` held by the asset.
-        private byte[] _ssabData;
-        private HashSet<byte[]> _ancestorSsabs;
+        // The pack this player was loaded with (SsAnimeBinary.name_hash), and the packs loaded above it.
+        // SetupSlots walks the *pack's* Instance parts, so a part that resolves back to a pack already on
+        // this chain makes LoadSsab -> SetupSlots recurse until the stack dies — taking the Editor with it
+        // (a StackOverflowException cannot be caught). Resolution has two fallbacks that can return the
+        // resolver's own SsabData (a same-pack reference, and the animation-name-hash search that runs when
+        // the pack hash does not match), so this is reachable whenever an import leaves ExternalReferences
+        // unpopulated. Keyed on the pack hash rather than on `byte[]` identity, so a resolver that
+        // materialises fresh bytes per call (Addressables / AssetBundle / File.ReadAllBytes) is caught too.
+        // The chain is only meaningful while a subtree is being built; SetupSlots drops it on the way in.
+        private uint _packHash;
+        private HashSet<uint> _ancestorPackHashes;
+
+        // The buffer whose load failed. LoadSsab is retried every frame while !HasSsab (the "asset still
+        // importing" self-heal in SpriteStudioPlaybackCore.EnsureCreated), so without this a permanently
+        // bad buffer would log its error once per frame, forever. Cleared on a successful load.
+        private byte[] _failedSsabData;
 
         /// <summary>
         /// Load SsabData (a byte array) and bind the resources.
@@ -187,7 +193,6 @@ internal struct MaskPartData
         public void LoadSsab(byte[] ssabData, AssetResolver resolver = null)
         {
             _assetResolver = resolver;
-            _ssabData = ssabData;
 
             // On a reload (runtime asset swap) an in-flight Burst Job may still be borrowing the old
             // ssab buffer. Always complete the Job before destroying / re-borrowing native resources to
@@ -195,16 +200,12 @@ internal struct MaskPartData
             // On the first load no Job has been scheduled, so Complete() on the default handle is a no-op.
             _geometryBuilder?.CurrentUpdateJobHandle.Complete();
 
-            // Reject data that is not an .ssab at all by checking the "SSAB" FlatBuffers file identifier
-            // before handing the bytes to the native runtime. A full structural FlatBuffer verification
-            // is deliberately not used here: the bundled FlatBuffers verifier mis-handles buffers larger
-            // than ~32 KB and would reject valid assets. This identifier check is a format sanity check —
-            // it is not a guarantee that the payload is internally well-formed.
-            if (ssabData == null || ssabData.Length < 8
-                || !ss.format.SsAnimeBinary.SsAnimeBinaryBufferHasIdentifier(new Google.FlatBuffers.ByteBuffer(ssabData)))
+            // Reject data that is not an .ssab at all before handing the bytes to the native runtime
+            // (same check the importer applies, so the two cannot disagree about what is loadable).
+            if (!SpriteStudioSsabFormat.IsSsabBuffer(ssabData))
             {
                 _hasSsab = false;
-                Debug.LogError("[SpriteStudioInternalPlayer] Refused to load .ssab: missing \"SSAB\" identifier.");
+                LogLoadFailureOnce(ssabData, "Refused to load .ssab: missing \"SSAB\" identifier.");
                 return;
             }
 
@@ -212,30 +213,63 @@ internal struct MaskPartData
             // on malformed input or an unexpected edge (e.g. resource exhaustion).
             try
             {
+                // Release order matters, and mirrors Dispose(): the previous load's effect slots and
+                // instance children are derived from the resource the native context is about to destroy
+                // (an effect slot borrows both that resource and the pinned ssab buffer for its whole
+                // lifetime), so they have to go BEFORE the reload — not afterwards in SetupSlots.
+                ReleaseDerivedHandles();
+
                 _nativeContext.LoadSsab(ssabData);
-            
+
                 var bb = new Google.FlatBuffers.ByteBuffer(ssabData);
                 _ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
-                SetupSlots(_ssab.Value);
-                _hasSsab = true;
+                if (SetupSlots(_ssab.Value))
+                {
+                    _hasSsab = true;
+                    _failedSsabData = null;
+                }
+                else
+                {
+                    // Nothing was set up because the native resource is missing (ss_runtime_create failed),
+                    // so nothing is playable. Leave HasSsab false rather than reporting a successful load:
+                    // the owner's EnsureCreated then keeps retrying instead of rendering nothing forever.
+                    _hasSsab = false;
+                    _ssab = null;
+                    _currentAnimation = null;
+                    LogLoadFailureOnce(ssabData, "Failed to load .ssab: the native runtime is unavailable.");
+                }
             }
             catch (Exception e)
             {
                 _hasSsab = false;
-                Debug.LogError("[SpriteStudioInternalPlayer] Failed to load .ssab.");
-                Debug.LogException(e);
+                LogLoadFailureOnce(ssabData, "Failed to load .ssab.", e);
             }
         }
 
-        private void SetupSlots(ss.format.SsAnimeBinary binary)
+        // Report a failing buffer once instead of once per frame: LoadSsab is retried every frame while
+        // !HasSsab (see _failedSsabData). A different array — a reimport, an asset swap — reports again.
+        private void LogLoadFailureOnce(byte[] ssabData, string message, Exception e = null)
         {
-            _hasInstanceParts = false;
+            if (ReferenceEquals(ssabData, _failedSsabData)) return;
+            _failedSsabData = ssabData;
+            Debug.LogError("[SpriteStudioInternalPlayer] " + message);
+            if (e != null) Debug.LogException(e);
+        }
+
+        /// <summary>
+        /// Destroy the handles derived from the native resource / runtime: the effect slots created from
+        /// the resource, and the instance children that own their own native contexts. Must run BEFORE the
+        /// native context that owns the resource is destroyed or reloaded, so a derived handle is never
+        /// left pointing at a freed resource or an unpinned buffer. Idempotent — the arrays are nulled as
+        /// they are released — so both <see cref="Dispose"/> and the <see cref="LoadSsab"/> reload path
+        /// can call it unconditionally.
+        /// </summary>
+        private void ReleaseDerivedHandles()
+        {
             _hasEffectParts = false;
-            _hasMaskParts = false;
-            _maskPartData = null;
+            _hasInstanceParts = false;
             _effectPartCount = 0;
             _instancePartCount = 0;
-            _geometryBuilder._lastBuiltDrawFrameNo = float.NaN; // always rebuild on reload
             unsafe
             {
                 if (_effectSlots != null)
@@ -265,11 +299,41 @@ internal struct MaskPartData
                     }
                     _instanceChildren = null;
                 }
+            }
+        }
 
-                if (_resourceHandle == null) return;
-                
+        /// <summary>
+        /// Build the per-part tables and the effect / instance slots for a freshly loaded binary.
+        /// Precondition: the caller has already released the previous load's derived handles
+        /// (<see cref="ReleaseDerivedHandles"/>) and reloaded the native context.
+        /// False when nothing could be set up because the native resource is missing; the caller must then
+        /// leave HasSsab false rather than report the load as successful.
+        /// </summary>
+        private bool SetupSlots(ss.format.SsAnimeBinary binary)
+        {
+            _hasMaskParts = false;
+            _maskPartData = null;
+            _packHash = binary.NameHash;
+            _geometryBuilder._lastBuiltDrawFrameNo = float.NaN; // always rebuild on reload
+
+            // Drop the previous load's part tables up front, before the early returns below: a stale
+            // name <-> index map would resolve event part names and part trackers against the parts of the
+            // asset that is no longer loaded.
+            _partNameToIndex?.Clear();
+            if (_partNames != null) System.Array.Clear(_partNames, 0, _partNames.Length);
+
+            // The ancestor chain is only needed while this subtree is being built. Take it and drop the
+            // field on every exit path, so a leaf player does not pin one HashSet per level for its
+            // whole lifetime.
+            var ancestors = _ancestorPackHashes;
+            _ancestorPackHashes = null;
+
+            unsafe
+            {
+                if (_resourceHandle == null) return false;
+
                 int partsLength = binary.PartsLength;
-                if (partsLength == 0) return;
+                if (partsLength == 0) return true; // a valid pack with nothing to set up
 
                 _effectSlots = new EffectSlotState[partsLength];
                 _instanceChildren = new InstanceChildState[partsLength];
@@ -279,15 +343,14 @@ internal struct MaskPartData
 
                 // Part-name -> index map for part tracking (resolve user-specified part names to the
                 // index used by the world-matrix array). Built once per load; static for the asset.
+                // (Both tables were emptied above; only capacity is grown here.)
                 if (_partNameToIndex == null) _partNameToIndex = new Dictionary<string, int>(partsLength);
-                else _partNameToIndex.Clear();
                 if (_partNames == null || _partNames.Length < partsLength) _partNames = new string[partsLength];
-                else System.Array.Clear(_partNames, 0, partsLength);
 
-                // What an Instance child may not resolve to: this ssab, or any above it. Handed to every
-                // child so the chain grows one link per level.
-                var chain = _ancestorSsabs == null ? new HashSet<byte[]>() : new HashSet<byte[]>(_ancestorSsabs);
-                if (_ssabData != null) chain.Add(_ssabData);
+                // What an Instance child may not resolve to: this pack, or any pack above it. Handed to
+                // every child so the chain grows one link per level.
+                var chain = ancestors == null ? new HashSet<uint>() : new HashSet<uint>(ancestors);
+                chain.Add(_packHash);
 
                 for (int i = 0; i < partsLength; i++)
                 {
@@ -360,9 +423,19 @@ internal struct MaskPartData
                             continue;
                         }
 
-                        if (chain.Contains(childSsab))
+                        // Cycle check on the child's own pack hash rather than on `byte[]` identity: a
+                        // resolver that materialises fresh bytes per call (Addressables / AssetBundle /
+                        // File.ReadAllBytes) hands back a different array for the same pack every time,
+                        // and an identity check would let that recurse until the stack dies.
+                        if (!SpriteStudioSsabFormat.TryGetPackHash(childSsab, out uint childPackHash))
                         {
-                            UnityEngine.Debug.LogWarning($"[SpriteStudioInternalPlayer] Instance part {i}: referenced animation (pack=0x{packHash:X8}, name=0x{nameHash:X8}) resolved to an SSAB already being loaded, which would recurse forever. Skipping the part. The AnimeAsset's external references are most likely unpopulated, so resolution fell back to its own SSAB — reimport it.");
+                            UnityEngine.Debug.LogWarning($"[SpriteStudioInternalPlayer] Instance part {i}: referenced animation (pack=0x{packHash:X8}, name=0x{nameHash:X8}) resolved to data that is not an .ssab. Skipping the part.");
+                            continue;
+                        }
+
+                        if (chain.Contains(childPackHash))
+                        {
+                            UnityEngine.Debug.LogWarning($"[SpriteStudioInternalPlayer] Instance part {i}: referenced animation (pack=0x{packHash:X8}, name=0x{nameHash:X8}) resolved to pack 0x{childPackHash:X8}, which is already being loaded further up the chain — mounting it would recurse forever. Skipping the part. The AnimeAsset's external references are most likely unpopulated, so resolution fell back to its own SSAB — reimport it.");
                             continue;
                         }
 
@@ -377,7 +450,7 @@ internal struct MaskPartData
                             // Inherit the parent's suppression so children (re)created on load match the
                             // Canvas/world choice; the public setter also propagates to existing children.
                             childPlayer._suppressInternalMask = _suppressInternalMask;
-                            childPlayer._ancestorSsabs = chain;
+                            childPlayer._ancestorPackHashes = chain;
                             childPlayer.LoadSsab(childSsab, _assetResolver);
 
                             if (!childPlayer.SetupAnimationByHash(nameHash))
@@ -405,6 +478,8 @@ internal struct MaskPartData
                     }
                 }
             }
+
+            return true;
         }
 
         public bool SetupAnimationByHash(uint animationNameHash)
@@ -945,12 +1020,13 @@ internal struct MaskPartData
         public void PollEvents()
         {
             if (!_handle.IsValid) return;
-            // A callback fired below can re-enter PollEvents on this same player; that nested pass would
-            // reset the shared signal-param buffer and corrupt the slices the outer callback is reading, so
-            // skip it (events are drained once per legitimate poll).
-            if (_pollingEvents) return;
-            _pollingEvents = true;
-            _signalParamCount = 0; // start this pass's per-signal slice buffer fresh
+            // A callback fired below can re-enter PollEvents on this same player. Mark the shared
+            // signal-param buffer on the way in and restore the mark on the way out, so a nested pass
+            // appends ABOVE the slices the outer dispatch is still reading instead of recycling them from
+            // zero. Restoring (rather than resetting to 0 on entry) keeps the buffer bounded: a top-level
+            // poll always enters at mark 0. Skipping the nested pass instead would drop that pass's whole
+            // event batch permanently — the runtime clears its passed-event list on the next update.
+            int paramMark = _signalParamCount;
             try
             {
             unsafe
@@ -958,12 +1034,16 @@ internal struct MaskPartData
                 // is_finished stays true from the moment every configured loop has played until the next
                 // play/setup, so fire OnAnimationFinished only on its rising edge. Nothing here early-returns
                 // on !is_playing, which makes _prevFinished the sole dedupe -- do not drop it.
+                // Commit the edge BEFORE dispatching: a handler that replays from inside the callback
+                // re-arms the edge (Play() sets _prevFinished = false), and writing after the callback
+                // would clobber that re-arm and swallow the next completion.
                 bool finished = NativeMethods.ss_runtime_is_finished(_handle.ptr);
-                if (finished && !_prevFinished)
+                bool rising = finished && !_prevFinished;
+                _prevFinished = finished;
+                if (rising)
                 {
                     OnAnimationFinished?.Invoke();
                 }
-                _prevFinished = finished;
 
                 // is_looped is reset to false every update() and becomes true only on an update that
                 // crosses a loop boundary (one pulse per update), so it can be fired as-is.
@@ -1088,7 +1168,7 @@ internal struct MaskPartData
             }
             finally
             {
-                _pollingEvents = false;
+                _signalParamCount = paramMark;
             }
         }
 
@@ -1122,37 +1202,9 @@ internal struct MaskPartData
             // Order matters: destroy handles derived from the native resource/runtime (effect slots
             // created from the resource, instance children that hold their own contexts) BEFORE the
             // native context that owns the resource/runtime, so a derived handle is never freed after
-            // its backing resource.
-            unsafe
-            {
-                if (_effectSlots != null)
-                {
-                    for (int i = 0; i < _effectSlots.Length; i++)
-                    {
-                        if (_effectSlots[i].EffectSlot != System.IntPtr.Zero)
-                        {
-                            NativeMethods.ss_effect_slot_destroy((void*)_effectSlots[i].EffectSlot);
-                        }
-                    }
-                    _effectSlots = null;
-                }
-
-                if (_instanceChildren != null)
-                {
-                    for (int i = 0; i < _instanceChildren.Length; i++)
-                    {
-                        if (_instanceChildren[i].InstanceSlot != System.IntPtr.Zero)
-                        {
-                            NativeMethods.ss_instance_slot_destroy((void*)_instanceChildren[i].InstanceSlot);
-                        }
-                        // A child's Dispose is recursive managed code that can throw; isolate it so a
-                        // failure does not stop sibling releases.
-                        try { _instanceChildren[i].Player?.Dispose(); }
-                        catch (Exception e) { Debug.LogException(e); }
-                    }
-                    _instanceChildren = null;
-                }
-            }
+            // its backing resource. LoadSsab applies the same ordering on a reload.
+            try { ReleaseDerivedHandles(); }
+            catch (Exception e) { Debug.LogException(e); }
 
             try { _nativeContext?.Dispose(); }
             catch (Exception e) { Debug.LogException(e); }
