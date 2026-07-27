@@ -27,7 +27,10 @@ namespace SpriteStudioDev
     public static class SpriteStudioPluginImporterSetup
     {
         private const string PackageRoot = "Packages/jp.co.cri-mw.optpix.ssplayer-unity";
-        private const string MenuRoot = "SpriteStudio/Dev/";
+        // Matches where the package already puts its editor commands (the package's own
+        // "Create or Update Default AddOn Catalog" lives under Window/SpriteStudio too).
+        // A top-level SpriteStudio root would be a third convention for no gain.
+        private const string MenuRoot = "Window/SpriteStudio/Dev/";
 
         /// <summary>One native library and the platforms it is enabled for.</summary>
         private sealed class Spec
@@ -54,13 +57,17 @@ namespace SpriteStudioDev
         // Every target touched below is reset before the per-spec flags are applied, so a re-run
         // cannot leave a stale platform enabled from an earlier pass.
         //
-        // StandaloneWindows (32-bit) is in the list purely so it gets switched off: dropping
-        // ssruntime.dll into Windows/x86_64 makes Unity enable both Win and Win64 by default,
-        // which would hand the 64-bit lib to a 32-bit player. We ship x86_64 only.
+        // 32-bit StandaloneWindows is deliberately NOT here. Dropping ssruntime.dll into
+        // Windows/x86_64 makes Unity enable both Win and Win64, and on 6000.3.16f1 that Win
+        // flag cannot be cleared: SetCompatibleWithPlatform(StandaloneWindows, false) is a
+        // no-op, and editing `Win: enabled: 0` into the .meta by hand gets rewritten back to
+        // 1 on the next reimport. Unity treats it as the correct state for this folder
+        // layout, and a consumer's editor would derive the same thing, so the tool does not
+        // pretend to own a flag it cannot set. Consequence is bounded: it only matters to a
+        // 32-bit Windows player, which would get the 64-bit lib and fail to load it.
         private static readonly BuildTarget[] ManagedTargets =
         {
             BuildTarget.StandaloneOSX,
-            BuildTarget.StandaloneWindows,
             BuildTarget.StandaloneWindows64,
             BuildTarget.StandaloneLinux64,
             BuildTarget.Android,
@@ -81,13 +88,13 @@ namespace SpriteStudioDev
             {
                 RelPath = "Runtime/Plugins/Windows/x86_64/ssruntime.dll",
                 Players = new[] { BuildTarget.StandaloneWindows64 },
-                Editor = true, EditorOS = "Windows", EditorCpu = "x86_64",
+                Editor = true, EditorOS = "Windows",
             },
             new Spec
             {
                 RelPath = "Runtime/Plugins/Linux/x86_64/libssruntime.so",
                 Players = new[] { BuildTarget.StandaloneLinux64 },
-                Editor = true, EditorOS = "Linux", EditorCpu = "x86_64",
+                Editor = true, EditorOS = "Linux",
             },
 
             // Android - three same-named .so. The per-ABI CPU is what keeps Unity from
@@ -139,6 +146,12 @@ namespace SpriteStudioDev
         {
             var missing = new List<string>();
             int configured = 0;
+
+            // The placeholders are written from a shell script, outside Unity. Until the asset
+            // database picks them up, GetAtPath returns null and they get skipped as "missing" -
+            // which silently leaves exactly the platforms that need this tool unconfigured. Do
+            // not rely on the editor having auto-refreshed (Preferences can turn that off).
+            AssetDatabase.Refresh();
 
             AssetDatabase.StartAssetEditing();
             try
@@ -216,20 +229,42 @@ namespace SpriteStudioDev
                 }
 
                 var enabled = new List<string>();
+                var problems = new List<string>();
+
+                if (importer.GetCompatibleWithEditor() != spec.Editor)
+                {
+                    problems.Add($"Editor should be {spec.Editor}");
+                }
                 if (importer.GetCompatibleWithEditor())
                 {
                     enabled.Add($"Editor({importer.GetEditorData("OS")}/{importer.GetEditorData("CPU")})");
                 }
-                foreach (var target in ManagedTargets)
+
+                // Any must stay off - it is what keeps the three same-named Android
+                // libssruntime.so from colliding on filename.
+                if (importer.GetCompatibleWithAnyPlatform())
                 {
-                    if (!importer.GetCompatibleWithPlatform(target)) continue;
-                    string cpu = importer.GetPlatformData(target, "CPU");
-                    enabled.Add(string.IsNullOrEmpty(cpu) ? target.ToString() : $"{target}({cpu})");
+                    problems.Add("anyPlatform is ON");
                 }
 
-                sb.AppendLine($"  {(enabled.Count > 0 ? "ok" : "!! none")}  {spec.RelPath}" +
-                              $"  ->  anyPlatform={importer.GetCompatibleWithAnyPlatform()}" +
-                              $"  [{string.Join(", ", enabled)}]");
+                var wanted = new HashSet<BuildTarget>(spec.Players);
+                foreach (var target in ManagedTargets)
+                {
+                    bool on = importer.GetCompatibleWithPlatform(target);
+                    if (on)
+                    {
+                        string cpu = importer.GetPlatformData(target, "CPU");
+                        enabled.Add(string.IsNullOrEmpty(cpu) ? target.ToString() : $"{target}({cpu})");
+                    }
+                    if (on != wanted.Contains(target))
+                    {
+                        problems.Add($"{target} should be {wanted.Contains(target)}");
+                    }
+                }
+
+                sb.AppendLine($"  {(problems.Count == 0 ? "ok  " : "FAIL")}  {spec.RelPath}" +
+                              $"  [{string.Join(", ", enabled)}]" +
+                              (problems.Count == 0 ? "" : $"\n           -> {string.Join("; ", problems)}"));
             }
             Debug.Log(sb.ToString());
         }

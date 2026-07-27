@@ -16,9 +16,19 @@ set -e
 #
 #   1. ./scripts/scaffold-plugin-placeholders.sh
 #   2. Open examples/UnityTestProject in Unity, then run
-#      SpriteStudio > Dev > Configure Native Plugin Importers
-#   3. ./scripts/scaffold-plugin-placeholders.sh --clean
-#   4. git add the .meta (the binaries stay gitignored) and commit
+#      Window > SpriteStudio > Dev > Configure Native Plugin Importers
+#   3. git add the .meta (the binaries stay gitignored) and commit
+#   4. ./scripts/scaffold-plugin-placeholders.sh --clean, with Unity CLOSED
+#
+# Commit before cleaning, and clean with the editor shut: Unity deletes a .meta as
+# soon as the asset it describes disappears. Run --clean while the project is open
+# and it takes the placeholders' .meta straight back out — the very ones that cannot
+# be regenerated on a machine that can't build those targets.
+#
+# For the same reason it is fine to just leave the placeholders in the working tree.
+# They are gitignored (package/*/Plugins/** ), so they cannot be committed, and they
+# stop Unity from reaping those .meta every time the project is opened. Only clean
+# before packing a tarball locally, so the stubs cannot end up in it.
 #
 # download-sdk.sh replaces only the binary and leaves the committed .meta untouched,
 # so the settings still apply once the real libs arrive.
@@ -88,7 +98,11 @@ if [ "${1:-}" = "--clean" ]; then
         kept=$((kept + 1))
     fi
     echo "Removed ${removed} placeholder(s), kept ${kept} real file(s)."
-    echo "The .meta are left in place - 'git status' should now show them as the only additions."
+    echo
+    echo "NOTE: if Unity has the project open it will now delete the .meta belonging to"
+    echo "      the removed placeholders, since their asset is gone. Commit the .meta"
+    echo "      BEFORE cleaning; 'git checkout -- package/Runtime/Plugins package/Editor/Plugins'"
+    echo "      brings them back if that happens."
     exit 0
 fi
 
@@ -154,7 +168,9 @@ cat <<'EOF'
 Placeholders written. Next:
   1. Open examples/UnityTestProject in Unity (the package is a local `file:` dependency,
      so Unity imports these paths and generates a .meta for each).
-  2. Run SpriteStudio > Dev > Configure Native Plugin Importers and check the console
-     for any path reported as missing.
-  3. Re-run this script with --clean, then commit the .meta.
+  2. Run Window > SpriteStudio > Dev > Configure Native Plugin Importers and check the console
+     for any path reported as missing, then Report to review the result.
+  3. Commit the .meta -- do this BEFORE cleaning.
+  4. Only then run --clean, with Unity closed. An open editor deletes a .meta the
+     moment its asset disappears, which would undo step 3's work.
 EOF
