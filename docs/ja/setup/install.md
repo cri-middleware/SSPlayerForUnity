@@ -28,6 +28,15 @@
 
 > **注意:** Package Manager の *Add package from URL...*（git URL）ではこのパッケージを導入できません。ネイティブプラグインのバイナリはリリースの tarball のみに同梱されるため、必ずダウンロードした `.tgz` を *Add package from tarball...* で追加してください。
 
+> **ダウンロードの検証（任意）:** 各リリースには `SHA256SUMS` も添付されています。本パッケージはネイティブバイナリを含むため、必要に応じてダウンロードした tarball が改変されていないか確認できます。
+>
+> ```sh
+> # SHA256SUMS と .tgz を同じフォルダに置いて実行
+> sha256sum -c SHA256SUMS      # macOS: shasum -a 256 -c SHA256SUMS
+> ```
+>
+> バージョン付き tarball と安定エイリアスの両方が記載されているため、ダウンロードした側が `OK`、もう一方は `No such file or directory` と表示されます。
+
 ---
 
 ## 2. ローカルソースからのインストール（カスタマイズ用）

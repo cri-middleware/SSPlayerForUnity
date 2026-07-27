@@ -28,6 +28,15 @@ This is the easiest and most reliable method. It uses the precompiled Unity pack
 
 > **Note:** Package Manager's *Add package from URL...* (git URL) cannot install this package. The native plugin binaries are distributed only inside the release tarball, so always use *Add package from tarball...* with the downloaded `.tgz`.
 
+> **Verifying the download (optional):** every release also attaches a `SHA256SUMS` file. Since the package contains native binaries, you may want to check the tarball you downloaded matches:
+>
+> ```sh
+> # with SHA256SUMS and the .tgz in the same folder
+> sha256sum -c SHA256SUMS      # macOS: shasum -a 256 -c SHA256SUMS
+> ```
+>
+> It covers both the version-pinned tarball and the stable alias, so it reports `OK` for whichever one you downloaded and `No such file or directory` for the other.
+
 ---
 
 ## 2. Install from Local Source (for Customization)

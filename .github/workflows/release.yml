@@ -115,6 +115,12 @@ jobs:
           ALIAS="${{ steps.meta.outputs.name }}.tgz"
           test -f "$VERSIONED"
           cp "$VERSIONED" "$ALIAS"
+          # Checksums for both assets. The package ships native binaries, so give
+          # consumers the same way to verify a download that download-sdk.sh uses
+          # against the SDK zips - same `<sha256>  <filename>` layout, so the same
+          # `sha256sum -c` / awk lookup works here.
+          sha256sum "$VERSIONED" "$ALIAS" > SHA256SUMS
+          cat SHA256SUMS
           echo "versioned=$VERSIONED" >> "$GITHUB_OUTPUT"
           echo "alias=$ALIAS" >> "$GITHUB_OUTPUT"
           tar -tzf "$VERSIONED" | head -n 20
@@ -143,7 +149,9 @@ jobs:
           name: SSPlayer for Unity ${{ steps.meta.outputs.tag }}
           draft: true
           prerelease: ${{ inputs.prerelease }}
-          # Ship both the version-pinned tarball and the stable alias filename.
+          # Ship the version-pinned tarball, the stable alias filename, and the
+          # checksums covering both.
           files: |
             ${{ steps.pkg.outputs.versioned }}
             ${{ steps.pkg.outputs.alias }}
+            SHA256SUMS
