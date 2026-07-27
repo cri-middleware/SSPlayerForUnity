@@ -20,8 +20,14 @@ namespace SpriteStudio.Runtime
     public enum SpriteStudioOverridePriority : byte
     {
         /// <summary>
-        /// SS6 NON: the keyframe reclaims the attribute on any frame the animation drives it,
-        /// so the override only shows on frames the animation leaves that attribute alone.
+        /// SS6 NON: a one-shot handover in time. The override wins from the moment it is set
+        /// until playback reaches a keyframe of that attribute, and the animation then takes it
+        /// back for good — the override is dropped, so looping past that keyframe again does not
+        /// bring it back (only setting it again, or a new animation, does). Only frames playback
+        /// actually visits count, so keyframes outside the played range never hand over, and the
+        /// keyframe the override was set on is skipped, so setting on a keyframe still wins that
+        /// keyframe's segment. When the played range holds no keyframe of the attribute at all,
+        /// the override lasts as long as <see cref="HoldUntilNextAnimation"/> would.
         /// Cleared when a new animation is set up.
         /// </summary>
         OverwriteOnNextKeyframe = 0,
