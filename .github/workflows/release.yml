@@ -60,6 +60,29 @@ jobs:
               exit 1
             fi
           done
+
+          # Every native lib needs a committed .meta beside it. Without one Unity
+          # ignores the asset (a UPM package is extracted into an immutable folder),
+          # so the tarball would install with no native libs at all, and the three
+          # same-named Android libssruntime.so would collide. CI has no Unity to
+          # generate these, so a lib whose .meta was never committed is a release
+          # blocker, not a warning. Bundles/xcframeworks are directories carrying a
+          # sibling .meta, so match those separately from plain files.
+          missing=0
+          while IFS= read -r lib; do
+            [ -e "${lib}.meta" ] && continue
+            echo "::error::Native plugin has no committed .meta: $lib"
+            missing=$((missing + 1))
+          done < <(find package/Runtime/Plugins package/Editor/Plugins \
+                     \( -type f \( -name '*.dylib' -o -name '*.so' -o -name '*.dll' \
+                                   -o -name '*.a' -o -name '*.lib' \) \
+                        -o -type d \( -name '*.bundle' -o -name '*.xcframework' \) \) \
+                   -not -path '*.bundle/*' -not -path '*.xcframework/*')
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::$missing native plugin(s) missing a .meta - see scripts/scaffold-plugin-placeholders.sh"
+            exit 1
+          fi
+          echo "All native plugins have a .meta."
           # The csbindgen FFI bindings are compile-critical; a tarball without
           # them would not build for consumers. Their .meta matter just as much:
           # a UPM package is extracted into an immutable folder, where Unity
