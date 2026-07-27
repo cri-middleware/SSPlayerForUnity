@@ -225,19 +225,68 @@ void HandleUserData(SpriteStudioUserData data)
 
 ## Part Tracking (Following a Specified Part)
 
-A feature that makes a user-provided `Transform` (weapon, effect, hit detection, etc.) follow a specified part every frame. The player does not create GameObjects; it is a linkage method that drives registered `Transform`s.
+A feature that makes a user-provided `Transform` (weapon, effect, hit detection, etc.) follow a specified part every frame. The player neither creates nor destroys GameObjects; it only drives the registered `Transform`s (constraint style), and you own the target's lifecycle.
+
+> This feature is specific to `SpriteStudioPlayer` (world). It is not available on `SpriteStudioGraphic` (Canvas).
 
 Configure it by adding entries to the **Part Trackers** list of `SpriteStudioPlayer`.
 
 | Setting | Description |
 |---|---|
-| **Part Name** | The name of the part to follow (the PartData name in the `.ssab`) |
+| **Part Name** | The name of the part to follow (the PartData name in the `.ssab`). The inspector offers a dropdown populated from the asset's part names |
 | **Target** | The `Transform` to make follow. It can be directly under the player or in a separate hierarchy |
-| **Drive Scale** | When ON, inherited scale (excluding localScale) is also reflected. OFF (default) is position and rotation only |
-| **On Hide** | Behavior on frames where the part is hidden. `FollowAlways` (keep following) / `Deactivate` (hide the target) |
+| **Drive Scale** | When ON, inherited scale is also reflected (the part's own localScale is excluded). OFF (default) is position and rotation only, and the target's scale is left untouched |
+| **On Hide** | Behavior on frames where the part is hidden. `FollowAlways` (keep following; default) / `Deactivate` (deactivate the target) |
 
-- Placing the target as a **child** of the player makes the local transform match exactly. When placed in a separate hierarchy, world position and rotation match, and scale is approximate.
-- If you specify a part name that does not exist in the animation, the target is automatically deactivated.
+### Registering from a Script
+
+Trackers can also be registered and removed at runtime instead of through the inspector.
+
+```csharp
+var player = GetComponent<SpriteStudioPlayer>();
+
+// Register at runtime (position and rotation only, by default)
+player.RegisterPartTracker("hand_R", weapon.transform);
+
+// Also reflect inherited scale, and deactivate the target on hidden frames
+player.RegisterPartTracker("effect_root", effect.transform,
+    driveScale: true, onHide: SpriteStudioPartTrackerHide.Deactivate);
+
+// Remove (deletes every entry targeting that Transform)
+player.UnregisterPartTracker(weapon.transform);
+```
+
+| Method | Description |
+|---|---|
+| `RegisterPartTracker(partName, target, driveScale, onHide)` | Adds a tracker and returns the created entry (`driveScale` / `onHide` are optional) |
+| `UnregisterPartTracker(target)` | Removes every entry targeting that `Transform` and returns the number removed |
+| `TryGetPartHidden(partName, out bool hidden)` | Whether the part is hidden on the current frame. Returns `false` if the part is unknown |
+| `TryGetPartLocalMatrix(partName, out Matrix4x4 matrix)` | The part's transform for the current frame (player-local, with `1 / PixelsPerUnit` already folded in) |
+
+> When you only need the part's position at a single moment (a projectile spawn point, for example) rather than continuous following, calling `TryGetPartLocalMatrix()` directly is simpler than registering a tracker.
+
+### Timing and Accuracy
+
+Trackers are driven in **LateUpdate**, after the frame's mesh is finalized and before the render phase, so a `Renderer` attached to the target updates within the same frame.
+
+The pose is written as a local TRS in the target's **parent space**, so how exactly it matches depends on where the target is placed.
+
+- Placed as a **child** of the player, the part's transform is written as-is (the only source of error is skew in the part hierarchy itself).
+- Placed in a separate hierarchy (anywhere that is not a child of the player), **world position is always exact**. However, if the target's parent or the player has both rotation and non-uniform scale, **rotation and scale become approximate**.
+
+> **A target in a separate hierarchy can lag by one frame.** The tracker writes using the player's transform as sampled at drive time, so it does not follow a move made to the player after that until the next frame. Driving happens early in LateUpdate (`DefaultExecutionOrder(-100)`), so take particular care when your own `LateUpdate` moves the player. A target placed as a child always follows, through hierarchy inheritance.
+
+When `Drive Scale` is ON, only the **inherited** scale is reflected; the part's own localScale is divided out. The world player is 2D, so only X / Y are written and the target's Z scale is preserved.
+
+### Notes
+
+- **The player controls the target's `SetActive`.** It is deactivated automatically in the two cases below, and reactivated automatically once the condition clears, so an active state you set yourself may be overwritten.
+    - The part name does not exist in the current animation (always deactivated, regardless of the `On Hide` setting)
+    - The part is hidden on this frame and `On Hide` is `Deactivate`
+- Part names resolve against the parts of the animation the player itself is running. **Parts inside an Instance part (the child animation) cannot be specified** (the Instance part itself can).
+- If several parts share a name, the first one found is used.
+- Swapping `AnimeAsset` re-resolves part names automatically, so trackers do not need to be registered again.
+- In edit mode, trackers are applied once as well, when the static start-frame preview is built.
 
 ## Part Overrides (Part Color / Cell / Visibility)
 
