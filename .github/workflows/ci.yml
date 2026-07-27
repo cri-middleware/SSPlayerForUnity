@@ -163,15 +163,16 @@ jobs:
           print(f"Packed file list clean ({len(files)} files).")
           PY
 
-      # The zsh scripts are covered by the macos job below, on a runner that has
-      # zsh - so this job handles the bash ones and says which it left alone.
+      # The zsh scripts are covered by ci-scripts.yml, on a runner that has zsh -
+      # so this job handles the bash ones and names what it left alone rather than
+      # implying it covered everything.
       - name: Bash scripts parse
         run: |
           set -uo pipefail
           fail=0
           for f in scripts/*.sh; do
             if ! head -1 "$f" | grep -q 'bash'; then
-              echo "deferred to the zsh job: $f"
+              echo "deferred to ci-scripts.yml (zsh): $f"
               continue
             fi
             if bash -n "$f"; then
@@ -197,30 +198,3 @@ jobs:
                   bad = True
           sys.exit(1 if bad else 0)
           "
-
-  # scripts/build-runtime.sh is zsh, like the zsh scripts in SSPlayerForGodot -
-  # it uses ${(@kv)...}, ${(@s/=/)...}, 1-based array indexing and the :l
-  # modifier, so bash cannot parse it. Godot runs its zsh steps on runners that
-  # ship zsh rather than installing it, and declares the shell per job; same here.
-  # macOS is the cheapest runner with zsh preinstalled, and this job is one
-  # checkout plus a syntax check.
-  verify-zsh:
-    runs-on: macos-latest
-    defaults:
-      run:
-        shell: zsh {0}
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Zsh scripts parse
-        run: |
-          setopt ERR_EXIT
-          found=0
-          for f in scripts/*.sh; do
-            head -1 "$f" | grep -q zsh || continue
-            found=$((found + 1))
-            zsh -n "$f" && echo "ok: $f"
-          done
-          if [[ $found -eq 0 ]]; then
-            echo "No zsh scripts found - if build-runtime.sh was converted to bash, drop this job."
-          fi
