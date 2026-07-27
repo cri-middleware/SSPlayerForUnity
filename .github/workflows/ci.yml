@@ -161,9 +161,14 @@ jobs:
       - name: Shell scripts parse
         run: |
           set -euo pipefail
+          # build-runtime.sh has a zsh shebang (it uses associative arrays), and the
+          # runner image has no zsh. Install it rather than skipping that file - a
+          # check that quietly covers less than it claims is worse than none.
+          if ! command -v zsh > /dev/null; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq zsh
+          fi
           fail=0
           for f in scripts/*.sh; do
-            # build-runtime.sh is zsh (associative arrays); the rest are bash.
             if head -1 "$f" | grep -q zsh; then
               zsh -n "$f" || { echo "::error file=$f::zsh parse error"; fail=1; }
             else
