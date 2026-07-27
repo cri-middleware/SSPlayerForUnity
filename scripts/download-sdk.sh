@@ -8,6 +8,8 @@ RUNTIME_PLUGINS="${PKG}/Runtime/Plugins"
 EDITOR_PLUGINS="${PKG}/Editor/Plugins"
 RUNTIME_BINDINGS="${PKG}/Runtime/Bindings"
 EDITOR_BINDINGS="${PKG}/Editor/Bindings"
+# Committed .meta for the generated files these scripts place into the package.
+UPM_META="${SCRIPTDIR}/upm-meta"
 VERSION_FILE="${SCRIPTDIR}/SDK_VERSION.txt"
 # Version stamps are written to both plugin dirs; the runtime one gates the skip.
 STAMP="${RUNTIME_PLUGINS}/VERSION"
@@ -112,6 +114,13 @@ copy "${DYNAMIC}/libs/windows/x86_64/ssconverter.dll"        "${EDITOR_PLUGINS}/
 echo "Placing csbindgen FFI bindings into Runtime/Editor Bindings..."
 copy "${DYNAMIC}/bindings/SSRuntimeMethods.g.cs"             "${RUNTIME_BINDINGS}"
 copy "${DYNAMIC}/bindings/SSConverterMethods.g.cs"           "${EDITOR_BINDINGS}"
+
+# Each .g.cs also needs its .meta. The .g.cs are gitignored, so their .meta cannot be
+# committed next to them; they live in scripts/upm-meta with fixed GUIDs instead (see
+# the README there). Without a .meta Unity ignores the script inside the immutable
+# package folder, and the package fails to compile for consumers.
+copy "${UPM_META}/SSRuntimeMethods.g.cs.meta"                "${RUNTIME_BINDINGS}"
+copy "${UPM_META}/SSConverterMethods.g.cs.meta"              "${EDITOR_BINDINGS}"
 
 # License / third-party notices ride alongside each plugin set.
 copy "${DYNAMIC}/LICENSE.md"                             "$RUNTIME_PLUGINS"

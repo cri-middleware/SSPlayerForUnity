@@ -10,7 +10,7 @@ This page explains how to add SpriteStudioPlayer for Unity to your project. Choo
 |---|---|
 | Unity version | **Unity 6.3 LTS (6000.3)** or later |
 | Render pipeline | Universal (URP) / Built-in (BRP) |
-| Dependent packages | Burst / Mathematics / Collections / Timeline (automatically resolved by Package Manager) |
+| Dependent packages | Burst / Mathematics / Collections / Timeline / uGUI (automatically resolved by Package Manager) |
 
 All dependent packages are standard Unity packages, so Package Manager resolves them automatically when you add this package.
 
@@ -27,6 +27,15 @@ This is the easiest and most reliable method. It uses the precompiled Unity pack
 3. Click the **＋** button in the top left, select **Add package from tarball...**, and choose the downloaded file.
 
 > **Note:** Package Manager's *Add package from URL...* (git URL) cannot install this package. The native plugin binaries are distributed only inside the release tarball, so always use *Add package from tarball...* with the downloaded `.tgz`.
+
+> **Verifying the download (optional):** every release also attaches a `SHA256SUMS` file. Since the package contains native binaries, you may want to check the tarball you downloaded matches:
+>
+> ```sh
+> # with SHA256SUMS and the .tgz in the same folder
+> sha256sum -c SHA256SUMS      # macOS: shasum -a 256 -c SHA256SUMS
+> ```
+>
+> It covers both the version-pinned tarball and the stable alias, so it reports `OK` for whichever one you downloaded and `No such file or directory` for the other.
 
 ---
 

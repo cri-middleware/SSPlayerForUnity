@@ -78,7 +78,7 @@ graph LR
 |---|---|
 | Unity バージョン | **Unity 6.3 LTS (6000.3)** 以降 |
 | レンダーパイプライン | Universal (URP) / Built-in (BRP) |
-| 依存パッケージ | Burst / Mathematics / Collections / Timeline（いずれも Unity 標準） |
+| 依存パッケージ | Burst / Mathematics / Collections / Timeline / uGUI（いずれも Unity 標準） |
 | 対応プラットフォーム | Windows / macOS / Linux / Android / iOS / WebGL（ネイティブライブラリは [ビルドガイド](./setup/build.md) 参照） |
 
 > **注意:** 現在のパッケージバージョンは `7.0.0-beta.1` です。API は予告なく変更される可能性があります。

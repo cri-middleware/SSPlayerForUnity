@@ -82,13 +82,17 @@ if ($IS_HOST_BUILD) {
 }
 popd
 
-# 1. Collect C# Bindings
+# 1. Collect C# Bindings. Each .g.cs also gets its committed .meta from scripts/upm-meta:
+# the .g.cs are gitignored so their .meta cannot live next to them, and a script with no
+# .meta is ignored by Unity inside an immutable package folder (see that README).
 echo "Copying C# bindings..."
 Copy-Item "$SDK_DIR/libs/ssruntime/target/SSRuntimeMethods.g.cs" "$rootDirectory/package/Runtime/Bindings/" -Force
+Copy-Item "$baseDirectory/upm-meta/SSRuntimeMethods.g.cs.meta" "$rootDirectory/package/Runtime/Bindings/" -Force
 $editorBindingsDir = "$rootDirectory/package/Editor/Bindings"
 New-Item -ItemType Directory -Path $editorBindingsDir -Force | Out-Null
 if (Test-Path "$SDK_DIR/libs/ssconverter/target/SSConverterMethods.g.cs") {
     Copy-Item "$SDK_DIR/libs/ssconverter/target/SSConverterMethods.g.cs" "$editorBindingsDir/" -Force
+    Copy-Item "$baseDirectory/upm-meta/SSConverterMethods.g.cs.meta" "$editorBindingsDir/" -Force
 }
 
 # 1.5. Collect Licenses

@@ -78,7 +78,7 @@ graph LR
 |---|---|
 | Unity Version | **Unity 6.3 LTS (6000.3)** or later |
 | Render Pipeline | Universal (URP) / Built-in (BRP) |
-| Dependencies | Burst / Mathematics / Collections / Timeline (all standard Unity packages) |
+| Dependencies | Burst / Mathematics / Collections / Timeline / uGUI (all standard Unity packages) |
 | Supported Platforms | Windows / macOS / Linux / Android / iOS / WebGL (for native libraries, see the [Build Guide](./setup/build.md)) |
 
 > **Note:** The current package version is `7.0.0-beta.1`. The API may change without notice.

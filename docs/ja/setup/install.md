@@ -10,7 +10,7 @@
 |---|---|
 | Unity バージョン | **Unity 6.3 LTS (6000.3)** 以降 |
 | レンダーパイプライン | Universal (URP) / Built-in (BRP) |
-| 依存パッケージ | Burst / Mathematics / Collections / Timeline（Package Manager が自動解決） |
+| 依存パッケージ | Burst / Mathematics / Collections / Timeline / uGUI（Package Manager が自動解決） |
 
 依存パッケージはすべて Unity 標準パッケージのため、本パッケージを追加すると Package Manager が自動的に解決します。
 
@@ -27,6 +27,15 @@
 3. 左上の **＋** ボタンから **Add package from tarball...** を選び、ダウンロードしたファイルを選択します。
 
 > **注意:** Package Manager の *Add package from URL...*（git URL）ではこのパッケージを導入できません。ネイティブプラグインのバイナリはリリースの tarball のみに同梱されるため、必ずダウンロードした `.tgz` を *Add package from tarball...* で追加してください。
+
+> **ダウンロードの検証（任意）:** 各リリースには `SHA256SUMS` も添付されています。本パッケージはネイティブバイナリを含むため、必要に応じてダウンロードした tarball が改変されていないか確認できます。
+>
+> ```sh
+> # SHA256SUMS と .tgz を同じフォルダに置いて実行
+> sha256sum -c SHA256SUMS      # macOS: shasum -a 256 -c SHA256SUMS
+> ```
+>
+> バージョン付き tarball と安定エイリアスの両方が記載されているため、ダウンロードした側が `OK`、もう一方は `No such file or directory` と表示されます。
 
 ---
 

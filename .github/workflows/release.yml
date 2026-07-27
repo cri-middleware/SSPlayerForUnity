@@ -60,12 +60,44 @@ jobs:
               exit 1
             fi
           done
+
+          # Every native lib needs a committed .meta beside it. Without one Unity
+          # ignores the asset (a UPM package is extracted into an immutable folder),
+          # so the tarball would install with no native libs at all, and the three
+          # same-named Android libssruntime.so would collide. CI has no Unity to
+          # generate these, so a lib whose .meta was never committed is a release
+          # blocker, not a warning. Bundles/xcframeworks are directories carrying a
+          # sibling .meta, so match those separately from plain files.
+          missing=0
+          while IFS= read -r lib; do
+            [ -e "${lib}.meta" ] && continue
+            echo "::error::Native plugin has no committed .meta: $lib"
+            missing=$((missing + 1))
+          done < <(find package/Runtime/Plugins package/Editor/Plugins \
+                     \( -type f \( -name '*.dylib' -o -name '*.so' -o -name '*.dll' \
+                                   -o -name '*.a' -o -name '*.lib' \) \
+                        -o -type d \( -name '*.bundle' -o -name '*.xcframework' \) \) \
+                   -not -path '*.bundle/*' -not -path '*.xcframework/*')
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::$missing native plugin(s) missing a .meta - see scripts/scaffold-plugin-placeholders.sh"
+            exit 1
+          fi
+          echo "All native plugins have a .meta."
           # The csbindgen FFI bindings are compile-critical; a tarball without
-          # them would not build for consumers.
+          # them would not build for consumers. Their .meta matter just as much:
+          # a UPM package is extracted into an immutable folder, where Unity
+          # ignores any asset that has no .meta — so a binding shipped without
+          # one is silently dropped and the package fails to compile. CI has no
+          # Unity to generate them, so download-sdk.sh places the committed
+          # copies from scripts/upm-meta; assert both landed.
           for f in package/Runtime/Bindings/SSRuntimeMethods.g.cs \
                    package/Editor/Bindings/SSConverterMethods.g.cs; do
             if [ ! -f "$f" ]; then
               echo "::error::Missing FFI binding: $f"
+              exit 1
+            fi
+            if [ ! -f "$f.meta" ]; then
+              echo "::error::Missing .meta for FFI binding: $f.meta"
               exit 1
             fi
           done
@@ -83,6 +115,12 @@ jobs:
           ALIAS="${{ steps.meta.outputs.name }}.tgz"
           test -f "$VERSIONED"
           cp "$VERSIONED" "$ALIAS"
+          # Checksums for both assets. The package ships native binaries, so give
+          # consumers the same way to verify a download that download-sdk.sh uses
+          # against the SDK zips - same `<sha256>  <filename>` layout, so the same
+          # `sha256sum -c` / awk lookup works here.
+          sha256sum "$VERSIONED" "$ALIAS" > SHA256SUMS
+          cat SHA256SUMS
           echo "versioned=$VERSIONED" >> "$GITHUB_OUTPUT"
           echo "alias=$ALIAS" >> "$GITHUB_OUTPUT"
           tar -tzf "$VERSIONED" | head -n 20
@@ -111,7 +149,9 @@ jobs:
           name: SSPlayer for Unity ${{ steps.meta.outputs.tag }}
           draft: true
           prerelease: ${{ inputs.prerelease }}
-          # Ship both the version-pinned tarball and the stable alias filename.
+          # Ship the version-pinned tarball, the stable alias filename, and the
+          # checksums covering both.
           files: |
             ${{ steps.pkg.outputs.versioned }}
             ${{ steps.pkg.outputs.alias }}
+            SHA256SUMS
