@@ -40,12 +40,12 @@ for entry in "${DOCS[@]}"; do
 done
 
 # Pack the package.
-# npm pack is required, not just preferred: it strictly follows .npmignore and produces a
-# tarball with the `package/` root folder structure UPM expects. A plain `tar` fallback
-# would ignore .npmignore and sweep in Tests/ and other dev-only content, so refuse to
+# npm pack is required, not just preferred: it applies the "files" allowlist in package.json
+# and produces a tarball with the `package/` root folder structure UPM expects. A plain `tar`
+# fallback would honour neither and sweep in Tests/ and other dev-only content, so refuse to
 # produce a tarball at all rather than a subtly broken one.
 if ! command -v npm > /dev/null; then
-    echo "ERROR: npm is required to pack the UPM package (it applies .npmignore)." >&2
+    echo "ERROR: npm is required to pack the UPM package (it applies the 'files' allowlist)." >&2
     echo "       Install Node.js / npm and re-run." >&2
     exit 1
 fi

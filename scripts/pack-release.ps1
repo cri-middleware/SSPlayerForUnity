@@ -30,12 +30,12 @@ try {
     }
 
     # Pack the package.
-    # npm pack is required, not just preferred: it strictly follows .npmignore and produces a
+    # npm pack is required, not just preferred: it applies the "files" allowlist in package.json and produces a
     # tarball with the `package/` root folder structure UPM expects. A plain `tar` fallback
-    # would ignore .npmignore and sweep in Tests\ and other dev-only content, so refuse to
+    # would honour neither and sweep in Tests\ and other dev-only content, so refuse to
     # produce a tarball at all rather than a subtly broken one.
     if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
-        Write-Error "npm is required to pack the UPM package (it applies .npmignore). Install Node.js / npm and re-run."
+        Write-Error "npm is required to pack the UPM package (it applies the 'files' allowlist). Install Node.js / npm and re-run."
     }
 
     Write-Host "Running 'npm pack'..."

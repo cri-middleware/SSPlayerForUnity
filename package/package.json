@@ -27,5 +27,19 @@
   "author": {
     "name": "CRI Middleware Co., Ltd.",
     "url": "https://www.webtech.co.jp/spritestudio/"
-  }
+  },
+  "files": [
+    "Runtime",
+    "Runtime.meta",
+    "Editor",
+    "Editor.meta",
+    "package.json.meta",
+    "CHANGELOG.md",
+    "CHANGELOG.md.meta",
+    "LICENSE.md.meta",
+    "Third Party Notices.md",
+    "Third Party Notices.md.meta",
+    "!Runtime/Resources/Shaders/AddOns/SpriteStudioTestStub.shader",
+    "!Runtime/Resources/Shaders/AddOns/SpriteStudioTestStub.shader.meta"
+  ]
 }
