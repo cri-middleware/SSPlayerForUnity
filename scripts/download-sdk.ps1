@@ -7,6 +7,8 @@ $runtimePlugins = "$pkg/Runtime/Plugins"
 $editorPlugins = "$pkg/Editor/Plugins"
 $runtimeBindings = "$pkg/Runtime/Bindings"
 $editorBindings = "$pkg/Editor/Bindings"
+# Committed .meta for the generated files these scripts place into the package.
+$upmMeta = "$baseDirectory/upm-meta"
 $versionFile = "$baseDirectory/SDK_VERSION.txt"
 # Version stamps are written to both plugin dirs; the runtime one gates the skip.
 $stamp = "$runtimePlugins/VERSION"
@@ -111,6 +113,13 @@ try {
     Write-Host "Placing csbindgen FFI bindings into Runtime/Editor Bindings..."
     Copy-Sdk "$dynamic/bindings/SSRuntimeMethods.g.cs"           $runtimeBindings
     Copy-Sdk "$dynamic/bindings/SSConverterMethods.g.cs"         $editorBindings
+
+    # Each .g.cs also needs its .meta. The .g.cs are gitignored, so their .meta cannot be
+    # committed next to them; they live in scripts/upm-meta with fixed GUIDs instead (see
+    # the README there). Without a .meta Unity ignores the script inside the immutable
+    # package folder, and the package fails to compile for consumers.
+    Copy-Sdk "$upmMeta/SSRuntimeMethods.g.cs.meta"               $runtimeBindings
+    Copy-Sdk "$upmMeta/SSConverterMethods.g.cs.meta"             $editorBindings
 
     # License / third-party notices ride alongside each plugin set.
     Copy-Sdk "$dynamic/LICENSE.md"                          $runtimePlugins

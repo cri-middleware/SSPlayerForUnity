@@ -61,11 +61,20 @@ jobs:
             fi
           done
           # The csbindgen FFI bindings are compile-critical; a tarball without
-          # them would not build for consumers.
+          # them would not build for consumers. Their .meta matter just as much:
+          # a UPM package is extracted into an immutable folder, where Unity
+          # ignores any asset that has no .meta — so a binding shipped without
+          # one is silently dropped and the package fails to compile. CI has no
+          # Unity to generate them, so download-sdk.sh places the committed
+          # copies from scripts/upm-meta; assert both landed.
           for f in package/Runtime/Bindings/SSRuntimeMethods.g.cs \
                    package/Editor/Bindings/SSConverterMethods.g.cs; do
             if [ ! -f "$f" ]; then
               echo "::error::Missing FFI binding: $f"
+              exit 1
+            fi
+            if [ ! -f "$f.meta" ]; then
+              echo "::error::Missing .meta for FFI binding: $f.meta"
               exit 1
             fi
           done
