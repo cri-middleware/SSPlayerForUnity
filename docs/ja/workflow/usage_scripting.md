@@ -223,19 +223,68 @@ void HandleUserData(SpriteStudioUserData data)
 
 ## パーツトラッキング（指定パーツへの追従）
 
-指定したパーツに、ユーザーが用意した `Transform`（武器・エフェクト・当たり判定など）を毎フレーム追従させる機能です。プレイヤーは GameObject を生成せず、登録された `Transform` を駆動する連動方式です。
+指定したパーツに、ユーザーが用意した `Transform`（武器・エフェクト・当たり判定など）を毎フレーム追従させる機能です。プレイヤーは GameObject を生成も破棄もせず、登録された `Transform` を駆動するだけの連動（Constraint）方式で、ターゲットのライフサイクルはユーザーが所有します。
+
+> この機能は `SpriteStudioPlayer`（ワールド）専用です。`SpriteStudioGraphic`（Canvas）にはありません。
 
 `SpriteStudioPlayer` の **Part Trackers** リストにエントリを追加して設定します。
 
 | 設定 | 説明 |
 |---|---|
-| **Part Name** | 追従対象のパーツ名（`.ssab` の PartData 名） |
+| **Part Name** | 追従対象のパーツ名（`.ssab` の PartData 名）。インスペクタではアセットのパーツ名からドロップダウンで選べます |
 | **Target** | 追従させる `Transform`。プレイヤー直下でも別階層でも可 |
-| **Drive Scale** | ON で（localScale を除く）継承スケールも反映。OFF（既定）は位置と回転のみ |
-| **On Hide** | パーツが hide のフレームでの挙動。`FollowAlways`（追従継続）/ `Deactivate`（対象を非表示） |
+| **Drive Scale** | ON で継承スケールも反映（パーツ自身の localScale は除外）。OFF（既定）は位置と回転のみで、ターゲットのスケールには一切触れません |
+| **On Hide** | パーツが hide のフレームでの挙動。`FollowAlways`（追従を継続。既定）/ `Deactivate`（ターゲットを非アクティブ化） |
 
-- ターゲットをプレイヤーの**子**に置くとローカル変換が完全一致します。別階層に置いた場合はワールド位置・回転が一致し、スケールは近似になります。
-- アニメーションに存在しないパーツ名を指定した場合、ターゲットは自動的に非アクティブ化されます。
+### スクリプトからの登録
+
+インスペクタを使わず、実行時に登録・解除することもできます。
+
+```csharp
+var player = GetComponent<SpriteStudioPlayer>();
+
+// 実行時に登録（既定は位置と回転のみ追従）
+player.RegisterPartTracker("hand_R", weapon.transform);
+
+// 継承スケールも反映し、hide のフレームではターゲットを非アクティブにする
+player.RegisterPartTracker("effect_root", effect.transform,
+    driveScale: true, onHide: SpriteStudioPartTrackerHide.Deactivate);
+
+// 解除（その Transform を対象とするエントリをすべて削除）
+player.UnregisterPartTracker(weapon.transform);
+```
+
+| メソッド | 説明 |
+|---|---|
+| `RegisterPartTracker(partName, target, driveScale, onHide)` | トラッカーを追加し、作成されたエントリを返す（`driveScale` / `onHide` は省略可） |
+| `UnregisterPartTracker(target)` | その `Transform` を対象とするエントリをすべて削除し、削除件数を返す |
+| `TryGetPartHidden(partName, out bool hidden)` | そのパーツが現在フレームで hide かを取得。パーツが不明なら `false` を返す |
+| `TryGetPartLocalMatrix(partName, out Matrix4x4 matrix)` | そのパーツの現在フレームの変換行列（プレイヤーローカル、`1 / PixelsPerUnit` 適用済み）を取得 |
+
+> `Transform` を常時追従させるまでもなく「その瞬間のパーツ位置だけ知りたい」場合（弾の発射位置を取るなど）は、トラッカーを登録せず `TryGetPartLocalMatrix()` を直接呼ぶ方が簡潔です。
+
+### 追従のタイミングと精度
+
+トラッカーの駆動は **LateUpdate** で、そのフレームのメッシュが確定した後・描画の前に行われます。追従先に付けた `Renderer` などは同じフレーム内で更新されます。
+
+姿勢はターゲットの**親空間**でのローカル TRS として書き込まれるため、ターゲットの置き場所によって一致の度合いが変わります。
+
+- プレイヤーの**子**に置いた場合、パーツの変換がそのまま書き込まれます。誤差要因はパーツ階層自体のせん断（Skew）のみです。
+- 別階層（プレイヤーの子ではない位置）に置いた場合、**ワールド位置は常に正確**です。ただしターゲットの親やプレイヤーが回転と非一様スケールを同時に持つと、**回転とスケールは近似**になります。
+
+> **別階層のターゲットは 1 フレーム遅れることがあります。** トラッカーは駆動時点のプレイヤーの変換を使って書き込むため、その後にプレイヤーが動いても次のフレームまで追随しません。駆動は LateUpdate の早い段階（`DefaultExecutionOrder(-100)`）で走るので、自前の `LateUpdate` でプレイヤーを動かす構成では特に注意してください。子に置いた場合は階層継承で常に追随します。
+
+`Drive Scale` が ON のときに反映されるのは**継承スケールのみ**で、パーツ自身の localScale は取り除かれます。またワールド用プレイヤーは 2D のため、書き込まれるのは X / Y だけで、ターゲットの Z スケールは保持されます。
+
+### 注意点
+
+- **ターゲットの `SetActive` はプレイヤーが操作します。** 次の 2 つの場合に自動で非アクティブ化され、条件が解消すると自動で再アクティブ化されます。ユーザー側で設定したアクティブ状態は上書きされることがあります。
+    - パーツ名が現在のアニメーションに存在しない（この場合は `On Hide` の設定に関係なく常に非アクティブ）
+    - パーツが hide のフレームで、かつ `On Hide` が `Deactivate`
+- パーツ名は、そのプレイヤー自身が再生しているアニメーションのパーツから解決されます。**インスタンスパーツの内部（子アニメーション）のパーツは指定できません**（インスタンスパーツ自体は指定できます）。
+- 同名のパーツが複数ある場合は、最初に見つかったものが使われます。
+- `AnimeAsset` を差し替えるとパーツ名は自動で再解決されるため、トラッカーを登録し直す必要はありません。
+- 編集モードでも、開始フレームの静止プレビューが構築されるタイミングでトラッカーが一度反映されます。
 
 ## パーツオーバーライド（パーツカラー / セル / 表示指定）
 
