@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using NUnit.Framework;
 using SpriteStudio.Runtime;
 using UnityEngine;
@@ -164,6 +165,20 @@ namespace SpriteStudio.Runtime.Tests
         {
             for (int i = 0; i < a.Length; i++) if (!Mathf.Approximately(a[i], b[i])) return false;
             return true;
+        }
+
+        // The internal player behind a component. The components hold their playback core in a private
+        // field, so the only way to read the resolved pose back through the *component* entry points is
+        // to reach it here. Used by the component-layer lifecycle tests below, which have to observe the
+        // override table rather than just a bool return value.
+        private static SpriteStudioInternalPlayer InternalOf(object component)
+        {
+            var field = component.GetType().GetField("_core", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.IsNotNull(field, "the component should hold its playback core in a '_core' field");
+            var core = field.GetValue(component) as SpriteStudioPlaybackCore;
+            Assert.IsNotNull(core, "the '_core' field should hold a SpriteStudioPlaybackCore");
+            Assert.IsNotNull(core.Internal, "the core should have created its internal player");
+            return core.Internal;
         }
 
         // ============================================================
@@ -405,6 +420,109 @@ namespace SpriteStudio.Runtime.Tests
                 Assert.AreEqual(255, color.Lt.Rgba.R);
                 Assert.AreEqual(0, color.Lt.Rgba.G);
             }
+        }
+
+        // ============================================================
+        // (C) Component layer: switching animation must not re-bind the resource
+        // ============================================================
+        //
+        // Priority handling lives in the runtime and is covered by (B). What can only break above it is
+        // the *route*: binding a resource is what tells the runtime "new SSAB, part identity changed",
+        // and it drops the whole override table — Permanent included. So an animation switch must go
+        // through setup only; the ssab is (re)loaded on an asset swap and nowhere else. These two pin
+        // that down from the public entry points, where a stray reload would be introduced.
+
+        [Test]
+        public void ColorOverride_Permanent_SurvivesComponentAnimationSwitch()
+        {
+            var player = MakePlayingPlayer("walk");
+            var internalPlayer = InternalOf(player);
+
+            // The component does not build geometry until the update manager ticks it, and the part
+            // probes below read the resolved frame — so resolve the first frame by hand.
+            Build(internalPlayer);
+            int idx = FindDrawingPart(internalPlayer);
+            Assume.That(idx, Is.GreaterThanOrEqualTo(0), "Ringo should have a drawing part");
+
+            Assert.IsTrue(player.SetPartColorOverride(idx, SpriteStudioBlendOp.Mul, Color.red,
+                SpriteStudioOverridePriority.Permanent));
+            Build(internalPlayer);
+            Assume.That(internalPlayer.TryGetPartColor(idx, out var applied) && applied.BlendType == ss.runtime.BlendType.Mul, Is.True,
+                "the override has to land before the switch for the assertion after it to mean anything");
+
+            // The switch the user makes: a different animation inside the same asset.
+            Assert.IsTrue(player.SetAnimation("run"), "Ringo should have a 'run' animation");
+            player.Play();
+            Build(internalPlayer);
+
+            Assert.IsTrue(internalPlayer.TryGetPartColor(idx, out var after),
+                "A Permanent override should still colour the part after switching animation through the component");
+            Assert.AreEqual(ss.runtime.BlendType.Mul, after.BlendType);
+            Assert.AreEqual(255, after.Lt.Rgba.R);
+            Assert.AreEqual(0, after.Lt.Rgba.G);
+            Assert.AreEqual(0, after.Lt.Rgba.B);
+        }
+
+        [Test]
+        public void ColorOverride_Permanent_IsDroppedByAssetSwap()
+        {
+            var player = MakePlayingPlayer("walk");
+            var internalPlayer = InternalOf(player);
+
+            Build(internalPlayer);
+            int idx = FindDrawingPart(internalPlayer);
+            Assume.That(idx, Is.GreaterThanOrEqualTo(0));
+
+            Assert.IsTrue(player.SetPartColorOverride(idx, SpriteStudioBlendOp.Mul, Color.red,
+                SpriteStudioOverridePriority.Permanent));
+            Build(internalPlayer);
+            Assume.That(internalPlayer.TryGetPartColor(idx, out var applied) && applied.BlendType == ss.runtime.BlendType.Mul, Is.True);
+
+            // A new asset is a new part identity: the runtime drops every override, Permanent included.
+            // The player object is reused, so this is the one route that legitimately clears the table.
+            player.AnimeAsset = MakeAsset();
+            Assert.IsTrue(player.SetAnimation("walk"));
+            player.Play();
+            var rebound = InternalOf(player);
+            Build(rebound);
+
+            bool stillThere = rebound.TryGetPartColor(idx, out var after)
+                              && after.BlendType == ss.runtime.BlendType.Mul
+                              && after.Lt.Rgba.R == 255 && after.Lt.Rgba.G == 0 && after.Lt.Rgba.B == 0;
+            Assert.IsFalse(stillThere, "Swapping the asset should drop even a Permanent override");
+        }
+
+        [Test]
+        public void ColorOverride_Permanent_SurvivesGraphicAnimationSwitch()
+        {
+            var go = new GameObject("PartOverrideGraphic");
+            _objects.Add(go);
+            go.AddComponent<Canvas>();
+            go.AddComponent<CanvasRenderer>();
+            var graphic = go.AddComponent<SpriteStudioGraphic>();
+            graphic.AnimeAsset = MakeAsset();
+            Assert.IsTrue(graphic.SetAnimation("walk"));
+            graphic.Play();
+
+            var internalPlayer = InternalOf(graphic);
+            Build(internalPlayer);
+            int idx = FindDrawingPart(internalPlayer);
+            Assume.That(idx, Is.GreaterThanOrEqualTo(0));
+
+            Assert.IsTrue(graphic.SetPartColorOverride(idx, SpriteStudioBlendOp.Mul, Color.red,
+                SpriteStudioOverridePriority.Permanent));
+            Build(internalPlayer);
+            Assume.That(internalPlayer.TryGetPartColor(idx, out var applied) && applied.BlendType == ss.runtime.BlendType.Mul, Is.True);
+
+            Assert.IsTrue(graphic.SetAnimation("run"));
+            graphic.Play();
+            Build(internalPlayer);
+
+            Assert.IsTrue(internalPlayer.TryGetPartColor(idx, out var after),
+                "A Permanent override should survive an animation switch on the Canvas path too");
+            Assert.AreEqual(ss.runtime.BlendType.Mul, after.BlendType);
+            Assert.AreEqual(255, after.Lt.Rgba.R);
+            Assert.AreEqual(0, after.Lt.Rgba.G);
         }
 
         [Test]
