@@ -1597,6 +1597,11 @@ package/Tests/Runtime/Resources/TestConvertOut/
 package/Runtime/Bindings/*.g.cs.meta
 package/Editor/Bindings/*.g.cs.meta
 
+# .meta for the documents pack-release.sh copies into package/ at pack time. They
+# live outside package/ (the documents only exist there during a pack), so the
+# re-include above does not reach them.
+!scripts/upm-meta/*.meta
+
 
 # Test Results
 *test-results.xml
@@ -1607,3 +1612,7 @@ tmp.log
 # MkDocs
 .venv/
 site/
+
+# Locally packed UPM tarballs (scripts/pack-release.sh). Releases are built in CI;
+# a stray local .tgz must never be committed.
+*.tgz

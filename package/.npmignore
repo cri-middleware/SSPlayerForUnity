@@ -12,3 +12,11 @@ Tests.meta
 # the repo root, but npm cannot see that — exclude it here too so a tarball packed
 # locally (after the tests have run) never sweeps the sample assets in.
 **/Resources/Ringo/
+
+# Dev-only AddOn dispatch check. SpriteStudioAddOnCatalogBuilder already excludes the
+# "TestStub" id from the generated catalog, so nothing in a shipped package references
+# this shader; SpriteStudioAddOnRegistry.TryResolveShader folds to the default material
+# when Shader.Find comes up empty. Keep it in the repo (the registry table still lists
+# it for local dispatch checks), just don't publish it.
+Runtime/Resources/Shaders/AddOns/SpriteStudioTestStub.shader
+Runtime/Resources/Shaders/AddOns/SpriteStudioTestStub.shader.meta

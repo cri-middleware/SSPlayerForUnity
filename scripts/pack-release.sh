@@ -1,39 +1,60 @@
 #!/usr/bin/env bash
 set -e
 
-# Change to the root directory of the repository
-cd "$(dirname "$0")/.."
+# Absolute repo root: the cleanup trap can fire while the working directory is still
+# inside package/ (a failed `npm pack`), so every path below has to be root-anchored.
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "${ROOT}"
 
-PACKAGE_DIR="package"
+PACKAGE_DIR="${ROOT}/package"
+META_DIR="${ROOT}/scripts/upm-meta"
+
+# Repo-root document -> name it takes inside the package. UPM shows LICENSE.md and
+# CHANGELOG.md in the Package Manager's Licenses / Changelog tabs, and expects the
+# third-party notices under this exact spelling.
+DOCS=(
+    "LICENSE.md:LICENSE.md"
+    "THIRD_PARTY_NOTICES.md:Third Party Notices.md"
+    "CHANGELOG.md:CHANGELOG.md"
+)
 
 # Cleanup function to ensure temporary files are removed even on error
 cleanup() {
-    rm -f "${PACKAGE_DIR}/LICENSE.md" "${PACKAGE_DIR}/LICENSE.md.meta"
-    rm -f "${PACKAGE_DIR}/Third Party Notices.md" "${PACKAGE_DIR}/Third Party Notices.md.meta"
+    for entry in "${DOCS[@]}"; do
+        dst="${entry#*:}"
+        rm -f "${PACKAGE_DIR}/${dst}" "${PACKAGE_DIR}/${dst}.meta"
+    done
 }
 trap cleanup EXIT
 
-# Copy license files to package dir for UPM before packing
-echo "Copying license files to package directory..."
-cp LICENSE.md "${PACKAGE_DIR}/LICENSE.md"
-cp THIRD_PARTY_NOTICES.md "${PACKAGE_DIR}/Third Party Notices.md"
+# Copy the license / changelog documents into the package dir for UPM before packing.
+# Each one also needs its sibling .meta: a UPM package is extracted into an immutable
+# folder (Library/PackageCache), and Unity ignores assets there that have no .meta.
+# The .meta carry fixed GUIDs and live in scripts/upm-meta (see the README there).
+echo "Copying license / changelog documents to package directory..."
+for entry in "${DOCS[@]}"; do
+    src="${entry%%:*}"
+    dst="${entry#*:}"
+    cp "${ROOT}/${src}" "${PACKAGE_DIR}/${dst}"
+    cp "${META_DIR}/${dst}.meta" "${PACKAGE_DIR}/${dst}.meta"
+done
 
-# Pack the package
-# UPM packages are best packed with `npm pack` since it strictly follows .npmignore 
-# and produces a tarball with the required `package/` root folder structure.
-if command -v npm > /dev/null; then
-    echo "Running 'npm pack'..."
-    cd "${PACKAGE_DIR}"
-    npm pack
-    # Move the generated tarball to the repository root
-    mv *.tgz ../
-    cd ..
-else
-    echo "Warning: npm is not installed. Falling back to tar."
-    echo "Creating tarball using standard tar..."
-    TAR_NAME="jp.co.cri-mw.optpix.ssplayer-unity-release.tgz"
-    tar -czf "${TAR_NAME}" "${PACKAGE_DIR}/"
-    echo "Created ${TAR_NAME}"
+# Pack the package.
+# npm pack is required, not just preferred: it strictly follows .npmignore and produces a
+# tarball with the `package/` root folder structure UPM expects. A plain `tar` fallback
+# would ignore .npmignore and sweep in Tests/ and other dev-only content, so refuse to
+# produce a tarball at all rather than a subtly broken one.
+if ! command -v npm > /dev/null; then
+    echo "ERROR: npm is required to pack the UPM package (it applies .npmignore)." >&2
+    echo "       Install Node.js / npm and re-run." >&2
+    exit 1
 fi
+
+echo "Running 'npm pack'..."
+cd "${PACKAGE_DIR}"
+npm pack
+# Move the generated tarball to the repository root
+mv ./*.tgz "${ROOT}/"
+cd "${ROOT}"
 
 echo "Packing complete!"

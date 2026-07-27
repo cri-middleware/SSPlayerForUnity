@@ -10,7 +10,7 @@ This page explains how to add SpriteStudioPlayer for Unity to your project. Choo
 |---|---|
 | Unity version | **Unity 6.3 LTS (6000.3)** or later |
 | Render pipeline | Universal (URP) / Built-in (BRP) |
-| Dependent packages | Burst / Mathematics / Collections / Timeline (automatically resolved by Package Manager) |
+| Dependent packages | Burst / Mathematics / Collections / Timeline / uGUI (automatically resolved by Package Manager) |
 
 All dependent packages are standard Unity packages, so Package Manager resolves them automatically when you add this package.
 
