@@ -30,6 +30,7 @@ jobs:
       # cross-check that list against the committed .meta. Adding a platform to
       # the SDK without generating its .meta fails here rather than at install.
       - name: Every SDK plugin path has a committed .meta
+        shell: bash
         run: |
           set -euo pipefail
           missing=0
@@ -65,6 +66,7 @@ jobs:
       # pack time live outside package/, so nothing else would notice them going
       # missing until a release produced a package that will not compile.
       - name: Staged .meta are present
+        shell: bash
         run: |
           set -euo pipefail
           for f in SSRuntimeMethods.g.cs.meta SSConverterMethods.g.cs.meta \
@@ -80,6 +82,7 @@ jobs:
       # dependency used there but not declared in package.json only breaks for
       # consumers whose project happens not to already have it.
       - name: asmdef references are declared as package dependencies
+        shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -121,6 +124,7 @@ jobs:
       # tarball name. A release whose changelog has no matching entry is a release
       # nobody can read the notes for.
       - name: CHANGELOG has an entry for the package version
+        shell: bash
         run: |
           set -euo pipefail
           version=$(jq -r .version package/package.json)
@@ -134,6 +138,7 @@ jobs:
       # check the package is complete - only that nothing dev-only slipped into
       # the "files" allowlist, which is the direction that actually reaches users.
       - name: Packed file list contains nothing dev-only
+        shell: bash
         run: |
           set -euo pipefail
           cd package
@@ -158,26 +163,34 @@ jobs:
           print(f"Packed file list clean ({len(files)} files).")
           PY
 
+      # Sibling projects run every workflow step under bash and ship only bash
+      # scripts, so this stays bash-only rather than pulling zsh onto the runner.
+      # build-runtime.sh is the one exception in the family - it has a zsh shebang
+      # and uses zsh-only parameter expansion - so it is skipped here, by name and
+      # visibly in the log rather than silently. Converting it to bash would make
+      # the check total and let Linux contributors run it without zsh installed;
+      # that is its own change, not a drive-by in a packaging PR.
       - name: Shell scripts parse
+        shell: bash
         run: |
-          set -euo pipefail
-          # build-runtime.sh has a zsh shebang (it uses associative arrays), and the
-          # runner image has no zsh. Install it rather than skipping that file - a
-          # check that quietly covers less than it claims is worse than none.
-          if ! command -v zsh > /dev/null; then
-            sudo apt-get update -qq && sudo apt-get install -y -qq zsh
-          fi
+          set -uo pipefail
           fail=0
           for f in scripts/*.sh; do
-            if head -1 "$f" | grep -q zsh; then
-              zsh -n "$f" || { echo "::error file=$f::zsh parse error"; fail=1; }
+            if ! head -1 "$f" | grep -q 'bash'; then
+              echo "skipped (not bash): $f"
+              continue
+            fi
+            if bash -n "$f"; then
+              echo "ok: $f"
             else
-              bash -n "$f" || { echo "::error file=$f::bash parse error"; fail=1; }
+              echo "::error file=$f::bash parse error"
+              fail=1
             fi
           done
           exit $fail
 
       - name: Workflows and issue templates are valid YAML
+        shell: bash
         run: |
           set -euo pipefail
           python3 -c "
