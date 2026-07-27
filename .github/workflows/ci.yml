@@ -1,0 +1,188 @@
+name: CI
+
+# Cheap consistency checks that need neither Unity nor the SDK binaries, so they
+# run on every push and PR. Anything requiring the editor (the test suite) or the
+# native libs (a real pack) stays in release.yml / the local scripts.
+#
+# These exist because of what actually went wrong: a package.json missing the
+# dependencies its asmdefs use, native plugins shipped without a .meta, and
+# dev-only files sliding into the tarball. All three are catchable from the repo
+# alone.
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # A plugin whose .meta was never committed is invisible to Unity once the
+      # package is installed, so the release would ship native libs that silently
+      # do not load. CI has no binaries (they are gitignored), but the paths
+      # download-sdk.sh installs to are knowable from the script itself - so
+      # cross-check that list against the committed .meta. Adding a platform to
+      # the SDK without generating its .meta fails here rather than at install.
+      - name: Every SDK plugin path has a committed .meta
+        run: |
+          set -euo pipefail
+          missing=0
+          found=0
+          while IFS='|' read -r src dst; do
+            name=$(basename "$src")
+            case "$name" in
+              *.dylib|*.so|*.dll|*.a|*.lib|*.bundle|*.xcframework) ;;
+              *) continue ;;
+            esac
+            found=$((found + 1))
+            path="${dst}/${name}"
+            if [ ! -f "${path}.meta" ]; then
+              echo "::error file=scripts/download-sdk.sh::No committed .meta for ${path}"
+              missing=$((missing + 1))
+            fi
+          done < <(grep -E '^copy "' scripts/download-sdk.sh \
+                     | sed -E 's/^copy +"([^"]+)" +"([^"]+)".*/\1|\2/' \
+                     | sed -e 's|\${DYNAMIC}||; s|\${STATIC}||' \
+                           -e 's|\${RUNTIME_PLUGINS}|package/Runtime/Plugins|' \
+                           -e 's|\${EDITOR_PLUGINS}|package/Editor/Plugins|')
+          if [ "$found" -eq 0 ]; then
+            echo "::error::Parsed no plugin paths out of download-sdk.sh - the check is not testing anything"
+            exit 1
+          fi
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::${missing} of ${found} plugin(s) have no committed .meta - see scripts/scaffold-plugin-placeholders.sh"
+            exit 1
+          fi
+          echo "All ${found} plugin paths have a committed .meta."
+
+      # The .meta for the generated FFI bindings and for the documents staged at
+      # pack time live outside package/, so nothing else would notice them going
+      # missing until a release produced a package that will not compile.
+      - name: Staged .meta are present
+        run: |
+          set -euo pipefail
+          for f in SSRuntimeMethods.g.cs.meta SSConverterMethods.g.cs.meta \
+                   LICENSE.md.meta "Third Party Notices.md.meta" CHANGELOG.md.meta; do
+            if [ ! -f "scripts/upm-meta/$f" ]; then
+              echo "::error::Missing scripts/upm-meta/$f"
+              exit 1
+            fi
+          done
+          echo "All staged .meta present."
+
+      # The asmdefs are the source of truth for what the package references; a
+      # dependency used there but not declared in package.json only breaks for
+      # consumers whose project happens not to already have it.
+      - name: asmdef references are declared as package dependencies
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, glob, sys
+
+          # Unity assembly name -> the UPM package that provides it. Only entries
+          # that come from a package need declaring; engine modules and our own
+          # assemblies do not.
+          PROVIDED_BY = {
+              "Unity.Burst": "com.unity.burst",
+              "Unity.Collections": "com.unity.collections",
+              "Unity.Mathematics": "com.unity.mathematics",
+              "Unity.Timeline": "com.unity.timeline",
+              "UnityEngine.UI": "com.unity.ugui",
+              "UnityEditor.UI": "com.unity.ugui",
+          }
+
+          declared = set(json.load(open("package/package.json"))["dependencies"])
+          missing = {}
+          for path in glob.glob("package/**/*.asmdef", recursive=True):
+              if "/Tests/" in path:      # test-only assemblies do not ship
+                  continue
+              asmdef = json.load(open(path))
+              for ref in asmdef.get("references", []):
+                  pkg = PROVIDED_BY.get(ref)
+                  if pkg and pkg not in declared:
+                      missing.setdefault(pkg, []).append((path, ref))
+
+          for pkg, uses in sorted(missing.items()):
+              for path, ref in uses:
+                  print(f"::error file={path}::references {ref} but {pkg} "
+                        f"is not in package.json dependencies")
+          if missing:
+              sys.exit(1)
+          print(f"All asmdef package references declared ({len(declared)} dependencies).")
+          PY
+
+      # The version in package.json is what release.yml turns into the tag and the
+      # tarball name. A release whose changelog has no matching entry is a release
+      # nobody can read the notes for.
+      - name: CHANGELOG has an entry for the package version
+        run: |
+          set -euo pipefail
+          version=$(jq -r .version package/package.json)
+          if ! grep -qF "## [${version}]" CHANGELOG.md; then
+            echo "::error file=CHANGELOG.md::No '## [${version}]' heading for the version in package.json"
+            exit 1
+          fi
+          echo "CHANGELOG has an entry for ${version}."
+
+      # Guard the tarball contents. The binaries are absent here, so this cannot
+      # check the package is complete - only that nothing dev-only slipped into
+      # the "files" allowlist, which is the direction that actually reaches users.
+      - name: Packed file list contains nothing dev-only
+        run: |
+          set -euo pipefail
+          cd package
+          npm pack --dry-run --json > /tmp/pack.json
+          cd ..
+          python3 - <<'PY'
+          import json, sys
+          files = [f["path"] for f in json.load(open("/tmp/pack.json"))[0]["files"]]
+          bad = [f for f in files
+                 if f.startswith("Tests/")
+                 or f.endswith(".DS_Store")
+                 or "TestStub" in f
+                 or f.startswith(".")]
+          for f in bad:
+              print(f"::error::Dev-only file would be packed: {f}")
+          if bad:
+              sys.exit(1)
+          # A near-empty allowlist would pass the check above vacuously.
+          if not any(f.startswith("Runtime/") for f in files):
+              print("::error::Packed nothing from Runtime/ - the allowlist looks broken")
+              sys.exit(1)
+          print(f"Packed file list clean ({len(files)} files).")
+          PY
+
+      - name: Shell scripts parse
+        run: |
+          set -euo pipefail
+          fail=0
+          for f in scripts/*.sh; do
+            # build-runtime.sh is zsh (associative arrays); the rest are bash.
+            if head -1 "$f" | grep -q zsh; then
+              zsh -n "$f" || { echo "::error file=$f::zsh parse error"; fail=1; }
+            else
+              bash -n "$f" || { echo "::error file=$f::bash parse error"; fail=1; }
+            fi
+          done
+          exit $fail
+
+      - name: Workflows and issue templates are valid YAML
+        run: |
+          set -euo pipefail
+          python3 -c "
+          import yaml, glob, sys
+          bad = False
+          for f in glob.glob('.github/**/*.yml', recursive=True):
+              try:
+                  yaml.safe_load(open(f))
+              except Exception as e:
+                  print(f'::error file={f}::{e}')
+                  bad = True
+          sys.exit(1 if bad else 0)
+          "
