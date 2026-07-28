@@ -16,6 +16,7 @@ This documentation is organized by purpose, as follows.
     - [Migration from SS6Player](./migration_from_ss6.md): Migration guide from the legacy SS6Player for Unity
 - **Customization & Automation** — Integrate with CLI and CI/CD
     - [Conversion Features and CI/CD](./workflow/import.md): Batch conversion and automation with `ssconverter-cli`
+- **[Limitations & Scope](./limitations.md)** — What is not yet implemented, and the constraints to know before shipping
 - **For Player & SDK Developers** — Build the native components from source
     - [Build Guide](./setup/build.md): How to build `libssruntime` / `libssconverter`
 
