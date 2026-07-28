@@ -16,6 +16,7 @@
     - [SS6Player からのマイグレーション](./migration_from_ss6.md): 旧 SS6Player for Unity からの移行ガイド
 - **カスタマイズ・自動化ガイド** — CLI や CI/CD に組み込む
     - [各種コンバート機能と CI/CD](./workflow/import.md): `ssconverter-cli` によるバッチ変換・自動化
+- **[制約と適用範囲](./limitations.md)** — 未実装の機能と、出荷前に把握しておくべき制約
 - **Player・SDK 開発者向けガイド** — ネイティブをソースからビルドする
     - [ビルドガイド](./setup/build.md): `libssruntime` / `libssconverter` のビルド手順
 
