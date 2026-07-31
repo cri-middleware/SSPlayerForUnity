@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Events**: animation finished / looped, user data, signal, and audio, delivered as Unity events.
 - **Timeline integration** via `ITimeControl`.
 - **Per-part runtime overrides**: color, cell, and visibility, addressed by part name or index, with priority modes.
+- **Flip & offset** (`SpriteStudioPlayer`): mirror or shift what the player draws without moving its `Transform`, so children and colliders stay put. Part tracking follows the mirrored pose.
 - **Part tracking**: any GameObject can follow a specified part.
 - **Sub-frame interpolation** for smooth playback on high-refresh-rate displays and in slow motion.
 - **Zero-allocation playback loop**: geometry is built in Burst jobs and uploaded via `SetVertexBufferData`, with no per-frame GC allocations.
