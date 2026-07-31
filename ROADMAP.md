@@ -12,6 +12,8 @@ items marked **needs SDK** wait on a runtime capability from there.
 - [x] World (MeshRenderer) and uGUI (Canvas) rendering, including mask / RectMask2D on Canvas.
 - [x] Timeline support (`ITimeControl`).
 - [x] Events — animation finished / looped, user data, signal, audio.
+- [x] Flip / offset — mirror or shift what the player draws without moving the Transform, so children and
+  colliders stay put. World renderer only so far; `SpriteStudioGraphic` (uGUI) does not expose them yet.
 - [ ] Label / frame-range / index playback — play a named label range with a start offset, and play by animation index.
 - [ ] Player-level tint / opacity and a custom delta-time hook (per-player slow-motion / pause groups).
 
@@ -29,6 +31,13 @@ Wait on a runtime capability from the SDK roadmap.
 - [ ] Crowd / mesh sharing — render one shared evaluation at many transforms.
 - [ ] Multi-track playback — layered per-part animation with crossfade transitions.
 - [ ] Runtime instance swap — change the animation mounted on an Instance part at runtime.
+
+## Documentation
+
+- [ ] API reference page. The docs site has no `api/` section, so the public surface is only discoverable by
+  reading the usage pages or the source — the sibling players (Godot, Flutter, Web) each publish one. Either
+  hand-write a `docs/*/api/player.md` covering `SpriteStudioPlayer` / `SpriteStudioGraphic` (as Godot does),
+  or generate it from the XML doc comments, which are already written throughout `package/Runtime/`.
 
 ## Backlog
 

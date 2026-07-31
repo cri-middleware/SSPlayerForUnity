@@ -18,6 +18,9 @@ namespace SpriteStudio.Editor
         private SerializedProperty _skipFramesProp;
         private SerializedProperty _sortingLayerNameProp;
         private SerializedProperty _sortingOrderProp;
+        private SerializedProperty _flipXProp;
+        private SerializedProperty _flipYProp;
+        private SerializedProperty _offsetProp;
         private SerializedProperty _partTrackersProp;
         private SerializedProperty _playAudioProp;
         private SerializedProperty _audioVolumeProp;
@@ -46,6 +49,9 @@ namespace SpriteStudio.Editor
             _skipFramesProp = serializedObject.FindProperty("_skipFrames");
             _sortingLayerNameProp = serializedObject.FindProperty("_sortingLayerName");
             _sortingOrderProp = serializedObject.FindProperty("_sortingOrder");
+            _flipXProp = serializedObject.FindProperty("_flipX");
+            _flipYProp = serializedObject.FindProperty("_flipY");
+            _offsetProp = serializedObject.FindProperty("_offset");
             _partTrackersProp = serializedObject.FindProperty("_partTrackers");
             _playAudioProp = serializedObject.FindProperty("_playAudio");
             _audioVolumeProp = serializedObject.FindProperty("_audioVolume");
@@ -77,6 +83,9 @@ namespace SpriteStudio.Editor
             EditorGUILayout.Space();
             EditorGUILayout.PropertyField(_sortingLayerNameProp);
             EditorGUILayout.PropertyField(_sortingOrderProp);
+            EditorGUILayout.PropertyField(_flipXProp);
+            EditorGUILayout.PropertyField(_flipYProp);
+            EditorGUILayout.PropertyField(_offsetProp);
 
             EditorGUILayout.Space();
             EditorGUILayout.PropertyField(_partTrackersProp, true);

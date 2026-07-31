@@ -84,7 +84,28 @@ These properties correspond to the inspector items. Changing them at runtime is 
 | `SubFrameEnabled` | `bool` | Sub-frame interpolation |
 | `SkipFrames` | `bool` | Real-time tracking (see [Advanced Settings](./tips.md)) |
 
-`SpriteStudioPlayer` (world) only: `SortingLayerName` / `SortingOrder` / `PixelsPerUnit`.
+`SpriteStudioPlayer` (world) only: `SortingLayerName` / `SortingOrder` / `PixelsPerUnit`, plus the three below.
+
+| Property | Type | Description |
+|---|---|---|
+| `FlipX` | `bool` | Mirror the drawn animation horizontally, in the manner of `SpriteRenderer.flipX` |
+| `FlipY` | `bool` | Mirror it vertically |
+| `Offset` | `Vector2` | Shift it by this many **world units** (applied after `PixelsPerUnit`) |
+
+All three change only what the player draws — the `Transform` is untouched, so the GameObject's children and
+colliders stay where they are. That is the point: negating `transform.localScale.x` to mirror a character
+drags its weapon mount, hitboxes and particle systems along with it, while `FlipX` does not.
+
+```csharp
+// Face the way we are walking without disturbing anything parented to us.
+_player.FlipX = _velocity.x < 0f;
+```
+
+Registered part trackers follow the mirrored pose, so an object pinned to a part stays pinned across a flip.
+A mirror is not a rotation, though, so the mirroring itself reaches the tracked object only when its
+`driveScale` is on (it arrives as a negative scale); position and rotation are exact either way.
+
+`SpriteStudioGraphic` (uGUI) does not expose these yet.
 
 ## Event Notifications
 

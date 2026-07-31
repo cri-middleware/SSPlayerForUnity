@@ -84,7 +84,29 @@ _player.Play();
 | `SubFrameEnabled` | `bool` | サブフレーム補間 |
 | `SkipFrames` | `bool` | 実時間追従（[高度な設定](./tips.md) 参照） |
 
-`SpriteStudioPlayer`（ワールド）のみ: `SortingLayerName` / `SortingOrder` / `PixelsPerUnit`。
+`SpriteStudioPlayer`（ワールド）のみ: `SortingLayerName` / `SortingOrder` / `PixelsPerUnit`、および以下の 3 つ。
+
+| プロパティ | 型 | 説明 |
+|---|---|---|
+| `FlipX` | `bool` | 描画を左右反転（`SpriteRenderer.flipX` と同じ考え方） |
+| `FlipY` | `bool` | 描画を上下反転 |
+| `Offset` | `Vector2` | 描画を **ワールド単位** でずらす（`PixelsPerUnit` の後に適用） |
+
+3 つとも変えるのはそのプレイヤーが描くものだけで、`Transform` には触れません。つまり GameObject の
+子オブジェクトやコライダーはその場に留まります。これが要点で、キャラクタを反転させるために
+`transform.localScale.x` を負にすると武器の取り付け位置・当たり判定・パーティクルまで一緒に反転して
+しまいますが、`FlipX` ではそうなりません。
+
+```csharp
+// ぶら下がっているものを乱さずに、進行方向を向く
+_player.FlipX = _velocity.x < 0f;
+```
+
+登録済みのパーツトラッカーは反転後の姿勢に追従するので、パーツに固定したオブジェクトは反転しても
+外れません。ただし鏡像は回転ではないため、反転そのものが対象に伝わるのは対象の `driveScale` が
+ON のとき（負のスケールとして届きます）だけです。位置と回転はどちらの場合も正確です。
+
+`SpriteStudioGraphic`（uGUI）はまだ未対応です。
 
 ## イベント通知
 
