@@ -539,7 +539,8 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     BatchCount = _batchBuilder.DrawBatchCount,
                     PartCount = _partCount,
                     PartColorCount = _partColorCount,
-                    InvScale = _player.VertexScale,
+                    RootScale = _player.RootScale,
+                    RootOffset = _player.VertexOffset,
 
                     DrawBatches = _batchBuilder.DrawBatches,
                     DrawOrder = _drawOrder,

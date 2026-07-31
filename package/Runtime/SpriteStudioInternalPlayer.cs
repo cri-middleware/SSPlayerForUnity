@@ -49,6 +49,27 @@ namespace SpriteStudio.Runtime
         /// </summary>
         public float VertexScale { get; set; } = 1f;
 
+        /// <summary>Mirror the drawn animation horizontally / vertically. See <see cref="RootScale"/>.</summary>
+        public bool FlipX { get; set; }
+
+        /// <inheritdoc cref="FlipX"/>
+        public bool FlipY { get; set; }
+
+        /// <summary>
+        /// Post-scale shift of the drawn animation, in Unity world units. Like <see cref="FlipX"/> this moves
+        /// only what this player draws, never the GameObject, so children and colliders stay where they are.
+        /// Same "top-level player only" rule as <see cref="VertexScale"/>.
+        /// </summary>
+        public Vector2 VertexOffset { get; set; } = Vector2.zero;
+
+        /// <summary>
+        /// <see cref="VertexScale"/> resolved per axis, negated on each flipped axis. This is the one place the
+        /// flip is turned into numbers: both the mesh job and <see cref="TryGetPartLocalMatrix"/> read it, so a
+        /// part tracker cannot drift away from the geometry it is supposed to be pinned to.
+        /// </summary>
+        internal Vector2 RootScale => new Vector2(FlipX ? -VertexScale : VertexScale,
+                                                  FlipY ? -VertexScale : VertexScale);
+
         private bool _isDisposed = false;
 
         ~SpriteStudioInternalPlayer()
@@ -635,10 +656,14 @@ internal struct MaskPartData
                 var m = new Matrix4x4();
                 for (int e = 0; e < 16; e++) m[e] = data[baseIndex + e];
 
-                // Fold in the same uniform 1/PPU scale the mesh job applies to vertex positions, so the
-                // tracked frame is pixel-aligned with the rendered part (premultiply by uniform scale).
-                float s = VertexScale;
-                matrix = Matrix4x4.Scale(new Vector3(s, s, s)) * m;
+                // Fold in the same root transform the mesh job applies to vertex positions, so the tracked
+                // frame stays pixel-aligned with the rendered part — otherwise a tracker pinned to a part
+                // detaches the moment the player is flipped or offset. Z keeps the unflipped scale: this is
+                // a 2D player, so a flip mirrors within the XY plane rather than through it.
+                Vector2 rs = RootScale;
+                Vector2 ro = VertexOffset;
+                matrix = Matrix4x4.TRS(new Vector3(ro.x, ro.y, 0f), Quaternion.identity,
+                                       new Vector3(rs.x, rs.y, VertexScale)) * m;
                 return true;
             }
         }

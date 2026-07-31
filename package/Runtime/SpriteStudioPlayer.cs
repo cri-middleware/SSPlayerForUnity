@@ -158,12 +158,59 @@ namespace SpriteStudio.Runtime
             }
         }
 
+        [Tooltip("Mirror the animation horizontally. Affects only what this player draws — children and colliders stay put (negating the Transform's scale would drag them along).")]
+        [SerializeField] private bool _flipX = false;
+        /// <summary>
+        /// Mirror the drawn animation horizontally, in the manner of <c>SpriteRenderer.flipX</c>: only this
+        /// player's geometry is mirrored, so the GameObject's children and colliders are left alone. Part
+        /// trackers follow the mirrored pose.
+        /// </summary>
+        public bool FlipX
+        {
+            get => _flipX;
+            set { _flipX = value; ApplyRootTransform(); }
+        }
+
+        [Tooltip("Mirror the animation vertically. Affects only what this player draws — children and colliders stay put.")]
+        [SerializeField] private bool _flipY = false;
+        /// <inheritdoc cref="FlipX"/>
+        public bool FlipY
+        {
+            get => _flipY;
+            set { _flipY = value; ApplyRootTransform(); }
+        }
+
+        [Tooltip("Shifts the drawn animation in world units without moving the Transform, so children and colliders stay put.")]
+        [SerializeField] private Vector2 _offset = Vector2.zero;
+        /// <summary>
+        /// Shifts the drawn animation by this many world units without moving the Transform — useful for
+        /// nudging the artwork off its authored origin while the GameObject keeps marking the logical
+        /// position that gameplay and physics use. Applied after <see cref="PixelsPerUnit"/>, so it is in
+        /// Unity units rather than SpriteStudio pixels.
+        /// </summary>
+        public Vector2 Offset
+        {
+            get => _offset;
+            set { _offset = value; ApplyRootTransform(); }
+        }
+
         // Reflect PPU into the internal player's vertex scale (= 1/PPU). Set on the top level only; leave
         // Instance children at VertexScale=1 (the parent scales them as a whole, so avoid double scaling).
         private void ApplyPixelsPerUnit()
         {
             if (_core.Internal != null)
                 _core.Internal.VertexScale = 1f / Mathf.Max(_pixelsPerUnit, 0.0001f);
+            ApplyRootTransform();
+        }
+
+        // Flip / offset live next to the vertex scale on the internal player, which folds all three into the
+        // one root transform the mesh job and the part trackers share.
+        private void ApplyRootTransform()
+        {
+            if (_core.Internal == null) return;
+            _core.Internal.FlipX = _flipX;
+            _core.Internal.FlipY = _flipY;
+            _core.Internal.VertexOffset = _offset;
         }
 
         /// <summary>
@@ -552,6 +599,10 @@ namespace SpriteStudio.Runtime
                 _core.Internal.SetLoop(_loopCount);
                 _core.Internal.SetSkipFrames(_skipFrames);
                 _core.Internal.SubFrameEnabled = _subFrameEnabled;
+                // The inspector writes the serialized fields directly, bypassing the property setters, so
+                // the root transform has to be pushed from here or a flip / offset / PPU edit would appear
+                // to do nothing until something else happened to reapply it.
+                ApplyPixelsPerUnit();
             }
             if (_meshRenderer != null)
             {
@@ -723,12 +774,22 @@ namespace SpriteStudio.Runtime
                 Transform parent = tracker.target.parent;
                 Matrix4x4 local = parent != null ? parent.worldToLocalMatrix * desiredWorld : desiredWorld;
 
+                // FlipX/FlipY mirror the basis, and a mirror is not a rotation — Matrix4x4.rotation is
+                // undefined on a negative-determinant matrix and would hand back a garbage quaternion. Make
+                // the basis proper by negating one column, and put the mirror back as a negative scale, which
+                // is how a 2D child renders one anyway. Position (column 3) is exact either way, so a tracker
+                // follows its part correctly even with driveScale off; only the mirroring of the target's own
+                // artwork needs driveScale.
+                bool mirrored = local.determinant < 0f;
+                if (mirrored) local.SetColumn(1, -local.GetColumn(1));
+
                 tracker.target.localPosition = local.GetColumn(3);
                 tracker.target.localRotation = local.rotation;
                 if (tracker.driveScale)
                 {
                     // 2D player: drive X/Y, preserve the target's own Z scale.
                     Vector3 s = local.lossyScale;
+                    if (mirrored) s.y = -s.y;
                     Vector3 cur = tracker.target.localScale;
                     tracker.target.localScale = new Vector3(s.x, s.y, cur.z);
                 }

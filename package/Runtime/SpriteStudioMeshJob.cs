@@ -144,9 +144,13 @@ namespace SpriteStudio.Runtime
         public int PartCount;
         public int PartColorCount;
 
-        // Uniform scale applied to the final vertex position (= 1 / PixelsPerUnit). From SpriteStudioInternalPlayer.VertexScale.
-        // Converts pixel-space world vertices into Unity world units (not applied to UVs).
-        public float InvScale;
+        // Root transform folded into every final vertex position, from SpriteStudioInternalPlayer.RootScale /
+        // VertexOffset. Scale converts pixel-space world vertices into Unity world units (= 1 / PixelsPerUnit),
+        // negated per axis when that axis is flipped; Offset shifts the result and is already in Unity units.
+        // Neither is applied to UVs. Folding them in here rather than onto the GameObject's Transform keeps
+        // flip / offset from dragging the player's children and colliders along.
+        public Vector2 RootScale;
+        public Vector2 RootOffset;
 
         public void Execute()
         {
@@ -256,8 +260,8 @@ namespace SpriteStudio.Runtime
                     Vertices[vbase + q * 4 + v] = new SsVertex
                     {
                         Position = new Vector3(
-                            (draw_m[0] * lx + draw_m[4] * ly + draw_m[12]) * InvScale,
-                            (draw_m[1] * lx + draw_m[5] * ly + draw_m[13]) * InvScale,
+                            (draw_m[0] * lx + draw_m[4] * ly + draw_m[12]) * RootScale.x + RootOffset.x,
+                            (draw_m[1] * lx + draw_m[5] * ly + draw_m[13]) * RootScale.y + RootOffset.y,
                             0f),
                         Color = new Color32(r, g, b, a),
                         TexCoord0 = new Vector2(ux, uy),
@@ -297,8 +301,8 @@ namespace SpriteStudio.Runtime
                 
                 float lx = vert.Position.x;
                 float ly = vert.Position.y;
-                vert.Position.x = (draw_m[0] * lx + draw_m[4] * ly + draw_m[12]) * InvScale;
-                vert.Position.y = (draw_m[1] * lx + draw_m[5] * ly + draw_m[13]) * InvScale;
+                vert.Position.x = (draw_m[0] * lx + draw_m[4] * ly + draw_m[12]) * RootScale.x + RootOffset.x;
+                vert.Position.y = (draw_m[1] * lx + draw_m[5] * ly + draw_m[13]) * RootScale.y + RootOffset.y;
                 
                 byte a = vert.Color.a;
                 vert.Color.a = (byte)((a * alphaByte) / 255);
@@ -357,8 +361,8 @@ namespace SpriteStudio.Runtime
                 Vertices[vbase + i] = new SsVertex
                 {
                     Position = new Vector3(
-                        (draw_m[0] * out_x[i] + draw_m[4] * out_y[i] + draw_m[12]) * InvScale,
-                        (draw_m[1] * out_x[i] + draw_m[5] * out_y[i] + draw_m[13]) * InvScale,
+                        (draw_m[0] * out_x[i] + draw_m[4] * out_y[i] + draw_m[12]) * RootScale.x + RootOffset.x,
+                        (draw_m[1] * out_x[i] + draw_m[5] * out_y[i] + draw_m[13]) * RootScale.y + RootOffset.y,
                         0f),
                     Color = corner_colors[i],
                     TexCoord0 = new Vector2(part_uvs[i * 2], part_uvs[i * 2 + 1]),
@@ -371,8 +375,8 @@ namespace SpriteStudio.Runtime
                 Vertices[vbase + 4] = new SsVertex
                 {
                     Position = new Vector3(
-                        (draw_m[0] * out_x[4] + draw_m[4] * out_y[4] + draw_m[12]) * InvScale,
-                        (draw_m[1] * out_x[4] + draw_m[5] * out_y[4] + draw_m[13]) * InvScale,
+                        (draw_m[0] * out_x[4] + draw_m[4] * out_y[4] + draw_m[12]) * RootScale.x + RootOffset.x,
+                        (draw_m[1] * out_x[4] + draw_m[5] * out_y[4] + draw_m[13]) * RootScale.y + RootOffset.y,
                         0f),
                     Color = new Color32(
                         (byte)((corner_colors[0].r + corner_colors[1].r + corner_colors[2].r + corner_colors[3].r) / 4),
@@ -458,8 +462,8 @@ namespace SpriteStudio.Runtime
                 Vertices[vbase + i] = new SsVertex
                 {
                     Position = new Vector3(
-                        (draw_m[0] * vx + draw_m[4] * vy + draw_m[12]) * InvScale,
-                        (draw_m[1] * vx + draw_m[5] * vy + draw_m[13]) * InvScale,
+                        (draw_m[0] * vx + draw_m[4] * vy + draw_m[12]) * RootScale.x + RootOffset.x,
+                        (draw_m[1] * vx + draw_m[5] * vy + draw_m[13]) * RootScale.y + RootOffset.y,
                         0f),
                     Color = new Color32(r, g, b, a),
                     TexCoord0 = new Vector2(0f, 0f),
@@ -514,7 +518,7 @@ namespace SpriteStudio.Runtime
                 int srcIdx = (int)(v0 + j);
                 Vertices[vbase + j] = new SsVertex
                 {
-                    Position = new Vector3(MeshVerticesX[srcIdx] * InvScale, MeshVerticesY[srcIdx] * InvScale, 0f),
+                    Position = new Vector3(MeshVerticesX[srcIdx] * RootScale.x + RootOffset.x, MeshVerticesY[srcIdx] * RootScale.y + RootOffset.y, 0f),
                     Color = meshColor,
                     TexCoord0 = new Vector2(MeshUvs[srcIdx * 2], MeshUvs[srcIdx * 2 + 1]),
                     TexCoord1 = new Vector4(meshRate, blendIdx, 0f, isAdditive)
