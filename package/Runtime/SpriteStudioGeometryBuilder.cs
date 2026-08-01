@@ -377,7 +377,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 // grow the batch/submesh budget. Each part contributes up to ~2 steps (test+write or
                 // colour-suppressed restore); Phase A pre-writes and Phase C clipping-closes each add at
                 // most one per writer. (EmitMaskStep self-grows, so an under-estimate is never fatal.)
-                if (_player._hasMaskParts) maxBatches += partsLength * 2 + _maskPlanner.WriterCount * 2;
+                if (_player.MaskAffectsParts) maxBatches += partsLength * 2 + _maskPlanner.WriterCount * 2;
 
                 // Allocate the persistent buffers grow-only (do not new every frame)
                 _batchBuilder.BeginFrame(maxBatches);
@@ -626,6 +626,9 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     // write the raw child_frame_no back to the controller (irrelevant for non-independent, which
                     // recomputes from parent_frame via set_frame_relative).
                     // The display-side frame-range clamp is unneeded here because the child's own PrepareFrameData does it before get_frame_data.
+                    // Hand this instance part's mask context down before the child builds: the child bakes
+                    // the composed roles into its own submeshes, so the parent never patches them afterwards.
+                    PropagateMaskContext(i, childPlayer);
                     childPlayer.SetFrame(step.child_frame_no);
                     childPlayer.ScheduleMeshUpdate(deltaTime);
 
@@ -685,6 +688,39 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         /// both writes and later restores costs two builds (cheap; masks are few).
         /// </summary>
 
+        /// <summary>
+        /// Hand this player's composed mask context to an instance child, before the child builds. The
+        /// rules live on the player (SpriteStudioInternalPlayer.ComposeInheritedContext); a part index
+        /// that resolves to no mask data leaves the child at the identity context (= unmasked).
+        /// </summary>
+        private void PropagateMaskContext(int instancePartIndex, SpriteStudioInternalPlayer childPlayer)
+        {
+            bool masked = false, influence = true, visibleInside = false;
+            var md = _player._maskPartData;
+            if (_player.MaskActive && md != null && instancePartIndex >= 0 && instancePartIndex < md.Length)
+            {
+                SpriteStudioInternalPlayer.ComposeInheritedContext(md[instancePartIndex],
+                    _player._inheritedMaskInfluence, _player._inheritedVisibleInsideMask,
+                    out masked, out influence, out visibleInside);
+            }
+            childPlayer._inheritedMasked = masked;
+            childPlayer._inheritedMaskInfluence = influence;
+            childPlayer._inheritedVisibleInsideMask = visibleInside;
+        }
+
+        /// <summary>
+        /// Effective mask targeting for one of this player's parts, composed against the context inherited
+        /// from the instance chain (see <see cref="PropagateMaskContext"/>). A root player's inherited
+        /// values are the identity elements, so this reduces to the part's own setting.
+        /// <paramref name="comp"/> receives the stencil compare for the resulting polarity.
+        /// </summary>
+        private bool MaskTargetOf(in SpriteStudioInternalPlayer.MaskPartData md, out byte comp)
+        {
+            comp = SpriteStudioInternalPlayer.IsDrawnInsideMask(md, _player._inheritedVisibleInsideMask)
+                ? StencilCompNotEqual : StencilCompEqual;
+            return SpriteStudioInternalPlayer.IsMaskTarget(md, _player._inheritedMaskInfluence);
+        }
+
         private unsafe void ProcessInstanceBatch(ss.runtime.DrawBatch b, int partsLength, ref int totalVertices, ref int totalIndices)
         {
             for (int k = 0; k < b.Count; k++)
@@ -702,31 +738,17 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                     _batchBuilder.EmitInstanceBatch(p_idx, cvc, cic);
 
-                    StencilRole instRole = StencilRole.None;
-                    byte instComp = 0;
-                    if (_player.MaskActive)
-                    {
-                        var imd = _player._maskPartData[p_idx];
-                        if (imd.MaskInfluence || imd.MaskWrite)
-                        {
-                            instRole = StencilRole.Test;
-                            instComp = imd.VisibleInsideMask ? StencilCompNotEqual : StencilCompEqual;
-                        }
-                    }
-
+                    // The child already resolved each submesh's stencil role against the context handed to
+                    // it in PropagateMaskContext, so take them verbatim. (This used to patch every
+                    // role-less child submesh to the instance part's own role instead, which is neither
+                    // the OR of visibleInsideMask nor the AND of maskInfluence that SS7.5 composes: a child
+                    // part carrying its own role overrode the caller, and a role-less one was forced to the
+                    // caller's polarity even when its own said otherwise.)
                     for (int sm = 0; sm < childPlayer.SubmeshCount; sm++)
                     {
                         var cs = childPlayer.Submeshes[sm];
-                        StencilRole cr = cs.Role;
-                        byte cComp = cs.StencilComp, cRMask = cs.StencilReadMask;
-                        if (cs.Role == StencilRole.None && instRole == StencilRole.Test)
-                        {
-                            cr = StencilRole.Test;
-                            cComp = instComp;
-                            cRMask = SpriteStudioMaterial.MaskStencilMask;
-                        }
                         _batchBuilder.EmitSubmesh(totalIndices + cs.IndexStart, cs.IndexCount, cs.TextureHash, cs.BlendType,
-                            cr, cs.StencilOp, cComp, cs.StencilRef, cRMask, cs.StencilWriteMask, cs.MaskThreshold);
+                            cs.Role, cs.StencilOp, cs.StencilComp, cs.StencilRef, cs.StencilReadMask, cs.StencilWriteMask, cs.MaskThreshold);
                     }
 
                     totalVertices += cvc;
@@ -750,11 +772,12 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 byte effComp = 0;
                 if (_player.MaskActive)
                 {
-                    var emd = _player._maskPartData[p_idx];
-                    if (emd.MaskInfluence || emd.MaskWrite)
+                    // Particles have no mask flags of their own, so the effect part's effective targeting
+                    // (its own flags composed with the inherited instance context) applies to all of them.
+                    if (MaskTargetOf(_player._maskPartData[p_idx], out byte c))
                     {
                         effRole = StencilRole.Test;
-                        effComp = emd.VisibleInsideMask ? StencilCompNotEqual : StencilCompEqual;
+                        effComp = c;
                     }
                 }
 
@@ -783,7 +806,9 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             int vc = 0;
             int ic = 0;
 
-            if (_player._hasMaskParts)
+            // Also taken when this player has no mask parts of its own but an instance ancestor's mask
+            // reaches it: those parts still need one submesh each to carry their own stencil role.
+            if (_player.MaskAffectsParts)
             {
                 byte kind = (byte)b.Kind;
                 for (int k = 0; k < b.Count; k++)
@@ -810,10 +835,8 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     }
                     else
                     {
-                        bool maskTarget = md.MaskInfluence || md.MaskWrite;
-                        if (maskTarget)
+                        if (MaskTargetOf(md, out byte comp))
                         {
-                            byte comp = md.VisibleInsideMask ? StencilCompNotEqual : StencilCompEqual;
                             _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
                                 StencilRole.Test, 0, comp, 0f, ref totalVertices, ref totalIndices);
                         }
