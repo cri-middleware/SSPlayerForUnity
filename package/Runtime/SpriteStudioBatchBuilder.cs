@@ -153,9 +153,12 @@ namespace SpriteStudio.Runtime
                 BlendType = blend
             };
 
+            // Writers only ever write their own op's bit plane (parity for Invert, counter for
+            // Incr/Decr); a test writes nothing. Kept in sync with the material through the shared
+            // helper - the two must agree or a writer would be undone on the wrong plane.
             EmitSubmesh(totalIndices, ic, texHash, blend, role, stencilOp, stencilComp, 0,
                 SpriteStudioMaterial.MaskStencilMask,
-                role == StencilRole.Write ? SpriteStudioMaterial.MaskStencilMask : (byte)0, threshold);
+                role == StencilRole.Write ? SpriteStudioMaterial.MaskWriteMaskForOp(stencilOp) : (byte)0, threshold);
             totalVertices += vc;
             totalIndices += ic;
         }
