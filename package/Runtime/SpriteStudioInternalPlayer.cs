@@ -127,8 +127,64 @@ internal struct MaskPartData
         // buffer is left to uGUI's own Mask/RectMask2D. The world (MeshRenderer) path leaves it false.
         internal bool _suppressInternalMask;
 
-        // True when the asset has mask writers and this player is not suppressing them (Canvas suppresses).
-        internal bool MaskActive => _hasMaskParts && !_suppressInternalMask;
+        // Mask context inherited from the instance part that draws this player. SS7.5 composes the two
+        // masking flags down the instance hierarchy - visibleInsideMask accumulates with OR, maskInfluence
+        // chains with AND - so the parent writes these right before it builds this child and the child
+        // bakes the composed result into its own submesh roles. The defaults are the identity elements of
+        // those operators, which is exactly what a root player (drawn by nobody) has to see. Nesting needs
+        // no extra work: every level hands on the value it already composed.
+        internal bool _inheritedMasked;                 // an ancestor instance part is a mask target
+        internal bool _inheritedMaskInfluence = true;   // AND identity
+        internal bool _inheritedVisibleInsideMask;      // OR identity
+
+        // True when masking must be honoured: this asset has writers of its own, or an ancestor instance
+        // is a mask target and its coverage still reaches these parts (a child asset with no mask parts of
+        // its own is still clipped by the mask around the instance that draws it). Canvas suppresses all
+        // of it and leaves the stencil to uGUI.
+        // _maskPartData is required because both paths below read per-part flags out of it; _hasMaskParts
+        // already implies it, but _inheritedMasked alone does not (it is set by the parent, which cannot
+        // know whether this child has finished SetupSlots).
+        internal bool MaskActive => (_hasMaskParts || _inheritedMasked) && _maskPartData != null && !_suppressInternalMask;
+
+        // True when parts have to be emitted one by one so each can carry its own stencil role: this asset
+        // has mask writers, or an ancestor instance's mask reaches these parts. Canvas suppression is NOT
+        // tested here - the per-part path still has to run to drop pure masks - so it checks MaskActive.
+        internal bool MaskAffectsParts => (_hasMaskParts || _inheritedMasked) && _maskPartData != null;
+
+        // === Mask composition rules (SS7.5) ================================================
+        // Kept here, as three small statics, so the geometry builder and the tests share one definition
+        // of the rules instead of restating them at each decision site.
+
+        /// <summary>
+        /// Whether a part is clipped by the stencil, composing its own maskInfluence with the value
+        /// inherited from the instance chain (AND). MaskWrite is deliberately outside the composition:
+        /// it says the part writes a mask of its own, which is not something a descendant inherits.
+        /// </summary>
+        internal static bool IsMaskTarget(in MaskPartData md, bool inheritedMaskInfluence)
+            => (md.MaskInfluence && inheritedMaskInfluence) || md.MaskWrite;
+
+        /// <summary>
+        /// A part's effective polarity: draw inside the mask (true) or outside it (false).
+        /// visibleInsideMask accumulates with OR down the instance chain, so once any level asks for
+        /// "inside", every part below it draws inside.
+        /// </summary>
+        internal static bool IsDrawnInsideMask(in MaskPartData md, bool inheritedVisibleInsideMask)
+            => md.VisibleInsideMask || inheritedVisibleInsideMask;
+
+        /// <summary>
+        /// Compose the context an instance part hands to the player it draws. Each level passes on what
+        /// it has already composed, so nesting chains without any extra bookkeeping - and because
+        /// maskInfluence chains with AND, once it reaches false it can never return to true, leaving
+        /// "not masked" decided for the whole subtree.
+        /// </summary>
+        internal static void ComposeInheritedContext(in MaskPartData instancePart,
+            bool inheritedMaskInfluence, bool inheritedVisibleInsideMask,
+            out bool childMasked, out bool childMaskInfluence, out bool childVisibleInsideMask)
+        {
+            childMaskInfluence = inheritedMaskInfluence && instancePart.MaskInfluence;
+            childVisibleInsideMask = IsDrawnInsideMask(instancePart, inheritedVisibleInsideMask);
+            childMasked = IsMaskTarget(instancePart, inheritedMaskInfluence);
+        }
 
         /// <summary>
         /// Suppress SpriteStudio internal masking for this player and (recursively) its instance
