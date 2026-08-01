@@ -25,6 +25,16 @@ Text and 9-slice parts still occupy their place in the draw order, so an animati
 
 If you need complex blends, multiple atlases, or the full set of extended blend types, use the world path (`SpriteStudioPlayer`).
 
+## Masking / Clipping
+
+Of the stencil buffer, this plugin uses only the low 4 bits — the range URP leaves to users (the rest carry light shapes and material types, and writing into them breaks rendering). Those 4 bits are split in two by whether a mask has "mask influence" set, which puts a ceiling on how many of one kind may overlap.
+
+> [!NOTE]
+> - **Masks with "mask influence" OFF stack up to 7 deep over one pixel.** An eighth overlapping mask wraps that pixel's count around, and the mask appears to drop out there.
+> - **Masks with "mask influence" ON have no such limit**, because they are resolved by inversion (odd/even) instead of counting.
+>
+> The ceiling is only reachable when eight or more mask-influence-off masks overlap the same pixel within the same draw scope. Ordinary animations do not reach it. If yours does, merge the masks or revisit their "mask influence" settings.
+
 ## Editor & Import
 
 > [!WARNING]
