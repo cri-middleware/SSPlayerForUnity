@@ -692,6 +692,11 @@ internal struct MaskPartData
         /// (1/PPU) * draw_m. Column-major; the draw matrix already folds in inherited Scale and the part's
         /// own localScale (callers that want to ignore localScale divide it out from the extracted scale).
         /// Returns false if the handle is invalid or the index is out of range.
+        /// <para>
+        /// The basis may be a reflection (negative determinant) — from the root transform's flip, or from a
+        /// negative scale on the part or its parents. Callers must not extract a rotation or a scale from it
+        /// without making the basis proper first; a quaternion cannot hold a reflection.
+        /// </para>
         /// </summary>
         public bool TryGetPartLocalMatrix(int partIndex, out Matrix4x4 matrix)
         {

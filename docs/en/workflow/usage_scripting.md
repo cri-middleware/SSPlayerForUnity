@@ -103,7 +103,8 @@ _player.FlipX = _velocity.x < 0f;
 
 Registered part trackers follow the mirrored pose, so an object pinned to a part stays pinned across a flip.
 A mirror is not a rotation, though, so the mirroring itself reaches the tracked object only when its
-`driveScale` is on (it arrives as a negative scale); position and rotation are exact either way.
+`driveScale` is on (it arrives as a negative scale); position is exact either way, but orientation comes
+with caveats — see "What mirroring costs you".
 
 `SpriteStudioGraphic` (uGUI) does not expose these yet.
 
@@ -285,6 +286,19 @@ player.UnregisterPartTracker(weapon.transform);
 | `TryGetPartLocalMatrix(partName, out Matrix4x4 matrix)` | The part's transform for the current frame (player-local, with `1 / PixelsPerUnit` already folded in) |
 
 > When you only need the part's position at a single moment (a projectile spawn point, for example) rather than continuous following, calling `TryGetPartLocalMatrix()` directly is simpler than registering a tracker.
+
+### What mirroring costs you
+
+Once a part's pose is **mirrored**, part of it stops fitting into a `Transform`. This happens with `FlipX` / `FlipY`, and equally when a part or one of its ancestors carries a negative scale authored in SpriteStudio. It is not a workaround away — it is what a `Transform` can and cannot hold — so design around it.
+
+**Position is always exact.** What suffers is orientation, and whether the target is mirrored at all.
+
+- **Do not read `matrix.rotation` or `matrix.lossyScale` off what `TryGetPartLocalMatrix()` returns.** A `Quaternion` cannot represent a mirrored pose, so both are **undefined** there — the values are meaningless, not merely imprecise. Check the sign of `matrix.determinant` first. If you only want the position, column 3 is fine as it is.
+- **Never assume that sign.** Whether a pose is mirrored is the *product* of any mirroring authored on the part or its ancestors and the player's `FlipX` / `FlipY`. Two mirrorings cancel, so a part that is already mirrored comes back with a **positive** determinant once you flip the player. Neither "no flip, so it is positive" nor "flipped, so it is negative" holds. Check every time.
+- **A target with `Drive Scale` off (the default) never receives the mirroring**, because a mirror can only be expressed as a negative scale. The target itself stays unmirrored, and **`FlipX` additionally leaves its orientation 180 degrees away**; `FlipY` does not. The two axes differ because the decomposition into rotation plus negative scale puts the sign on the Y axis: expressing a horizontal mirror that way costs an extra 180-degree rotation, and that is what survives in the rotation.
+- **Turning `Drive Scale` on delivers the mirroring, but a negative scale has side effects in Unity.** Colliders in particular **do not honour negative scale** (a PhysX limitation), so the artwork mirrors while the hitbox stays as it was, silently. Particles and 3D mesh children are affected too, through simulation space and face winding.
+
+For hitboxes, the reliable options are to **keep the collider shape symmetric** — position alone is exact, so nothing else matters — or to **handle mirroring in your own game code**.
 
 ### Timing and Accuracy
 
