@@ -669,8 +669,16 @@ namespace SpriteStudio.Runtime
 
         private void BuildEditPreview()
         {
-            if (_core.Internal == null || _animeAsset == null || string.IsNullOrEmpty(_animationName)) return;
-            if (!_core.Internal.SetupAnimation(_animationName)) return;
+            if (_core.Internal == null || _animeAsset == null) return;
+            // With no animation chosen yet, preview the asset's first one so a player that was placed
+            // without a name is visible instead of silently drawing nothing. Deliberately not written back
+            // to _animationName: this is a preview convenience, not a scene edit, so nothing is serialized
+            // and Play mode keeps honouring the empty name.
+            string previewAnimation = string.IsNullOrEmpty(_animationName)
+                ? _core.Internal.GetAnimationName(0)
+                : _animationName;
+            if (string.IsNullOrEmpty(previewAnimation)) return;
+            if (!_core.Internal.SetupAnimation(previewAnimation)) return;
             // Pin to the start frame and synchronously build just one frame without advancing (ScheduleMeshUpdate is advance=false).
             _core.Internal.SetFrame(_core.Internal.GetAnimationSectionStart());
             _core.Internal.ScheduleMeshUpdate(0f);

@@ -117,6 +117,19 @@ var hoverTarget = EditorUtility.EntityIdToObject(instanceID) as GameObject;
             menu.ShowAsContext();
         }
 
+        /// <summary>
+        /// The animation a newly placed object starts on: the asset's first. Placement has to select one,
+        /// because with the name left empty every draw path (Start / the edit-mode preview) early-returns
+        /// and the object stays invisible until the inspector's dropdown happens to fill it in. Mirrors
+        /// what Assets > SpriteStudio > Instantiate Player already does. Null when the asset lists none.
+        /// </summary>
+        private static string GetDefaultAnimationName(SpriteStudioAnimeAsset asset)
+        {
+            return (asset.AnimationNames != null && asset.AnimationNames.Length > 0)
+                ? asset.AnimationNames[0]
+                : null;
+        }
+
         private static void InstantiatePlayers(List<SpriteStudioAnimeAsset> assets, GameObject parent, Vector3? spawnPosition, bool isUI)
         {
             var createdObjects = new List<GameObject>();
@@ -172,7 +185,9 @@ var eventSystem = UnityEngine.Object.FindFirstObjectByType<UnityEngine.EventSyst
 
                     var graphic = go.AddComponent<SpriteStudioGraphic>();
                     graphic.AnimeAsset = asset;
-                    
+                    string uiAnimation = GetDefaultAnimationName(asset);
+                    if (uiAnimation != null) graphic.AnimationName = uiAnimation;
+
                     var rectTransform = go.GetComponent<RectTransform>();
                     if (spawnPosition.HasValue && parent == null)
                     {
@@ -186,7 +201,9 @@ var eventSystem = UnityEngine.Object.FindFirstObjectByType<UnityEngine.EventSyst
                     // Regular SpriteStudioPlayer
                     var player = go.AddComponent<SpriteStudioPlayer>();
                     player.AnimeAsset = asset;
-                    
+                    string worldAnimation = GetDefaultAnimationName(asset);
+                    if (worldAnimation != null) player.AnimationName = worldAnimation;
+
                     if (spawnPosition.HasValue && parent == null)
                     {
                         go.transform.position = spawnPosition.Value;
