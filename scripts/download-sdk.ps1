@@ -95,7 +95,7 @@ try {
 
     Write-Host "Placing ssruntime into Runtime/Plugins (iOS/WebGL static, others dynamic)..."
     Copy-Sdk "$dynamic/libs/macos/ssruntime.bundle"              "$runtimePlugins/macOS"
-    Copy-Sdk "$dynamic/libs/windows/x86_64/ssruntime.dll"        "$runtimePlugins/Windows/x86_64"
+    Copy-Sdk "$dynamic/libs/windows/x64/ssruntime.dll"        "$runtimePlugins/Windows/x86_64"
     Copy-Sdk "$dynamic/libs/linux/x86_64/libssruntime.so"        "$runtimePlugins/Linux/x86_64"
     Copy-Sdk "$dynamic/libs/android/arm64-v8a/libssruntime.so"   "$runtimePlugins/Android/arm64-v8a"
     Copy-Sdk "$dynamic/libs/android/armeabi-v7a/libssruntime.so" "$runtimePlugins/Android/armeabi-v7a"
@@ -105,7 +105,7 @@ try {
 
     Write-Host "Placing ssconverter into Editor/Plugins (win/mac, dynamic only)..."
     Copy-Sdk "$dynamic/libs/macos/libssconverter.dylib"          "$editorPlugins/macOS"
-    Copy-Sdk "$dynamic/libs/windows/x86_64/ssconverter.dll"      "$editorPlugins/Windows/x86_64"
+    Copy-Sdk "$dynamic/libs/windows/x64/ssconverter.dll"      "$editorPlugins/Windows/x86_64"
 
     # csbindgen C# FFI bindings (platform-independent). These .g.cs are gitignored
     # and are what lets the package compile against the native libs, so a no-build

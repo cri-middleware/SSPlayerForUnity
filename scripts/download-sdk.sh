@@ -96,7 +96,7 @@ copy() {
 
 echo "Placing ssruntime into Runtime/Plugins (iOS/WebGL static, others dynamic)..."
 copy "${DYNAMIC}/libs/macos/ssruntime.bundle"            "${RUNTIME_PLUGINS}/macOS"
-copy "${DYNAMIC}/libs/windows/x86_64/ssruntime.dll"          "${RUNTIME_PLUGINS}/Windows/x86_64"
+copy "${DYNAMIC}/libs/windows/x64/ssruntime.dll"          "${RUNTIME_PLUGINS}/Windows/x86_64"
 copy "${DYNAMIC}/libs/linux/x86_64/libssruntime.so"          "${RUNTIME_PLUGINS}/Linux/x86_64"
 copy "${DYNAMIC}/libs/android/arm64-v8a/libssruntime.so"     "${RUNTIME_PLUGINS}/Android/arm64-v8a"
 copy "${DYNAMIC}/libs/android/armeabi-v7a/libssruntime.so"   "${RUNTIME_PLUGINS}/Android/armeabi-v7a"
@@ -106,7 +106,7 @@ copy "${STATIC}/libs/web/libssruntime.a"                     "${RUNTIME_PLUGINS}
 
 echo "Placing ssconverter into Editor/Plugins (win/mac, dynamic only)..."
 copy "${DYNAMIC}/libs/macos/libssconverter.dylib"            "${EDITOR_PLUGINS}/macOS"
-copy "${DYNAMIC}/libs/windows/x86_64/ssconverter.dll"        "${EDITOR_PLUGINS}/Windows/x86_64"
+copy "${DYNAMIC}/libs/windows/x64/ssconverter.dll"        "${EDITOR_PLUGINS}/Windows/x86_64"
 
 # csbindgen C# FFI bindings (platform-independent). These .g.cs are gitignored
 # and are what lets the package compile against the native libs, so a no-build
