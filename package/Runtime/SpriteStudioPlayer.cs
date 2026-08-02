@@ -831,6 +831,27 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>Player-local matrix (1/PPU folded) of the named part for the current frame. False if unknown.</summary>
+        /// <remarks>
+        /// This is a general affine basis and may be a reflection, i.e. have a negative determinant.
+        /// <see cref="FlipX"/> / <see cref="FlipY"/> mirror it, and so does a negative scale authored on the
+        /// part or inherited from its parents (the draw matrix folds both in). They compose, so two
+        /// mirrorings cancel: an already-mirrored part comes back with a positive determinant once the
+        /// player is flipped. Never assume the sign from the flip settings alone.
+        /// <para>
+        /// A reflection is not a rotation, and a quaternion cannot represent one, so <c>matrix.rotation</c>
+        /// and <c>matrix.lossyScale</c> are undefined whenever <c>matrix.determinant</c> is negative —
+        /// reading them there yields garbage rather than a wrong-but-meaningful value. Always check the
+        /// determinant first. The translation (column 3) is exact either way.
+        /// </para>
+        /// <para>
+        /// To recover an orientation, make the basis proper first — negate one column — and carry the
+        /// reflection separately, as a negative scale for instance. That is what part tracking does. Since
+        /// the sign goes on the Y axis, a target driven with <c>driveScale</c> off is never mirrored itself
+        /// and, under <see cref="FlipX"/> only, its orientation also lands 180 degrees away: expressing a
+        /// horizontal mirror as a negative Y scale costs an extra half turn, and that is what remains in
+        /// the rotation once the scale is dropped.
+        /// </para>
+        /// </remarks>
         public bool TryGetPartLocalMatrix(string partName, out Matrix4x4 matrix)
         {
             matrix = Matrix4x4.identity;
