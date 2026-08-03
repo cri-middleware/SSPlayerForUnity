@@ -476,7 +476,13 @@ namespace SpriteStudio.Runtime
             if (_core.Internal == null || !_core.Internal.HasSsab) return;
             if (_editPreviewNeedsSetup)
             {
-                if (string.IsNullOrEmpty(_animationName) || !_core.Internal.SetupAnimation(_animationName)) return;
+                // Same fallback as the world player's edit preview: with no animation chosen yet, preview
+                // the asset's first one so a graphic placed without a name is visible. Not written back to
+                // _animationName, so nothing is serialized and Play mode still honours the empty name.
+                string previewAnimation = string.IsNullOrEmpty(_animationName)
+                    ? _core.Internal.GetAnimationName(0)
+                    : _animationName;
+                if (string.IsNullOrEmpty(previewAnimation) || !_core.Internal.SetupAnimation(previewAnimation)) return;
                 _core.Internal.SetFrame(_core.Internal.GetAnimationSectionStart());
                 _editPreviewNeedsSetup = false;
             }

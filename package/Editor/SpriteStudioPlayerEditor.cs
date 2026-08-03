@@ -124,7 +124,11 @@ namespace SpriteStudio.Editor
             int currentIndex = Mathf.Max(0, System.Array.IndexOf(asset.AnimationNames, currentName));
 
             int newIndex = EditorGUILayout.Popup("Animation Name", currentIndex, asset.AnimationNames);
-            if (newIndex >= 0 && newIndex < asset.AnimationNames.Length)
+            // Write only when the stored value differs from what the popup shows: an unconditional write
+            // re-marks the scene modified on every repaint. An unset name still differs from the entry the
+            // popup falls back to, so a player that reaches the inspector without one is still filled in.
+            if (newIndex >= 0 && newIndex < asset.AnimationNames.Length
+                && _animationNameProp.stringValue != asset.AnimationNames[newIndex])
             {
                 _animationNameProp.stringValue = asset.AnimationNames[newIndex];
             }
