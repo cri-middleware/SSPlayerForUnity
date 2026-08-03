@@ -1,4 +1,4 @@
-# SpriteStudioPlayer for Unity — ドキュメント
+# 🎮 SpriteStudioPlayer for Unity — ドキュメント
 
 [OPTPiX SpriteStudio 7](https://www.webtech.co.jp/spritestudio/) で作成したアニメーションを [Unity](https://unity.com/) 上で再生するためのハイパフォーマンスなプラグインです。
 再生処理は [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) が提供する共通の Rust コア `libssruntime` を介して行い、Unity の Job System と組み合わせることで極限のパフォーマンスを実現します。

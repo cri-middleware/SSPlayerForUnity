@@ -1,4 +1,4 @@
-# Script Control and Events
+# 📝 Script Control and Events
 
 [← Back to documentation index](../index.md)
 
