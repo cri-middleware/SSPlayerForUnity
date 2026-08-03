@@ -1,4 +1,4 @@
-# Build Guide (for Developers)
+# 🛠️ Build Guide (for Developers)
 
 [← Back to documentation index](../index.md)
 

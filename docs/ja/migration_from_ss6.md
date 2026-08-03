@@ -1,4 +1,4 @@
-# SS6Player for Unity からのマイグレーション
+# 🔄 SS6Player for Unity からのマイグレーション
 
 [← ドキュメント目次へ戻る](./index.md)
 

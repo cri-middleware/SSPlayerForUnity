@@ -1,4 +1,4 @@
-# Performance Tuning and Advanced Settings
+# ⚡ Performance Tuning and Advanced Settings
 
 [← Back to documentation index](../index.md)
 

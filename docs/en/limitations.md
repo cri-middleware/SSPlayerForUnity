@@ -1,4 +1,4 @@
-# Limitations & Scope
+# ⚠️ Limitations & Scope
 
 Constraints and caveats to be aware of when shipping with the current SpriteStudioPlayer for Unity. For what *is* supported, see [Key Features](./index.md#key-features) and the workflow guides.
 
