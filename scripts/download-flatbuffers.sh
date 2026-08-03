@@ -18,8 +18,10 @@ echo "Extracting C# runtime..."
 unzip -o -q "${TEMP_DIR}/flatbuffers.zip" -d "${TEMP_DIR}"
 
 /bin/mkdir -p "${OUTPUT_DIR}"
-# Clean up: remove any stale files
-rm -rf "${OUTPUT_DIR:?}"/*
+# ${OUTPUT_DIR} is a verbatim mirror of upstream net/FlatBuffers: never put project code
+# here, it would be wiped below. Only the .cs files are refreshed - the .meta files stay
+# so Unity keeps the same asset GUIDs across updates.
+rm -f "${OUTPUT_DIR:?}"/*.cs
 
 # Copy only the C# source into the package
 cp -r "${TEMP_DIR}/flatbuffers-${VERSION}/net/FlatBuffers/"*.cs "${OUTPUT_DIR}/"
