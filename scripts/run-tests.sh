@@ -40,6 +40,39 @@ echo "Unity Version: $UNITY_VERSION"
 echo "Log file: $LOG_FILE"
 echo "---------------------------------------------------------"
 
+# The .ssab fixtures under package/Tests/Runtime/Resources/ are build artifacts converted from the
+# SpriteStudio-SDK sources, not committed files. Only three test classes know how to produce them (their
+# [UnitySetUp] drives the converter); every other class just asserts "Ringo.ssab is required". NUnit runs
+# the consumers first, so on a clean tree the suites below fail long before anything gets generated.
+# Convert the fixtures up front so EditMode / PlayMode / Player all start from a warm tree.
+FIXTURE_DIR="package/Tests/Runtime/Resources"
+FIXTURE_FILES="$FIXTURE_DIR/Ringo/Ringo.ssab $FIXTURE_DIR/Ringo/Ringo_tyu.ssab $FIXTURE_DIR/Sound/Sound.ssab $FIXTURE_DIR/overall/Mask.ssab"
+FIXTURE_TESTS="SpriteStudio.Runtime.Tests.SpriteStudioRingoPlaybackTests;SpriteStudio.Runtime.Tests.SpriteStudioAudioEventTests;SpriteStudio.Runtime.Tests.SpriteStudioClippingMaskTests"
+
+MISSING_FIXTURES=""
+for fixture in $FIXTURE_FILES; do
+    [ -f "$fixture" ] || MISSING_FIXTURES="$MISSING_FIXTURES $fixture"
+done
+
+if [ -n "$MISSING_FIXTURES" ]; then
+    echo "Generating test fixtures from the SpriteStudio-SDK sources..."
+    # The generators are themselves tests, and they fail while the fixture they build is still missing.
+    # Ignore this pass's exit code: the real suites below are what report pass/fail.
+    "$UNITY_PATH" -batchmode -runTests -projectPath "$PROJECT_PATH" -testPlatform playmode -testResults "fixtures-$RESULTS_FILE" -logFile "fixtures-$LOG_FILE" -assemblyNames "SpriteStudio.Runtime.Tests" -testFilter "$FIXTURE_TESTS" || true
+
+    STILL_MISSING=""
+    for fixture in $FIXTURE_FILES; do
+        [ -f "$fixture" ] || STILL_MISSING="$STILL_MISSING $fixture"
+    done
+    if [ -n "$STILL_MISSING" ]; then
+        echo "Warning: these fixtures could not be generated:$STILL_MISSING"
+        echo "         Conversion needs the SpriteStudio-SDK submodule ('git submodule update --init')."
+        echo "         See fixtures-$LOG_FILE. Continuing; the suites below will report the failures."
+    fi
+else
+    echo "Test fixtures already present; skipping the conversion pass."
+fi
+
 echo "Running EditMode Tests..."
 "$UNITY_PATH" -batchmode -runTests -projectPath "$PROJECT_PATH" -testPlatform editmode -testResults "editmode-$RESULTS_FILE" -logFile "editmode-$LOG_FILE" -assemblyNames "SpriteStudio.Runtime.Tests;SpriteStudio.Runtime.EditModeTests;SpriteStudio.Editor.Tests" || {
     echo "EditMode Tests failed! See editmode-$LOG_FILE for details."
