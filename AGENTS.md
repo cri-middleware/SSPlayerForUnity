@@ -36,10 +36,21 @@ uploaded to a `Mesh` via `SetVertexBufferData` (zero-allocation). `.sspj` projec
 *   **Update-loop consistency:** components are batch-updated by `SpriteStudioUpdateManager`. Iterate the snapshotted `_tickCount`, not the live list, so dynamic instantiate/destroy cannot cause a `NullReferenceException`.
 *   **Testing:** when changing core logic or the geometry builder, keep the tests in `package/Tests/` green.
 
+## Documentation site
+
+Folder-based i18n (`mkdocs-static-i18n`, `docs_structure: folder`): every page exists as both `docs/en/<path>` and `docs/ja/<path>`, and `nav` is defined once in `mkdocs.yml` with Japanese labels coming from `nav_translations`. Three things do **not** follow that "everything twice" rule — check before duplicating:
+
+*   **`overrides/main.html`** (`theme.custom_dir`) emits the Open Graph / Twitter Card tags Material omits. **One template serves both locales**: the i18n plugin substitutes `languages.ja.site_description` before rendering, so Japanese cards need no second copy. Localize by adding a per-locale config override, never by branching in the template. Keep the file in sync with the copies in SpriteStudio-Docs and the sibling player repos.
+*   **Footer social icons are defined twice** — `extra.social` and the `ja` block's `extra` override, which *replaces* the whole `social` list rather than merging into it. Add or reorder an icon in both, or Japanese readers lose it. Keep `twitter:site` in `overrides/main.html` in sync with the X link.
+*   **There is deliberately no `edit_uri`**, so no "edit this page" button renders. It used to point at `main` while the default branch is `develop`; nothing validates the value, and the footer repo link already routes corrections. Do not reintroduce it without checking the branch.
+
+`mkdocs.yml` sets `strict: true`, so a plain `build` (and `serve`) fails on a broken link or nav mismatch. Nothing builds the docs on a pull request — `pages.yml` runs on `release: published` and dispatch — so the local build is the only gate.
+
 ## Verification
 
 | Task | Command |
 |---|---|
+| Build the docs site | `.venv/bin/mkdocs build --strict` (set up: `python3 -m venv .venv && .venv/bin/python -m pip install -r docs/requirements.txt`) |
 | Build runtime + FFI bindings | `./scripts/build-runtime.sh` (POSIX) · `.\scripts\build-runtime.ps1` (Windows) |
 | Fetch prebuilt SDK libs | `./scripts/download-sdk.sh` |
 | Set up FlatBuffers C# source | `./scripts/download-flatbuffers.sh` |
