@@ -21,7 +21,7 @@
 最も簡単で確実な方法です。GitHub Releases で配布されているコンパイル済みの Unity パッケージを利用します。
 
 1. パッケージの tarball をダウンロードします。下記の恒久リンクは常に最新リリースを指します。
-   - [`jp.co.cri-mw.optpix.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.optpix.ssplayer-unity.tgz)
+   - [`jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz)
    - 特定バージョンを選びたい場合は、[GitHub Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) ページから `.tgz` アセットをダウンロードしてください。
 2. Unity メニューから **Window > Package Manager** を開きます。
 3. 左上の **＋** ボタンから **Add package from tarball...** を選び、ダウンロードしたファイルを選択します。

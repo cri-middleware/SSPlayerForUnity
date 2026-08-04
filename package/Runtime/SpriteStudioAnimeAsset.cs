@@ -7,7 +7,7 @@ namespace SpriteStudio.Runtime
     /// The final artifact of the import process, a ScriptableObject.
     /// Holds the .ssab byte array and manages hard references to textures and the like.
     /// </summary>
-    [UnityEngine.Icon("Packages/jp.co.cri-mw.optpix.ssplayer-unity/Editor/Icons/ssab_icon.png")]
+    [UnityEngine.Icon("Packages/jp.co.cri-mw.spritestudio.ssplayer-unity/Editor/Icons/ssab_icon.png")]
     public class SpriteStudioAnimeAsset : ScriptableObject
     {
         [Tooltip("Converted .ssab binary data")]

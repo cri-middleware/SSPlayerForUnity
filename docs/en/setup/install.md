@@ -21,7 +21,7 @@ All dependent packages are standard Unity packages, so Package Manager resolves 
 This is the easiest and most reliable method. It uses the precompiled Unity package distributed on GitHub Releases.
 
 1. Download the package tarball. The stable link below always points to the latest release:
-   - [`jp.co.cri-mw.optpix.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.optpix.ssplayer-unity.tgz)
+   - [`jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz)
    - To pick a specific version instead, download the `.tgz` asset from the [GitHub Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) page.
 2. Open **Window > Package Manager** from the Unity menu.
 3. Click the **＋** button in the top left, select **Add package from tarball...**, and choose the downloaded file.
