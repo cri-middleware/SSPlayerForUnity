@@ -4,13 +4,29 @@ site_author: "CRI Middleware Co., Ltd."
 site_url: "https://cri-middleware.github.io/SSPlayerForUnity/"
 repo_name: "cri-middleware/SSPlayerForUnity"
 repo_url: "https://github.com/cri-middleware/SSPlayerForUnity"
-edit_uri: "edit/main/docs/"
+# No `edit_uri`, so Material renders no "edit this page" button. It pointed at `main` while
+# the default branch is `develop` (86 commits ahead, 24 differing files under docs/), so the
+# pencil would have opened a stale copy of the page and targeted the wrong branch. Nothing
+# validates the value - `--strict` does not look at it - and the footer repo link plus
+# CONTRIBUTING.md already route corrections. Deleted rather than left inert.
 # Rendered in the site footer. Deliberately year-less so it never goes stale.
 copyright: "Copyright &copy; CRI Middleware Co., Ltd."
+
+# Nothing builds the docs on a pull request - pages.yml runs on `release: published` and
+# dispatch - so the local build is the only gate, and a plain `build`/`serve` should fail on
+# a broken link too rather than depend on remembering `--strict`.
+strict: true
 
 theme:
   name: material
   language: en
+  # Only overrides/main.html lives here: it appends the Open Graph / Twitter Card metadata
+  # that Material does not emit on its own.
+  custom_dir: overrides
+  # Matches the Unity card on the SpriteStudio-Docs landing page. A bundled Material icon,
+  # so it needs no image file; there is no SpriteStudio artwork to use as a favicon yet.
+  icon:
+    logo: material/unity
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
@@ -30,6 +46,13 @@ theme:
     - navigation.tabs
     - navigation.sections
     - navigation.expand
+    - navigation.top
+    - navigation.tracking
+    # Previous / next links in the footer, so the guides can be read in order.
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
     - content.code.copy
 
 plugins:
@@ -45,6 +68,9 @@ plugins:
         - locale: ja
           name: 日本語
           build: true
+          # Feeds <meta name="description"> and the Open Graph tags on every ja page;
+          # without it they inherit the top-level English site_description.
+          site_description: "SpriteStudio 7 のアニメーションを Unity Engine で再生するプラグイン"
           extra:
             # Footer icon labels (title / aria-label). Mirrors the `extra.social` list below.
             social:
@@ -54,6 +80,9 @@ plugins:
               - icon: material/web
                 link: https://www.webtech.co.jp/spritestudio/
                 name: OPTPiX SpriteStudio
+              - icon: fontawesome/brands/x-twitter
+                link: https://x.com/spritestudio
+                name: X の SpriteStudio
           # Japanese nav labels. Keys must match the `nav:` titles below *exactly*,
           # emoji included - a mismatched key silently leaves the English label.
           nav_translations:
@@ -123,6 +152,10 @@ extra:
     - icon: material/web
       link: https://www.webtech.co.jp/spritestudio/
       name: OPTPiX SpriteStudio
+    # Keep the handle here in sync with `twitter:site` in overrides/main.html.
+    - icon: fontawesome/brands/x-twitter
+      link: https://x.com/spritestudio
+      name: SpriteStudio on X
   alternate:
     - name: English
       link: ./
