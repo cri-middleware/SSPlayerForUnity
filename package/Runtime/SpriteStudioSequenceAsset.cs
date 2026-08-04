@@ -11,7 +11,7 @@ namespace SpriteStudio.Runtime
     /// Runtime sequence playback (automatic chaining / repetition of animations) is not implemented here.
     /// This asset only takes it as far as "Unity can recognize and reference the .ssqb as data".
     /// </summary>
-    [UnityEngine.Icon("Packages/jp.co.cri-mw.optpix.ssplayer-unity/Editor/Icons/ssqb_icon.png")]
+    [UnityEngine.Icon("Packages/jp.co.cri-mw.spritestudio.ssplayer-unity/Editor/Icons/ssqb_icon.png")]
     public class SpriteStudioSequenceAsset : ScriptableObject
     {
         [Tooltip("Converted .ssqb binary data")]

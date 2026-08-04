@@ -117,7 +117,7 @@
         "com.unity.modules.imgui": "1.0.0"
       }
     },
-    "jp.co.cri-mw.optpix.ssplayer-unity": {
+    "jp.co.cri-mw.spritestudio.ssplayer-unity": {
       "version": "file:../../../package",
       "depth": 0,
       "source": "local",
