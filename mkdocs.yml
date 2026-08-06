@@ -1,108 +1,41 @@
-site_name: SpriteStudioPlayer for Unity
-site_description: "A Unity Engine integration for SpriteStudio 7"
-site_author: "CRI Middleware Co., Ltd."
-site_url: "https://cri-middleware.github.io/SSPlayerForUnity/"
-repo_name: "cri-middleware/SSPlayerForUnity"
-repo_url: "https://github.com/cri-middleware/SSPlayerForUnity"
-# No `edit_uri`, so Material renders no "edit this page" button. It pointed at `main` while
-# the default branch is `develop` (86 commits ahead, 24 differing files under docs/), so the
-# pencil would have opened a stale copy of the page and targeted the wrong branch. Nothing
-# validates the value - `--strict` does not look at it - and the footer repo link plus
-# CONTRIBUTING.md already route corrections. Deleted rather than left inert.
-# Rendered in the site footer. Deliberately year-less so it never goes stale.
-copyright: "Copyright &copy; CRI Middleware Co., Ltd."
+# English site -- the default locale, so it builds to the site root and keeps the plain
+# `mkdocs.yml` name that the tooling looks for when no `-f` is given.
+#
+# Everything not listed here comes from mkdocs.base.yml. Before adding anything, read the
+# note there about sequences: `nav` and `extra.social` are defined in this file and in
+# mkdocs.ja.yml, and must never also appear in the base.
+INHERIT: ./mkdocs.base.yml
 
-# Nothing builds the docs on a pull request - pages.yml runs on `release: published` and
-# dispatch - so the local build is the only gate, and a plain `build`/`serve` should fail on
-# a broken link too rather than depend on remembering `--strict`.
-strict: true
+docs_dir: docs/en
+site_dir: site
+site_url: "https://cri-middleware.github.io/SSPlayerForUnity/"
+site_description: "A Unity Engine integration for SpriteStudio 7"
 
 theme:
-  name: material
+  # Drives the UI string translations and the `html lang` attribute.
   language: en
-  # Only overrides/main.html lives here: it appends the Open Graph / Twitter Card metadata
-  # that Material does not emit on its own.
-  custom_dir: overrides
-  # Matches the Unity card on the SpriteStudio-Docs landing page. A bundled Material icon,
-  # so it needs no image file; there is no SpriteStudio artwork to use as a favicon yet.
-  icon:
-    logo: material/unity
-  palette:
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      primary: blue grey
-      accent: indigo
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      primary: blue grey
-      accent: indigo
-      toggle:
-        icon: material/brightness-4
-        name: Switch to light mode
-  features:
-    - navigation.tabs
-    - navigation.sections
-    - navigation.expand
-    - navigation.top
-    - navigation.tracking
-    # Previous / next links in the footer, so the guides can be read in order.
-    - navigation.footer
-    - toc.follow
-    - search.suggest
-    - search.highlight
-    - content.code.copy
 
-plugins:
-  - search
-  - callouts
-  - i18n:
-      docs_structure: folder
-      languages:
-        - locale: en
-          name: English
-          default: true
-          build: true
-        - locale: ja
-          name: 日本語
-          build: true
-          # Feeds <meta name="description"> and the Open Graph tags on every ja page;
-          # without it they inherit the top-level English site_description.
-          site_description: "SpriteStudio 7 のアニメーションを Unity Engine で再生するプラグイン"
-          extra:
-            # Footer icon labels (title / aria-label). Mirrors the `extra.social` list below.
-            social:
-              - icon: fontawesome/brands/github
-                link: https://github.com/cri-middleware
-                name: GitHub の cri-middleware
-              - icon: material/web
-                link: https://www.webtech.co.jp/spritestudio/
-                name: OPTPiX SpriteStudio
-              - icon: fontawesome/brands/x-twitter
-                link: https://x.com/spritestudio
-                name: X の SpriteStudio
-          # Japanese nav labels. Keys must match the `nav:` titles below *exactly*,
-          # emoji included - a mismatched key silently leaves the English label.
-          nav_translations:
-            🏠 Home: 🏠 ホーム
-            👤 For Users: 👤 利用者向けガイド
-            Installation: インストール
-            Basic Usage: 基本的な使い方
-            Migration from SS6Player: SS6Player からのマイグレーション
-            Asset Import & Editor Integration: アセットのインポートとエディタ連携
-            Scripting & Events: スクリプト制御とイベント
-            Performance Tuning & Advanced Settings: パフォーマンスチューニングと高度な設定
-            ⚙️ Customization & Automation: ⚙️ カスタマイズ・自動化ガイド
-            CLI Conversion & CI/CD: 各種コンバート機能と CI/CD
-            ⚠️ Limitations & Scope: ⚠️ 制約と適用範囲
-            🛠️ For Player & SDK Developers: 🛠️ Player・SDK 開発者向けガイド
-            Build Guide: ビルドガイド
-            ⚖️ License: ⚖️ ライセンス
-            License: ライセンス
-            Third-Party Notices: サードパーティライセンス
+extra:
+  # English builds to the site root, so the root of the whole multi-locale site is right
+  # here. The language selector prepends this to its target; see
+  # overrides/partials/alternate.html.
+  site_root_prefix: ""
+  # Footer icons. Keep to destinations that outlive any single release. Mirrored, with
+  # translated labels, in mkdocs.ja.yml - add or reorder an icon in both files.
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/cri-middleware
+      name: cri-middleware on GitHub
+    - icon: material/web
+      link: https://www.webtech.co.jp/spritestudio/
+      name: OPTPiX SpriteStudio
+    # Keep the handle here in sync with `twitter:site` in overrides/main.html.
+    - icon: fontawesome/brands/x-twitter
+      link: https://x.com/spritestudio
+      name: SpriteStudio on X
 
+# Paths are locale-relative and identical to the ones in mkdocs.ja.yml; only the labels
+# differ. When you add, move, or rename a page, edit both files.
 nav:
   - 🏠 Home: index.md
   - 👤 For Users:
@@ -120,46 +53,3 @@ nav:
   - ⚖️ License:
       - License: license.md
       - Third-Party Notices: third_party_notices.md
-
-markdown_extensions:
-  - toc:
-      slugify: !!python/object/apply:pymdownx.slugs.slugify
-        kwds:
-          case: lower
-  - admonition
-  - pymdownx.details
-  - pymdownx.superfences:
-      custom_fences:
-        - name: mermaid
-          class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
-  - pymdownx.highlight:
-      anchor_linenums: true
-      line_spans: __span
-      pygments_lang_class: true
-  - pymdownx.inlinehilite
-  - pymdownx.snippets:
-      base_path:
-        - .
-      check_paths: true
-
-extra:
-  # Footer icons. Keep to destinations that outlive any single release.
-  social:
-    - icon: fontawesome/brands/github
-      link: https://github.com/cri-middleware
-      name: cri-middleware on GitHub
-    - icon: material/web
-      link: https://www.webtech.co.jp/spritestudio/
-      name: OPTPiX SpriteStudio
-    # Keep the handle here in sync with `twitter:site` in overrides/main.html.
-    - icon: fontawesome/brands/x-twitter
-      link: https://x.com/spritestudio
-      name: SpriteStudio on X
-  alternate:
-    - name: English
-      link: ./
-      lang: en
-    - name: 日本語
-      link: ./ja/
-      lang: ja

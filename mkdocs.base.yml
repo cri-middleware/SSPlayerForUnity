@@ -1,0 +1,125 @@
+# Settings shared by every locale. `mkdocs.yml` (English) and `mkdocs.ja.yml` both start
+# with `INHERIT: ./mkdocs.base.yml` and add only what differs between them.
+#
+# This file is never built directly -- it has no `docs_dir` and no `nav`. It is named
+# `mkdocs.base.yml` rather than `mkdocs.yml` precisely so that a bare `zensical build`
+# picks up the English locale config instead of this one.
+#
+# IMPORTANT -- the rule that shapes this split: **every YAML sequence must be defined in
+# exactly one of the three files.** Zensical's `INHERIT` *concatenates* sequences from
+# parent and child, where MkDocs replaces them. Put `nav` here as well as in a locale file
+# and the Japanese site renders the English navigation followed by the Japanese one; do the
+# same with `extra.social` and the footer grows six icons. Mappings deep-merge in both
+# tools, so scalars like `theme.language` are safe to override.
+
+site_name: SpriteStudioPlayer for Unity
+site_author: "CRI Middleware Co., Ltd."
+repo_name: "cri-middleware/SSPlayerForUnity"
+repo_url: "https://github.com/cri-middleware/SSPlayerForUnity"
+# No `edit_uri`, so no "edit this page" button renders. It pointed at `main` while the
+# default branch is `develop` (86 commits ahead, 24 differing files under docs/), so the
+# pencil would have opened a stale copy of the page and targeted the wrong branch. Nothing
+# validates the value - strict mode does not look at it - and the footer repo link plus
+# CONTRIBUTING.md already route corrections. Deleted rather than left inert.
+# Rendered in the site footer. Deliberately year-less so it never goes stale.
+copyright: "Copyright &copy; CRI Middleware Co., Ltd."
+
+# Nothing builds the docs on a pull request - pages.yml runs on `release: published` and
+# dispatch - so the local build is the only gate, and a plain `build` should fail on a broken
+# link rather than depend on remembering `--strict`.
+strict: true
+
+theme:
+  name: material
+  # Only overrides/ lives here: main.html appends the Open Graph / Twitter Card metadata the
+  # theme does not emit and repairs the page title; partials/alternate.html rebuilds the
+  # language selector so it points at the current page.
+  custom_dir: overrides
+  # Matches the Unity card on the SpriteStudio-Docs landing page. A bundled icon, so it
+  # needs no image file; there is no SpriteStudio artwork to use as a favicon yet.
+  icon:
+    logo: material/unity
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue grey
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue grey
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.tracking
+    # Previous / next links in the footer, so the guides can be read in order.
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  # Search language follows `theme.language`, which each locale config sets, so there is no
+  # per-language list to keep in sync here. Each locale gets its own index, and the Japanese
+  # one is segmented into words rather than indexed as unbroken runs of characters.
+  - search
+
+# `pymdownx.quotes` restores the one thing `mkdocs-callouts` did for these pages: rendering
+# the `> [!NOTE]` blockquote syntax as admonitions. Zensical parses it natively, so the
+# plugin is gone. Two consequences worth knowing: a list inside a callout needs a blank `>`
+# line before it, and `[!IMPORTANT]` has no built-in styling - see
+# docs/*/stylesheets/extra.css.
+markdown_extensions:
+  - toc:
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  # `base_path` is resolved against this file's directory, which is the repository root for
+  # all three configs -- which is what lets docs/*/license.md pull in LICENSE.md and
+  # THIRD_PARTY_NOTICES.md from there instead of keeping a second copy per locale.
+  - pymdownx.snippets:
+      base_path:
+        - .
+      check_paths: true
+  - pymdownx.quotes:
+      callouts: true
+
+# The file itself is duplicated, as docs/en/stylesheets/extra.css and
+# docs/ja/stylesheets/extra.css -- a path here resolves inside each locale's `docs_dir`.
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  # The header language selector. `link` is each locale's subpath under the site root, NOT
+  # a full URL -- overrides/partials/alternate.html rebuilds the href from it plus the
+  # current page, so switching language keeps the reader on the same page instead of
+  # dropping them on the other locale's home page. `extra.site_root_prefix` in each locale
+  # config is the other half of that calculation.
+  alternate:
+    - name: English
+      link: ""
+      lang: en
+    - name: 日本語
+      link: ja/
+      lang: ja
