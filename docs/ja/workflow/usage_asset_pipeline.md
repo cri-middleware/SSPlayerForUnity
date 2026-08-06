@@ -25,9 +25,9 @@ Unity 上で再生・制御可能な専用の最適化バイナリ（**`.ssab`**
 > [!TIP]
 > 
 > <video autoplay loop muted playsinline width="100%">
->   <source src="../../../assets/1-sspj_import.webm" type="video/webm">
+>   <source src="../assets/1-sspj_import.webm" type="video/webm">
 > </video>
-> <img src="../../assets/1-sspj_import.webp" width="100%" style="display: none;">
+> <img src="../assets/1-sspj_import.webp" width="100%" style="display: none;">
 
 > [!TIP]
 > フォルダごとドロップすると、その中の `.sspj` を再帰的に `.ssab` へ一括変換します。詳しくは [各種コンバート機能と CI/CD](./import.md) を参照してください。
@@ -45,7 +45,7 @@ Unity で作業中に「もう少しアニメーションを微調整したい�
 この操作により、SpriteStudio が起動して元となる `.sspj` ファイルが開き、すぐに編集作業に入ることができます。
 
 > [!NOTE]
-> ![インスペクタから SSPJ を開く](../../assets/5-open_sspj_from_inspector.png)
+> ![インスペクタから SSPJ を開く](../assets/5-open_sspj_from_inspector.png)
 
 > [!NOTE]
 > 同等の操作は **Window > SpriteStudio > Importer** の **Recent SSPJs** リストからも行えます（行を右クリック →「Open SSPJ」）。
@@ -70,9 +70,9 @@ SpriteStudio 側でアニメーションを修正して保存したら、Unity �
 > [!TIP]
 > 
 > <video autoplay loop muted playsinline width="100%">
->   <source src="../../../assets/2-fast_iteration_inspector.webm" type="video/webm">
+>   <source src="../assets/2-fast_iteration_inspector.webm" type="video/webm">
 > </video>
-> <img src="../../assets/2-fast_iteration_inspector.webp" width="100%" style="display: none;">
+> <img src="../assets/2-fast_iteration_inspector.webp" width="100%" style="display: none;">
 
 ---
 
