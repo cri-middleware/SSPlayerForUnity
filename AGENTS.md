@@ -53,13 +53,15 @@ Things that do **not** follow the "everything twice" rule, or that changed with 
 
 `mkdocs.base.yml` sets `strict: true`, so a plain `build` fails on a broken link. `serve` validates nothing — `zensical serve --strict` is accepted and currently does nothing. Nothing builds the docs on a pull request either — `pages.yml` runs on `release: published` and dispatch — so the local build is the only gate, and **both locales have to be built**, English first because it clears `site/`, which contains `site/ja`. Building only English is the easy mistake: it leaves a stale `site/ja` behind, so a Japanese page you just broke still looks fine.
 
+`./scripts/build-docs.sh` does exactly that, and is what `pages.yml` runs too, so CI and the local gate cannot drift; `./scripts/prepare-docs.sh` sets the venv up first. Both take `key=value` options and `--help` like the other scripts here (`build-docs.sh locale=ja`, `prepare-docs.sh force=yes`), both have `.ps1` twins, and they wrap nothing more than `pip install -r docs/requirements.txt` and the two `zensical build` runs. Every repository in the family spells this pair the same way, and the `-docs` suffix keeps it apart from the scripts that build the code.
+
 Two things to know about callouts, which Zensical parses natively now that `mkdocs-callouts` is gone: a list inside a `> [!NOTE]` block needs a blank `>` line before it or it renders as literal text, and `[!IMPORTANT]` is not a built-in admonition type — `docs/*/stylesheets/extra.css` styles it to keep the appearance it had. Also **avoid `src="…"` / `href="…"` inside an inline code span**: Zensical rewrites paths there as if they were real links, corrupting the example. Use a fenced block, which it leaves alone.
 
 ## Verification
 
 | Task | Command |
 |---|---|
-| Build the docs site | `.venv/bin/zensical build --strict` **then** `.venv/bin/zensical build -f mkdocs.ja.yml --strict` (set up: `python3 -m venv .venv && .venv/bin/python -m pip install -r docs/requirements.txt`) |
+| Build the docs site | `./scripts/build-docs.sh` — both locales, both `--strict`, in the only safe order (set up once: `./scripts/prepare-docs.sh`). `.ps1` twins on Windows |
 | Build runtime + FFI bindings | `./scripts/build-runtime.sh` (POSIX) · `.\scripts\build-runtime.ps1` (Windows) |
 | Fetch prebuilt SDK libs | `./scripts/download-sdk.sh` |
 | Set up FlatBuffers C# source | `./scripts/download-flatbuffers.sh` |
