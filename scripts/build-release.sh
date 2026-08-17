@@ -162,12 +162,17 @@ echo "  package  => $NAME $VERSION"
 echo "  tag      => $TAG"
 echo "              ($TAG_SOURCE)"
 
+# A tag that disagrees with package.json is an error, not a note: npm packs
+# package.json's version whatever the tag says, so the Release would be called
+# one thing and carry a tarball called another -- and the tarball is what a
+# consumer installs. This cannot fire off a branch: TAG falls back to
+# MANIFEST_TAG when HEAD is not on a release tag.
 if [ "$TAG" != "$MANIFEST_TAG" ]; then
-  echo ""
-  echo "$APP: NOTE: the tag says $TAG, package.json says $MANIFEST_TAG."
-  echo "$APP: the tarball is $VERSIONED either way -- npm packs package.json's version."
-  echo "$APP: bump it to match if this tag is the release, or the Release will carry a"
-  echo "$APP: tarball that does not name it."
+  echo "" >&2
+  echo "$APP: tag $TAG does not match package.json ($MANIFEST_TAG)." >&2
+  echo "$APP: bump the version, or retag -- npm packs package.json's, so the Release" >&2
+  echo "$APP: would carry $VERSIONED." >&2
+  exit 1
 fi
 
 # --- preflight ------------------------------------------------------------

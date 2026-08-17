@@ -155,12 +155,14 @@ Write-Host "  package  => $name $version"
 Write-Host "  tag      => $tag"
 Write-Host "              ($tagSource)"
 
+# A tag that disagrees with package.json is an error, not a note: npm packs
+# package.json's version whatever the tag says, so the Release would be called
+# one thing and carry a tarball called another -- and the tarball is what a
+# consumer installs. This cannot fire off a branch: $tag falls back to
+# $manifestTag when HEAD is not on a release tag.
 if ($tag -ne $manifestTag) {
     Write-Host ""
-    Write-Host "${app}: NOTE: the tag says $tag, package.json says $manifestTag."
-    Write-Host "${app}: the tarball is $versioned either way -- npm packs package.json's version."
-    Write-Host "${app}: bump it to match if this tag is the release, or the Release will carry a"
-    Write-Host "${app}: tarball that does not name it."
+    Write-Error "${app}: tag $tag does not match package.json ($manifestTag). Bump the version, or retag -- npm packs package.json's, so the Release would carry $versioned."
 }
 
 # --- preflight -------------------------------------------------------------
