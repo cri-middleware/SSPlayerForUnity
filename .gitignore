@@ -1616,3 +1616,9 @@ site/
 # Locally packed UPM tarballs (scripts/pack-release.sh). Releases are built in CI;
 # a stray local .tgz must never be committed.
 *.tgz
+
+# Release packaging: scripts/build-release.sh writes the tarball, its stable
+# alias and SHA256SUMS here. The .tgz are already caught by *.tgz above; naming
+# the directory keeps the checksums out too, and keeps both findable next to the
+# script that makes them.
+/release-dist/

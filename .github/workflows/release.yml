@@ -1,157 +1,114 @@
 name: Release
 
-# Run manually from the Actions tab. The release version/tag come from the UPM
-# package version in package/package.json (independent of SDK_VERSION.txt, which
-# only pins which native SDK libs download-sdk.sh fetches).
+# Run manually from the Actions tab. A release is a tag: push `v<version>`
+# first, then dispatch this workflow from that tag ("Use workflow from" → the
+# tag). The tag names the Release, and scripts/build-release.sh reads it from
+# the ref rather than being told it.
+#
+# Dispatching from a branch is a package build — the tarball is produced,
+# checked and kept as a workflow artifact, and no Release is created.
 on:
   workflow_dispatch:
     inputs:
-      upload:
-        description: 'Upload the package to GitHub Releases'
-        type: boolean
-        default: true
-      prerelease:
-        description: 'Mark the GitHub Release as a pre-release (excludes it from releases/latest, breaking the stable download URL). Keep false so the latest/download link resolves.'
-        type: boolean
+      upload_release:
+        description: 'Create a draft GitHub Release (publish by hand afterwards). Requires dispatching from a v* tag.'
+        required: false
         default: false
+        type: boolean
 
 # Needed to create the release and upload assets.
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # softprops/action-gh-release creates the GitHub Release
     steps:
       - uses: actions/checkout@v7
 
-      - name: Resolve release metadata from package.json
-        id: meta
-        run: |
-          NAME=$(jq -r .name package/package.json)
-          VERSION=$(jq -r .version package/package.json)
-          echo "name=$NAME" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+      # node packs the tarball (`npm pack` applies package.json's "files"
+      # allowlist and the package/ root layout UPM expects) and reads the
+      # version out of the manifest. Pinned rather than left to whatever the
+      # runner image ships, so a release cannot change because the image did.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
 
-      # Fetches the pre-built SpriteStudio SDK libs into the package plugin dirs.
-      # ssruntime -> package/Runtime/Plugins/ (iOS/WebGL static, others dynamic);
-      # ssconverter -> package/Editor/Plugins/ (win/mac, dynamic only).
-      # These binaries are gitignored, so this step is required before packing.
-      # NOTE: the SpriteStudio-SDK release is still private, so this step cannot
-      # succeed yet. It goes green once that repo/release is made public (planned),
+      # A release is a tag that was pushed first and dispatched from second, so
+      # asking to upload from anything else is an operator error, not a mode.
+      # Failing here beats a silent `if: startsWith(github.ref, …)` skip: a
+      # dispatch that was meant to cut a release should not report success and
+      # quietly produce no Release. Leave upload_release=false to build the
+      # package off a branch.
+      - name: Refuse to release from a non-tag ref
+        if: inputs.upload_release && !startsWith(github.ref, 'refs/tags/v')
+        run: |
+          echo "::error::upload_release=true needs a v* tag. Push the tag first, then dispatch this workflow from it (Use workflow from → the tag)."
+          exit 1
+
+      # scripts/build-release.sh IS the release: it fetches the pinned SDK
+      # native libs, refuses a tree that would install as nothing (a native
+      # plugin with no committed .meta — Unity ignores those inside an immutable
+      # package folder, and CI has no Unity to generate one), packs the UPM
+      # tarball, writes the stable alias name the README and docs link to, and
+      # checks the finished archive really contains what the allowlist was
+      # supposed to keep. Every option is spelled out so a release cannot change
+      # because a default did, and so this is the command a human runs locally
+      # to produce the same three files.
+      #
+      # NOTE: the SpriteStudio-SDK release is still private, so sdk=download cannot
+      # succeed yet. It goes green once that repo/release is public (planned),
       # at which point download-sdk.sh's plain curl works with no extra auth.
-      - name: Download SpriteStudio SDK libs
-        run: bash scripts/download-sdk.sh
+      - name: Build the release
+        run: ./scripts/build-release.sh sdk=download out=release-dist verify=yes clean=yes
 
-      # Sanity-check that native libs actually landed in BOTH plugin dirs before
-      # packaging. Match any platform binary (static or dynamic) rather than a
-      # single VERSION marker, so this keeps holding as the lib set grows.
-      - name: Verify SDK libs present
-        run: |
-          set -e
-          for dir in package/Runtime/Plugins package/Editor/Plugins; do
-            count=$(find "$dir" -type f \
-              \( -name '*.dylib' -o -name '*.so' -o -name '*.dll' \
-                 -o -name '*.a' -o -name '*.lib' -o -name '*.bundle' \) | wc -l)
-            echo "$dir: $count native lib(s)"
-            if [ "$count" -eq 0 ]; then
-              echo "::error::No native libraries found in $dir"
-              exit 1
-            fi
-          done
-
-          # Every native lib needs a committed .meta beside it. Without one Unity
-          # ignores the asset (a UPM package is extracted into an immutable folder),
-          # so the tarball would install with no native libs at all, and the three
-          # same-named Android libssruntime.so would collide. CI has no Unity to
-          # generate these, so a lib whose .meta was never committed is a release
-          # blocker, not a warning. Bundles/xcframeworks are directories carrying a
-          # sibling .meta, so match those separately from plain files.
-          missing=0
-          while IFS= read -r lib; do
-            [ -e "${lib}.meta" ] && continue
-            echo "::error::Native plugin has no committed .meta: $lib"
-            missing=$((missing + 1))
-          done < <(find package/Runtime/Plugins package/Editor/Plugins \
-                     \( -type f \( -name '*.dylib' -o -name '*.so' -o -name '*.dll' \
-                                   -o -name '*.a' -o -name '*.lib' \) \
-                        -o -type d \( -name '*.bundle' -o -name '*.xcframework' \) \) \
-                   -not -path '*.bundle/*' -not -path '*.xcframework/*')
-          if [ "$missing" -ne 0 ]; then
-            echo "::error::$missing native plugin(s) missing a .meta - see scripts/scaffold-plugin-placeholders.sh"
-            exit 1
-          fi
-          echo "All native plugins have a .meta."
-          # The csbindgen FFI bindings are compile-critical; a tarball without
-          # them would not build for consumers. Their .meta matter just as much:
-          # a UPM package is extracted into an immutable folder, where Unity
-          # ignores any asset that has no .meta — so a binding shipped without
-          # one is silently dropped and the package fails to compile. CI has no
-          # Unity to generate them, so download-sdk.sh places the committed
-          # copies from scripts/upm-meta; assert both landed.
-          for f in package/Runtime/Bindings/SSRuntimeMethods.g.cs \
-                   package/Editor/Bindings/SSConverterMethods.g.cs; do
-            if [ ! -f "$f" ]; then
-              echo "::error::Missing FFI binding: $f"
-              exit 1
-            fi
-            if [ ! -f "$f.meta" ]; then
-              echo "::error::Missing .meta for FFI binding: $f.meta"
-              exit 1
-            fi
-          done
-          ls -R package/Runtime/Plugins package/Editor/Plugins
-
-      # Pack the UPM package as a tarball via `npm pack` (pack-release.sh copies
-      # LICENSE / Third Party Notices into package/ and produces `<name>-<version>.tgz`
-      # at the repo root). Also make a version-less alias so README/docs can point
-      # at a stable `releases/latest/download/<name>.tgz` URL that never goes stale.
-      - name: Pack UPM package
-        id: pkg
-        run: |
-          bash scripts/pack-release.sh
-          VERSIONED="${{ steps.meta.outputs.name }}-${{ steps.meta.outputs.version }}.tgz"
-          ALIAS="${{ steps.meta.outputs.name }}.tgz"
-          test -f "$VERSIONED"
-          cp "$VERSIONED" "$ALIAS"
-          # Checksums for both assets. The package ships native binaries, so give
-          # consumers the same way to verify a download that download-sdk.sh uses
-          # against the SDK zips - same `<sha256>  <filename>` layout, so the same
-          # `sha256sum -c` / awk lookup works here.
-          sha256sum "$VERSIONED" "$ALIAS" > SHA256SUMS
-          cat SHA256SUMS
-          echo "versioned=$VERSIONED" >> "$GITHUB_OUTPUT"
-          echo "alias=$ALIAS" >> "$GITHUB_OUTPUT"
-          tar -tzf "$VERSIONED" | head -n 20
-
-      # Always keep the package as a workflow artifact so a run is useful even
-      # when the Releases upload is turned off.
+      # Keep the assets on the run even when nothing is uploaded to a Release,
+      # so a dispatch with upload_release=false is still useful — and so the
+      # tarball a human installs to review is the same bytes the Release
+      # would carry.
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ steps.pkg.outputs.versioned }}
-          path: ${{ steps.pkg.outputs.versioned }}
+          name: ssplayer-unity-release-dist
+          path: release-dist
           if-no-files-found: error
+          # A week, not the 90-day default. What is meant to last is attached to
+          # the GitHub Release, which never expires; this is a copy for a run
+          # that uploaded nothing. Artifact storage is an org-wide quota, and a
+          # full one does not degrade — `upload-artifact` fails, so the release
+          # build fails, in a step that has nothing to do with the release.
+          retention-days: 7
 
-      # NOTE: the release is created as a DRAFT (draft: true below). Drafts are excluded from
-      # `releases/latest`, so the stable download URL used by README/docs
-      # (releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz) does NOT resolve until a
-      # human publishes the draft from the GitHub Releases UI. Publishing the draft is also what emits
-      # the `release: published` event that triggers the Deploy Pages workflow. So after a green run:
-      # review the draft, then click "Publish release" — and keep it a full (non-prerelease) release so
-      # `latest` resolves.
+      # NOTE: the release is created as a DRAFT. Drafts are excluded from
+      # `releases/latest`, so the stable download URL used by README and the docs
+      # (releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz) does NOT
+      # resolve until a human publishes the draft from the GitHub Releases UI.
+      # Publishing the draft is also what emits the `release: published` event that
+      # triggers the Deploy Pages workflow. So after a green run: review the draft, then
+      # click "Publish release".
+      #
+      # "Set as a pre-release" / "Set as the latest release" are chosen there too — the
+      # same decision, made once, in the place where the release is actually published,
+      # which is why there is no prerelease input here. Keep it a full (non-prerelease)
+      # release so `latest` resolves.
       - name: Upload package to release
-        if: ${{ inputs.upload }}
+        if: inputs.upload_release
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
-          tag_name: ${{ steps.meta.outputs.tag }}
-          name: SSPlayer for Unity ${{ steps.meta.outputs.tag }}
+          # The ref this was dispatched from, which the step above has already
+          # established is a v* tag — the same string build-release.sh reported.
+          tag_name: ${{ github.ref_name }}
+          name: SSPlayer for Unity ${{ github.ref_name }}
           draft: true
-          prerelease: ${{ inputs.prerelease }}
-          # Ship the version-pinned tarball, the stable alias filename, and the
+          generate_release_notes: true
+          # The version-pinned tarball, the stable alias filename, and the
           # checksums covering both.
           files: |
-            ${{ steps.pkg.outputs.versioned }}
-            ${{ steps.pkg.outputs.alias }}
-            SHA256SUMS
+            release-dist/*.tgz
+            release-dist/SHA256SUMS

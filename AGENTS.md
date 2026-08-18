@@ -25,7 +25,7 @@ uploaded to a `Mesh` via `SetVertexBufferData` (zero-allocation). `.sspj` projec
 | `package/Editor/` | Importers (`SpriteStudioSsabImporter`, `SpriteStudioSsqbImporter`), the conversion driver, the Importer window, and inspectors. |
 | `package/Tests/` | PlayMode (Runtime) and EditMode tests. |
 | `SpriteStudio-SDK/` | Rust runtime / converter submodule. |
-| `scripts/` | Build & setup wrappers (`build-runtime`, `download-sdk`, `download-flatbuffers`, `pack-release`, `run-tests`). |
+| `scripts/` | Build & setup wrappers (`build-runtime`, `download-sdk`, `download-flatbuffers`, `run-tests`) and the release (`build-release`, which packs via `pack-release`; `release-version`). |
 
 ## Hard constraints
 
@@ -67,4 +67,36 @@ Two things to know about callouts, which Zensical parses natively now that `mkdo
 | Build runtime + FFI bindings | `./scripts/build-runtime.sh` (POSIX) · `.\scripts\build-runtime.ps1` (Windows) |
 | Fetch prebuilt SDK libs | `./scripts/download-sdk.sh` |
 | Set up FlatBuffers C# source | `./scripts/download-flatbuffers.sh` |
+| Build the release | `./scripts/build-release.sh` — the tarball that ships, checked. `.ps1` twin on Windows |
 | Run tests | **Editor open:** ask the user to run the Unity Test Runner. **Headless:** `./scripts/run-tests.sh` (POSIX) · `.\scripts\run-tests.ps1` (Windows). Do not run the headless script while the Editor is open (project lock). |
+
+## Releases
+
+A release is a tag, pushed first and built second:
+
+```bash
+git tag v7.0.0-beta.1 && git push origin v7.0.0-beta.1
+# Actions → Release → "Use workflow from" = v7.0.0-beta.1, upload_release = true
+# → a draft Release on that tag → review the assets → Publish from the UI
+```
+
+Nothing passes the tag around: `build-release.sh` reads `GITHUB_REF_NAME` (or, locally, the tag `HEAD` is checked out at), and `release.yml` uses the same ref for `tag_name`. Dispatching from a branch is a package build, not a release — `upload_release=true` from anything but a `v*` tag fails the run rather than silently skipping the Release. `scripts/release-version.sh` prints what the tag *should* be (`version` in `package/package.json`, **not** `SDK_VERSION.txt`), and `build-release.sh` says so when the two disagree.
+
+Publishing the draft is what emits the `release: published` event that triggers the Pages deploy, and what makes `releases/latest/download/<name>.tgz` — the install URL in the README and the docs — resolve. Keep it a full, non-prerelease release, and publish it by hand.
+
+`scripts/build-release.sh` is the release, and `release.yml`'s job **is** this script (`sdk=download out=release-dist verify=yes clean=yes`, every option spelled out so a release cannot change because a default did), so CI and a local run cannot drift. Unlike the SDK's script of the same name, this one really does produce the whole thing on one machine — the package is C# plus prebuilt native libraries — so the way to review a release is to build it and install the tarball:
+
+```bash
+./scripts/build-release.sh
+# Window > Package Manager > + > Install package from tarball...
+```
+
+It checks twice, for different failures. **Before packing:** every plugin directory has native libraries, each has a committed `.meta`, and both FFI bindings and their `.meta` are there. A UPM package is extracted into an immutable folder, so Unity ignores any asset with no `.meta` — a lib whose `.meta` was never committed installs as *nothing*, silently, and CI has no Unity to generate one. **After packing:** the tarball actually contains them. `npm pack` applies the `files` allowlist in `package.json`, a second place a file can vanish that the first check cannot see. (`LICENSE.md` is deliberately absent from `files` — npm always includes a `LICENSE*`, so only its `.meta` has to be listed. The check asserts it rather than trusting anyone to remember.)
+
+`sdk=<download|build>` says where the native libraries come from — the same pair every `build-pages.sh` in the family uses. `download` is `download-sdk.sh`: the pre-built release for `scripts/SDK_VERSION.txt`, every platform, and so the only source a shippable package can have. `build` is `build-runtime.sh`, compiled from the Rust source in the submodule, and it is what to use while the SDK release that version file names does not exist yet — at the cost of **only this host's platform**.
+
+The checks cannot tell those apart: they ask that each plugin tree has libraries, not that it has all of them, so a one-platform tarball passes. The script says so out loud instead. Use `sdk=build` to get a package to look at; never to cut a release.
+
+```bash
+./scripts/build-release.sh sdk=build   # a package, this host only
+```
