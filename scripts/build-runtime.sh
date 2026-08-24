@@ -134,11 +134,16 @@ mkdir -p ${EDITOR_DIR}
 # .g.cs are gitignored so their .meta cannot live next to them, and a script with no
 # .meta is ignored by Unity inside an immutable package folder (see that README).
 echo "Copying C# bindings..."
-cp ${SDK_DIR}/libs/ssruntime/target/SSRuntimeMethods.g.cs ${ROOTDIR}/package/Runtime/Bindings/
+# The generating build scripts live in the *-ffi crates and write beside
+# themselves, so these are `libs/<crate>-ffi/target/`. They moved there with the
+# SDK's "split the binary faces into *-ffi crates" refactor; the old
+# `libs/<crate>/target/` paths are written by nothing now, and a checkout that
+# still has one is holding a leftover from before that split.
+cp ${SDK_DIR}/libs/ssruntime-ffi/target/SSRuntimeMethods.g.cs ${ROOTDIR}/package/Runtime/Bindings/
 cp ${BASEDIR}/upm-meta/SSRuntimeMethods.g.cs.meta ${ROOTDIR}/package/Runtime/Bindings/
 mkdir -p ${ROOTDIR}/package/Editor/Bindings/
-if [[ -f "${SDK_DIR}/libs/ssconverter/target/SSConverterMethods.g.cs" ]]; then
-    cp ${SDK_DIR}/libs/ssconverter/target/SSConverterMethods.g.cs ${ROOTDIR}/package/Editor/Bindings/
+if [[ -f "${SDK_DIR}/libs/ssconverter-ffi/target/SSConverterMethods.g.cs" ]]; then
+    cp ${SDK_DIR}/libs/ssconverter-ffi/target/SSConverterMethods.g.cs ${ROOTDIR}/package/Editor/Bindings/
     cp ${BASEDIR}/upm-meta/SSConverterMethods.g.cs.meta ${ROOTDIR}/package/Editor/Bindings/
 fi
 

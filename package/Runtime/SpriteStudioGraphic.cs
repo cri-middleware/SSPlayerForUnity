@@ -156,26 +156,32 @@ namespace SpriteStudio.Runtime
         {
             get
             {
-                // The native is_pausing defaults to true (set even when not playing), so also check that
-                // playback is actually running.
+                // The runtime keeps "paused" implying "playing": is_pausing is false before the first
+                // play and after stop, and pausing a stopped animation is ignored. So this needs no
+                // IsPlaying() guard of its own.
                 var p = _core.Internal;
-                return p != null && p.IsPlaying() && p.IsPausing();
+                return p != null && p.IsPausing();
             }
         }
 
         /// <summary>
-        /// Toggles playback pause / resume (keeps the current frame). Flips the native is_pausing
-        /// (play() rewinds to the start, so it cannot be used to resume).
+        /// Holds playback on the current frame. Idempotent, and ignored while nothing is playing.
+        /// Lift it with <see cref="Resume"/> — Play() rewinds to the start, so it cannot resume.
         /// </summary>
         public void Pause()
         {
             _core.Internal?.Pause();
-            // Sync audio with the animation pause/resume. Pause is a toggle, so branch on the resulting state.
-            if (_audioController != null && _core.Internal != null)
-            {
-                if (_core.Internal.IsPausing()) _audioController.PauseAll();
-                else _audioController.ResumeAll();
-            }
+            _audioController?.PauseAll();
+        }
+
+        /// <summary>
+        /// Lifts a <see cref="Pause"/>, carrying on from the same frame. Idempotent, and a no-op on a
+        /// stopped animation — starting one is Play()'s job, and it rewinds.
+        /// </summary>
+        public void Resume()
+        {
+            _core.Internal?.Resume();
+            _audioController?.ResumeAll();
         }
 
         /// <summary>Stops playback.</summary>
