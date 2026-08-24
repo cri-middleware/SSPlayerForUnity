@@ -294,7 +294,11 @@ namespace SpriteStudio.Runtime
             _audioController?.ResumeAll();
         }
 
-        /// <summary>Stops playback.</summary>
+        /// <summary>
+        /// Stops playback. The playhead <b>stays where it stands</b> — nothing rewinds, so the
+        /// component keeps drawing the frame it stopped on. <see cref="Play()"/> is what returns to
+        /// the start, and <see cref="CurrentFrame"/> seeks anywhere else.
+        /// </summary>
         public void Stop() => _core.Internal?.Stop();
 
         /// <summary>Current playback frame (fractional allowed). Set to seek to an arbitrary frame.</summary>
