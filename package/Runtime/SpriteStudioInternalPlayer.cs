@@ -1162,6 +1162,7 @@ internal struct MaskPartData
                                 var ev = new SpriteStudioUserData
                                 {
                                     PartIndex = user.PartIndex,
+                                    FrameNo = events.FrameIndex,
                                     PartName = PartNameAt(user.PartIndex),
                                     HasInt = val.Integer.HasValue,
                                     IntValue = val.Integer.HasValue ? val.Integer.Value.Value : 0,
@@ -1218,6 +1219,7 @@ internal struct MaskPartData
                                 var ev = new SpriteStudioSignal
                                 {
                                     PartIndex = sig.PartIndex,
+                                    FrameNo = events.FrameIndex,
                                     PartName = PartNameAt(sig.PartIndex),
                                     Active = val.Active,
                                     CommandId = val.CommandId,
@@ -1240,6 +1242,7 @@ internal struct MaskPartData
                                 var ev = new SpriteStudioAudio
                                 {
                                     PartIndex = audio.PartIndex,
+                                    FrameNo = events.FrameIndex,
                                     PartName = PartNameAt(audio.PartIndex),
                                     SoundListNameHash = val.SoundListNameHash,
                                     SoundNameHash = val.SoundNameHash,
