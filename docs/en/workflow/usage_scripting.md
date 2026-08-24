@@ -23,7 +23,9 @@ _player.SetAnimation("walk");
 _player.Play();
 ```
 
-`SetAnimation()` loads the animation's data and **waits on the first frame** (it does not start playback). Calling `Play()` afterward starts playback from that point. `SetAnimation()` does **not** apply playback settings (loop/speed/skip/direction). Because it resets every time to **first frame, Forward, Normal (non-ping-pong), and the runtime default loop/speed/skip**, the loop/speed/skip configured in the inspector are applied at startup, but when you switch animations at runtime from a script via `SetAnimation()`, re-set `LoopCount` / `SpeedScale` / `SkipFrames` / `Reverse` / `PingPong` after `SetAnimation()` as needed (see below).
+`SetAnimation()` loads the animation's data and **waits on the first frame** (it does not start playback). Calling `Play()` afterward starts playback from that point.
+
+Your playback settings hold across the switch: `SpeedScale`, `SkipFrames`, a frame-rate override and `Reverse` / `PingPong` all describe the playback rather than the clip, so the runtime keeps them, and the component puts `LoopCount` back because that one is per-transition. What does reset is the playhead — it waits on the first frame — and the playback section, whose frame numbers mean nothing against a different animation.
 
 ## Playback Control API
 
@@ -74,7 +76,7 @@ _player.PingPong = true;  // Switch to ping-pong playback
 _player.Play();
 ```
 
-> Because `SetAnimation()` resets to Forward / Normal every time, set `Reverse` / `PingPong` **after `SetAnimation()`** (either before or after `Play()` is fine).
+> `Reverse` / `PingPong` survive a `SetAnimation()`, so set them once. They have no inspector default, so a component starts Forward / Normal until a script says otherwise. What a switch does reset is the heading inside a round trip: a new animation always starts on the outward leg.
 
 ## Playback Parameter Properties
 

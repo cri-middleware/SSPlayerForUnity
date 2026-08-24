@@ -128,8 +128,9 @@ namespace SpriteStudio.Runtime
         // lost on each SetAnimation without this. Speed and frame skip survive setup on their own --
         // they are the host's settings, not the clip's -- and are pushed anyway, because this is the
         // one place a serialized value is guaranteed to reach a freshly set-up player.
-        // Direction/style (Reverse/PingPong) have no serialized default and stay at the setup
-        // default (Forward/Normal) until set via their properties.
+        // Direction/style (Reverse/PingPong) have no serialized default, so they start at
+        // Forward/Normal and stay wherever their properties last put them -- the Rust setup
+        // keeps them across a transition, like the speed and the frame skip.
         private void ApplyPlaybackSettings()
         {
             var p = _core.Internal;
