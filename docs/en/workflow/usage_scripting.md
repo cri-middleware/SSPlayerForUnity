@@ -32,7 +32,8 @@ _player.Play();
 | `SetAnimation(string animName)` | Method | Specify an animation and load its data (does not start playback). Returns `true` on success |
 | `Play()` | Method | Start playing the set-up animation from the beginning |
 | `Play(float startFrame)` | Method | Start playing the set-up animation from the specified frame |
-| `Pause()` | Method | Toggle pause/resume (retains the current frame. `play()` rewinds to the beginning, so it cannot be used to resume) |
+| `Pause()` | Method | Hold playback on the current frame. Idempotent, and ignored while nothing is playing |
+| `Resume()` | Method | Lift a `Pause()`, carrying on from the same frame. Idempotent. `Play()` rewinds to the beginning, so it cannot be used to resume |
 | `Stop()` | Method | Stop playback |
 | `IsPlaying` | `bool` (read) | Whether a playback session is active (`true` even while paused) |
 | `IsPaused` | `bool` (read) | Whether currently paused |
@@ -46,8 +47,13 @@ _player.Play();
 ### Example: Pause and Resume
 
 ```csharp
-// Pause() toggles pause/resume (pauses if playing, resumes if paused)
-_player.Pause();
+_player.Pause();    // hold on the current frame
+_player.Resume();   // carry on from it
+
+// One-tap transport for a play/pause button:
+if (_player.IsPaused) _player.Resume();
+else if (_player.IsPlaying) _player.Pause();
+else _player.Play();   // stopped — Play() starts over from the section start
 ```
 
 ### Example: Seek and Section Playback

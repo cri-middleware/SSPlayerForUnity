@@ -86,12 +86,16 @@ popd
 # the .g.cs are gitignored so their .meta cannot live next to them, and a script with no
 # .meta is ignored by Unity inside an immutable package folder (see that README).
 echo "Copying C# bindings..."
-Copy-Item "$SDK_DIR/libs/ssruntime/target/SSRuntimeMethods.g.cs" "$rootDirectory/package/Runtime/Bindings/" -Force
+# The generating build scripts live in the *-ffi crates and write beside
+# themselves, so these are `libs/<crate>-ffi/target/`. They moved there with the
+# SDK's "split the binary faces into *-ffi crates" refactor; the old
+# `libs/<crate>/target/` paths are written by nothing now.
+Copy-Item "$SDK_DIR/libs/ssruntime-ffi/target/SSRuntimeMethods.g.cs" "$rootDirectory/package/Runtime/Bindings/" -Force
 Copy-Item "$baseDirectory/upm-meta/SSRuntimeMethods.g.cs.meta" "$rootDirectory/package/Runtime/Bindings/" -Force
 $editorBindingsDir = "$rootDirectory/package/Editor/Bindings"
 New-Item -ItemType Directory -Path $editorBindingsDir -Force | Out-Null
-if (Test-Path "$SDK_DIR/libs/ssconverter/target/SSConverterMethods.g.cs") {
-    Copy-Item "$SDK_DIR/libs/ssconverter/target/SSConverterMethods.g.cs" "$editorBindingsDir/" -Force
+if (Test-Path "$SDK_DIR/libs/ssconverter-ffi/target/SSConverterMethods.g.cs") {
+    Copy-Item "$SDK_DIR/libs/ssconverter-ffi/target/SSConverterMethods.g.cs" "$editorBindingsDir/" -Force
     Copy-Item "$baseDirectory/upm-meta/SSConverterMethods.g.cs.meta" "$editorBindingsDir/" -Force
 }
 

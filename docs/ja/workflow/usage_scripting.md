@@ -32,7 +32,8 @@ _player.Play();
 | `SetAnimation(string animName)` | メソッド | アニメーションを指定しデータをロード（再生は開始しない）。成功で `true` |
 | `Play()` | メソッド | セットアップ済みアニメを先頭から再生開始 |
 | `Play(float startFrame)` | メソッド | セットアップ済みアニメを指定フレームから再生開始 |
-| `Pause()` | メソッド | 一時停止／再開のトグル（現在フレームを保持。`Play()` は先頭へ巻き戻すため再開には使えない） |
+| `Pause()` | メソッド | 現在フレームを保持して再生を止める。冪等で、再生していないときは無視される |
+| `Resume()` | メソッド | `Pause()` を解除し、同じフレームから再開する。冪等。`Play()` は先頭へ巻き戻すため再開には使えない |
 | `Stop()` | メソッド | 再生を停止 |
 | `IsPlaying` | `bool`（読取） | 再生セッションが有効か（一時停止中でも `true`） |
 | `IsPaused` | `bool`（読取） | 一時停止中か |
@@ -46,8 +47,13 @@ _player.Play();
 ### 例: 一時停止と再開
 
 ```csharp
-// Pause() は一時停止／再開のトグル（再生中なら一時停止、一時停止中なら再開）
-_player.Pause();
+_player.Pause();    // 現在フレームで保持
+_player.Resume();   // そのフレームから再開
+
+// 再生／一時停止ボタン 1 つで扱う場合:
+if (_player.IsPaused) _player.Resume();
+else if (_player.IsPlaying) _player.Pause();
+else _player.Play();   // 停止中 — Play() は区間の先頭から再生し直す
 ```
 
 ### 例: シークと区間再生
