@@ -202,7 +202,9 @@ struct SpriteStudioAudio
 
 > **Signal パラメータの有効期間について**: `GetParam` / `TryGetParam` が返す値は、プレイヤーが所有して使い回すバッファへのビューです（アロケーションと boxing を避けるための仕組みです）。`SpriteStudioSignal` とそこから読み出した `SpriteStudioSignalParam` が有効なのは、そのプレイヤーの次のイベントポーリングまで（通常は次フレームまで）です。コールバックの外へ持ち越す場合（フィールドへの保存、コルーチンからの参照、キューイングなど）は、**値そのものをコピー**してください（`p.AsInteger` / `p.AsText` など）。`SpriteStudioSignal` を保持したままにすると、後で別の Signal のパラメータをエラーなく返すようになります。
 
-> **Audio イベントについて**: 本プラグインは Audio の発生を**通知**します。実際の音の再生（`AudioSource` での発音）はアプリ側で行ってください。再生に必要な `AudioClip` は `SpriteStudioAnimeAsset.Sounds` に解決済みで保持されています。
+> **Audio イベントについて**: `Play Audio` は既定でオンのため、コンポーネント自身がプール済みの `AudioSource` で発音します。`OnAudio` はそれとは独立した**観測用**のチャンネルで、再生を奪わずに音へ反応したい場合や、`Play Audio` をオフにして自前で鳴らす場合に使います。`AudioClip` は `SpriteStudioAnimeAsset.Sounds` に解決済みで保持されています。
+>
+> 一度鳴り始めた音は、**それを発火させた再生よりも長く生き残ります**。`Pause()` / `Resume()` / `Stop()`、`SetAnimation()` による切り替え、アニメーションの終了 — いずれも音には触れません。止まるのはコンポーネントが無効化・破棄されたときだけです。SpriteStudio に無限ループの音はなく（`loop_num` は再生回数）、すべての音はいつか自然に終わります。アニメーションの尺より長く鳴る音があるなら、それはアニメーションデータ側の問題です。
 
 ### 実装例: アニメーションの連続再生
 

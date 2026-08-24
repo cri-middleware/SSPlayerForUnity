@@ -66,23 +66,12 @@ namespace SpriteStudio.Runtime
             _voices[key] = v;
         }
 
-        /// <summary>Stops loop sounds (call on animation switch). One-shots are left to end on their own and are not stopped.</summary>
-        public void StopLoops() => Sweep(loopsOnly: true);
-
-        /// <summary>Stops all sounds (call on disable / destroy).</summary>
-        public void StopAll() => Sweep(loopsOnly: false);
-
-        /// <summary>Pauses all playing sounds (synced with animation pause).</summary>
-        public void PauseAll()
-        {
-            foreach (var kv in _voices) kv.Value.Source.Pause();
-        }
-
-        /// <summary>Resumes paused sounds (synced with animation resume / play).</summary>
-        public void ResumeAll()
-        {
-            foreach (var kv in _voices) kv.Value.Source.UnPause();
-        }
+        /// <summary>
+        /// Stops every sound. This is teardown — disable and destroy — and not a transport
+        /// control: a sound that has started outlives the playback that triggered it, so
+        /// Pause / Resume / Stop and an animation switch all leave it alone.
+        /// </summary>
+        public void StopAll() => Sweep();
 
         // --- Internal ---------------------------------------------------------
 
@@ -100,7 +89,6 @@ namespace SpriteStudio.Runtime
                 // One-shot (play once). Self-terminating.
                 src.loop = false;
                 src.PlayScheduled(dsp);
-                v.PlaysOnce = true;
                 v.EndDsp = dsp + (double)clip.length;
             }
             else
@@ -110,7 +98,6 @@ namespace SpriteStudio.Runtime
                 src.PlayScheduled(dsp);
                 double end = dsp + (double)clip.length * loopNum;
                 src.SetScheduledEndTime(end);
-                v.PlaysOnce = false;
                 v.EndDsp = end;
             }
         }
@@ -130,15 +117,14 @@ namespace SpriteStudio.Runtime
             FreeScratch();
         }
 
-        // If loopsOnly=true, stops only loops (non-one-shot); if false, stops all voices and returns them to the pool.
-        private void Sweep(bool loopsOnly)
+        // Stops every voice and returns it to the pool.
+        private void Sweep()
         {
             if (_voices.Count == 0) return;
             EnsureScratch();
 
             foreach (var kv in _voices)
             {
-                if (loopsOnly && kv.Value.PlaysOnce) continue;   // Keep one-shots (self-terminating)
                 _scratch.Add(kv.Key);
             }
             FreeScratch();
@@ -200,7 +186,6 @@ namespace SpriteStudio.Runtime
         private sealed class Voice
         {
             public AudioSource Source;
-            public bool PlaysOnce;   // loop_num == 1 (one-shot. Not stopped by StopLoops)
             public double EndDsp;    // Scheduled end dspTime (all voices self-terminate).
         }
     }

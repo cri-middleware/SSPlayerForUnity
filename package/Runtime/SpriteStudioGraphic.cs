@@ -119,7 +119,6 @@ namespace SpriteStudio.Runtime
         public bool SetAnimation(string animName)
         {
             _animationName = animName;
-            _audioController?.StopLoops();   // On animation switch, stop the previous animation's loop sounds (let one-shots end on their own)
             return _core.SetAnimation(_animationName, "SpriteStudioGraphic");
         }
 
@@ -140,10 +139,10 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>Starts playing the currently set-up animation from the beginning.</summary>
-        public void Play() { _core.Play(); _audioController?.ResumeAll(); }   // Explicit play lifts the suspend
+        public void Play() { _core.Play(); }
 
         /// <summary>Starts playing the currently set-up animation from the specified frame.</summary>
-        public void Play(float startFrame) { _core.Play(startFrame); _audioController?.ResumeAll(); }
+        public void Play(float startFrame) { _core.Play(startFrame); }
 
         #region Playback Control
         // Thinly expose, as the component's public API, the playback controls the internal player (Rust
@@ -173,7 +172,6 @@ namespace SpriteStudio.Runtime
         public void Pause()
         {
             _core.Internal?.Pause();
-            _audioController?.PauseAll();
         }
 
         /// <summary>
@@ -183,7 +181,6 @@ namespace SpriteStudio.Runtime
         public void Resume()
         {
             _core.Internal?.Resume();
-            _audioController?.ResumeAll();
         }
 
         /// <summary>
@@ -419,7 +416,6 @@ namespace SpriteStudio.Runtime
         private void InvokeAnimationStarted() => OnAnimationStartedEvent?.Invoke();
         private void InvokeAnimationFinished()
         {
-            _audioController?.StopLoops();   // On animation end, stop loop sounds (let one-shots end on their own)
             OnAnimationFinishedEvent?.Invoke();
         }
         private void InvokeAnimationLooped() => OnAnimationLoopedEvent?.Invoke();
