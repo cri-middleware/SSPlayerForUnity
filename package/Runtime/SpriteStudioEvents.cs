@@ -8,6 +8,11 @@ namespace SpriteStudio.Runtime
     [Serializable]
     public struct SpriteStudioUserData
     {
+        /// <summary>
+        /// The frame the key is authored on — not necessarily the frame it was noticed on,
+        /// since one tick can step across several.
+        /// </summary>
+        public int FrameNo;
         public string PartName;
         public int PartIndex;
         
@@ -64,6 +69,11 @@ namespace SpriteStudio.Runtime
     [Serializable]
     public struct SpriteStudioSignal
     {
+        /// <summary>
+        /// The frame the key is authored on — not necessarily the frame it was noticed on,
+        /// since one tick can step across several.
+        /// </summary>
+        public int FrameNo;
         public string PartName;
         public int PartIndex;
         public bool Active;
@@ -122,6 +132,11 @@ namespace SpriteStudio.Runtime
     [Serializable]
     public struct SpriteStudioAudio
     {
+        /// <summary>
+        /// The frame the key is authored on — not necessarily the frame it was noticed on,
+        /// since one tick can step across several.
+        /// </summary>
+        public int FrameNo;
         public string PartName;
         public int PartIndex;
         public uint SoundListNameHash;
