@@ -215,11 +215,11 @@ namespace SpriteStudio.Runtime
 
         /// <summary>
         /// Selects the animation to play and sets its data up (posed at the first frame).
-        /// Does not start playback; call <see cref="Play()"/> to start. Playback settings such as
-        /// loop/speed/skip are not applied here (setup resets them to defaults). To apply settings after
-        /// switching at runtime, set the <see cref="LoopCount"/> / <see cref="SpeedScale"/> /
-        /// <see cref="SkipFrames"/> properties after setup. Returns true if
-        /// setup succeeded.
+        /// Does not start playback; call <see cref="Play()"/> to start.
+        /// <see cref="SpeedScale"/> and <see cref="SkipFrames"/> carry across the switch — they are the
+        /// host's settings rather than the clip's — while <see cref="LoopCount"/> is per-transition and
+        /// is re-applied from the serialized value. Direction and style reset to Forward/Normal.
+        /// Returns true if setup succeeded.
         /// </summary>
         public bool SetAnimation(string animName)
         {
@@ -233,10 +233,12 @@ namespace SpriteStudio.Runtime
             return ok;
         }
 
-        // Push the serialized playback parameters (loop / speed / skip) to the runtime. SetAnimation only
-        // sets the animation up; the Rust setup resets these to defaults, so they are applied separately
-        // afterwards — loop/speed/skip are configured after the animation
-        // is set. Direction/style (Reverse/PingPong) have no serialized default and stay at the setup
+        // Push the serialized playback parameters to the runtime. Loop is the one that has to be here:
+        // the Rust setup resets it on every transition, so the component's own configuration would be
+        // lost on each SetAnimation without this. Speed and frame skip survive setup on their own --
+        // they are the host's settings, not the clip's -- and are pushed anyway, because this is the
+        // one place a serialized value is guaranteed to reach a freshly set-up player.
+        // Direction/style (Reverse/PingPong) have no serialized default and stay at the setup
         // default (Forward/Normal) until set via their properties.
         private void ApplyPlaybackSettings()
         {
