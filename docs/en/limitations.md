@@ -59,7 +59,7 @@ These come from the shared `libssruntime` and therefore apply to every render pa
 > [!WARNING]
 > - **`independent=true` parts (Instance / Effect) do not reverse or seek correctly.** Only forward playback (including forward frame-skips) is correct.
 > - **Seeking does not fire the events it skips over.** Only the destination frame's `UserData` / `Signal` / `Audio` events fire.
-> - **No reverse audio.** Sounds are skipped whenever the effective direction is backward (reverse direction, ping-pong return, or negative speed).
+> - **No reverse audio.** Sounds are skipped whenever the effective direction is backward (a reverse direction, or a ping-pong return leg). A negative speed is not one of those cases: speed is a multiplier, and a negative one stops the playhead rather than turning it around, as does `0`.
 > - **Animation blending is same-`.ssab` only**, and every blended animation must assign the same Cell to the same part.
 > - **WebAssembly SIMD is required for WebGL builds.** The runtime is built with WebAssembly SIMD instructions and will not run on browsers without SIMD support. Treat SIMD support as a browser requirement for a WebGL distribution.
 
