@@ -34,7 +34,7 @@ _player.Play();
 | `Play(float startFrame)` | Method | Start playing the set-up animation from the specified frame |
 | `Pause()` | Method | Hold playback on the current frame. Idempotent, and ignored while nothing is playing |
 | `Resume()` | Method | Lift a `Pause()`, carrying on from the same frame. Idempotent. `Play()` rewinds to the beginning, so it cannot be used to resume |
-| `Stop()` | Method | Stop playback |
+| `Stop()` | Method | Stop playback. The playhead **stays where it stands** — nothing rewinds, so the frame it stopped on keeps drawing. `Play()` is what returns to the start |
 | `IsPlaying` | `bool` (read) | Whether a playback session is active (`true` even while paused) |
 | `IsPaused` | `bool` (read) | Whether currently paused |
 | `CurrentFrame` | `float` | Current frame. Use `set` to seek to an arbitrary frame (fractional allowed) |
