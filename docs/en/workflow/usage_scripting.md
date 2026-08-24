@@ -203,7 +203,9 @@ struct SpriteStudioAudio
 > **Lifetime of Signal parameters**: `GetParam` / `TryGetParam` return a view into a buffer owned and recycled by the player, which is how they avoid allocating and boxing. A `SpriteStudioSignal` and the `SpriteStudioSignalParam` values read from it are only valid until the next event poll on that player — usually the next frame. If you need a value after the callback returns (storing it in a field, reading it from a coroutine, queueing it), **copy the value itself** (`p.AsInteger`, `p.AsText`, …); keeping the `SpriteStudioSignal` around will report another signal's parameters later, with no error.
 
 > [!NOTE]
-> **About Audio events**: This plugin **notifies** the occurrence of Audio. Perform the actual sound playback (producing sound via `AudioSource`) on the application side. The `AudioClip` needed for playback is already resolved and held in `SpriteStudioAnimeAsset.Sounds`.
+> **About Audio events**: `Play Audio` is on by default, so the component already produces the sound itself through pooled `AudioSource` voices. `OnAudio` is an **observation** channel beside that — use it to react to a sound without taking it over, or turn `Play Audio` off and play it yourself. The `AudioClip` is already resolved and held in `SpriteStudioAnimeAsset.Sounds`.
+>
+> A sound that has started **outlives the playback that triggered it**. `Pause()`, `Resume()`, `Stop()`, a `SetAnimation()` switch and the end of the animation all leave it running; only disabling or destroying the component stops it. SpriteStudio has no infinite loop — `loop_num` is a play count — so every sound ends on its own. If one outlasts its animation, that is the animation data's business, not the component's.
 
 ### Implementation Example: Continuous Animation Playback
 

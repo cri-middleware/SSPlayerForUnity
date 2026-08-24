@@ -143,9 +143,11 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
-        public void StopLoops_LeavesSinglePlay()
+        public void StopAll_StopsEverySound()
         {
-            // Animation switch / end (StopLoops) stops loops but leaves one-shots to end on their own.
+            // Teardown takes everything with it -- one-shots and finite loops alike.
+            // There is no longer a partial sweep: nothing short of disable / destroy
+            // stops a sound that has started.
             var go = new GameObject("ss-audio");
             var asset = MakeAssetWithSound(18u, 28u, out var clip);
             var prevGlobal = SpriteStudioAudioBackend.Global;
@@ -156,10 +158,10 @@ namespace SpriteStudio.Runtime.Tests
 
                 ctrl.Play(Ev(0, 18u, 28u, 1), asset, null, 1f);    // part0: one-shot
                 ctrl.Play(Ev(1, 18u, 28u, 2), asset, null, 1f);    // part1: loop (2 times)
-                ctrl.StopLoops();
+                ctrl.StopAll();
 
                 int withClip = go.GetComponents<AudioSource>().Count(s => s.clip != null);
-                Assert.AreEqual(1, withClip, "StopLoops should stop the loop (clip cleared) but leave the one-shot");
+                Assert.AreEqual(0, withClip, "StopAll should clear every voice");
             }
             finally { Cleanup(prevGlobal, asset, clip, go); }
         }
@@ -181,24 +183,6 @@ namespace SpriteStudio.Runtime.Tests
 
                 Assert.AreEqual(1, go.GetComponents<AudioSource>().Length,
                     "Playback after a stop should reuse the pooled AudioSource, not add a new one");
-            }
-            finally { Cleanup(prevGlobal, asset, clip, go); }
-        }
-
-        [Test]
-        public void PauseAll_ResumeAll_DoNotThrow()
-        {
-            var go = new GameObject("ss-audio");
-            var asset = MakeAssetWithSound(19u, 29u, out var clip);
-            var prevGlobal = SpriteStudioAudioBackend.Global;
-            try
-            {
-                SpriteStudioAudioBackend.Global = null;
-                var ctrl = new SpriteStudioAudioController(go);
-                ctrl.Play(Ev(0, 19u, 29u, 2), asset, null, 1f);
-
-                Assert.DoesNotThrow(() => { ctrl.PauseAll(); ctrl.ResumeAll(); });
-                Assert.AreEqual(1, go.GetComponents<AudioSource>().Length, "Pause/Resume should not change the number of voices");
             }
             finally { Cleanup(prevGlobal, asset, clip, go); }
         }
