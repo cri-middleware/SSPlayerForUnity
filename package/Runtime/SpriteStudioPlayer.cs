@@ -306,6 +306,21 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
+        /// Which way the playhead is actually travelling this frame. This is <b>not</b>
+        /// <see cref="Reverse"/>, which is only the heading that was configured: under
+        /// <see cref="PingPong"/> the return leg runs backward while <see cref="Reverse"/> still
+        /// reads false. A speed of zero or below is a stop, not a reversal, and does not flip it.
+        /// <para>
+        /// This is the gate to put in front of audio. SpriteStudio has no reverse audio, so a sound
+        /// key crossed on a backward leg is not meant to sound — the player applies exactly this
+        /// test itself before handing one to the audio backend, and a project driving its own audio
+        /// from <c>OnAudio</c> wants the same one. True before anything has played: forward is the
+        /// resting state.
+        /// </para>
+        /// </summary>
+        public bool IsPlayingForward => _core.Internal?.IsPlayingForward() ?? true;
+
+        /// <summary>
         /// Holds playback on the current frame. Idempotent, and ignored while nothing is playing.
         /// Lift it with <see cref="Resume"/> — Play() rewinds to the start, so it cannot resume.
         /// </summary>

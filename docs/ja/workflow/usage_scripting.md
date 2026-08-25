@@ -39,6 +39,7 @@ _player.Play();
 | `Stop()` | メソッド | 再生を停止。再生ヘッドは **その場に留まり**、巻き戻りません（停止したフレームを描画し続けます）。先頭に戻すのは `Play()` です |
 | `IsPlaying` | `bool`（読取） | 再生セッションが有効か（一時停止中でも `true`） |
 | `IsPaused` | `bool`（読取） | 一時停止中か |
+| `IsPlayingForward` | `bool`（読取） | 再生ヘッドが**実際に**進んでいる向き。`Reverse` は設定した向きに過ぎず、`PingPong` の戻りの脚では `Reverse` が `false` のままでもこれは `false` になります。**音声はこれでゲートしてください**（SpriteStudio に逆再生音声は無いため、後ろ向きの脚で跨いだキーは鳴らすべきものではありません） |
 | `CurrentFrame` | `float` | 現在フレーム。`set` で任意フレームへシーク（小数可） |
 | `TotalFrames` | `int`（読取） | 再生中の区間のフレーム数（両端を含む）。`SetAnimationSection` で区間を設定していればその区間（未ロード時 `0`） |
 | `FrameRate` | `int` | 再生フレームレート (fps)。`set` で実行時変更 |

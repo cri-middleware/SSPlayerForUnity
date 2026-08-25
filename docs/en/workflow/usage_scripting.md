@@ -39,6 +39,7 @@ Your playback settings hold across the switch: `SpeedScale`, `SkipFrames`, a fra
 | `Stop()` | Method | Stop playback. The playhead **stays where it stands** — nothing rewinds, so the frame it stopped on keeps drawing. `Play()` is what returns to the start |
 | `IsPlaying` | `bool` (read) | Whether a playback session is active (`true` even while paused) |
 | `IsPaused` | `bool` (read) | Whether currently paused |
+| `IsPlayingForward` | `bool` (read) | Which way the playhead is **actually** travelling. `Reverse` is only the configured heading: on a `PingPong` return leg this reads `false` while `Reverse` is still `false`. **Gate audio on it** — SpriteStudio has no reverse audio, so a key crossed on a backward leg is not meant to sound |
 | `CurrentFrame` | `float` | Current frame. Use `set` to seek to an arbitrary frame (fractional allowed) |
 | `TotalFrames` | `int` (read) | Frames in the range being played, both ends inclusive — the section when `SetAnimationSection` set one (`0` when not loaded) |
 | `FrameRate` | `int` | Playback frame rate (fps). Use `set` to change at runtime |
