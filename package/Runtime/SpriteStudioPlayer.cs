@@ -216,15 +216,23 @@ namespace SpriteStudio.Runtime
         /// <summary>
         /// Selects the animation to play and sets its data up (posed at the first frame).
         /// Does not start playback; call <see cref="Play()"/> to start.
-        /// <see cref="SpeedScale"/> and <see cref="SkipFrames"/> carry across the switch — they are the
-        /// host's settings rather than the clip's — while <see cref="LoopCount"/> is per-transition and
-        /// is re-applied from the serialized value. Direction and style reset to Forward/Normal.
+        /// <see cref="LoopCount"/>, <see cref="SpeedScale"/> and <see cref="SkipFrames"/> all survive the
+        /// switch: the runtime keeps speed and frame skip itself, and the loop count — which it does reset
+        /// on every transition, since the transition is what states it — is re-applied here from this
+        /// component's own value. <see cref="Reverse"/> / <see cref="PingPong"/> survive it too (the
+        /// runtime keeps the direction and style; only the heading within a ping-pong round trip is
+        /// re-derived, so a switch never begins mid-bounce).
         /// Returns true if setup succeeded.
         /// </summary>
         public bool SetAnimation(string animName)
         {
             _animationName = animName;
             bool ok = _core.SetAnimation(_animationName, "SpriteStudioPlayer");
+            // The runtime resets the loop count on every setup, so a switch would otherwise turn a
+            // configured `LoopCount = 1` back into looping forever -- silently, and only when the
+            // animation was changed at runtime rather than from the inspector. Every sibling Player
+            // re-applies it inside its own setAnimation for exactly this reason.
+            if (ok) ApplyPlaybackSettings();
 #if UNITY_EDITOR
             // Keep the OnValidate baseline in sync so a later unrelated inspector edit does not restart.
             _appliedAnimation = _animationName;
@@ -235,8 +243,9 @@ namespace SpriteStudio.Runtime
         // Push the serialized playback parameters to the runtime. Loop is the one that has to be here:
         // the Rust setup resets it on every transition, so the component's own configuration would be
         // lost on each SetAnimation without this. Speed and frame skip survive setup on their own --
-        // they are the host's settings, not the clip's -- and are pushed anyway, because this is the
-        // one place a serialized value is guaranteed to reach a freshly set-up player.
+        // they are the host's settings, not the clip's -- and are pushed anyway, because this is also
+        // the path a serialized value takes to reach a freshly created player (Start / OnEnable), where
+        // nothing else has written it yet.
         // Direction/style (Reverse/PingPong) have no serialized default, so they start at
         // Forward/Normal and stay wherever their properties last put them -- the Rust setup
         // keeps them across a transition, like the speed and the frame skip.
@@ -319,9 +328,11 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// Whether reverse (Backward) playback is on. <see cref="SetAnimation(string)"/> resets this to
-        /// Forward every time, so to start in reverse set it to true after SetAnimation (either before or
-        /// after Play).
+        /// Whether reverse (Backward) playback is on. It <b>survives</b> <see cref="SetAnimation(string)"/>:
+        /// "play this backwards" describes the playback, not the clip that happens to be loaded, so the
+        /// runtime keeps it across a transition (as it keeps <see cref="SpeedScale"/> and
+        /// <see cref="SkipFrames"/>). Set it once, whenever you like. There is no serialized default, so it
+        /// starts Forward on a freshly created component.
         /// </summary>
         public bool Reverse
         {
@@ -334,9 +345,10 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// Whether ping-pong (round-trip) playback is on. <see cref="SetAnimation(string)"/> resets this to
-        /// Normal every time, so to start in ping-pong set it to true after SetAnimation (either before or
-        /// after Play).
+        /// Whether ping-pong (round-trip) playback is on. Like <see cref="Reverse"/> it <b>survives</b>
+        /// <see cref="SetAnimation(string)"/>; only the heading within a round trip is re-derived, so a
+        /// switch made on the return leg starts the new animation walking outward rather than mid-bounce.
+        /// There is no serialized default, so it starts Normal on a freshly created component.
         /// </summary>
         public bool PingPong
         {
@@ -442,16 +454,18 @@ namespace SpriteStudio.Runtime
         {
             if (string.IsNullOrEmpty(_animationName)) return;
             // Always call SetAnimation so the first frame is posed even when AutoPlay is off; actually start
-            // playback only when AutoPlay is on. SetAnimation does not apply playback settings, so apply them
-            // explicitly after setup (property-application order: animation -> loop/speed/skip -> play).
-            if (SetAnimation(_animationName))
-            {
-                ApplyPlaybackSettings();
-                if (_autoPlay) Play();
-            }
+            // playback only when AutoPlay is on. SetAnimation pushes the serialized loop/speed/skip itself,
+            // so the order is simply animation -> play.
+            if (SetAnimation(_animationName) && _autoPlay) Play();
         }
 
         private readonly SpriteStudioPlaybackCore _core = new SpriteStudioPlaybackCore();
+
+        // The native player, exposed for tests that need to read what actually reached the runtime
+        // rather than what this component was told. Internal, not public: a raw native handle is not
+        // part of the package's API (ISpriteStudioRenderable.GetLiveHandle is explicit for the same
+        // reason).
+        internal SpriteStudioInternalPlayer InternalPlayer => _core.Internal;
 
         public event System.Action OnAnimationStarted
         {
@@ -642,9 +656,9 @@ namespace SpriteStudio.Runtime
                     }
                     if ((assetChanged || animChanged) && !string.IsNullOrEmpty(_animationName))
                     {
-                        // When the animation/asset is changed in the inspector, set up again, re-apply the
-                        // playback settings, and restart playback from the head.
-                        if (SetAnimation(_animationName)) { ApplyPlaybackSettings(); Play(); }
+                        // When the animation/asset is changed in the inspector, set up again (which
+                        // re-applies the playback settings) and restart playback from the head.
+                        if (SetAnimation(_animationName)) Play();
                     }
                 }
             }

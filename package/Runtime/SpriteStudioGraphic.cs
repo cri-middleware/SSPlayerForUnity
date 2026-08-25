@@ -110,23 +110,30 @@ namespace SpriteStudio.Runtime
 
         /// <summary>
         /// Selects the animation to play and sets its data up (posed at the first frame).
-        /// Does not start playback; call <see cref="Play()"/> to start. Playback settings such as
-        /// loop/speed/skip are not applied here (setup resets them to defaults). To apply settings after
-        /// switching at runtime, set the <see cref="LoopCount"/> / <see cref="SpeedScale"/> /
-        /// <see cref="SkipFrames"/> properties after setup. Returns true if
-        /// setup succeeded.
+        /// Does not start playback; call <see cref="Play()"/> to start.
+        /// <see cref="LoopCount"/>, <see cref="SpeedScale"/> and <see cref="SkipFrames"/> all survive the
+        /// switch: the runtime keeps speed and frame skip itself, and the loop count — which it does reset
+        /// on every transition, since the transition is what states it — is re-applied here from this
+        /// component's own value. Returns true if setup succeeded.
         /// </summary>
         public bool SetAnimation(string animName)
         {
             _animationName = animName;
-            return _core.SetAnimation(_animationName, "SpriteStudioGraphic");
+            bool ok = _core.SetAnimation(_animationName, "SpriteStudioGraphic");
+            // The runtime resets the loop count on every setup, so a switch would otherwise turn a
+            // configured `LoopCount = 1` back into looping forever -- silently, and only when the
+            // animation was changed at runtime rather than from the inspector. Every sibling Player
+            // re-applies it inside its own setAnimation for exactly this reason.
+            if (ok) ApplyPlaybackSettings();
+            return ok;
         }
 
         // Push the serialized playback parameters to the runtime. Loop is the one that has to be here:
         // the Rust setup resets it on every transition, so the component's own configuration would be
         // lost on each SetAnimation without this. Speed and frame skip survive setup on their own --
-        // they are the host's settings, not the clip's -- and are pushed anyway, because this is the
-        // one place a serialized value is guaranteed to reach a freshly set-up player.
+        // they are the host's settings, not the clip's -- and are pushed anyway, because this is also
+        // the path a serialized value takes to reach a freshly created player (Start / OnEnable), where
+        // nothing else has written it yet.
         // Direction/style (Reverse/PingPong) have no serialized default, so they start at
         // Forward/Normal and stay wherever their properties last put them -- the Rust setup
         // keeps them across a transition, like the speed and the frame skip.
@@ -328,16 +335,18 @@ namespace SpriteStudio.Runtime
             base.Start();
             if (string.IsNullOrEmpty(_animationName)) return;
             // Always call SetAnimation so the first frame is posed even when AutoPlay is off; actually start
-            // playback only when AutoPlay is on. SetAnimation does not apply playback settings, so apply them
-            // explicitly after setup (property-application order: animation -> loop/speed/skip -> play).
-            if (SetAnimation(_animationName))
-            {
-                ApplyPlaybackSettings();
-                if (_autoPlay) Play();
-            }
+            // playback only when AutoPlay is on. SetAnimation pushes the serialized loop/speed/skip itself,
+            // so the order is simply animation -> play.
+            if (SetAnimation(_animationName) && _autoPlay) Play();
         }
 
         private readonly SpriteStudioPlaybackCore _core = new SpriteStudioPlaybackCore();
+
+        // The native player, exposed for tests that need to read what actually reached the runtime
+        // rather than what this component was told. Internal, not public: a raw native handle is not
+        // part of the package's API (ISpriteStudioRenderable.GetLiveHandle is explicit for the same
+        // reason).
+        internal SpriteStudioInternalPlayer InternalPlayer => _core.Internal;
 
         public event System.Action OnAnimationStarted
         {

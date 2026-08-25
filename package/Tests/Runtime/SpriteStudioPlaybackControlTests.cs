@@ -18,8 +18,8 @@ namespace SpriteStudio.Runtime.Tests
     ///   (A) Component layer — delegations that synchronously reflect native state, round-trips, and null safety.
     ///       Thanks to [ExecuteAlways], AddComponent runs OnEnable and executes AnimeAsset assignment through Play
     ///       synchronously, so we can verify deterministically without frame driving (UpdateManager / yield).
-    ///   (B) Internal-player layer — advance behavior via manual Tick (Pause toggle halts / re-toggle resumes at
-    ///       the current frame / reverse playback decreases the frame / section settings are reflected). This
+    ///   (B) Internal-player layer — advance behavior via manual Tick (Pause halts / Resume carries on at the
+    ///       current frame / reverse playback decreases the frame / section settings are reflected). This
     ///       nails down the semantics that the component's Pause etc. delegate to.
     ///
     /// The fixture reuses the existing Ringo. Assumptions that depend on animation length are guarded with Assume
@@ -113,13 +113,57 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
-        public void Pause_Toggle_ClearsPaused()
+        public void Pause_IsIdempotent_AndResumeLiftsIt()
         {
+            // Pause is a hold, not a toggle: pausing twice leaves it held, and Resume is what lifts it
+            // (Play would rewind). This test used to assert the toggle semantics an older API had.
             var player = MakePlayingPlayer();
-            player.Pause(); // toggle: playing -> paused
-            player.Pause(); // toggle: paused -> playing
-            Assert.IsFalse(player.IsPaused, "Calling Pause again (toggle) should clear the paused state");
+            player.Pause();
+            player.Pause();
+            Assert.IsTrue(player.IsPaused, "Pause is idempotent — a second call must not lift the hold");
             Assert.IsTrue(player.IsPlaying);
+
+            player.Resume();
+            Assert.IsFalse(player.IsPaused, "Resume lifts the hold");
+            Assert.IsTrue(player.IsPlaying);
+        }
+
+        [Test]
+        public void SetAnimation_KeepsTheConfiguredLoopCount()
+        {
+            var go = new GameObject("LoopRetentionPlayer");
+            _objects.Add(go);
+            var player = go.AddComponent<SpriteStudioPlayer>();
+            player.AnimeAsset = MakeAsset();
+            player.LoopCount = 1;
+
+            Assert.IsTrue(player.SetAnimation("walk"));
+            // Read the runtime, not the component's field: the field is what we just set and would agree
+            // with itself either way. setup_animation resets the runtime's own count to the infinite
+            // sentinel, so the component has to push its configuration back — and did not, which turned
+            // a "play once" into a forever loop on any runtime animation switch.
+            Assert.AreEqual(1, player.InternalPlayer.GetLoop(),
+                "A runtime SetAnimation must not revert the configured loop count to infinite");
+
+            // Again across a second switch, which is the shape a state machine actually uses.
+            Assert.IsTrue(player.SetAnimation("walk"));
+            Assert.AreEqual(1, player.InternalPlayer.GetLoop());
+        }
+
+        [Test]
+        public void Graphic_SetAnimation_KeepsTheConfiguredLoopCount()
+        {
+            var go = new GameObject("LoopRetentionGraphic");
+            _objects.Add(go);
+            go.AddComponent<Canvas>();
+            go.AddComponent<CanvasRenderer>();
+            var graphic = go.AddComponent<SpriteStudioGraphic>();
+            graphic.AnimeAsset = MakeAsset();
+            graphic.LoopCount = 1;
+
+            Assert.IsTrue(graphic.SetAnimation("walk"));
+            Assert.AreEqual(1, graphic.InternalPlayer.GetLoop(),
+                "The uGUI component owes the same guarantee as the world one");
         }
 
         [Test]
@@ -292,16 +336,16 @@ namespace SpriteStudio.Runtime.Tests
                 float f0 = player.GetFrame();
                 Assert.Greater(f0, 0f, "Playback should advance the frame");
 
-                // No advance while paused (native pause() toggles is_pausing)
+                // No advance while paused (native pause() raises is_pausing and holds the timeline)
                 player.Pause();
                 for (int i = 0; i < step; i++) player.Tick(1f / 60f, false);
                 Assert.AreEqual(f0, player.GetFrame(), 0.5f, "The frame should not advance while paused");
 
-                // Resume: play() rewinds to the start so it can't be used. Re-toggling pause() resumes while
-                // keeping the current frame (the same path the component's Pause() toggle delegates to).
-                player.Pause(); // toggle: paused -> playing
+                // Resume: play() rewinds to the start so it can't be used. resume() lifts the hold while
+                // keeping the current frame (the same path the component's Resume() delegates to).
+                player.Resume();
                 for (int i = 0; i < step; i++) player.Tick(1f / 60f, false);
-                Assert.Greater(player.GetFrame(), f0, "Resume (pause toggle) should continue from the current frame (not return to the start)");
+                Assert.Greater(player.GetFrame(), f0, "Resume should continue from the current frame (not return to the start)");
             }
         }
 
