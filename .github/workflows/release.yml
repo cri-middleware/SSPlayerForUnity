@@ -31,11 +31,16 @@ jobs:
       contents: write # softprops/action-gh-release creates the GitHub Release
     env:
       # The signing gate, set once at the job level so the step conditions below
-      # can read it -- `secrets` is not available in an `if:`, `env` is. An absent
-      # secret is the empty string, which is exactly the "not set" the scripts
-      # test for, so this wiring is inert until the secrets exist and the day they
-      # do a release is signed with no change here.
-      UNITY_ORGANIZATION_ID: ${{ secrets.UNITY_ORGANIZATION_ID }}
+      # can read it -- `env` is available in an `if:`. An unregistered variable is
+      # the empty string, which is exactly the "not set" the scripts test for, so
+      # this wiring is inert until it is registered and the day it is a release is
+      # signed with no change here.
+      #
+      # A repository VARIABLE, not a secret: the organization ID is an identifier,
+      # not a credential, and keeping it unmasked is what lets the build say which
+      # organization it signed as instead of logging `***`. The two credentials
+      # that go with it are secrets, on the build step below.
+      UNITY_ORGANIZATION_ID: ${{ vars.UNITY_ORGANIZATION_ID }}
     steps:
       - uses: actions/checkout@v7
 
