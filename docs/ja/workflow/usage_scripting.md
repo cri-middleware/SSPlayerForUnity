@@ -295,7 +295,7 @@ player.UnregisterPartTracker(weapon.transform);
 
 | メソッド | 説明 |
 |---|---|
-| `RegisterPartTracker(partName, target, driveScale, onHide)` | トラッカーを追加し、作成されたエントリを返す（`driveScale` / `onHide` は省略可） |
+| `RegisterPartTracker(partName, target, driveScale, onHide, drivePosition, driveRotation)` | トラッカーを追加し、作成されたエントリを返す（末尾 4 つは省略可。`drivePosition` / `driveRotation` は既定 ON、`driveScale` は既定 OFF） |
 | `UnregisterPartTracker(target)` | その `Transform` を対象とするエントリをすべて削除し、削除件数を返す |
 | `TryGetPartHidden(partName, out bool hidden)` | そのパーツが現在フレームで hide かを取得。パーツが不明なら `false` を返す |
 | `TryGetPartLocalMatrix(partName, out Matrix4x4 matrix)` | そのパーツの現在フレームの変換行列（プレイヤーローカル、`1 / PixelsPerUnit` 適用済み）を取得 |

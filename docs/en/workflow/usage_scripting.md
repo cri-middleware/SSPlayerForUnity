@@ -294,7 +294,7 @@ player.UnregisterPartTracker(weapon.transform);
 
 | Method | Description |
 |---|---|
-| `RegisterPartTracker(partName, target, driveScale, onHide)` | Adds a tracker and returns the created entry (`driveScale` / `onHide` are optional) |
+| `RegisterPartTracker(partName, target, driveScale, onHide, drivePosition, driveRotation)` | Adds a tracker and returns the created entry (the last four are optional; `drivePosition` / `driveRotation` default on, `driveScale` off) |
 | `UnregisterPartTracker(target)` | Removes every entry targeting that `Transform` and returns the number removed |
 | `TryGetPartHidden(partName, out bool hidden)` | Whether the part is hidden on the current frame. Returns `false` if the part is unknown |
 | `TryGetPartLocalMatrix(partName, out Matrix4x4 matrix)` | The part's transform for the current frame (player-local, with `1 / PixelsPerUnit` already folded in) |
