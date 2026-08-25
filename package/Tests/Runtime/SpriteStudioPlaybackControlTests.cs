@@ -156,6 +156,65 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
+        public void SetAnimation_WithTheAnimationAlreadySetUp_ChangesNothing()
+        {
+            var player = MakePlayingPlayer();
+            player.SkipFrames = false;   // one Tick = one frame
+            for (int i = 0; i < 3; i++) player.InternalPlayer.Tick(1f / 60f, false);
+
+            float frame = player.CurrentFrame;
+            Assume.That(frame, Is.GreaterThan(0f), "playback should have advanced before we re-assert");
+
+            Assert.IsTrue(player.SetAnimation("walk"), "re-asserting the current animation still succeeds");
+
+            // A switch with nothing to switch to. Before this was a no-op it ran a full setup_animation,
+            // which rewound the playhead and returned the controller to Stopped.
+            Assert.AreEqual(frame, player.CurrentFrame, 0.001f, "the playhead must not rewind");
+            Assert.IsTrue(player.IsPlaying, "playback must not be returned to Stopped");
+        }
+
+        [Test]
+        public void SetAnimation_WithTheAnimationAlreadySetUp_DoesNotReArmTheLoopBudget()
+        {
+            var player = MakePlayingPlayer();
+            player.LoopCount = 2;
+            player.SkipFrames = false;
+            player.Play();
+            Assume.That(player.InternalPlayer.GetRemainLoops(), Is.EqualTo(2));
+
+            // Burn one whole cycle, so the budget has visibly counted down.
+            int total = player.TotalFrames;
+            for (int i = 0; i < total + 2; i++) player.InternalPlayer.Tick(1f / 60f, false);
+            int remaining = player.InternalPlayer.GetRemainLoops();
+            Assume.That(remaining, Is.EqualTo(1), "one cycle should have completed");
+
+            player.SetAnimation("walk");
+
+            // Writing the loop count re-arms the budget, and the old code wrote it on every call. A state
+            // machine re-asserting its clip each frame would reset the budget each frame, so a finite
+            // LoopCount would never run out.
+            Assert.AreEqual(remaining, player.InternalPlayer.GetRemainLoops(),
+                "re-asserting the current animation must not restart the loop budget");
+        }
+
+        [Test]
+        public void SetAnimation_SetsUpAgainAfterAnotherPackIsBound()
+        {
+            var player = MakePlayingPlayer();
+            Assume.That(player.InternalPlayer.CurrentAnimationName, Is.EqualTo("walk"));
+
+            // A different asset — which, being built from the same bytes here, names an animation "walk"
+            // too. Nothing is set up on it, so the name matching the PREVIOUS pack's selection must not
+            // be taken for "already set up", or the new pack is left bound and unplayable.
+            player.AnimeAsset = MakeAsset();
+            Assert.IsNull(player.InternalPlayer.CurrentAnimationName, "a load clears what was set up");
+
+            Assert.IsTrue(player.SetAnimation("walk"));
+            Assert.AreEqual("walk", player.InternalPlayer.CurrentAnimationName);
+            Assert.Greater(player.TotalFrames, 0, "the new pack is playable");
+        }
+
+        [Test]
         public void SetAnimation_KeepsTheConfiguredLoopCount()
         {
             var go = new GameObject("LoopRetentionPlayer");
