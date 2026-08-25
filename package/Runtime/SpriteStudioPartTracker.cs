@@ -29,7 +29,13 @@ namespace SpriteStudio.Runtime
         [Tooltip("User-owned Transform to make follow this part. May be directly under the player or in a separate hierarchy.")]
         public Transform target;
 
-        [Tooltip("ON: also reflect the inherited scale (excluding localScale). OFF (default): follow position and rotation only.")]
+        [Tooltip("ON (default): follow the part's position. A follower that does not follow the position is not following.")]
+        public bool drivePosition = true;
+
+        [Tooltip("ON (default): follow the part's rotation. A weapon in a hand turns with the hand.")]
+        public bool driveRotation = true;
+
+        [Tooltip("ON: also reflect the inherited scale (excluding localScale). OFF (default): a follower is placed at the part, not sized by it.")]
         public bool driveScale = false;
 
         [Tooltip("Behavior on frames where the part is hidden. FollowAlways = keep following / Deactivate = hide the target.")]

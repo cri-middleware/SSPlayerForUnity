@@ -891,8 +891,11 @@ namespace SpriteStudio.Runtime
                 bool mirrored = local.determinant < 0f;
                 if (mirrored) local.SetColumn(1, -local.GetColumn(1));
 
-                tracker.target.localPosition = local.GetColumn(3);
-                tracker.target.localRotation = local.rotation;
+                // The three axes are independent, and each disabled one leaves the target's own value
+                // alone rather than writing an identity — a constraint that drives less, not a transform
+                // that replaces more.
+                if (tracker.drivePosition) tracker.target.localPosition = local.GetColumn(3);
+                if (tracker.driveRotation) tracker.target.localRotation = local.rotation;
                 if (tracker.driveScale)
                 {
                     // 2D player: drive X/Y, preserve the target's own Z scale.
@@ -908,13 +911,16 @@ namespace SpriteStudio.Runtime
 
         /// <summary>Register a part tracker at runtime. Returns the created entry.</summary>
         public SpriteStudioPartTracker RegisterPartTracker(string partName, Transform target,
-            bool driveScale = false, SpriteStudioPartTrackerHide onHide = SpriteStudioPartTrackerHide.FollowAlways)
+            bool driveScale = false, SpriteStudioPartTrackerHide onHide = SpriteStudioPartTrackerHide.FollowAlways,
+            bool drivePosition = true, bool driveRotation = true)
         {
             if (_partTrackers == null) _partTrackers = new List<SpriteStudioPartTracker>();
             var tracker = new SpriteStudioPartTracker
             {
                 partName = partName,
                 target = target,
+                drivePosition = drivePosition,
+                driveRotation = driveRotation,
                 driveScale = driveScale,
                 onHide = onHide,
             };
