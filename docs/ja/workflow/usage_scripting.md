@@ -25,7 +25,7 @@ _player.Play();
 
 `SetAnimation()` はアニメーションのデータをロードし**先頭フレームで待機**します（再生は開始しません）。続けて `Play()` を呼ぶとその場から再生が始まります。
 
-設定した再生パラメータは切り替えを跨いで保持されます。`SpeedScale` / `SkipFrames` / フレームレート上書き / `Reverse`・`PingPong` はいずれもクリップではなく再生そのものを記述するものなのでランタイムが保持し、`LoopCount` は遷移ごとの指定なのでコンポーネントが再適用します。リセットされるのは再生ヘッド（先頭フレームで待機）と再生区間で、区間のフレーム番号は別のアニメーションに対して意味を持たないためです。
+設定した再生パラメータは切り替えを跨いで保持されます。`SpeedScale` / `FrameSkipEnabled` / フレームレート上書き / `PlaybackDirection`・`PlaybackStyle` はいずれもクリップではなく再生そのものを記述するものなのでランタイムが保持し、`LoopCount` は遷移ごとの指定なのでコンポーネントが再適用します。リセットされるのは再生ヘッド（先頭フレームで待機）と再生区間で、区間のフレーム番号は別のアニメーションに対して意味を持たないためです。
 
 ## 再生制御 API
 
@@ -38,13 +38,13 @@ _player.Play();
 | `Resume()` | メソッド | `Pause()` を解除し、同じフレームから再開する。冪等。`Play()` は先頭へ巻き戻すため再開には使えない |
 | `Stop()` | メソッド | 再生を停止。再生ヘッドは **その場に留まり**、巻き戻りません（停止したフレームを描画し続けます）。先頭に戻すのは `Play()` です |
 | `IsPlaying` | `bool`（読取） | 再生セッションが有効か（一時停止中でも `true`） |
-| `IsPaused` | `bool`（読取） | 一時停止中か |
-| `IsPlayingForward` | `bool`（読取） | 再生ヘッドが**実際に**進んでいる向き。`Reverse` は設定した向きに過ぎず、`PingPong` の戻りの脚では `Reverse` が `false` のままでもこれは `false` になります。**音声はこれでゲートしてください**（SpriteStudio に逆再生音声は無いため、後ろ向きの脚で跨いだキーは鳴らすべきものではありません） |
+| `IsPausing` | `bool`（読取） | 一時停止中か |
+| `IsPlayingForward` | `bool`（読取） | 再生ヘッドが**実際に**進んでいる向き。`PlaybackDirection` は設定した向きに過ぎず、`PlaybackStyle.PingPong` の戻りの脚では `PlaybackDirection` が `false` のままでもこれは `false` になります。**音声はこれでゲートしてください**（SpriteStudio に逆再生音声は無いため、後ろ向きの脚で跨いだキーは鳴らすべきものではありません） |
 | `CurrentFrame` | `float` | 現在フレーム。`set` で任意フレームへシーク（小数可） |
 | `TotalFrames` | `int`（読取） | 再生中の区間のフレーム数（両端を含む）。`SetAnimationSection` で区間を設定していればその区間（未ロード時 `0`） |
 | `FrameRate` | `int` | 再生フレームレート (fps)。`set` で実行時変更 |
-| `Reverse` | `bool` | 逆再生（Backward）か |
-| `PingPong` | `bool` | 往復（PingPong）再生か |
+| `PlaybackDirection` | `enum` | 設定した進行方向（`Forward` / `Backward`） |
+| `PlaybackStyle` | `enum` | 終端での挙動（`Normal` / `PingPong`） |
 | `SetAnimationSection(int start, int end)` | メソッド | 再生範囲をフレームで限定（フレーム指定。ラベル指定は未対応） |
 
 ### 例: 一時停止と再開
@@ -54,7 +54,7 @@ _player.Pause();    // 現在フレームで保持
 _player.Resume();   // そのフレームから再開
 
 // 再生／一時停止ボタン 1 つで扱う場合:
-if (_player.IsPaused) _player.Resume();
+if (_player.IsPausing) _player.Resume();
 else if (_player.IsPlaying) _player.Pause();
 else _player.Play();   // 停止中 — Play() は区間の先頭から再生し直す
 ```
@@ -72,12 +72,13 @@ _player.CurrentFrame = 10f;          // 区間先頭へシーク
 
 ```csharp
 _player.SetAnimation("walk");
-_player.Reverse = true;   // 逆再生へ
-_player.PingPong = true;  // 往復再生へ
+// 方向とスタイルは 1 回で原子的に設定できます
+_player.SetPlaybackDirection(SpriteStudioPlaybackDirection.Backward,
+                             SpriteStudioPlaybackStyle.PingPong);
 _player.Play();
 ```
 
-> `Reverse` / `PingPong` は `SetAnimation()` を跨いで保持されるので、設定は一度で済みます。インスペクタ側の既定値は無いため、スクリプトで指定するまでは Forward / Normal です。切り替えでリセットされるのは往復再生の進行中の向きだけで、新しいアニメーションは必ず往路から始まります。
+> `PlaybackDirection` / `PlaybackStyle` は `SetAnimation()` を跨いで保持されるので、設定は一度で済みます。インスペクタ側の既定値は無いため、スクリプトで指定するまでは Forward / Normal です。切り替えでリセットされるのは往復再生の進行中の向きだけで、新しいアニメーションは必ず往路から始まります。
 
 ## 再生パラメータのプロパティ
 
@@ -89,9 +90,9 @@ _player.Play();
 | `AnimationName` | `string` | アニメーション名 |
 | `AutoPlay` | `bool` | 起動時自動再生 |
 | `LoopCount` | `int` | ループ回数（`-1` または `0` = 無限 / `n` = n 回） |
-| `SpeedScale` | `float` | 再生速度倍率。ランタイムの実値を読み返す。`0` と負値は**停止**にクランプされる（逆再生は `Reverse` の役目）ため、`-1` を設定すると `0` が返る |
+| `SpeedScale` | `float` | 再生速度倍率。ランタイムの実値を読み返す。`0` と負値は**停止**にクランプされる（逆再生は `PlaybackDirection` の役目）ため、`-1` を設定すると `0` が返る |
 | `SubFrameEnabled` | `bool` | サブフレーム補間 |
-| `SkipFrames` | `bool` | 実時間追従（[高度な設定](./tips.md) 参照） |
+| `FrameSkipEnabled` | `bool` | 実時間追従（[高度な設定](./tips.md) 参照） |
 
 `SpriteStudioPlayer`（ワールド）のみ: `SortingLayerName` / `SortingOrder` / `PixelsPerUnit`、および以下の 3 つ。
 
@@ -366,7 +367,7 @@ player.ClearAllPartOverrides();
 | `SetPartVisibilityOverride(part, hide, cascade)` | 強制非表示（`hide: false` でアニメーションに戻す） |
 | `ClearPartColorOverride` / `ClearPartCellOverride` / `ClearPartVisibilityOverride` | 1パーツの1オーバーライドを解除 |
 | `ClearAllPartOverrides()` | そのプレイヤーの全オーバーライドを解除 |
-| `GetCellMapNames()` / `GetCellNames(cellmap)` | セルオーバーライドに指定できるセルマップ名 / セル名の列挙 |
+| `GetCellmapNames()` / `GetCellNames(cellmap)` | セルオーバーライドに指定できるセルマップ名 / セル名の列挙 |
 
 各メソッドの `part` は**パーツ名**と**パーツインデックス**のどちらでも指定でき、パーツが不明な場合やランタイムが受け付けなかった場合は `false` を返します。
 

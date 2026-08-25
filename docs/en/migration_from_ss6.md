@@ -59,13 +59,13 @@ _player.Play();
 | `CursorSet/Get(track, cursor)` | `CurrentFrame` (get/set) | Seek; fractional frames allowed |
 | `RateTimeSet/Get(track, rate)` | `SpeedScale` | Playback speed multiplier |
 | `AnimationPlay(…, timesPlay)` | `LoopCount` | **See the loop-count difference below** |
-| `KindStylePlay.PINGPONG` | `PingPong` (bool) | Ping-pong playback |
-| Negative `rateTime` for reverse | `Reverse` (bool) | **Speed and direction are separated** (see below) |
+| `KindStylePlay.PINGPONG` | `PlaybackStyle` (enum) | Ping-pong playback |
+| Negative `rateTime` for reverse | `PlaybackDirection` (enum) | **Speed and direction are separated** (see below) |
 | `AnimationPlay(…, framePerSecond)` | `FrameRate` | Playback fps |
 | `labelRangeStart / labelRangeEnd` | `SetAnimationSection(int start, int end)` | **Frames only**; label ranges are not supported |
 | `StatusIsPlaying` / `StatusGetPlay(track)` | `IsPlaying` | `true` even while paused |
-| `StatusGetPause(track)` | `IsPaused` | |
-| (none) | `IsPlayingForward` | The actual heading; `false` on a `PingPong` return leg. Use it to gate audio |
+| `StatusGetPause(track)` | `IsPausing` | |
+| (none) | `IsPlayingForward` | The actual heading; `false` on a `PlaybackStyle.PingPong` return leg. Use it to gate audio |
 | `CountGetAnimation()` | (query via `SpriteStudioAnimeAsset`) | |
 
 ### 3-3. Loop count
@@ -82,7 +82,7 @@ _player.Play();
 
 ### 3-4. Reverse and speed are now separate
 
-In SS6Player you reversed playback by passing a negative `rateTime`. In this version, **speed (`SpeedScale`) and direction (`Reverse`) are independent**.
+In SS6Player you reversed playback by passing a negative `rateTime`. In this version, **speed (`SpeedScale`) and direction (`PlaybackDirection`) are independent**.
 
 ```csharp
 // SS6Player: reverse at 2x speed
@@ -90,11 +90,11 @@ In SS6Player you reversed playback by passing a negative `rateTime`. In this ver
 // Current version:
 _player.SetAnimation("walk");
 _player.SpeedScale = 2.0f;   // speed is a positive multiplier
-_player.Reverse    = true;   // direction is a bool
+_player.PlaybackDirection = SpriteStudioPlaybackDirection.Backward;
 _player.Play();
 ```
 
-> `SetAnimation()` resets to Forward / Normal (non-ping-pong) every time, so set `Reverse` / `PingPong` **after** `SetAnimation()`.
+> `SetAnimation()` resets to Forward / Normal (non-ping-pong) every time, so set `PlaybackDirection` / `PlaybackStyle` **after** `SetAnimation()`.
 
 ## 4. Events and Callbacks
 

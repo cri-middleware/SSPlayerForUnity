@@ -59,13 +59,13 @@ _player.Play();
 | `CursorSet/Get(track, cursor)` | `CurrentFrame`（get/set） | シーク。小数フレーム可 |
 | `RateTimeSet/Get(track, rate)` | `SpeedScale` | 再生速度倍率 |
 | `AnimationPlay(…, timesPlay)` | `LoopCount` | **後述のループ回数の違いに注意** |
-| `KindStylePlay.PINGPONG` | `PingPong`（bool） | 往復再生 |
-| `rateTime` を負値にして逆再生 | `Reverse`（bool） | **速度と方向を分離**（下記参照） |
+| `KindStylePlay.PINGPONG` | `PlaybackStyle`（enum） | 往復再生 |
+| `rateTime` を負値にして逆再生 | `PlaybackDirection`（enum） | **速度と方向を分離**（下記参照） |
 | `AnimationPlay(…, framePerSecond)` | `FrameRate` | 再生 fps |
 | `labelRangeStart / labelRangeEnd` | `SetAnimationSection(int start, int end)` | **フレーム指定のみ**。ラベル指定は未対応 |
 | `StatusIsPlaying` / `StatusGetPlay(track)` | `IsPlaying` | 一時停止中も `true` |
-| `StatusGetPause(track)` | `IsPaused` | |
-| （なし） | `IsPlayingForward` | 実際の進行方向。`PingPong` の戻りの脚では `false`。音声のゲートに使います |
+| `StatusGetPause(track)` | `IsPausing` | |
+| （なし） | `IsPlayingForward` | 実際の進行方向。`PlaybackStyle.PingPong` の戻りの脚では `false`。音声のゲートに使います |
 | `CountGetAnimation()` | （`SpriteStudioAnimeAsset` 側で参照） | |
 
 ### 3-3. ループ回数
@@ -82,7 +82,7 @@ _player.Play();
 
 ### 3-4. 逆再生・速度は分離されました
 
-SS6Player では `rateTime` に負値を渡すことで逆再生していましたが、本バージョンでは**速度（`SpeedScale`）と方向（`Reverse`）が独立**しています。
+SS6Player では `rateTime` に負値を渡すことで逆再生していましたが、本バージョンでは**速度（`SpeedScale`）と方向（`PlaybackDirection`）が独立**しています。
 
 ```csharp
 // SS6Player: 2倍速で逆再生
@@ -90,11 +90,11 @@ SS6Player では `rateTime` に負値を渡すことで逆再生していまし�
 // 本バージョン:
 _player.SetAnimation("walk");
 _player.SpeedScale = 2.0f;   // 速度は正の倍率
-_player.Reverse    = true;   // 方向は bool
+_player.PlaybackDirection = SpriteStudioPlaybackDirection.Backward;   // 方向は enum
 _player.Play();
 ```
 
-> `SetAnimation()` は毎回 Forward / Normal（非往復）へ戻すため、`Reverse` / `PingPong` は **`SetAnimation()` の後**に設定してください。
+> `SetAnimation()` は毎回 Forward / Normal（非往復）へ戻すため、`PlaybackDirection` / `PlaybackStyle` は **`SetAnimation()` の後**に設定してください。
 
 ## 4. イベント／コールバックの変更
 

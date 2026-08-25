@@ -48,7 +48,7 @@ namespace SpriteStudio.Runtime.Tests
             Assert.AreEqual(1f, player.SpeedScale);
             Assert.AreEqual(-1, player.LoopCount);
             Assert.IsTrue(player.AutoPlay);
-            Assert.IsTrue(player.SkipFrames);
+            Assert.IsTrue(player.FrameSkipEnabled);
             Assert.IsFalse(player.SubFrameEnabled);
             Assert.AreEqual("Default", player.SortingLayerName);
             Assert.AreEqual(0, player.SortingOrder);
@@ -63,7 +63,7 @@ namespace SpriteStudio.Runtime.Tests
             player.LoopCount = 2;
             player.SpeedScale = 1.5f;
             player.SubFrameEnabled = true;
-            player.SkipFrames = false;
+            player.FrameSkipEnabled = false;
             player.PixelsPerUnit = 100f;
             player.SortingOrder = 10;
 
@@ -72,7 +72,7 @@ namespace SpriteStudio.Runtime.Tests
             Assert.AreEqual(2, player.LoopCount);
             Assert.AreEqual(1.5f, player.SpeedScale);
             Assert.AreEqual(true, player.SubFrameEnabled);
-            Assert.AreEqual(false, player.SkipFrames);
+            Assert.AreEqual(false, player.FrameSkipEnabled);
             Assert.AreEqual(100f, player.PixelsPerUnit);
             Assert.AreEqual(10, player.SortingOrder);
         }

@@ -15,7 +15,7 @@ using UnityEngine;
 ///   SetPartVisibilityOverride(part, hide, cascade = false)
 ///   SetPartCellOverride(part, cellmapName, cellName, priority = HoldUntilNextAnimation)
 ///   ClearAllPartOverrides()
-/// Cell names can be discovered from the player: GetCellMapNames() / GetCellNames(cellmap).
+/// Cell names can be discovered from the player: GetCellmapNames() / GetCellNames(cellmap).
 /// </summary>
 public class OverrideDemo : MonoBehaviour
 {
@@ -83,7 +83,7 @@ public class OverrideDemo : MonoBehaviour
     private IEnumerator RunDemo()
     {
         // Discover what the loaded asset offers (handy as a reference in the Console).
-        var cellmaps = _player.GetCellMapNames();
+        var cellmaps = _player.GetCellmapNames();
         if (cellmaps.Length == 0)
         {
             _status = "No cellmap in the loaded asset — nothing to demo.";

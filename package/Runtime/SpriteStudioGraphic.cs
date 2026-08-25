@@ -76,7 +76,7 @@ namespace SpriteStudio.Runtime
         [SerializeField] private float _speedScale = 1.0f;
         /// <summary>
         /// Playback speed, as a multiple of the frame rate. Read back from the runtime, which clamps a zero
-        /// or negative rate to a <b>stop</b> — reverse playback is <see cref="Reverse"/>'s business, not the
+        /// or negative rate to a <b>stop</b> — reverse playback is <see cref="PlaybackDirection"/>'s business, not the
         /// speed's — so setting -1 and reading it back gives 0, the stop it actually got. Falls back to the
         /// serialized value before the native player exists.
         /// </summary>
@@ -104,9 +104,9 @@ namespace SpriteStudio.Runtime
 
         [Tooltip("Real-time tracking (timed). ON: advance by elapsed time even when frames drop under load. OFF (fixed): always advance exactly one frame per update (frame-by-frame).")]
         [SerializeField] private bool _skipFrames = true;
-        public bool SkipFrames
+        public bool FrameSkipEnabled
         {
-            get => _core.Internal != null ? _core.Internal.IsSkipFrames() : _skipFrames;
+            get => _core.Internal != null ? _core.Internal.IsFrameSkipEnabled() : _skipFrames;
             set
             {
                 _skipFrames = value;
@@ -124,7 +124,7 @@ namespace SpriteStudio.Runtime
         /// <c>SetAnimation(state.clip)</c> every frame. To restart, call <see cref="Play()"/>, which heads
         /// out; to drop the overrides, <see cref="ClearAllPartOverrides"/>.
         /// </para>
-        /// <see cref="LoopCount"/>, <see cref="SpeedScale"/> and <see cref="SkipFrames"/> all survive the
+        /// <see cref="LoopCount"/>, <see cref="SpeedScale"/> and <see cref="FrameSkipEnabled"/> all survive the
         /// switch: the runtime keeps speed and frame skip itself, and the loop count — which it does reset
         /// on every transition, since the transition is what states it — is re-applied here from this
         /// component's own value. Returns true if setup succeeded.
@@ -153,7 +153,7 @@ namespace SpriteStudio.Runtime
         // they are the host's settings, not the clip's -- and are pushed anyway, because this is also
         // the path a serialized value takes to reach a freshly created player (Start / OnEnable), where
         // nothing else has written it yet.
-        // Direction/style (Reverse/PingPong) have no serialized default, so they start at
+        // Direction/style have no serialized default, so they start at
         // Forward/Normal and stay wherever their properties last put them -- the Rust setup
         // keeps them across a transition, like the speed and the frame skip.
         private void ApplyPlaybackSettings()
@@ -180,7 +180,19 @@ namespace SpriteStudio.Runtime
         public bool IsPlaying => _core.Internal?.IsPlaying() ?? false;
 
         /// <summary>Whether currently paused (true only while a playback session is active and paused).</summary>
-        public bool IsPaused
+        /// <summary>
+        /// Whether the last update crossed a loop boundary. A <b>pulse</b>, true only inside the tick
+        /// that crossed — take <c>OnAnimationLooped</c> instead if you want it delivered rather than
+        /// polled.
+        /// </summary>
+        public bool JustLooped => _core.Internal?.JustLooped() ?? false;
+
+        /// <summary>Names of the animations in the loaded asset, empty before one is assigned.</summary>
+        public string[] AnimationNames => _animeAsset != null && _animeAsset.AnimationNames != null
+            ? _animeAsset.AnimationNames
+            : System.Array.Empty<string>();
+
+        public bool IsPausing
         {
             get
             {
@@ -194,8 +206,8 @@ namespace SpriteStudio.Runtime
 
         /// <summary>
         /// Which way the playhead is actually travelling this frame. This is <b>not</b>
-        /// <see cref="Reverse"/>, which is only the heading that was configured: under
-        /// <see cref="PingPong"/> the return leg runs backward while <see cref="Reverse"/> still
+        /// <see cref="PlaybackDirection"/>, which is only the heading that was configured: under
+        /// <see cref="SpriteStudioPlaybackStyle.PingPong"/> the return leg runs backward while it still
         /// reads false. A speed of zero or below is a stop, not a reversal, and does not flip it.
         /// <para>
         /// This is the gate to put in front of audio. SpriteStudio has no reverse audio, so a sound
@@ -258,30 +270,39 @@ namespace SpriteStudio.Runtime
         /// Forward every time, so to start in reverse set it to true after SetAnimation (either before or
         /// after Play).
         /// </summary>
-        public bool Reverse
+        public SpriteStudioPlaybackDirection PlaybackDirection
         {
-            get => (_core.Internal?.GetPlaybackDirection() ?? 0) != 0;
+            get => (SpriteStudioPlaybackDirection)(_core.Internal?.GetPlaybackDirection() ?? 0);
             set
             {
                 var p = _core.Internal;
-                if (p != null) p.SetPlaybackStyle(value ? 1 : 0, p.GetPlaybackStyle());
+                if (p != null) p.SetPlaybackStyle((int)value, p.GetPlaybackStyle());
             }
         }
 
         /// <summary>
-        /// Whether ping-pong (round-trip) playback is on. <see cref="SetAnimation(string)"/> resets this to
-        /// Normal every time, so to start in ping-pong set it to true after SetAnimation (either before or
-        /// after Play).
+        /// What the playhead does at the far end of the section. Like
+        /// <see cref="PlaybackDirection"/> it <b>survives</b> <see cref="SetAnimation(string)"/>; only the
+        /// heading within a round trip is re-derived, so a switch made on the return leg starts the new
+        /// animation walking outward rather than mid-bounce. There is no serialized default, so it starts
+        /// Normal on a freshly created component.
         /// </summary>
-        public bool PingPong
+        public SpriteStudioPlaybackStyle PlaybackStyle
         {
-            get => (_core.Internal?.GetPlaybackStyle() ?? 0) != 0;
+            get => (SpriteStudioPlaybackStyle)(_core.Internal?.GetPlaybackStyle() ?? 0);
             set
             {
                 var p = _core.Internal;
-                if (p != null) p.SetPlaybackStyle(p.GetPlaybackDirection(), value ? 1 : 0);
+                if (p != null) p.SetPlaybackStyle(p.GetPlaybackDirection(), (int)value);
             }
         }
+
+        /// <summary>
+        /// Set the heading and the style together, which is the only way to change both without the
+        /// intermediate state the two properties above would pass through.
+        /// </summary>
+        public void SetPlaybackDirection(SpriteStudioPlaybackDirection direction, SpriteStudioPlaybackStyle style)
+            => _core.Internal?.SetPlaybackStyle((int)direction, (int)style);
 
         /// <summary>
         /// Limits the playback range by frame (frame-based version of SS6's playback-range spec; label
@@ -297,7 +318,7 @@ namespace SpriteStudio.Runtime
         // and its lifecycle, so nothing is cached or re-applied here.
 
         /// <summary>Resolve a part name to its index, or -1 if the part is not in the loaded asset.</summary>
-        public int FindPartIndex(string partName) => _core.Internal?.ResolvePartIndex(partName) ?? -1;
+        public int FindPartIndex(string partName) => _core.Internal?.FindPartIndex(partName) ?? -1;
 
         /// <summary>Force-hide a part (or revert it to the animation), optionally cascading to its descendants.</summary>
         public bool SetPartVisibilityOverride(string partName, bool hide, bool cascade = false)
@@ -313,27 +334,37 @@ namespace SpriteStudio.Runtime
         /// <inheritdoc cref="ClearPartVisibilityOverride(string)"/>
         public bool ClearPartVisibilityOverride(int partIndex) => _core.Internal?.ClearPartVisibilityOverride(partIndex) ?? false;
 
-        /// <summary>Override a Normal part's colour with a single value (all four corners).</summary>
-        public bool SetPartColorOverride(string partName, SpriteStudioBlendOp blendOp, Color color,
+        /// <summary>
+        /// Override a Normal part's colour with a single value (all four corners). The colour comes
+        /// first and <paramref name="blendOp"/> trails with a default — see the SDK's Player API
+        /// conventions; the C ABI's order is the other way round.
+        /// </summary>
+        public bool SetPartColorOverride(string partName, Color color,
+            SpriteStudioBlendOp blendOp = SpriteStudioBlendOp.Mix,
             SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
-            => _core.Internal?.SetPartColorOverride(partName, blendOp, color, priority) ?? false;
+            => _core.Internal?.SetPartColorOverride(partName, color, blendOp, priority) ?? false;
 
-        /// <inheritdoc cref="SetPartColorOverride(string, SpriteStudioBlendOp, Color, SpriteStudioOverridePriority)"/>
-        public bool SetPartColorOverride(int partIndex, SpriteStudioBlendOp blendOp, Color color,
+        /// <inheritdoc cref="SetPartColorOverride(string, Color, SpriteStudioBlendOp, SpriteStudioOverridePriority)"/>
+        public bool SetPartColorOverride(int partIndex, Color color,
+            SpriteStudioBlendOp blendOp = SpriteStudioBlendOp.Mix,
             SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
-            => _core.Internal?.SetPartColorOverride(partIndex, blendOp, color, priority) ?? false;
+            => _core.Internal?.SetPartColorOverride(partIndex, color, blendOp, priority) ?? false;
 
-        /// <summary>Override a Normal part's colour with four distinct corners (left-top, right-top, left-bottom, right-bottom).</summary>
-        public bool SetPartColorOverride(string partName, SpriteStudioBlendOp blendOp,
-            Color leftTop, Color rightTop, Color leftBottom, Color rightBottom,
+        /// <summary>
+        /// Override a Normal part's colour with four distinct corners, for a gradient.
+        /// <paramref name="corners"/> is one argument, so the order is carried by field names rather
+        /// than by position.
+        /// </summary>
+        public bool SetPartColorOverrideCorners(string partName, SpriteStudioCornerColors corners,
+            SpriteStudioBlendOp blendOp = SpriteStudioBlendOp.Mix,
             SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
-            => _core.Internal?.SetPartColorOverride(partName, blendOp, leftTop, rightTop, leftBottom, rightBottom, priority) ?? false;
+            => _core.Internal?.SetPartColorOverrideCorners(partName, corners, blendOp, priority) ?? false;
 
-        /// <inheritdoc cref="SetPartColorOverride(string, SpriteStudioBlendOp, Color, Color, Color, Color, SpriteStudioOverridePriority)"/>
-        public bool SetPartColorOverride(int partIndex, SpriteStudioBlendOp blendOp,
-            Color leftTop, Color rightTop, Color leftBottom, Color rightBottom,
+        /// <inheritdoc cref="SetPartColorOverrideCorners(string, SpriteStudioCornerColors, SpriteStudioBlendOp, SpriteStudioOverridePriority)"/>
+        public bool SetPartColorOverrideCorners(int partIndex, SpriteStudioCornerColors corners,
+            SpriteStudioBlendOp blendOp = SpriteStudioBlendOp.Mix,
             SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
-            => _core.Internal?.SetPartColorOverride(partIndex, blendOp, leftTop, rightTop, leftBottom, rightBottom, priority) ?? false;
+            => _core.Internal?.SetPartColorOverrideCorners(partIndex, corners, blendOp, priority) ?? false;
 
         /// <summary>Clear a part's colour override (revert to the animation).</summary>
         public bool ClearPartColorOverride(string partName) => _core.Internal?.ClearPartColorOverride(partName) ?? false;
@@ -361,7 +392,7 @@ namespace SpriteStudio.Runtime
         public bool ClearAllPartOverrides() => _core.Internal?.ClearAllPartOverrides() ?? false;
 
         /// <summary>Names of the cellmaps in the loaded asset (for discovering cell-override targets).</summary>
-        public string[] GetCellMapNames() => _core.Internal?.GetCellMapNames() ?? System.Array.Empty<string>();
+        public string[] GetCellmapNames() => _core.Internal?.GetCellmapNames() ?? System.Array.Empty<string>();
 
         /// <summary>Names of the cells in the named cellmap (for discovering cell-override targets).</summary>
         public string[] GetCellNames(string cellmapName) => _core.Internal?.GetCellNames(cellmapName) ?? System.Array.Empty<string>();

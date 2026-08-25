@@ -92,7 +92,7 @@ namespace SpriteStudio.Runtime.Tests
         {
             var player = MakePlayingPlayer();
             Assert.IsTrue(player.IsPlaying, "Should be playing after Play");
-            Assert.IsFalse(player.IsPaused, "Should not be paused right after Play");
+            Assert.IsFalse(player.IsPausing, "Should not be paused right after Play");
         }
 
         [Test]
@@ -135,7 +135,7 @@ namespace SpriteStudio.Runtime.Tests
         {
             var player = MakePlayingPlayer();
             player.Pause();
-            Assert.IsTrue(player.IsPaused, "Should be paused after Pause");
+            Assert.IsTrue(player.IsPausing, "Should be paused after Pause");
             Assert.IsTrue(player.IsPlaying, "The playback session should stay active (IsPlaying=true) even while paused");
         }
 
@@ -147,11 +147,11 @@ namespace SpriteStudio.Runtime.Tests
             var player = MakePlayingPlayer();
             player.Pause();
             player.Pause();
-            Assert.IsTrue(player.IsPaused, "Pause is idempotent — a second call must not lift the hold");
+            Assert.IsTrue(player.IsPausing, "Pause is idempotent — a second call must not lift the hold");
             Assert.IsTrue(player.IsPlaying);
 
             player.Resume();
-            Assert.IsFalse(player.IsPaused, "Resume lifts the hold");
+            Assert.IsFalse(player.IsPausing, "Resume lifts the hold");
             Assert.IsTrue(player.IsPlaying);
         }
 
@@ -159,7 +159,7 @@ namespace SpriteStudio.Runtime.Tests
         public void SetAnimation_WithTheAnimationAlreadySetUp_ChangesNothing()
         {
             var player = MakePlayingPlayer();
-            player.SkipFrames = false;   // one Tick = one frame
+            player.FrameSkipEnabled = false;   // one Tick = one frame
             for (int i = 0; i < 3; i++) player.InternalPlayer.Tick(1f / 60f, false);
 
             float frame = player.CurrentFrame;
@@ -178,7 +178,7 @@ namespace SpriteStudio.Runtime.Tests
         {
             var player = MakePlayingPlayer();
             player.LoopCount = 2;
-            player.SkipFrames = false;
+            player.FrameSkipEnabled = false;
             player.Play();
             Assume.That(player.InternalPlayer.GetRemainLoops(), Is.EqualTo(2));
 
@@ -274,20 +274,20 @@ namespace SpriteStudio.Runtime.Tests
         public void Reverse_Property_RoundTrips()
         {
             var player = MakePlayingPlayer();
-            player.Reverse = true;
-            Assert.IsTrue(player.Reverse, "Reverse=true should be reflected");
-            player.Reverse = false;
-            Assert.IsFalse(player.Reverse, "Reverse=false should be reflected");
+            player.PlaybackDirection = SpriteStudioPlaybackDirection.Backward;
+            Assert.AreEqual(SpriteStudioPlaybackDirection.Backward, player.PlaybackDirection, "Backward should be reflected");
+            player.PlaybackDirection = SpriteStudioPlaybackDirection.Forward;
+            Assert.AreEqual(SpriteStudioPlaybackDirection.Forward, player.PlaybackDirection, "Forward should be reflected");
         }
 
         [Test]
         public void PingPong_Property_RoundTrips()
         {
             var player = MakePlayingPlayer();
-            player.PingPong = true;
-            Assert.IsTrue(player.PingPong, "PingPong=true should be reflected");
-            player.PingPong = false;
-            Assert.IsFalse(player.PingPong, "PingPong=false should be reflected");
+            player.PlaybackStyle = SpriteStudioPlaybackStyle.PingPong;
+            Assert.AreEqual(SpriteStudioPlaybackStyle.PingPong, player.PlaybackStyle, "PingPong should be reflected");
+            player.PlaybackStyle = SpriteStudioPlaybackStyle.Normal;
+            Assert.AreEqual(SpriteStudioPlaybackStyle.Normal, player.PlaybackStyle, "Normal should be reflected");
         }
 
         [Test]
@@ -296,14 +296,14 @@ namespace SpriteStudio.Runtime.Tests
             // The Reverse / PingPong setters read the orthogonal axis (direction / style) from native and preserve it.
             // Verify that setting one doesn't clobber the other (regression test for the custom logic added in Tier 1).
             var player = MakePlayingPlayer();
-            player.Reverse = true;
-            player.PingPong = true;
-            Assert.IsTrue(player.Reverse, "Setting PingPong should not clear Reverse");
-            Assert.IsTrue(player.PingPong, "Setting Reverse should not clear PingPong");
+            player.PlaybackDirection = SpriteStudioPlaybackDirection.Backward;
+            player.PlaybackStyle = SpriteStudioPlaybackStyle.PingPong;
+            Assert.AreEqual(SpriteStudioPlaybackDirection.Backward, player.PlaybackDirection, "Setting the style should not clear the direction");
+            Assert.AreEqual(SpriteStudioPlaybackStyle.PingPong, player.PlaybackStyle, "Setting the direction should not clear the style");
 
-            player.Reverse = false;
-            Assert.IsFalse(player.Reverse);
-            Assert.IsTrue(player.PingPong, "Clearing Reverse should not clear PingPong");
+            player.PlaybackDirection = SpriteStudioPlaybackDirection.Forward;
+            Assert.AreEqual(SpriteStudioPlaybackDirection.Forward, player.PlaybackDirection);
+            Assert.AreEqual(SpriteStudioPlaybackStyle.PingPong, player.PlaybackStyle, "Clearing the direction should not clear the style");
         }
 
         [Test]
@@ -333,11 +333,11 @@ namespace SpriteStudio.Runtime.Tests
 
             // Even when never played / never loaded, the state accessors return sane defaults without breaking.
             Assert.IsFalse(player.IsPlaying);
-            Assert.IsFalse(player.IsPaused);
+            Assert.IsFalse(player.IsPausing);
             Assert.AreEqual(0, player.FrameRate);
             Assert.AreEqual(0f, player.CurrentFrame, 0.001f);
-            Assert.IsFalse(player.Reverse);
-            Assert.IsFalse(player.PingPong);
+            Assert.AreEqual(SpriteStudioPlaybackDirection.Forward, player.PlaybackDirection);
+            Assert.AreEqual(SpriteStudioPlaybackStyle.Normal, player.PlaybackStyle);
             // TotalFrames can fall back to the native default (end_frame=0 → 1) when not loaded, so we don't
             // assert its value — only that the getters/setters don't throw.
 
@@ -346,7 +346,7 @@ namespace SpriteStudio.Runtime.Tests
                 _ = player.TotalFrames;
                 player.Pause(); player.Pause(); player.Stop();
                 player.CurrentFrame = 5f; player.FrameRate = 30;
-                player.Reverse = true; player.PingPong = true;
+                player.PlaybackDirection = SpriteStudioPlaybackDirection.Backward; player.PlaybackStyle = SpriteStudioPlaybackStyle.PingPong;
                 player.SetAnimationSection(0, 1);
             });
         }
@@ -364,7 +364,7 @@ namespace SpriteStudio.Runtime.Tests
             {
                 player.Pause(); player.Pause(); player.Stop();
                 _ = player.CurrentFrame; player.CurrentFrame = 1f;
-                _ = player.Reverse; player.Reverse = true;
+                _ = player.PlaybackDirection; player.PlaybackDirection = SpriteStudioPlaybackDirection.Backward;
                 player.SetAnimationSection(0, 1);
             });
         }
@@ -389,13 +389,13 @@ namespace SpriteStudio.Runtime.Tests
             Assert.Greater(graphic.TotalFrames, 0);
 
             graphic.Pause();
-            Assert.IsTrue(graphic.IsPaused);
+            Assert.IsTrue(graphic.IsPausing);
 
             graphic.Stop();
             Assert.IsFalse(graphic.IsPlaying);
 
-            graphic.Reverse = true;
-            Assert.IsTrue(graphic.Reverse);
+            graphic.PlaybackDirection = SpriteStudioPlaybackDirection.Backward;
+            Assert.AreEqual(SpriteStudioPlaybackDirection.Backward, graphic.PlaybackDirection);
         }
 
         // ============================================================
