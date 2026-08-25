@@ -65,6 +65,7 @@ _player.Play();
 | `labelRangeStart / labelRangeEnd` | `SetAnimationSection(int start, int end)` | **Frames only**; label ranges are not supported |
 | `StatusIsPlaying` / `StatusGetPlay(track)` | `IsPlaying` | `true` even while paused |
 | `StatusGetPause(track)` | `IsPaused` | |
+| (none) | `IsPlayingForward` | The actual heading; `false` on a `PingPong` return leg. Use it to gate audio |
 | `CountGetAnimation()` | (query via `SpriteStudioAnimeAsset`) | |
 
 ### 3-3. Loop count

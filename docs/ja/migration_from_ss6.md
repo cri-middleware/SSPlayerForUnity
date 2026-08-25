@@ -65,6 +65,7 @@ _player.Play();
 | `labelRangeStart / labelRangeEnd` | `SetAnimationSection(int start, int end)` | **フレーム指定のみ**。ラベル指定は未対応 |
 | `StatusIsPlaying` / `StatusGetPlay(track)` | `IsPlaying` | 一時停止中も `true` |
 | `StatusGetPause(track)` | `IsPaused` | |
+| （なし） | `IsPlayingForward` | 実際の進行方向。`PingPong` の戻りの脚では `false`。音声のゲートに使います |
 | `CountGetAnimation()` | （`SpriteStudioAnimeAsset` 側で参照） | |
 
 ### 3-3. ループ回数
