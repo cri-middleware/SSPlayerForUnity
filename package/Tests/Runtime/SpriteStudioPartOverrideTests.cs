@@ -139,7 +139,7 @@ namespace SpriteStudio.Runtime.Tests
             cellName = null;
             var probe = new float[SpriteStudioInternalPlayer.LocalUvStride];
 
-            foreach (var cm in player.GetCellMapNames())
+            foreach (var cm in player.GetCellmapNames())
             {
                 foreach (var c in player.GetCellNames(cm))
                 {
@@ -200,7 +200,7 @@ namespace SpriteStudio.Runtime.Tests
         {
             var player = MakePlayingPlayer();
             Assert.IsFalse(player.SetPartVisibilityOverride("no_such_part", true));
-            Assert.IsFalse(player.SetPartColorOverride("no_such_part", SpriteStudioBlendOp.Mix, Color.red));
+            Assert.IsFalse(player.SetPartColorOverride("no_such_part", Color.red, SpriteStudioBlendOp.Mix));
             Assert.IsFalse(player.SetPartCellOverride("no_such_part", "Ringo", "body"));
             Assert.IsFalse(player.SetPartVisibilityOverride(9999, true), "An out-of-range index is rejected by the runtime");
             Assert.IsFalse(player.SetPartVisibilityOverride(-1, true));
@@ -215,13 +215,13 @@ namespace SpriteStudio.Runtime.Tests
 
             foreach (var op in new[] { SpriteStudioBlendOp.Mix, SpriteStudioBlendOp.Mul, SpriteStudioBlendOp.Add, SpriteStudioBlendOp.Sub })
             {
-                Assert.IsTrue(player.SetPartColorOverride(idx, op, Color.red, SpriteStudioOverridePriority.Permanent), $"blend op {op} should be accepted");
+                Assert.IsTrue(player.SetPartColorOverride(idx, Color.red, op, SpriteStudioOverridePriority.Permanent), $"blend op {op} should be accepted");
             }
             Assert.IsTrue(player.ClearPartColorOverride(idx));
 
             // Values outside the enum are rejected by the runtime, not silently coerced.
-            Assert.IsFalse(player.SetPartColorOverride(idx, (SpriteStudioBlendOp)99, Color.red));
-            Assert.IsFalse(player.SetPartColorOverride(idx, SpriteStudioBlendOp.Mix, Color.red, (SpriteStudioOverridePriority)99));
+            Assert.IsFalse(player.SetPartColorOverride(idx, Color.red, (SpriteStudioBlendOp)99));
+            Assert.IsFalse(player.SetPartColorOverride(idx, Color.red, SpriteStudioBlendOp.Mix, (SpriteStudioOverridePriority)99));
         }
 
         [Test]
@@ -231,8 +231,9 @@ namespace SpriteStudio.Runtime.Tests
             int idx = player.FindPartIndex("body");
             Assume.That(idx, Is.GreaterThanOrEqualTo(0));
 
-            Assert.IsTrue(player.SetPartColorOverride(idx, SpriteStudioBlendOp.Mix,
-                Color.red, Color.green, Color.blue, Color.white,
+            Assert.IsTrue(player.SetPartColorOverrideCorners(idx,
+                new SpriteStudioCornerColors(Color.red, Color.green, Color.blue, Color.white),
+                SpriteStudioBlendOp.Mix,
                 SpriteStudioOverridePriority.HoldUntilNextAnimation));
             Assert.IsTrue(player.ClearAllPartOverrides());
         }
@@ -252,7 +253,7 @@ namespace SpriteStudio.Runtime.Tests
         public void CellNames_AreDiscoverable()
         {
             var player = MakePlayingPlayer();
-            var cellmaps = player.GetCellMapNames();
+            var cellmaps = player.GetCellmapNames();
             Assert.Greater(cellmaps.Length, 0, "Ringo should expose at least one cellmap");
             Assert.Greater(player.GetCellNames(cellmaps[0]).Length, 0, "The cellmap should expose its cells");
             Assert.AreEqual(0, player.GetCellNames("no_such_cellmap").Length);
@@ -291,7 +292,7 @@ namespace SpriteStudio.Runtime.Tests
             {
                 // "root" is the top of Ringo's hierarchy, so a cascading force-hide there must hide
                 // every drawing part below it (a keyframed hide, by contrast, does not cascade).
-                int root = player.ResolvePartIndex("root");
+                int root = player.FindPartIndex("root");
                 Assume.That(root, Is.GreaterThanOrEqualTo(0), "Ringo should have a 'root' part");
                 int child = FindDrawingPart(player);
                 Assume.That(child, Is.GreaterThanOrEqualTo(0));
@@ -340,7 +341,7 @@ namespace SpriteStudio.Runtime.Tests
                 int idx = FindDrawingPart(player);
                 Assume.That(idx, Is.GreaterThanOrEqualTo(0));
 
-                Assert.IsTrue(player.SetPartColorOverride(idx, SpriteStudioBlendOp.Mul, Color.red,
+                Assert.IsTrue(player.SetPartColorOverride(idx, Color.red, SpriteStudioBlendOp.Mul,
                     SpriteStudioOverridePriority.HoldUntilNextAnimation));
                 Build(player);
 
@@ -361,8 +362,9 @@ namespace SpriteStudio.Runtime.Tests
                 int idx = FindDrawingPart(player);
                 Assume.That(idx, Is.GreaterThanOrEqualTo(0));
 
-                Assert.IsTrue(player.SetPartColorOverride(idx, SpriteStudioBlendOp.Mix,
-                    Color.red, Color.green, Color.blue, Color.white,
+                Assert.IsTrue(player.SetPartColorOverrideCorners(idx,
+                    new SpriteStudioCornerColors(Color.red, Color.green, Color.blue, Color.white),
+                    SpriteStudioBlendOp.Mix,
                     SpriteStudioOverridePriority.HoldUntilNextAnimation));
                 Build(player);
 
@@ -384,7 +386,7 @@ namespace SpriteStudio.Runtime.Tests
                 int idx = FindDrawingPart(player);
                 Assume.That(idx, Is.GreaterThanOrEqualTo(0));
 
-                Assert.IsTrue(player.SetPartColorOverride(idx, SpriteStudioBlendOp.Mul, Color.red,
+                Assert.IsTrue(player.SetPartColorOverride(idx, Color.red, SpriteStudioBlendOp.Mul,
                     SpriteStudioOverridePriority.HoldUntilNextAnimation));
                 Build(player);
                 Assume.That(player.TryGetPartColor(idx, out var applied) && applied.BlendType == ss.runtime.BlendType.Mul, Is.True);
@@ -408,7 +410,7 @@ namespace SpriteStudio.Runtime.Tests
                 int idx = FindDrawingPart(player);
                 Assume.That(idx, Is.GreaterThanOrEqualTo(0));
 
-                Assert.IsTrue(player.SetPartColorOverride(idx, SpriteStudioBlendOp.Mul, Color.red,
+                Assert.IsTrue(player.SetPartColorOverride(idx, Color.red, SpriteStudioBlendOp.Mul,
                     SpriteStudioOverridePriority.Permanent));
 
                 Assert.IsTrue(player.SetupAnimation("walk"));
@@ -444,7 +446,7 @@ namespace SpriteStudio.Runtime.Tests
             int idx = FindDrawingPart(internalPlayer);
             Assume.That(idx, Is.GreaterThanOrEqualTo(0), "Ringo should have a drawing part");
 
-            Assert.IsTrue(player.SetPartColorOverride(idx, SpriteStudioBlendOp.Mul, Color.red,
+            Assert.IsTrue(player.SetPartColorOverride(idx, Color.red, SpriteStudioBlendOp.Mul,
                 SpriteStudioOverridePriority.Permanent));
             Build(internalPlayer);
             Assume.That(internalPlayer.TryGetPartColor(idx, out var applied) && applied.BlendType == ss.runtime.BlendType.Mul, Is.True,
@@ -473,7 +475,7 @@ namespace SpriteStudio.Runtime.Tests
             int idx = FindDrawingPart(internalPlayer);
             Assume.That(idx, Is.GreaterThanOrEqualTo(0));
 
-            Assert.IsTrue(player.SetPartColorOverride(idx, SpriteStudioBlendOp.Mul, Color.red,
+            Assert.IsTrue(player.SetPartColorOverride(idx, Color.red, SpriteStudioBlendOp.Mul,
                 SpriteStudioOverridePriority.Permanent));
             Build(internalPlayer);
             Assume.That(internalPlayer.TryGetPartColor(idx, out var applied) && applied.BlendType == ss.runtime.BlendType.Mul, Is.True);
@@ -509,7 +511,7 @@ namespace SpriteStudio.Runtime.Tests
             int idx = FindDrawingPart(internalPlayer);
             Assume.That(idx, Is.GreaterThanOrEqualTo(0));
 
-            Assert.IsTrue(graphic.SetPartColorOverride(idx, SpriteStudioBlendOp.Mul, Color.red,
+            Assert.IsTrue(graphic.SetPartColorOverride(idx, Color.red, SpriteStudioBlendOp.Mul,
                 SpriteStudioOverridePriority.Permanent));
             Build(internalPlayer);
             Assume.That(internalPlayer.TryGetPartColor(idx, out var applied) && applied.BlendType == ss.runtime.BlendType.Mul, Is.True);
@@ -559,7 +561,7 @@ namespace SpriteStudio.Runtime.Tests
                 Assume.That(idx, Is.GreaterThanOrEqualTo(0));
 
                 Assert.IsTrue(player.SetPartVisibilityOverride(idx, true));
-                Assert.IsTrue(player.SetPartColorOverride(idx, SpriteStudioBlendOp.Mul, Color.red,
+                Assert.IsTrue(player.SetPartColorOverride(idx, Color.red, SpriteStudioBlendOp.Mul,
                     SpriteStudioOverridePriority.Permanent));
                 Build(player);
                 Assume.That(player.TryGetPartState(idx, out bool hidden, out _, out _) && hidden, Is.True);

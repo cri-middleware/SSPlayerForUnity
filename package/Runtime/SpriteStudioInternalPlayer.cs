@@ -659,6 +659,12 @@ internal struct MaskPartData
             }
         }
         public bool IsPausing() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_is_pausing(_handle.ptr); } }
+        /// <summary>
+        /// Whether the last update crossed a loop boundary. A <b>pulse</b>: the runtime clears it at the
+        /// top of every update, so it only reads true inside the tick that crossed — which is why it is
+        /// not named <c>IsLooped</c>. Reading it a tick late reads false.
+        /// </summary>
+        public bool JustLooped() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_is_looped(_handle.ptr); } }
         public void Pause() { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_pause(_handle.ptr); } }
         public void Resume() { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_resume(_handle.ptr); } }
         public void Stop() { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_stop(_handle.ptr); } }
@@ -710,7 +716,7 @@ internal struct MaskPartData
         // --- Part tracking support ---
 
         /// <summary>Resolve a part name to its index, or -1 if the part is not present in this animation.</summary>
-        public int ResolvePartIndex(string partName)
+        public int FindPartIndex(string partName)
         {
             if (string.IsNullOrEmpty(partName) || _partNameToIndex == null) return -1;
             return _partNameToIndex.TryGetValue(partName, out int idx) ? idx : -1;
@@ -834,7 +840,7 @@ internal struct MaskPartData
         // skip_frames to its default (true) just like the other playback parameters (loop/style/speed),
         // so re-applying the desired value is done together in PlaybackCore.Play.
         public void SetSkipFrames(bool skip) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_skip_frames(_handle.ptr, skip); } }
-        public bool IsSkipFrames() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_get_skip_frames(_handle.ptr); } }
+        public bool IsFrameSkipEnabled() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_get_skip_frames(_handle.ptr); } }
 
         public bool SubFrameEnabled { get; set; } = false;
         #endregion
@@ -877,7 +883,7 @@ internal struct MaskPartData
 
         /// <inheritdoc cref="SetPartVisibilityOverride(int, bool, bool)"/>
         public bool SetPartVisibilityOverride(string partName, bool hide, bool cascade = false)
-            => SetPartVisibilityOverride(ResolvePartIndex(partName), hide, cascade);
+            => SetPartVisibilityOverride(FindPartIndex(partName), hide, cascade);
 
         /// <summary>Clear a part's visibility override (revert to the animation).</summary>
         public bool ClearPartVisibilityOverride(int partIndex)
@@ -892,7 +898,7 @@ internal struct MaskPartData
         }
 
         /// <inheritdoc cref="ClearPartVisibilityOverride(int)"/>
-        public bool ClearPartVisibilityOverride(string partName) => ClearPartVisibilityOverride(ResolvePartIndex(partName));
+        public bool ClearPartVisibilityOverride(string partName) => ClearPartVisibilityOverride(FindPartIndex(partName));
 
         /// <summary>
         /// Override a part's colour with a single value (all four corners). Applies to Normal parts
@@ -900,7 +906,8 @@ internal struct MaskPartData
         /// interpreted in the same 8-bit sRGB space as the authored PartColor and the runtime
         /// pre-multiplies alpha itself — do not pre-multiply or gamma-convert it here.
         /// </summary>
-        public bool SetPartColorOverride(int partIndex, SpriteStudioBlendOp blendOp, Color color,
+        public bool SetPartColorOverride(int partIndex, Color color,
+            SpriteStudioBlendOp blendOp = SpriteStudioBlendOp.Mix,
             SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
         {
             unsafe
@@ -913,40 +920,41 @@ internal struct MaskPartData
             }
         }
 
-        /// <inheritdoc cref="SetPartColorOverride(int, SpriteStudioBlendOp, Color, SpriteStudioOverridePriority)"/>
-        public bool SetPartColorOverride(string partName, SpriteStudioBlendOp blendOp, Color color,
+        /// <inheritdoc cref="SetPartColorOverride(int, Color, SpriteStudioBlendOp, SpriteStudioOverridePriority)"/>
+        public bool SetPartColorOverride(string partName, Color color,
+            SpriteStudioBlendOp blendOp = SpriteStudioBlendOp.Mix,
             SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
-            => SetPartColorOverride(ResolvePartIndex(partName), blendOp, color, priority);
+            => SetPartColorOverride(FindPartIndex(partName), color, blendOp, priority);
 
         /// <summary>
         /// Override a part's colour with four distinct corners (left-top, right-top, left-bottom,
         /// right-bottom). Same contract as the single-colour form.
         /// </summary>
-        public bool SetPartColorOverride(int partIndex, SpriteStudioBlendOp blendOp,
-            Color leftTop, Color rightTop, Color leftBottom, Color rightBottom,
+        public bool SetPartColorOverrideCorners(int partIndex, SpriteStudioCornerColors corners,
+            SpriteStudioBlendOp blendOp = SpriteStudioBlendOp.Mix,
             SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
         {
             unsafe
             {
                 if (!_handle.IsValid || partIndex < 0) return false;
                 // Corner order is the runtime's: lt, rt, lb, rb.
-                uint* corners = stackalloc uint[4];
-                corners[0] = PackRgba(leftTop);
-                corners[1] = PackRgba(rightTop);
-                corners[2] = PackRgba(leftBottom);
-                corners[3] = PackRgba(rightBottom);
-                if (!NativeMethods.ss_runtime_set_part_color_override_corners(_handle.ptr, (uint)partIndex, (byte)blendOp, corners, (byte)priority))
+                uint* packed = stackalloc uint[4];
+                packed[0] = PackRgba(corners.LeftTop);
+                packed[1] = PackRgba(corners.RightTop);
+                packed[2] = PackRgba(corners.LeftBottom);
+                packed[3] = PackRgba(corners.RightBottom);
+                if (!NativeMethods.ss_runtime_set_part_color_override_corners(_handle.ptr, (uint)partIndex, (byte)blendOp, packed, (byte)priority))
                     return false;
                 _geometryBuilder?.InvalidateFrameCache();
                 return true;
             }
         }
 
-        /// <inheritdoc cref="SetPartColorOverride(int, SpriteStudioBlendOp, Color, Color, Color, Color, SpriteStudioOverridePriority)"/>
-        public bool SetPartColorOverride(string partName, SpriteStudioBlendOp blendOp,
-            Color leftTop, Color rightTop, Color leftBottom, Color rightBottom,
+        /// <inheritdoc cref="SetPartColorOverrideCorners(int, SpriteStudioCornerColors, SpriteStudioBlendOp, SpriteStudioOverridePriority)"/>
+        public bool SetPartColorOverrideCorners(string partName, SpriteStudioCornerColors corners,
+            SpriteStudioBlendOp blendOp = SpriteStudioBlendOp.Mix,
             SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
-            => SetPartColorOverride(ResolvePartIndex(partName), blendOp, leftTop, rightTop, leftBottom, rightBottom, priority);
+            => SetPartColorOverrideCorners(FindPartIndex(partName), corners, blendOp, priority);
 
         /// <summary>Clear a part's colour override (revert to the animation).</summary>
         public bool ClearPartColorOverride(int partIndex)
@@ -961,7 +969,7 @@ internal struct MaskPartData
         }
 
         /// <inheritdoc cref="ClearPartColorOverride(int)"/>
-        public bool ClearPartColorOverride(string partName) => ClearPartColorOverride(ResolvePartIndex(partName));
+        public bool ClearPartColorOverride(string partName) => ClearPartColorOverride(FindPartIndex(partName));
 
         /// <summary>
         /// Make a part draw a different cell. The cell is named by its cellmap (without the .ssce
@@ -987,7 +995,7 @@ internal struct MaskPartData
         /// <inheritdoc cref="SetPartCellOverride(int, string, string, SpriteStudioOverridePriority)"/>
         public bool SetPartCellOverride(string partName, string cellmapName, string cellName,
             SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
-            => SetPartCellOverride(ResolvePartIndex(partName), cellmapName, cellName, priority);
+            => SetPartCellOverride(FindPartIndex(partName), cellmapName, cellName, priority);
 
         /// <summary>Clear a part's cell override (revert to the animation).</summary>
         public bool ClearPartCellOverride(int partIndex)
@@ -1002,7 +1010,7 @@ internal struct MaskPartData
         }
 
         /// <inheritdoc cref="ClearPartCellOverride(int)"/>
-        public bool ClearPartCellOverride(string partName) => ClearPartCellOverride(ResolvePartIndex(partName));
+        public bool ClearPartCellOverride(string partName) => ClearPartCellOverride(FindPartIndex(partName));
 
         /// <summary>Clear every per-part override on this player.</summary>
         public bool ClearAllPartOverrides()
@@ -1017,7 +1025,7 @@ internal struct MaskPartData
         }
 
         /// <summary>Names of the cellmaps in the loaded ssab (empty if nothing is loaded). For discovering cell-override targets.</summary>
-        public string[] GetCellMapNames()
+        public string[] GetCellmapNames()
         {
             if (!_ssab.HasValue) return System.Array.Empty<string>();
             var binary = _ssab.Value;

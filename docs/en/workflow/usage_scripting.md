@@ -25,7 +25,7 @@ _player.Play();
 
 `SetAnimation()` loads the animation's data and **waits on the first frame** (it does not start playback). Calling `Play()` afterward starts playback from that point.
 
-Your playback settings hold across the switch: `SpeedScale`, `SkipFrames`, a frame-rate override and `Reverse` / `PingPong` all describe the playback rather than the clip, so the runtime keeps them, and the component puts `LoopCount` back because that one is per-transition. What does reset is the playhead — it waits on the first frame — and the playback section, whose frame numbers mean nothing against a different animation.
+Your playback settings hold across the switch: `SpeedScale`, `FrameSkipEnabled`, a frame-rate override and `PlaybackDirection` / `PlaybackStyle` all describe the playback rather than the clip, so the runtime keeps them, and the component puts `LoopCount` back because that one is per-transition. What does reset is the playhead — it waits on the first frame — and the playback section, whose frame numbers mean nothing against a different animation.
 
 ## Playback Control API
 
@@ -38,13 +38,13 @@ Your playback settings hold across the switch: `SpeedScale`, `SkipFrames`, a fra
 | `Resume()` | Method | Lift a `Pause()`, carrying on from the same frame. Idempotent. `Play()` rewinds to the beginning, so it cannot be used to resume |
 | `Stop()` | Method | Stop playback. The playhead **stays where it stands** — nothing rewinds, so the frame it stopped on keeps drawing. `Play()` is what returns to the start |
 | `IsPlaying` | `bool` (read) | Whether a playback session is active (`true` even while paused) |
-| `IsPaused` | `bool` (read) | Whether currently paused |
-| `IsPlayingForward` | `bool` (read) | Which way the playhead is **actually** travelling. `Reverse` is only the configured heading: on a `PingPong` return leg this reads `false` while `Reverse` is still `false`. **Gate audio on it** — SpriteStudio has no reverse audio, so a key crossed on a backward leg is not meant to sound |
+| `IsPausing` | `bool` (read) | Whether currently paused |
+| `IsPlayingForward` | `bool` (read) | Which way the playhead is **actually** travelling. `PlaybackDirection` is only the configured heading: on a `PlaybackStyle.PingPong` return leg this reads `false` while `PlaybackDirection` is still `false`. **Gate audio on it** — SpriteStudio has no reverse audio, so a key crossed on a backward leg is not meant to sound |
 | `CurrentFrame` | `float` | Current frame. Use `set` to seek to an arbitrary frame (fractional allowed) |
 | `TotalFrames` | `int` (read) | Frames in the range being played, both ends inclusive — the section when `SetAnimationSection` set one (`0` when not loaded) |
 | `FrameRate` | `int` | Playback frame rate (fps). Use `set` to change at runtime |
-| `Reverse` | `bool` | Whether reverse playback (Backward) |
-| `PingPong` | `bool` | Whether ping-pong (PingPong) playback |
+| `PlaybackDirection` | `enum` | The configured heading (`Forward` / `Backward`) |
+| `PlaybackStyle` | `enum` | What the playhead does at the far end (`Normal` / `PingPong`) |
 | `SetAnimationSection(int start, int end)` | Method | Limit the playback range by frame (frame-based; label specification is not supported) |
 
 ### Example: Pause and Resume
@@ -54,7 +54,7 @@ _player.Pause();    // hold on the current frame
 _player.Resume();   // carry on from it
 
 // One-tap transport for a play/pause button:
-if (_player.IsPaused) _player.Resume();
+if (_player.IsPausing) _player.Resume();
 else if (_player.IsPlaying) _player.Pause();
 else _player.Play();   // stopped — Play() starts over from the section start
 ```
@@ -72,12 +72,12 @@ _player.CurrentFrame = 10f;          // Seek to the start of the section
 
 ```csharp
 _player.SetAnimation("walk");
-_player.Reverse = true;   // Switch to reverse playback
-_player.PingPong = true;  // Switch to ping-pong playback
+_player.PlaybackDirection = SpriteStudioPlaybackDirection.Backward;
+_player.PlaybackStyle = SpriteStudioPlaybackStyle.PingPong;
 _player.Play();
 ```
 
-> `Reverse` / `PingPong` survive a `SetAnimation()`, so set them once. They have no inspector default, so a component starts Forward / Normal until a script says otherwise. What a switch does reset is the heading inside a round trip: a new animation always starts on the outward leg.
+> `PlaybackDirection` / `PlaybackStyle` survive a `SetAnimation()`, so set them once. They have no inspector default, so a component starts Forward / Normal until a script says otherwise. What a switch does reset is the heading inside a round trip: a new animation always starts on the outward leg.
 
 ## Playback Parameter Properties
 
@@ -89,9 +89,9 @@ These properties correspond to the inspector items. Changing them at runtime is 
 | `AnimationName` | `string` | Animation name |
 | `AutoPlay` | `bool` | Auto-play at startup |
 | `LoopCount` | `int` | Loop count (`-1` or `0` = infinite / `n` = n times) |
-| `SpeedScale` | `float` | Playback speed multiplier. Read back from the runtime, which clamps `0` and negatives to a **stop** (reverse is `Reverse`'s job), so `-1` reads back as `0` |
+| `SpeedScale` | `float` | Playback speed multiplier. Read back from the runtime, which clamps `0` and negatives to a **stop** (reverse is `PlaybackDirection`'s job), so `-1` reads back as `0` |
 | `SubFrameEnabled` | `bool` | Sub-frame interpolation |
-| `SkipFrames` | `bool` | Real-time tracking (see [Advanced Settings](./tips.md)) |
+| `FrameSkipEnabled` | `bool` | Real-time tracking (see [Advanced Settings](./tips.md)) |
 
 `SpriteStudioPlayer` (world) only: `SortingLayerName` / `SortingOrder` / `PixelsPerUnit`, plus the three below.
 
@@ -366,7 +366,7 @@ player.ClearAllPartOverrides();
 | `SetPartVisibilityOverride(part, hide, cascade)` | Force-hide (`hide: false` reverts to the animation) |
 | `ClearPartColorOverride` / `ClearPartCellOverride` / `ClearPartVisibilityOverride` | Clear one override on one part |
 | `ClearAllPartOverrides()` | Clear every override on the player |
-| `GetCellMapNames()` / `GetCellNames(cellmap)` | Discover the cellmap / cell names you can pass to a cell override |
+| `GetCellmapNames()` / `GetCellNames(cellmap)` | Discover the cellmap / cell names you can pass to a cell override |
 
 The `part` argument of every method takes either a **part name** or a **part index**, and the call returns `false` when the part is unknown or the runtime rejects it.
 
