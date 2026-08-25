@@ -40,7 +40,7 @@ _player.Play();
 | `IsPlaying` | `bool`（読取） | 再生セッションが有効か（一時停止中でも `true`） |
 | `IsPaused` | `bool`（読取） | 一時停止中か |
 | `CurrentFrame` | `float` | 現在フレーム。`set` で任意フレームへシーク（小数可） |
-| `TotalFrames` | `int`（読取） | 現在のアニメーションの総フレーム数（未ロード時 `0`） |
+| `TotalFrames` | `int`（読取） | 再生中の区間のフレーム数（両端を含む）。`SetAnimationSection` で区間を設定していればその区間（未ロード時 `0`） |
 | `FrameRate` | `int` | 再生フレームレート (fps)。`set` で実行時変更 |
 | `Reverse` | `bool` | 逆再生（Backward）か |
 | `PingPong` | `bool` | 往復（PingPong）再生か |
@@ -88,7 +88,7 @@ _player.Play();
 | `AnimationName` | `string` | アニメーション名 |
 | `AutoPlay` | `bool` | 起動時自動再生 |
 | `LoopCount` | `int` | ループ回数（`-1` または `0` = 無限 / `n` = n 回） |
-| `SpeedScale` | `float` | 再生速度倍率 |
+| `SpeedScale` | `float` | 再生速度倍率。ランタイムの実値を読み返す。`0` と負値は**停止**にクランプされる（逆再生は `Reverse` の役目）ため、`-1` を設定すると `0` が返る |
 | `SubFrameEnabled` | `bool` | サブフレーム補間 |
 | `SkipFrames` | `bool` | 実時間追従（[高度な設定](./tips.md) 参照） |
 

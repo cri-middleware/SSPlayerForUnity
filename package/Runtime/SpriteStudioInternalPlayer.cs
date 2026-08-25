@@ -650,9 +650,29 @@ internal struct MaskPartData
 
         public void SetSpeed(float speed) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_animation_speed(_handle.ptr, speed); } }
 
+        /// <summary>
+        /// The speed in effect, as a multiple of the frame rate. Read from the runtime rather than from a
+        /// copy of what was last set: a zero or negative rate is clamped to a stop there, so a cached value
+        /// would report the -1 that was asked for while playback is actually held at 0.
+        /// </summary>
+        public float GetSpeed() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_animation_speed(_handle.ptr) : 1.0f; } }
+
         public void SetFrame(float frame) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_frame_no(_handle.ptr, frame); } }
         public float GetFrame() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_frame_no(_handle.ptr) : 0.0f; } }
-        public int GetTotalFrames() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_end_frame(_handle.ptr) + 1 : 0; } }
+
+        /// <summary>
+        /// Frames in the range being played, both ends inclusive — the <b>section</b> when one is set, the
+        /// whole animation otherwise. Matches every sibling Player's `end - start + 1`; it used to be
+        /// `end + 1`, which counts from frame 0 whatever the section starts at.
+        /// </summary>
+        public int GetTotalFrames()
+        {
+            unsafe
+            {
+                if (!_handle.IsValid) return 0;
+                return NativeMethods.ss_runtime_get_end_frame(_handle.ptr) - NativeMethods.ss_runtime_get_start_frame(_handle.ptr) + 1;
+            }
+        }
 
         public void SetFrameRate(int fps) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_frame_rate(_handle.ptr, fps); } }
         public int GetFrameRate() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_fps(_handle.ptr) : 0; } }

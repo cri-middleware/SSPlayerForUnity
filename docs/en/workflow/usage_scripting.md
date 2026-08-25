@@ -40,7 +40,7 @@ Your playback settings hold across the switch: `SpeedScale`, `SkipFrames`, a fra
 | `IsPlaying` | `bool` (read) | Whether a playback session is active (`true` even while paused) |
 | `IsPaused` | `bool` (read) | Whether currently paused |
 | `CurrentFrame` | `float` | Current frame. Use `set` to seek to an arbitrary frame (fractional allowed) |
-| `TotalFrames` | `int` (read) | Total frame count of the current animation (`0` when not loaded) |
+| `TotalFrames` | `int` (read) | Frames in the range being played, both ends inclusive — the section when `SetAnimationSection` set one (`0` when not loaded) |
 | `FrameRate` | `int` | Playback frame rate (fps). Use `set` to change at runtime |
 | `Reverse` | `bool` | Whether reverse playback (Backward) |
 | `PingPong` | `bool` | Whether ping-pong (PingPong) playback |
@@ -88,7 +88,7 @@ These properties correspond to the inspector items. Changing them at runtime is 
 | `AnimationName` | `string` | Animation name |
 | `AutoPlay` | `bool` | Auto-play at startup |
 | `LoopCount` | `int` | Loop count (`-1` or `0` = infinite / `n` = n times) |
-| `SpeedScale` | `float` | Playback speed multiplier |
+| `SpeedScale` | `float` | Playback speed multiplier. Read back from the runtime, which clamps `0` and negatives to a **stop** (reverse is `Reverse`'s job), so `-1` reads back as `0` |
 | `SubFrameEnabled` | `bool` | Sub-frame interpolation |
 | `SkipFrames` | `bool` | Real-time tracking (see [Advanced Settings](./tips.md)) |
 

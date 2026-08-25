@@ -112,9 +112,15 @@ namespace SpriteStudio.Runtime
 
         [Tooltip("Playback speed scale of the animation")]
         [SerializeField] private float _speedScale = 1.0f;
+        /// <summary>
+        /// Playback speed, as a multiple of the frame rate. Read back from the runtime, which clamps a zero
+        /// or negative rate to a <b>stop</b> — reverse playback is <see cref="Reverse"/>'s business, not the
+        /// speed's — so setting -1 and reading it back gives 0, the stop it actually got. Falls back to the
+        /// serialized value before the native player exists.
+        /// </summary>
         public float SpeedScale
         {
-            get => _speedScale;
+            get => _core.Internal != null ? _core.Internal.GetSpeed() : _speedScale;
             set
             {
                 _speedScale = value;
@@ -317,7 +323,11 @@ namespace SpriteStudio.Runtime
             set => _core.Internal?.SetFrame(value);
         }
 
-        /// <summary>Total frame count of the current animation (end frame + 1). 0 when nothing is loaded.</summary>
+        /// <summary>
+        /// Frames in the range being played, both ends inclusive. This follows
+        /// <see cref="SetAnimationSection"/>: without one it is the whole animation, with one it is the
+        /// section. 0 when nothing is loaded.
+        /// </summary>
         public int TotalFrames => _core.Internal?.GetTotalFrames() ?? 0;
 
         /// <summary>Playback frame rate (fps). Set to change it at runtime. Get returns 0 when nothing is loaded.</summary>

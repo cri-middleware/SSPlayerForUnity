@@ -104,6 +104,33 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
+        public void TotalFrames_CountsTheSection_NotFromFrameZero()
+        {
+            var player = MakePlayingPlayer();
+            Assume.That(player.TotalFrames, Is.GreaterThan(4), "walk is too short for a 1..3 section");
+
+            player.SetAnimationSection(1, 3);
+            // Both ends inclusive: 1, 2, 3. This used to report `end + 1` (= 4), counting from frame 0
+            // whatever the section started at, which is the one shape no sibling Player uses.
+            Assert.AreEqual(3, player.TotalFrames);
+        }
+
+        [Test]
+        public void SpeedScale_ReadsBackTheStopThatANegativeRateBecame()
+        {
+            var player = MakePlayingPlayer();
+
+            player.SpeedScale = 0.5f;
+            Assert.AreEqual(0.5f, player.SpeedScale, 0.0001f, "A positive rate reads back as itself");
+
+            // The runtime clamps a zero or negative rate to a stop — reverse playback is Reverse's
+            // business, not the speed's — so the host must be able to see the stop it actually got.
+            // Reading a cached -1 back would say the opposite of what playback is doing.
+            player.SpeedScale = -1f;
+            Assert.AreEqual(0f, player.SpeedScale, 0.0001f, "A negative rate reads back as the stop it became");
+        }
+
+        [Test]
         public void Pause_SetsPaused_ButStillPlaying()
         {
             var player = MakePlayingPlayer();
