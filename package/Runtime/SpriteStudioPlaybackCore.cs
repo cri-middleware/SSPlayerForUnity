@@ -96,9 +96,11 @@ namespace SpriteStudio.Runtime
 
         /// <summary>
         /// Sets up the data for the specified animation (posed at the first frame). Does not start playback.
-        /// Call <see cref="Play()"/> separately to start. Playback settings such as loop/speed/skip/direction
-        /// are not applied here: Rust's setup_animation resets them to defaults (Forward/Normal, etc.), so if
-        /// needed the caller applies them separately after setup.
+        /// Call <see cref="Play()"/> separately to start.
+        /// This is the bare setup: the Rust setup_animation resets the loop count and the playback section
+        /// (both are per-transition — the transition is what states them) and keeps speed, frame skip, the
+        /// frame-rate override and the direction / style. Nothing is re-applied here; the owning component
+        /// pushes its own configuration back in its SetAnimation, which is where the loop count is restored.
         /// logContext is the tag for warning messages. Returns true if setup succeeded.
         /// </summary>
         public bool SetAnimation(string animationName, string logContext)
