@@ -103,6 +103,14 @@ namespace SpriteStudio.Runtime
         /// pushes its own configuration back in its SetAnimation, which is where the loop count is restored.
         /// logContext is the tag for warning messages. Returns true if setup succeeded.
         /// </summary>
+        /// <summary>
+        /// Whether <paramref name="animationName"/> is the animation the native runtime already has set
+        /// up. The owning component checks this before doing anything, so that re-asserting the current
+        /// animation costs nothing — see its SetAnimation for why that matters.
+        /// </summary>
+        public bool IsAnimationSetUp(string animationName)
+            => Internal != null && !string.IsNullOrEmpty(animationName) && Internal.CurrentAnimationName == animationName;
+
         public bool SetAnimation(string animationName, string logContext)
         {
             if (Internal == null || string.IsNullOrEmpty(animationName)) return false;

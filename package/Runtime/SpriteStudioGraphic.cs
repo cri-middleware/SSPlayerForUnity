@@ -117,6 +117,13 @@ namespace SpriteStudio.Runtime
         /// <summary>
         /// Selects the animation to play and sets its data up (posed at the first frame).
         /// Does not start playback; call <see cref="Play()"/> to start.
+        /// <para>
+        /// <b>Selecting the animation already set up does nothing at all.</b> It is a switch, so with
+        /// nothing to switch to it costs nothing and disturbs nothing: the playhead stays, playback is not
+        /// returned to Stopped, and the loop budget is not re-armed — so a state machine may call
+        /// <c>SetAnimation(state.clip)</c> every frame. To restart, call <see cref="Play()"/>, which heads
+        /// out; to drop the overrides, <see cref="ClearAllPartOverrides"/>.
+        /// </para>
         /// <see cref="LoopCount"/>, <see cref="SpeedScale"/> and <see cref="SkipFrames"/> all survive the
         /// switch: the runtime keeps speed and frame skip itself, and the loop count — which it does reset
         /// on every transition, since the transition is what states it — is re-applied here from this
@@ -125,6 +132,12 @@ namespace SpriteStudio.Runtime
         public bool SetAnimation(string animName)
         {
             _animationName = animName;
+            // Already set up: a switch with nothing to switch to. Returning here is not just an
+            // optimisation -- ApplyPlaybackSettings below calls SetLoop, and the runtime RE-ARMS the
+            // remaining-loop counter on every write. A state machine that re-asserts its current
+            // animation each frame would otherwise reset the loop budget each frame, and a finite
+            // LoopCount would never run out. Restarting is Play()'s job; it heads out.
+            if (_core.IsAnimationSetUp(animName)) return true;
             bool ok = _core.SetAnimation(_animationName, "SpriteStudioGraphic");
             // The runtime resets the loop count on every setup, so a switch would otherwise turn a
             // configured `LoopCount = 1` back into looping forever -- silently, and only when the

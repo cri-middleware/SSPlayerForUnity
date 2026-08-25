@@ -270,6 +270,10 @@ internal struct MaskPartData
         public void LoadSsab(byte[] ssabData, AssetResolver resolver = null)
         {
             _assetResolver = resolver;
+            // Nothing is set up on the pack about to be bound, whatever was set up on the one being
+            // replaced. Cleared here rather than on success, because a REFUSED load leaves the previous
+            // pack's selection just as meaningless.
+            CurrentAnimationName = null;
 
             // On a reload (runtime asset swap) an in-flight Burst Job may still be borrowing the old
             // ssab buffer. Always complete the Job before destroying / re-borrowing native resources to
@@ -559,6 +563,14 @@ internal struct MaskPartData
             return true;
         }
 
+        /// <summary>
+        /// The animation currently set up on the native runtime, or null when none is (before the first
+        /// setup, and after a <see cref="LoadSsab"/> that replaced the pack). This is what "already set
+        /// up" is judged against — never a component's serialized animation name, which holds the value
+        /// the host wants rather than the one the runtime has.
+        /// </summary>
+        public string CurrentAnimationName { get; private set; }
+
         public bool SetupAnimationByHash(uint animationNameHash)
         {
             if (!_handle.IsValid) return false;
@@ -584,6 +596,9 @@ internal struct MaskPartData
                             }
                         }
                     }
+                    // Keep the by-name token in step, so a later SetupAnimation(name) for the animation
+                    // this hash selected is correctly recognised as already set up.
+                    CurrentAnimationName = _currentAnimation?.Name;
                 }
                 return ok;
             }
@@ -806,6 +821,13 @@ internal struct MaskPartData
 
         public void SetLoop(int count) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_loop(_handle.ptr, count); } }
         public int GetLoop() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_loops(_handle.ptr) : 0; } }
+
+        /// <summary>
+        /// Cycles left of <see cref="GetLoop"/>, counting down as playback completes them (-1 while the
+        /// count is infinite). Writing the loop count RE-ARMS this, so anything that pushes the count
+        /// back restarts the budget — which is why re-asserting the current animation must not.
+        /// </summary>
+        public int GetRemainLoops() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_remain_loops(_handle.ptr) : 0; } }
 
         // skip_frames (real-time following) state is held on the Rust side
         // (PlaybackController.is_skip_frames). This is a thin pass-through. Rust's setup() resets
@@ -1087,6 +1109,7 @@ internal struct MaskPartData
                                 }
                             }
                         }
+                        CurrentAnimationName = animationName;
                     }
                     return ok;
                 }
