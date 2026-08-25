@@ -75,6 +75,13 @@ function Show-Usage {
     Write-Host "locally). The version inside the tarball is package/package.json's, always,"
     Write-Host "because that is the one npm packs -- a disagreement between the two is"
     Write-Host "reported, not resolved."
+    Write-Host ""
+    Write-Host "Signing is not an option here either, it is opt-in through the environment: set"
+    Write-Host "UNITY_ORGANIZATION_ID (and UPM_SERVICE_ACCOUNT_KEY_ID / UPM_SERVICE_ACCOUNT_KEY_SECRET"
+    Write-Host "for a service account holding that organization's `"Package Manager Package Signer`""
+    Write-Host "role) and the tarball is packed by Unity's 'upm pack' instead of 'npm pack', so it"
+    Write-Host "carries a package signature. Unset, the tarball is unsigned -- which Unity 6.3 tells"
+    Write-Host "whoever installs it."
 }
 
 foreach ($argument in $Arguments) {
@@ -293,9 +300,10 @@ if ($verify -eq "yes") {
 
 # --- pack ------------------------------------------------------------------
 # pack-release copies LICENSE / CHANGELOG / Third Party Notices (and their
-# committed .meta) into package/ and runs `npm pack`, leaving the tarball at the
-# repo root. It is the one that knows the UPM document names, so it stays the
-# thing that packs.
+# committed .meta) into package/ and packs, leaving the tarball at the repo
+# root. It is the one that knows the UPM document names, so it stays the thing
+# that packs -- including the choice of packer: `upm pack` when
+# UNITY_ORGANIZATION_ID is set, which signs as it packs, `npm pack` otherwise.
 Write-Step "packing the UPM tarball"
 & "$rootDirectory/scripts/pack-release.ps1"
 
@@ -410,6 +418,22 @@ if ($verify -eq "yes") {
         }
     } elseif ($sdk -eq "build") {
         Write-Host "   sdk=build: every platform present -- the plugin directories already held the rest"
+    }
+
+    # The signature, when one was asked for. pack-release.ps1 signs only if
+    # UNITY_ORGANIZATION_ID is set, so this reads the same gate from the same
+    # environment -- and it is the only thing that separates a signed release from
+    # a run where the credentials quietly did nothing. Unity carries the signature
+    # as an encrypted .attestation.p7m inside the archive; its path in there is not
+    # documented, so match the name wherever it sits.
+    if (-not [string]::IsNullOrEmpty($env:UNITY_ORGANIZATION_ID)) {
+        if ($entries -match '\.attestation\.p7m$') {
+            Write-Host "   signed -- .attestation.p7m present"
+        } else {
+            $failed.Add("$versioned carries no .attestation.p7m -- it was packed unsigned")
+        }
+    } else {
+        Write-Host "   unsigned -- UNITY_ORGANIZATION_ID not set (Unity 6.3 says so on install)"
     }
 
     # The version npm actually packed, which is package.json's and is what the

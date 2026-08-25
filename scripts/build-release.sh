@@ -72,6 +72,13 @@ usage () {
   echo "locally). The version inside the tarball is package/package.json's, always,"
   echo "because that is the one npm packs -- a disagreement between the two is"
   echo "reported, not resolved."
+  echo ""
+  echo "Signing is not an option here either, it is opt-in through the environment: set"
+  echo "UNITY_ORGANIZATION_ID (and UPM_SERVICE_ACCOUNT_KEY_ID / UPM_SERVICE_ACCOUNT_KEY_SECRET"
+  echo "for a service account holding that organization's \"Package Manager Package Signer\""
+  echo "role) and the tarball is packed by Unity's 'upm pack' instead of 'npm pack', so it"
+  echo "carries a package signature. Unset, the tarball is unsigned -- which Unity 6.3 tells"
+  echo "whoever installs it."
 }
 
 while [ $# -gt 0 ]; do
@@ -307,9 +314,10 @@ fi
 
 # --- pack ------------------------------------------------------------------
 # pack-release.sh copies LICENSE / CHANGELOG / Third Party Notices (and their
-# committed .meta) into package/ and runs `npm pack`, leaving the tarball at the
-# repo root. It is the one that knows the UPM document names, so it stays the
-# thing that packs.
+# committed .meta) into package/ and packs, leaving the tarball at the repo
+# root. It is the one that knows the UPM document names, so it stays the thing
+# that packs -- including the choice of packer: `upm pack` when
+# UNITY_ORGANIZATION_ID is set, which signs as it packs, `npm pack` otherwise.
 step "packing the UPM tarball"
 ./scripts/pack-release.sh
 
@@ -437,6 +445,22 @@ EOF
     fi
   elif [ "$SDK" = "build" ]; then
     echo "   sdk=build: every platform present -- the plugin directories already held the rest"
+  fi
+
+  # The signature, when one was asked for. pack-release.sh signs only if
+  # UNITY_ORGANIZATION_ID is set, so this reads the same gate from the same
+  # environment -- and it is the only thing that separates a signed release from
+  # a run where the credentials quietly did nothing. Unity carries the signature
+  # as an encrypted .attestation.p7m inside the archive; its path in there is not
+  # documented, so match the name wherever it sits.
+  if [ -n "${UNITY_ORGANIZATION_ID:-}" ]; then
+    if printf '%s\n' "$ENTRIES" | grep -q '\.attestation\.p7m$'; then
+      echo "   signed -- .attestation.p7m present"
+    else
+      fail "$VERSIONED carries no .attestation.p7m -- it was packed unsigned"
+    fi
+  else
+    echo "   unsigned -- UNITY_ORGANIZATION_ID not set (Unity 6.3 says so on install)"
   fi
 
   # The version npm actually packed, which is package.json's and is what the
