@@ -93,4 +93,5 @@ graph LR
 
 ## 関連リポジトリ
 
+- [SpriteStudio Docs](https://cri-middleware.github.io/SpriteStudio-Docs/ja/) — SDK と公式 Player をまとめたドキュメントポータル
 - [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — `libssruntime` / `libssconverter` を提供する SDK 本体

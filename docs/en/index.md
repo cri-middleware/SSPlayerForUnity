@@ -93,4 +93,5 @@ This project uses third-party open source libraries. For details, see the [Third
 
 ## Related Repositories
 
+- [SpriteStudio Docs](https://cri-middleware.github.io/SpriteStudio-Docs/) — the documentation portal for the SDK and its official players
 - [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — The SDK itself, which provides `libssruntime` / `libssconverter`

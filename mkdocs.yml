@@ -1,108 +1,59 @@
-site_name: SpriteStudioPlayer for Unity
-site_description: "A Unity Engine integration for SpriteStudio 7"
-site_author: "CRI Middleware Co., Ltd."
+# English site -- the default locale, so it builds to the site root and keeps the plain
+# `mkdocs.yml` name that the tooling looks for when no `-f` is given.
+#
+# Everything not listed here comes from mkdocs.base.yml. Before adding anything, read the
+# note there about sequences: `nav` and `extra.social` are defined in this file and in
+# mkdocs.ja.yml, and must never also appear in the base.
+INHERIT: ./mkdocs.base.yml
+
+docs_dir: docs/en
+site_dir: site
 site_url: "https://cri-middleware.github.io/SSPlayerForUnity/"
-repo_name: "cri-middleware/SSPlayerForUnity"
-repo_url: "https://github.com/cri-middleware/SSPlayerForUnity"
-edit_uri: "edit/main/docs/"
+site_description: "A Unity Engine integration for SpriteStudio 7"
 
 theme:
-  name: material
+  # Drives the UI string translations and the `html lang` attribute.
   language: en
-  palette:
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      primary: blue grey
-      accent: indigo
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      primary: blue grey
-      accent: indigo
-      toggle:
-        icon: material/brightness-4
-        name: Switch to light mode
-  features:
-    - navigation.tabs
-    - navigation.sections
-    - navigation.expand
-    - content.code.copy
 
-plugins:
-  - search
-  - callouts
-  - i18n:
-      docs_structure: folder
-      languages:
-        - locale: en
-          name: English
-          default: true
-          build: true
-        - locale: ja
-          name: 日本語
-          build: true
-          nav_translations:
-            Home: ホーム
-            For Users: 利用者向けガイド
-            Installation: インストール
-            Basic Usage: 基本的な使い方
-            Migration from SS6Player: SS6Player からのマイグレーション
-            Asset Import & Editor Integration: アセットのインポートとエディタ連携
-            Scripting & Events: スクリプト制御とイベント
-            Performance Tuning & Advanced Settings: パフォーマンスチューニングと高度な設定
-            Customization & Automation: カスタマイズ・自動化ガイド
-            CLI Conversion & CI/CD: 各種コンバート機能と CI/CD
-            For Player & SDK Developers: Player・SDK 開発者向けガイド
-            Build Guide: ビルドガイド
-            License: ライセンス
-            Third-Party Notices: サードパーティライセンス
+extra:
+  # English builds to the site root, so the root of the whole multi-locale site is right
+  # here. The language selector prepends this to its target; see
+  # overrides/partials/alternate.html.
+  site_root_prefix: ""
+  # Footer icons. Keep to destinations that outlive any single release. Mirrored, with
+  # translated labels, in mkdocs.ja.yml - add or reorder an icon in both files.
+  social:
+    # The family entry point. Every sibling site carries this as its first footer icon, so a
+    # reader who arrives here from a search can reach the portal and the other players.
+    - icon: material/motion-play
+      link: https://cri-middleware.github.io/SpriteStudio-Docs/
+      name: SpriteStudio Docs
+    - icon: fontawesome/brands/github
+      link: https://github.com/cri-middleware
+      name: cri-middleware on GitHub
+    - icon: material/web
+      link: https://www.webtech.co.jp/spritestudio/
+      name: OPTPiX SpriteStudio
+    # Keep the handle here in sync with `twitter:site` in overrides/main.html.
+    - icon: fontawesome/brands/x-twitter
+      link: https://x.com/spritestudio
+      name: SpriteStudio on X
 
+# Paths are locale-relative and identical to the ones in mkdocs.ja.yml; only the labels
+# differ. When you add, move, or rename a page, edit both files.
 nav:
-  - Home: index.md
-  - For Users:
+  - 🏠 Home: index.md
+  - 🚀 Setup:
       - Installation: setup/install.md
+      - Build Guide: setup/build.md
+  - 🎬 Workflow:
       - Basic Usage: workflow/usage_basic.md
       - Asset Import & Editor Integration: workflow/usage_asset_pipeline.md
       - Scripting & Events: workflow/usage_scripting.md
-      - Performance Tuning & Advanced Settings: workflow/tips.md
-      - Migration from SS6Player: migration_from_ss6.md
-  - Customization & Automation:
+  - ⚙️ Advanced Topics:
       - CLI Conversion & CI/CD: workflow/import.md
-  - For Player & SDK Developers:
-      - Build Guide: setup/build.md
-  - License:
+      - Performance Tuning & Advanced Settings: workflow/tips.md
+  - 🔄 Migration from SS6Player: migration_from_ss6.md
+  - ⚖️ License:
       - License: license.md
       - Third-Party Notices: third_party_notices.md
-
-markdown_extensions:
-  - toc:
-      slugify: !!python/object/apply:pymdownx.slugs.slugify
-        kwds:
-          case: lower
-  - admonition
-  - pymdownx.details
-  - pymdownx.superfences:
-      custom_fences:
-        - name: mermaid
-          class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
-  - pymdownx.highlight:
-      anchor_linenums: true
-      line_spans: __span
-      pygments_lang_class: true
-  - pymdownx.inlinehilite
-  - pymdownx.snippets:
-      base_path:
-        - .
-      check_paths: true
-
-extra:
-  alternate:
-    - name: English
-      link: ./
-      lang: en
-    - name: 日本語
-      link: ./ja/
-      lang: ja
