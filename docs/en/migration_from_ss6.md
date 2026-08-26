@@ -56,7 +56,7 @@ _player.Play();
 | `AnimationPlay(…, frameOffset)` | `Play(float startFrame)` | Start from a given frame |
 | `AnimationStop(track)` | `Stop()` | |
 | `AnimationPause(track, true/false)` | `Pause()` | **No argument — it toggles** pause/resume |
-| `CursorSet/Get(track, cursor)` | `CurrentFrame` (get/set) | Seek; fractional frames allowed |
+| `CursorSet/Get(track, cursor)` | `FrameNo` (get/set) | Seek; fractional frames allowed |
 | `RateTimeSet/Get(track, rate)` | `SpeedScale` | Playback speed multiplier |
 | `AnimationPlay(…, timesPlay)` | `LoopCount` | **See the loop-count difference below** |
 | `KindStylePlay.PINGPONG` | `PlaybackStyle` (enum) | Ping-pong playback |

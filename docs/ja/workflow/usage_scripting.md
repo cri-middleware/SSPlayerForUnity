@@ -41,7 +41,7 @@ _player.Play();
 | `IsPausing` | `bool`（読取） | 一時停止中か |
 | `IsFinished` | `bool`（読取） | 設定したループを全て再生し終えたか。パルスではなく**状態**で、完了時に latch され次の `Play()` / `SetAnimation()` まで保持されます。そのため `Play(); yield return new WaitUntil(() => player.IsFinished);` は今開始した再生を待てます。`LoopCount` が無限のときは立たず、**`Stop()` でも立ちません** —— 命令された停止は完了ではないからで、そこが `!IsPlaying` との違いです |
 | `IsPlayingForward` | `bool`（読取） | 再生ヘッドが**実際に**進んでいる向き。`PlaybackDirection` は設定した向きに過ぎず、`PlaybackStyle.PingPong` の戻りの脚では `PlaybackDirection` が `false` のままでもこれは `false` になります。**音声はこれでゲートしてください**（SpriteStudio に逆再生音声は無いため、後ろ向きの脚で跨いだキーは鳴らすべきものではありません） |
-| `CurrentFrame` | `float` | 現在フレーム。`set` で任意フレームへシーク（小数可） |
+| `FrameNo` | `float` | 現在フレーム。`set` で任意フレームへシーク（小数可） |
 | `TotalFrames` | `int`（読取） | 再生中の区間のフレーム数（両端を含む）。`SetAnimationSection` で区間を設定していればその区間（未ロード時 `0`） |
 | `FrameRate` | `int` | 再生フレームレート (fps)。`set` で実行時変更 |
 | `PlaybackDirection` | `enum` | 設定した進行方向（`Forward` / `Backward`） |
@@ -66,7 +66,7 @@ else _player.Play();   // 停止中 — Play() は区間の先頭から再生し
 _player.SetAnimation("attack");
 _player.Play();
 _player.SetAnimationSection(10, 30); // 10〜30 フレームの区間だけ再生
-_player.CurrentFrame = 10f;          // 区間先頭へシーク
+_player.FrameNo = 10f;          // 区間先頭へシーク
 ```
 
 ### 例: 逆再生・ピンポン
@@ -362,6 +362,7 @@ player.ClearAllPartOverrides();
 
 | メソッド | 説明 |
 |---|---|
+| `GetPartNames()` | パーツ名の一覧（パーツ index 順）。イベントの `PartIndex` を人間が読める形に戻す、パーツ一覧 UI を作る、といった用途。名前の無いパーツは `""` で枠を保持するので index と揃ったままです。`Length` が個数 |
 | `FindPartIndex(name)` | パーツインデックス。アセットに無ければ `-1` |
 | `SetPartColorOverride(part, blendOp, color, priority)` | パーツカラーオーバーライド（単色。4隅指定のオーバーロードもあり：左上・右上・左下・右下） |
 | `SetPartCellOverride(part, cellmapName, cellName, priority)` | 別のセルで描画する |
