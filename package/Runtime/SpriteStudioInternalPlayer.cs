@@ -660,6 +660,12 @@ internal struct MaskPartData
         }
         public bool IsPausing() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_is_pausing(_handle.ptr); } }
         /// <summary>
+        /// Whether every configured loop has played. A <b>state</b>, not a pulse: it latches on
+        /// completion and holds until the next play/setup. Never true under an infinite loop count,
+        /// and not raised by <c>Stop</c> — a commanded stop is not a completion.
+        /// </summary>
+        public bool IsFinished() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_is_finished(_handle.ptr); } }
+        /// <summary>
         /// Whether the last update crossed a loop boundary. A <b>pulse</b>: the runtime clears it at the
         /// top of every update, so it only reads true inside the tick that crossed — which is why it is
         /// not named <c>IsLooped</c>. Reading it a tick late reads false.

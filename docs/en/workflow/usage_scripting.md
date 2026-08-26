@@ -39,6 +39,7 @@ Your playback settings hold across the switch: `SpeedScale`, `FrameSkipEnabled`,
 | `Stop()` | Method | Stop playback. The playhead **stays where it stands** — nothing rewinds, so the frame it stopped on keeps drawing. `Play()` is what returns to the start |
 | `IsPlaying` | `bool` (read) | Whether a playback session is active (`true` even while paused) |
 | `IsPausing` | `bool` (read) | Whether currently paused |
+| `IsFinished` | `bool` (read) | Whether every configured loop has played. A **state**, not a pulse — it latches on completion and holds until the next `Play()` / `SetAnimation()`, so `Play(); yield return new WaitUntil(() => player.IsFinished);` waits for the run you just started. Never true under an infinite `LoopCount`, and **not raised by `Stop()`** — a commanded stop is not a completion, which is what separates it from `!IsPlaying` |
 | `IsPlayingForward` | `bool` (read) | Which way the playhead is **actually** travelling. `PlaybackDirection` is only the configured heading: on a `PlaybackStyle.PingPong` return leg this reads `false` while `PlaybackDirection` is still `false`. **Gate audio on it** — SpriteStudio has no reverse audio, so a key crossed on a backward leg is not meant to sound |
 | `CurrentFrame` | `float` | Current frame. Use `set` to seek to an arbitrary frame (fractional allowed) |
 | `TotalFrames` | `int` (read) | Frames in the range being played, both ends inclusive — the section when `SetAnimationSection` set one (`0` when not loaded) |
