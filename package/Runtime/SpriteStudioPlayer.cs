@@ -630,6 +630,12 @@ namespace SpriteStudio.Runtime
             {
                 _sharedMesh = new Mesh();
                 _sharedMesh.name = "SpriteStudio_DynamicMesh";
+                // Runtime-only, like every material this package builds: the owner destroys it in
+                // OnDisable. Without the flag this mesh is serialized into the scene, because
+                // [ExecuteAlways] builds it in edit mode and MeshFilter.sharedMesh is a serialized
+                // field - so saving a scene that holds a player writes the whole mesh into it, and
+                // rewrites it on every save. It is rebuilt here on load either way.
+                _sharedMesh.hideFlags = HideFlags.HideAndDontSave;
                 _sharedMesh.MarkDynamic(); // Optimize for per-frame updates
             }
             _meshFilter.sharedMesh = _sharedMesh;

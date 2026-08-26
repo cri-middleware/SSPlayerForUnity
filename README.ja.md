@@ -47,11 +47,13 @@
 3. **配置**: 生成された `SpriteStudioAnimeAsset` を Project ウィンドウから Hierarchy（または Scene ビュー）へドラッグ＆ドロップし、`SpriteStudioPlayer`（ワールド空間）または `SpriteStudioGraphic`（uGUI Canvas）を選んで、**Animation Name** を設定して再生します。
 
 ### 2. サンプルで動作確認する
-`examples/UnityTestProject` は SpriteStudio パッケージがあらかじめリンクされた最小構成のプロジェクトです（シーンやアセットは同梱していません）。
-1. **取得**: 本リポジトリをクローンまたはダウンロードします。
+`examples/SampleProject` は SpriteStudio パッケージがリンク済みで、SDK の **Ringo** アニメーションを同梱しています。自分の `.sspj` を用意しなくても動くものを見られます。
+1. **取得**: 本リポジトリを `--recurse-submodules` 付きでクローンします（サンプルの元プロジェクトは `SpriteStudio-SDK/tests` にあります）。
 2. **準備**: `./scripts/download-sdk.sh` (Mac/Linux) または `scripts\download-sdk.ps1` (Windows) を実行してネイティブライブラリ（`libssruntime`）を取得・配置します。
-3. **開く**: Unity Hub から `examples/UnityTestProject` を開きます。
-4. **試す**: **Window > SpriteStudio > Importer** から自分の `.sspj` を取り込み、手順 1 と同様にプレイヤーを配置します。
+3. **開く**: Unity Hub から `examples/SampleProject` を開きます。
+4. **試す**: `Assets/Test.unity` を開いて Play を押します。
+
+SDK の残り 4 本（`overall` / `allAttributeV7` / `allPartsV7` / `ParticleEffect`）は同梱していません。サイズが大きく、submodule が原本を持っているためです。必要なときは `SpriteStudio-SDK/tests` から **Window > SpriteStudio > Importer** にドラッグしてください。
 
 カスタマイズを目的とした導入手順（手動ビルド等）の詳細は [インストールガイド](./docs/ja/setup/install.md) を参照してください。
 
@@ -65,7 +67,8 @@
 
 [examples フォルダ](./examples/) にサンプルプロジェクトがあります。
 
-- [UnityTestProject](./examples/UnityTestProject) — SpriteStudio パッケージがあらかじめリンクされた最小構成の Unity プロジェクトです（シーン・アセットは同梱なし）。先に `download-sdk`（クイックスタート参照）を実行し、Unity Hub から開いて、自分の `.sspj` を取り込むとクリーンなプロジェクトでプラグインを試せます。
+- [SampleProject](./examples/SampleProject) — まず開くのはこちらです。SDK の Ringo アニメーションを同梱しているので、自分の `.sspj` が無くても再生できます。先に `download-sdk`（クイックスタート参照）を実行してください。メンテナ向け: `./scripts/deploy-examples.sh` が同梱の Ringo を submodule から再生成します。`SpriteStudio-SDK/tests/Ringo` が変わったら実行してください。
+- [UnityTestProject](./examples/UnityTestProject) — パッケージがリンクされているだけの空のプロジェクトです。プラグイン開発中のスクラッチ用で、自分の `.sspj` を取り込んでクリーンな環境で試すときに使います。
 
 ## 🔗 関連リポジトリ
 
