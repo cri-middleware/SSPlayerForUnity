@@ -56,14 +56,14 @@ namespace SpriteStudio.Runtime.Tests
         public void SettingProperties_ReflectsValues()
         {
             var graphic = _go.AddComponent<SpriteStudioGraphic>();
-            graphic.AnimationName = "TestAnimUI";
+            graphic.CurrentAnimation = "TestAnimUI";
             graphic.AutoPlay = false;
             graphic.LoopCount = 5;
             graphic.SpeedScale = 2.0f;
             graphic.SubFrameEnabled = true;
             graphic.FrameSkipEnabled = false;
 
-            Assert.AreEqual("TestAnimUI", graphic.AnimationName);
+            Assert.AreEqual("TestAnimUI", graphic.CurrentAnimation);
             Assert.AreEqual(false, graphic.AutoPlay);
             Assert.AreEqual(5, graphic.LoopCount);
             Assert.AreEqual(2.0f, graphic.SpeedScale);

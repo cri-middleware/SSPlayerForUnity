@@ -49,8 +49,8 @@ namespace SpriteStudio.Runtime.EditModeTests
 
             _go = new GameObject("PreviewFallbackTest");
             var player = _go.AddComponent<SpriteStudioPlayer>();
-            player.AnimeAsset = asset;   // no AnimationName assignment
-            Assert.IsEmpty(player.AnimationName, "Precondition: the player starts with no animation chosen.");
+            player.AnimeAsset = asset;   // no CurrentAnimation assignment
+            Assert.IsEmpty(player.CurrentAnimation, "Precondition: the player starts with no animation chosen.");
             return player;
         }
 
@@ -77,7 +77,7 @@ namespace SpriteStudio.Runtime.EditModeTests
 
             BuildEditPreview(player);
 
-            Assert.IsEmpty(player.AnimationName,
+            Assert.IsEmpty(player.CurrentAnimation,
                 "The preview fallback is a display convenience and must not write the scene.");
         }
     }

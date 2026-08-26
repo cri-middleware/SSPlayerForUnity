@@ -84,7 +84,7 @@ namespace SpriteStudio.Runtime
         [Header("Playback Settings")]
         [Tooltip("Animation name to play (e.g. pack name / animation name)")]
         [SerializeField] private string _animationName = "";
-        public string AnimationName
+        public string CurrentAnimation
         {
             get => _animationName;
             set => _animationName = value;

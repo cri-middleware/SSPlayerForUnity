@@ -186,7 +186,7 @@ var eventSystem = UnityEngine.Object.FindFirstObjectByType<UnityEngine.EventSyst
                     var graphic = go.AddComponent<SpriteStudioGraphic>();
                     graphic.AnimeAsset = asset;
                     string uiAnimation = GetDefaultAnimationName(asset);
-                    if (uiAnimation != null) graphic.AnimationName = uiAnimation;
+                    if (uiAnimation != null) graphic.CurrentAnimation = uiAnimation;
 
                     var rectTransform = go.GetComponent<RectTransform>();
                     if (spawnPosition.HasValue && parent == null)
@@ -202,7 +202,7 @@ var eventSystem = UnityEngine.Object.FindFirstObjectByType<UnityEngine.EventSyst
                     var player = go.AddComponent<SpriteStudioPlayer>();
                     player.AnimeAsset = asset;
                     string worldAnimation = GetDefaultAnimationName(asset);
-                    if (worldAnimation != null) player.AnimationName = worldAnimation;
+                    if (worldAnimation != null) player.CurrentAnimation = worldAnimation;
 
                     if (spawnPosition.HasValue && parent == null)
                     {

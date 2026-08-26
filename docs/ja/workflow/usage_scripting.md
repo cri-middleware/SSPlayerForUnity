@@ -88,7 +88,7 @@ _player.Play();
 | プロパティ | 型 | 説明 |
 |---|---|---|
 | `AnimeAsset` | `SpriteStudioAnimeAsset` | 再生対象アセット（差し替え可） |
-| `AnimationName` | `string` | アニメーション名 |
+| `CurrentAnimation` | `string` | アニメーション名 |
 | `AutoPlay` | `bool` | 起動時自動再生 |
 | `LoopCount` | `int` | ループ回数（`-1` または `0` = 無限 / `n` = n 回） |
 | `SpeedScale` | `float` | 再生速度倍率。ランタイムの実値を読み返す。`0` と負値は**停止**にクランプされる（逆再生は `PlaybackDirection` の役目）ため、`-1` を設定すると `0` が返る |
@@ -233,7 +233,7 @@ void OnDisable()
 void HandleFinished()
 {
     // 攻撃が終わったら待機状態に戻る
-    if (_player.AnimationName == "attack")
+    if (_player.CurrentAnimation == "attack")
     {
         _player.SetAnimation("idle");
         _player.Play();
