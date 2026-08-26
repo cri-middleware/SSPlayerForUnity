@@ -58,7 +58,7 @@ namespace SpriteStudio.Runtime.Tests
         public void SettingProperties_ReflectsValues()
         {
             var player = _go.AddComponent<SpriteStudioPlayer>();
-            player.AnimationName = "TestAnim";
+            player.CurrentAnimation = "TestAnim";
             player.AutoPlay = false;
             player.LoopCount = 2;
             player.SpeedScale = 1.5f;
@@ -67,7 +67,7 @@ namespace SpriteStudio.Runtime.Tests
             player.PixelsPerUnit = 100f;
             player.SortingOrder = 10;
 
-            Assert.AreEqual("TestAnim", player.AnimationName);
+            Assert.AreEqual("TestAnim", player.CurrentAnimation);
             Assert.AreEqual(false, player.AutoPlay);
             Assert.AreEqual(2, player.LoopCount);
             Assert.AreEqual(1.5f, player.SpeedScale);

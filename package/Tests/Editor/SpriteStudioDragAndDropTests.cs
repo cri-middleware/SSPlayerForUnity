@@ -73,7 +73,7 @@ namespace SpriteStudio.Editor.Tests
             _created.Add(player.gameObject);
 
             Assert.AreEqual(asset, player.AnimeAsset);
-            Assert.AreEqual("walk", player.AnimationName,
+            Assert.AreEqual("walk", player.CurrentAnimation,
                 "A placed player must start on the asset's first animation, or it renders nothing.");
         }
     }

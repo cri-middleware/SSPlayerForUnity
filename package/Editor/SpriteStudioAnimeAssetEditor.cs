@@ -85,7 +85,7 @@ namespace SpriteStudio.Editor
             player.AnimeAsset = asset;
             if (asset.AnimationNames != null && asset.AnimationNames.Length > 0)
             {
-                player.AnimationName = asset.AnimationNames[0];
+                player.CurrentAnimation = asset.AnimationNames[0];
             }
             
             if (asset.Materials != null && asset.Materials.Count > 0)
