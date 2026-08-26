@@ -41,9 +41,9 @@
 > [!TIP]
 > 
 > <video autoplay loop muted playsinline width="100%">
->   <source src="../assets/3-setup_drag_and_drop.webm" type="video/webm">
+>   <source src="../../../assets/3-setup_drag_and_drop.webm" type="video/webm">
 > </video>
-> <img src="../assets/3-setup_drag_and_drop.webp" width="100%" style="display: none;">
+> <img src="../../assets/3-setup_drag_and_drop.webp" width="100%" style="display: none;">
 
 ### 方法 B: コンポーネントを手動で追加する
 
@@ -110,9 +110,9 @@ public class Sample : MonoBehaviour
 > [!TIP]
 > 
 > <video autoplay loop muted playsinline width="100%">
->   <source src="../assets/4-inspector_preview.webm" type="video/webm">
+>   <source src="../../../assets/4-inspector_preview.webm" type="video/webm">
 > </video>
-> <img src="../assets/4-inspector_preview.webp" width="100%" style="display: none;">
+> <img src="../../assets/4-inspector_preview.webp" width="100%" style="display: none;">
 
 ## 編集モードでのプレビュー
 
@@ -130,6 +130,6 @@ public class Sample : MonoBehaviour
 > [!TIP]
 > 
 > <video autoplay loop muted playsinline width="100%">
->   <source src="../assets/6-mask.webm" type="video/webm">
+>   <source src="../../../assets/6-mask.webm" type="video/webm">
 > </video>
-> <img src="../assets/6-mask.webp" width="100%" style="display: none;">
+> <img src="../../assets/6-mask.webp" width="100%" style="display: none;">
