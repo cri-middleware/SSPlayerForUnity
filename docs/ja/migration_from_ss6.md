@@ -56,7 +56,7 @@ _player.Play();
 | `AnimationPlay(…, frameOffset)` | `Play(float startFrame)` | 開始フレーム指定 |
 | `AnimationStop(track)` | `Stop()` | |
 | `AnimationPause(track, true/false)` | `Pause()` | **引数なしのトグル**（一時停止／再開） |
-| `CursorSet/Get(track, cursor)` | `CurrentFrame`（get/set） | シーク。小数フレーム可 |
+| `CursorSet/Get(track, cursor)` | `FrameNo`（get/set） | シーク。小数フレーム可 |
 | `RateTimeSet/Get(track, rate)` | `SpeedScale` | 再生速度倍率 |
 | `AnimationPlay(…, timesPlay)` | `LoopCount` | **後述のループ回数の違いに注意** |
 | `KindStylePlay.PINGPONG` | `PlaybackStyle`（enum） | 往復再生 |

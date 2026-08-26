@@ -372,12 +372,12 @@ namespace SpriteStudio.Runtime
         /// <summary>
         /// Stops playback. The playhead <b>stays where it stands</b> — nothing rewinds, so the
         /// component keeps drawing the frame it stopped on. <see cref="Play()"/> is what returns to
-        /// the start, and <see cref="CurrentFrame"/> seeks anywhere else.
+        /// the start, and <see cref="FrameNo"/> seeks anywhere else.
         /// </summary>
         public void Stop() => _core.Internal?.Stop();
 
         /// <summary>Current playback frame (fractional allowed). Set to seek to an arbitrary frame.</summary>
-        public float CurrentFrame
+        public float FrameNo
         {
             get => _core.Internal?.GetFrame() ?? 0f;
             set => _core.Internal?.SetFrame(value);
@@ -539,6 +539,16 @@ namespace SpriteStudio.Runtime
         public bool ClearAllPartOverrides() => _core.Internal?.ClearAllPartOverrides() ?? false;
 
         /// <summary>Names of the cellmaps in the loaded asset (for discovering cell-override targets).</summary>
+        /// <summary>
+        /// Part names in part-index order, empty before an <see cref="AnimeAsset"/> is set up.
+        /// <para>
+        /// A part authored without a name reads as the empty string rather than being skipped, so the
+        /// array stays aligned with the <c>PartIndex</c> every event carries — which is what turns one
+        /// back into something a human reads. <c>Length</c> is the part count.
+        /// </para>
+        /// </summary>
+        public string[] GetPartNames() => _core.Internal?.GetPartNames() ?? System.Array.Empty<string>();
+
         public string[] GetCellmapNames() => _core.Internal?.GetCellmapNames() ?? System.Array.Empty<string>();
 
         /// <summary>Names of the cells in the named cellmap (for discovering cell-override targets).</summary>

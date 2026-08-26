@@ -114,6 +114,9 @@ internal struct MaskPartData
         // dispatch path resolves names by array lookup instead of decoding a fresh string from the
         // FlatBuffer per event. Null until SetupSlots runs.
         private string[] _partNames;
+        // How many of `_partNames` belong to the current pack. The array is grown but never shrunk, so
+        // its Length is capacity, not the part count.
+        private int _partCount;
         // True when this ssab has at least one mask writer (pure mask or clipping). When false the
         // whole mask path is skipped, like _build_mask_writers returning empty.
         internal bool _hasMaskParts;
@@ -402,6 +405,7 @@ internal struct MaskPartData
             // asset that is no longer loaded.
             _partNameToIndex?.Clear();
             if (_partNames != null) System.Array.Clear(_partNames, 0, _partNames.Length);
+            _partCount = 0;
 
             // The ancestor chain is only needed while this subtree is being built. Take it and drop the
             // field on every exit path, so a leaf player does not pin one HashSet per level for its
@@ -427,6 +431,7 @@ internal struct MaskPartData
                 // (Both tables were emptied above; only capacity is grown here.)
                 if (_partNameToIndex == null) _partNameToIndex = new Dictionary<string, int>(partsLength);
                 if (_partNames == null || _partNames.Length < partsLength) _partNames = new string[partsLength];
+                _partCount = partsLength;
 
                 // What an Instance child may not resolve to: this pack, or any pack above it. Handed to
                 // every child so the chain grows one link per level.
@@ -726,6 +731,19 @@ internal struct MaskPartData
         {
             if (string.IsNullOrEmpty(partName) || _partNameToIndex == null) return -1;
             return _partNameToIndex.TryGetValue(partName, out int idx) ? idx : -1;
+        }
+
+        /// <summary>
+        /// Part names in part-index order, empty before a pack is set up. A part authored without a
+        /// name reads as the empty string rather than being skipped, so the array stays aligned with
+        /// the PartIndex every event carries. Length is the part count.
+        /// </summary>
+        public string[] GetPartNames()
+        {
+            if (_partNames == null || _partCount == 0) return System.Array.Empty<string>();
+            var names = new string[_partCount];
+            for (int i = 0; i < _partCount; i++) names[i] = _partNames[i] ?? string.Empty;
+            return names;
         }
 
         /// <summary>Resolve a part index to its cached name, or null if out of range. Avoids decoding a

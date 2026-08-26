@@ -11,7 +11,7 @@ namespace SpriteStudio.Runtime.Tests
 {
     /// <summary>
     /// Verifies the playback-control API added to SpriteStudioPlayer / SpriteStudioGraphic in Tier 1
-    /// (IsPlaying / IsPaused / Pause / Stop / CurrentFrame / TotalFrames /
+    /// (IsPlaying / IsPaused / Pause / Stop / FrameNo / TotalFrames /
     ///  FrameRate / Reverse / PingPong / SetAnimationSection).
     ///
     /// These are thin delegations to the internal player (Rust runtime), so we check them at two layers:
@@ -174,6 +174,29 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
+        public void GetPartNames_IsIndexAlignedWithFindPartIndex()
+        {
+            var player = MakePlayingPlayer();
+            var names = player.GetPartNames();
+
+            Assume.That(names.Length, Is.GreaterThan(0), "Ringo has parts");
+
+            // Length is the part count -- there is no separate accessor, and this is what makes the
+            // list a replacement for one rather than an addition next to it.
+            for (int i = 0; i < names.Length; i++)
+            {
+                if (string.IsNullOrEmpty(names[i])) continue;   // unnamed parts hold their slot
+                Assert.AreEqual(i, player.FindPartIndex(names[i]),
+                    $"names[{i}] must resolve back to {i}");
+            }
+
+            // The array is a copy: handing out the live cache would let a caller corrupt the table the
+            // event dispatch path reads.
+            names[0] = "clobbered";
+            Assert.AreNotEqual("clobbered", player.GetPartNames()[0]);
+        }
+
+        [Test]
         public void Pause_SetsPaused_ButStillPlaying()
         {
             var player = MakePlayingPlayer();
@@ -205,14 +228,14 @@ namespace SpriteStudio.Runtime.Tests
             player.FrameSkipEnabled = false;   // one Tick = one frame
             for (int i = 0; i < 3; i++) player.InternalPlayer.Tick(1f / 60f, false);
 
-            float frame = player.CurrentFrame;
+            float frame = player.FrameNo;
             Assume.That(frame, Is.GreaterThan(0f), "playback should have advanced before we re-assert");
 
             Assert.IsTrue(player.SetAnimation("walk"), "re-asserting the current animation still succeeds");
 
             // A switch with nothing to switch to. Before this was a no-op it ran a full setup_animation,
             // which rewound the playhead and returned the controller to Stopped.
-            Assert.AreEqual(frame, player.CurrentFrame, 0.001f, "the playhead must not rewind");
+            Assert.AreEqual(frame, player.FrameNo, 0.001f, "the playhead must not rewind");
             Assert.IsTrue(player.IsPlaying, "playback must not be returned to Stopped");
         }
 
@@ -309,8 +332,8 @@ namespace SpriteStudio.Runtime.Tests
             var player = MakePlayingPlayer();
             player.Pause(); // pause so the value doesn't change from advancing
             float target = Mathf.Min(2f, Mathf.Max(0f, player.TotalFrames - 1));
-            player.CurrentFrame = target;
-            Assert.AreEqual(target, player.CurrentFrame, 0.001f, "The seeked value should be readable");
+            player.FrameNo = target;
+            Assert.AreEqual(target, player.FrameNo, 0.001f, "The seeked value should be readable");
         }
 
         [Test]
@@ -378,7 +401,7 @@ namespace SpriteStudio.Runtime.Tests
             Assert.IsFalse(player.IsPlaying);
             Assert.IsFalse(player.IsPausing);
             Assert.AreEqual(0, player.FrameRate);
-            Assert.AreEqual(0f, player.CurrentFrame, 0.001f);
+            Assert.AreEqual(0f, player.FrameNo, 0.001f);
             Assert.AreEqual(SpriteStudioPlaybackDirection.Forward, player.PlaybackDirection);
             Assert.AreEqual(SpriteStudioPlaybackStyle.Normal, player.PlaybackStyle);
             // TotalFrames can fall back to the native default (end_frame=0 → 1) when not loaded, so we don't
@@ -388,7 +411,7 @@ namespace SpriteStudio.Runtime.Tests
             {
                 _ = player.TotalFrames;
                 player.Pause(); player.Pause(); player.Stop();
-                player.CurrentFrame = 5f; player.FrameRate = 30;
+                player.FrameNo = 5f; player.FrameRate = 30;
                 player.PlaybackDirection = SpriteStudioPlaybackDirection.Backward; player.PlaybackStyle = SpriteStudioPlaybackStyle.PingPong;
                 player.SetAnimationSection(0, 1);
             });
@@ -406,7 +429,7 @@ namespace SpriteStudio.Runtime.Tests
             Assert.DoesNotThrow(() =>
             {
                 player.Pause(); player.Pause(); player.Stop();
-                _ = player.CurrentFrame; player.CurrentFrame = 1f;
+                _ = player.FrameNo; player.FrameNo = 1f;
                 _ = player.PlaybackDirection; player.PlaybackDirection = SpriteStudioPlaybackDirection.Backward;
                 player.SetAnimationSection(0, 1);
             });
