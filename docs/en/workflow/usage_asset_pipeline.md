@@ -25,9 +25,9 @@ Drag and drop the generated asset onto the Hierarchy window or Scene view to pla
 > [!TIP]
 > 
 > <video autoplay loop muted playsinline width="100%">
->   <source src="../assets/1-sspj_import.webm" type="video/webm">
+>   <source src="../../assets/1-sspj_import.webm" type="video/webm">
 > </video>
-> <img src="../assets/1-sspj_import.webp" width="100%" style="display: none;">
+> <img src="../../assets/1-sspj_import.webp" width="100%" style="display: none;">
 
 > [!TIP]
 > If you drop a whole folder, the `.sspj` files inside it are recursively batch-converted to `.ssab`. See [Conversion Features and CI/CD](./import.md) for details.
@@ -45,7 +45,7 @@ If, while working in Unity, you think "I'd like to fine-tune the animation a bit
 This launches SpriteStudio, opens the original `.sspj` file, and lets you start editing right away.
 
 > [!NOTE]
-> ![Opening SSPJ from the Inspector](../assets/5-open_sspj_from_inspector.png)
+> ![Opening SSPJ from the Inspector](../../assets/5-open_sspj_from_inspector.png)
 
 > [!NOTE]
 > The equivalent operation is also available from the **Recent SSPJs** list in **Window > SpriteStudio > Importer** (right-click a row → "Open SSPJ").
@@ -70,9 +70,9 @@ With just the following operation, your changes are reflected instantly in the g
 > [!TIP]
 > 
 > <video autoplay loop muted playsinline width="100%">
->   <source src="../assets/2-fast_iteration_inspector.webm" type="video/webm">
+>   <source src="../../assets/2-fast_iteration_inspector.webm" type="video/webm">
 > </video>
-> <img src="../assets/2-fast_iteration_inspector.webp" width="100%" style="display: none;">
+> <img src="../../assets/2-fast_iteration_inspector.webp" width="100%" style="display: none;">
 
 ---
 

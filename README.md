@@ -67,7 +67,6 @@ A sample project is available under the [examples folder](./examples/).
 
 ## 🔗 Related Repositories
 
-- [SpriteStudio Docs](https://cri-middleware.github.io/SpriteStudio-Docs/) — the documentation portal for the SDK and every official player
 - [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — The core SDK providing `libssruntime` and `libssconverter`.
 
 ## 📄 License
