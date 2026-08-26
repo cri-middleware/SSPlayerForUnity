@@ -131,6 +131,49 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
+        public void IsFinished_LatchesOnCompletion_AndIsNotRaisedByStop()
+        {
+            var player = MakePlayingPlayer();
+            Assert.IsFalse(player.IsFinished, "A fresh play has not finished");
+
+            // Re-arm with a finite count. The runtime resets the loop counter on setup, so the count
+            // has to be in effect when Play heads out.
+            player.LoopCount = 1;
+            player.Play();
+            Assert.IsFalse(player.IsFinished, "Play re-arms the latch");
+
+            int guard = 0;
+            while (player.IsPlaying && guard++ < 5000) player.InternalPlayer.Tick(1f / 60f, false);
+            Assume.That(player.IsPlaying, Is.False, "one loop should complete within the tick budget");
+
+            Assert.IsTrue(player.IsFinished, "Every configured loop has played");
+
+            // Sticky, unlike JustLooped: this is the whole reason for publishing it next to the
+            // OnAnimationFinished edge. A caller that was not subscribed can still ask afterwards.
+            for (int i = 0; i < 120; i++) player.InternalPlayer.Tick(1f / 60f, false);
+            Assert.IsTrue(player.IsFinished, "The state holds until the next play/setup");
+
+            player.Play();
+            Assert.IsFalse(player.IsFinished, "Play re-arms it again");
+        }
+
+        [Test]
+        public void IsFinished_SeparatesACompletedRunFromAStoppedOne()
+        {
+            // The distinction !IsPlaying cannot make, and the reason substituting it for completion
+            // is one of the defects the SDK's porting guide records.
+            var player = MakePlayingPlayer();
+            player.LoopCount = 1;
+            player.Play();
+
+            player.InternalPlayer.Tick(1f / 60f, false);
+            player.Stop();
+
+            Assert.IsFalse(player.IsPlaying, "Stop ends playback");
+            Assert.IsFalse(player.IsFinished, "...but a commanded stop is not a completion");
+        }
+
+        [Test]
         public void Pause_SetsPaused_ButStillPlaying()
         {
             var player = MakePlayingPlayer();

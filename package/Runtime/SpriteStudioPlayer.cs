@@ -318,6 +318,25 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
+        /// Whether every configured loop has played.
+        /// <para>
+        /// A <b>state</b>, not a pulse: it latches on completion and holds until the next
+        /// <see cref="Play()"/> or <see cref="SetAnimation"/>, so a caller that was not subscribed
+        /// when <see cref="OnAnimationFinished"/> fired can still ask whether the run is over. That
+        /// also makes it what a coroutine waits on:
+        /// <c>Play(); yield return new WaitUntil(() =&gt; player.IsFinished);</c> — <c>Play</c>
+        /// re-arms it, so the wait does not fall through on a previous run's completion.
+        /// </para>
+        /// <para>
+        /// Never true under an infinite <see cref="LoopCount"/>, and <b>not raised by
+        /// <see cref="Stop"/></b> — a commanded stop is not a completion. That is what separates it
+        /// from <c>!IsPlaying</c>, which cannot tell the two apart. Take
+        /// <see cref="OnAnimationFinished"/> for the one-shot edge.
+        /// </para>
+        /// </summary>
+        public bool IsFinished => _core.Internal?.IsFinished() ?? false;
+
+        /// <summary>
         /// Which way the playhead is actually travelling this frame. This is <b>not</b>
         /// <see cref="PlaybackDirection"/>, which is only the heading that was configured: under
         /// <see cref="SpriteStudioPlaybackStyle.PingPong"/> the return leg runs backward while it still

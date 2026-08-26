@@ -39,6 +39,7 @@ _player.Play();
 | `Stop()` | メソッド | 再生を停止。再生ヘッドは **その場に留まり**、巻き戻りません（停止したフレームを描画し続けます）。先頭に戻すのは `Play()` です |
 | `IsPlaying` | `bool`（読取） | 再生セッションが有効か（一時停止中でも `true`） |
 | `IsPausing` | `bool`（読取） | 一時停止中か |
+| `IsFinished` | `bool`（読取） | 設定したループを全て再生し終えたか。パルスではなく**状態**で、完了時に latch され次の `Play()` / `SetAnimation()` まで保持されます。そのため `Play(); yield return new WaitUntil(() => player.IsFinished);` は今開始した再生を待てます。`LoopCount` が無限のときは立たず、**`Stop()` でも立ちません** —— 命令された停止は完了ではないからで、そこが `!IsPlaying` との違いです |
 | `IsPlayingForward` | `bool`（読取） | 再生ヘッドが**実際に**進んでいる向き。`PlaybackDirection` は設定した向きに過ぎず、`PlaybackStyle.PingPong` の戻りの脚では `PlaybackDirection` が `false` のままでもこれは `false` になります。**音声はこれでゲートしてください**（SpriteStudio に逆再生音声は無いため、後ろ向きの脚で跨いだキーは鳴らすべきものではありません） |
 | `CurrentFrame` | `float` | 現在フレーム。`set` で任意フレームへシーク（小数可） |
 | `TotalFrames` | `int`（読取） | 再生中の区間のフレーム数（両端を含む）。`SetAnimationSection` で区間を設定していればその区間（未ロード時 `0`） |
