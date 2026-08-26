@@ -500,6 +500,12 @@ namespace SpriteStudio.Runtime
             {
                 _sharedMesh = new Mesh();
                 _sharedMesh.name = "SpriteStudio_CanvasMesh";
+                // Same contract as SpriteStudioPlayer's mesh: runtime-only, destroyed by the owner
+                // in OnDisable. This path hands the mesh to canvasRenderer.SetMesh rather than to a
+                // serialized field, so it is not written into scenes the way the MeshFilter one was
+                // - the flag is here so both meshes state the same lifetime instead of leaving the
+                // difference to be rediscovered.
+                _sharedMesh.hideFlags = HideFlags.HideAndDontSave;
                 _sharedMesh.MarkDynamic();
             }
 
