@@ -41,9 +41,9 @@ Once selected, a GameObject is created, and **the asset you just dropped is auto
 > [!TIP]
 > 
 > <video autoplay loop muted playsinline width="100%">
->   <source src="../../assets/3-setup_drag_and_drop.webm" type="video/webm">
+>   <source src="../assets/3-setup_drag_and_drop.webm" type="video/webm">
 > </video>
-> <img src="../../assets/3-setup_drag_and_drop.webp" width="100%" style="display: none;">
+> <img src="../assets/3-setup_drag_and_drop.webp" width="100%" style="display: none;">
 
 ### Method B: Add the component manually
 
@@ -110,9 +110,9 @@ These are the settings common to both `SpriteStudioPlayer` and `SpriteStudioGrap
 > [!TIP]
 > 
 > <video autoplay loop muted playsinline width="100%">
->   <source src="../../assets/4-inspector_preview.webm" type="video/webm">
+>   <source src="../assets/4-inspector_preview.webm" type="video/webm">
 > </video>
-> <img src="../../assets/4-inspector_preview.webp" width="100%" style="display: none;">
+> <img src="../assets/4-inspector_preview.webp" width="100%" style="display: none;">
 
 ## Preview in edit mode
 
@@ -130,6 +130,6 @@ For details, see [Performance Tuning and Advanced Settings](./tips.md#masking-an
 > [!TIP]
 > 
 > <video autoplay loop muted playsinline width="100%">
->   <source src="../../assets/6-mask.webm" type="video/webm">
+>   <source src="../assets/6-mask.webm" type="video/webm">
 > </video>
-> <img src="../../assets/6-mask.webp" width="100%" style="display: none;">
+> <img src="../assets/6-mask.webp" width="100%" style="display: none;">

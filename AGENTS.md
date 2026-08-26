@@ -34,6 +34,43 @@ A Unity Engine integration for SpriteStudio 7, designed for extreme performance.
 *   **Update Loop Consistency:** Components are batch-updated via `SpriteStudioUpdateManager`. To prevent `NullReferenceException`s during dynamic instantiation/destruction, always iterate over the securely snapshotted `_tickCount` instead of the raw active list.
 *   **Testing:** When modifying core logic or the `GeometryBuilder`, always ensure you do not break the existing UnitTests in `package/Tests/`. Since running tests requires the Unity Editor, ask the user to run the Unity Test Runner to verify your changes before finalizing them.
 
+## Documentation site
+
+Built with [Zensical](https://zensical.org), the successor to MkDocs + Material for MkDocs. Zensical has no multi-locale build, so **each locale is built from its own config**: `mkdocs.yml` builds English to `site/`, `mkdocs.ja.yml` builds Japanese to `site/ja/`, and both inherit the shared settings from `mkdocs.base.yml`. Every page still exists as both `docs/en/<path>` and `docs/ja/<path>`; there is no fallback locale any more, so a page missing from one side is a nav entry pointing at nothing.
+
+**The three-config split has one rule: a YAML sequence must be defined in exactly one of the three files.** Zensical's `INHERIT` *concatenates* parent and child sequences where MkDocs replaces them — put `nav` in the base as well as a locale config and the Japanese site renders the English navigation followed by the Japanese one. Shared sequences (`theme.palette`, `theme.features`, `plugins`, `markdown_extensions`, `extra.alternate`, `extra_css`) live in `mkdocs.base.yml` and nowhere else; `nav` and `extra.social` live in the locale configs and never in the base. Mappings deep-merge, so scalars like `theme.language` are safe to override.
+
+Things that do **not** follow the "everything twice" rule, or that changed with the migration — check before duplicating:
+
+*   **`overrides/main.html`** (`theme.custom_dir`) emits the Open Graph / Twitter Card tags the theme omits, **and repairs the page title**: Zensical never sets `page.is_homepage`, which its own `base.html` branches on, so the landing page would title itself "SpriteStudioPlayer for Unity - SpriteStudioPlayer for Unity". The override derives the flag from `page.url` and overrides the `htmltitle` block. **One template serves both locales** — everything is read from whichever locale config is building. Localize by adding a per-locale config override, never by branching in the template. Keep it in sync with the copies in SpriteStudio-Docs and the sibling player repos.
+*   **`overrides/partials/alternate.html`** rebuilds the header language selector so switching language keeps you on the same page. `mkdocs-static-i18n` used to rewrite those links per page; nothing does once the locales are separate builds, and the stock partial would send every reader to the other locale's home page. It is driven by `extra.alternate[].link` (a locale subpath, not a URL) plus `extra.site_root_prefix` in each locale config. Known gap, shared with the sibling repos: the `<link rel="alternate" hreflang>` tags in `<head>` still point at each locale root, because they sit inside the theme's `site_meta` block and overriding that would mean copying thirty lines that Zensical may change.
+*   **Each locale ships its own `docs/<locale>/assets/`.** There is no shared `docs/assets/` — it would sit outside both `docs_dir`s and never be copied. The screenshots and videos are therefore duplicated (Git stores identical content once, so this costs working-tree space, not history).
+*   **Asset paths are source-relative** (`../assets/…` from a page one level deep), including inside raw `<video>` / `<img>` HTML. Zensical resolves raw HTML `src` the same way it resolves Markdown links; MkDocs passed it through untouched. That difference is why these paths cannot satisfy both engines at once, and it is the one place where the MkDocs fallback build produces wrong output.
+*   **`site_url` is per locale** and the ja one keeps its `ja/` suffix — `page.canonical_url`, and therefore `og:url`, is built from it.
+*   **Footer social icons are defined twice** — in `mkdocs.yml` and `mkdocs.ja.yml` (translated labels, same icons and links). Add or reorder an icon in both, or the two footers diverge. Keep `twitter:site` in `overrides/main.html` in sync with the X link.
+*   **`nav` labels are translated in place** in `mkdocs.ja.yml` rather than looked up through `nav_translations`, so a renamed English title can no longer silently leave the Japanese label untranslated. The paths are identical in both files — add, move, or rename a page in both.
+*   **There is deliberately no `edit_uri`**, so no "edit this page" button renders. It is a branch name nothing validates, and it had drifted wrong in three of the five player repos. Do not reintroduce it.
+*   **The `toc.slugify` override stays.** It keeps GitHub-style anchors on Japanese headings; Python-Markdown's default strips non-ASCII and would renumber every ja anchor to `_1`, `_2`, … at once.
+
+`mkdocs.base.yml` sets `strict: true`, so a plain `build` fails on a broken link. `serve` validates nothing — `zensical serve --strict` is accepted and currently does nothing. Nothing builds the docs on a pull request either (`pages.yml` runs on `release: published` and dispatch), so the local build is the only gate, and **both locales have to be built** — English first, because it clears `site/`, which contains `site/ja`:
+
+```bash
+scripts/prepare-docs.sh          # once: .venv + the pins in docs/requirements.txt
+scripts/build-docs.sh            # the gate: English then Japanese, both --strict
+```
+
+`scripts/*.ps1` are the PowerShell twins, and both take `key=value` options and `--help` like the other scripts here (`build-docs.sh locale=ja`, `prepare-docs.sh force=yes`). They wrap nothing more than `pip install -r docs/requirements.txt` and the two `zensical build` runs, in the order that works — `zensical` straight out of `.venv` still does the same thing. Every repository in the family spells this pair the same way, and the `-docs` suffix keeps it apart from the scripts that build the code.
+
+`scripts/build-pages.sh` is the published site: the pair above, run for you, plus a static server over the result. The site here carries the docs and nothing else — no Web demo — so it adds no build step of its own; what it adds is `serve=yes`, the only way to see both locales at once and the language selector resolving between them (`zensical serve` builds one locale at a time). `pages.yml`'s build job **is** this script (`prepare=no serve=no`, every option spelled out so a publish cannot change because a default did), so CI and the local gate cannot drift.
+
+```bash
+scripts/build-pages.sh serve=yes    # both locales -> http://localhost:8000/
+```
+
+Building only English is the easy mistake: it leaves a stale `site/ja` behind, so a Japanese page you just broke still looks fine.
+
+Callouts (`> [!NOTE]`) are parsed natively — `mkdocs-callouts` is gone. Two consequences: `[!IMPORTANT]` is not a built-in admonition type, so `docs/*/stylesheets/extra.css` styles it to keep the appearance it had; and a list must be preceded by a blank `>` line, or it renders as literal text rather than a list. Keep `src=`/`href=` out of inline code spans, too — Zensical rewrites paths inside them as if they were real links.
+
 ## Verification
 
 | Task | Command |
