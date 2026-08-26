@@ -1602,6 +1602,33 @@ package/Editor/Bindings/*.g.cs.meta
 # re-include above does not reach them.
 !scripts/upm-meta/*.meta
 
+# examples/SampleProject is the verification project: every .sspj it imports comes from the
+# SpriteStudio-SDK submodule, so SpriteStudioSourceMap writes only repository-relative paths there
+# and the map travels to any checkout - Assets/SpriteStudio/Reconvert works after a clone. This is
+# what SSPlayerForGodot commits as examples/Ringo/.ssplayer_sources.cfg. examples/UnityTestProject
+# is the development scratch project; its map points at whatever is on that machine and stays
+# ignored, which is what the rule at the top of this file is about.
+!examples/SampleProject/ProjectSettings/SpriteStudioSourceMap.json
+
+# Of the five SDK test projects the sample imports, only Ringo's output is committed - that is
+# what makes the project show an animation the moment it opens, with no .sspj to bring along. It
+# costs 304 KB. The other four are 8 MB of binaries the submodule already carries, and would take
+# a binary diff every time the SDK's test assets change, so they stay out; drag them onto
+# Window > SpriteStudio > Importer when you need them.
+#
+# Ringo's .meta come with it. The scene references the imported .ssab by GUID, and
+# SpriteStudioAnimeAsset serializes its textures and materials as object references, so the .meta
+# are what survives scripts/deploy-examples.sh rewriting the payloads underneath them.
+examples/SampleProject/Assets/ssab_generated/**
+!examples/SampleProject/Assets/ssab_generated/**/
+!examples/SampleProject/Assets/ssab_generated/Ringo.meta
+!examples/SampleProject/Assets/ssab_generated/Ringo/**
+
+# .meta for what sits directly in Assets - the sample scene, and the ssab_generated folder. These
+# are committed assets, so their .meta travel with them; the ones under ssab_generated/ that belong
+# to uncommitted payloads stay ignored by the rule above.
+!examples/SampleProject/Assets/*.meta
+
 
 # Test Results
 *test-results.xml

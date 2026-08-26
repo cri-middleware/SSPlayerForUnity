@@ -47,11 +47,13 @@ We provide multiple paths depending on your needs. This player supports Unity 6.
 3. **Place**: Drag the generated `SpriteStudioAnimeAsset` from the Project window into the Hierarchy (or Scene view), pick `SpriteStudioPlayer` (world space) or `SpriteStudioGraphic` (uGUI Canvas), then set the **Animation Name** and press Play.
 
 ### 2. Try out the Sample Project
-`examples/UnityTestProject` is a minimal project with the SpriteStudio package already linked — it bundles no scene or assets of its own.
-1. **Get the Repo**: Clone or download this repository.
+`examples/SampleProject` has the SpriteStudio package already linked and ships the SDK's **Ringo** animation, so you do not need a `.sspj` of your own to see something move.
+1. **Get the Repo**: Clone this repository with `--recurse-submodules` (the sample's source project lives in `SpriteStudio-SDK/tests`).
 2. **Prepare**: Run `./scripts/download-sdk.sh` (Mac/Linux) or `scripts\download-sdk.ps1` (Windows) to fetch and place the native library (`libssruntime`).
-3. **Open**: Open `examples/UnityTestProject` in Unity Hub.
-4. **Try it**: Import your own `.sspj` via **Window > SpriteStudio > Importer**, then place a player just like in step 1.
+3. **Open**: Open `examples/SampleProject` in Unity Hub.
+4. **Try it**: Open `Assets/Test.unity` and press Play.
+
+The SDK's other four test projects (`overall`, `allAttributeV7`, `allPartsV7`, `ParticleEffect`) are not bundled — they are large, and the submodule already carries them. Drag any of them from `SpriteStudio-SDK/tests` onto **Window > SpriteStudio > Importer** when you want them.
 
 For advanced setups like compiling from source or modifying the package, please refer to the [Installation Guide](./docs/en/setup/install.md).
 
@@ -63,9 +65,10 @@ For details such as data flow diagrams, key features, and system requirements, p
 
 ## 🎬 Samples
 
-A sample project is available under the [examples folder](./examples/).
+Sample projects are available under the [examples folder](./examples/).
 
-- [UnityTestProject](./examples/UnityTestProject) — A minimal Unity project with the SpriteStudio package already linked (no bundled scene or assets). Run `download-sdk` first (see Quick Start), open it in Unity Hub, then import your own `.sspj` to try the plugin in a clean project.
+- [SampleProject](./examples/SampleProject) — The one to open. It bundles the SDK's Ringo animation, so it plays something without a `.sspj` of your own. Run `download-sdk` first (see Quick Start). Maintainers: `./scripts/deploy-examples.sh` regenerates the bundled Ringo output from the submodule, and should be run whenever `SpriteStudio-SDK/tests/Ringo` changes.
+- [UnityTestProject](./examples/UnityTestProject) — A blank project with the package linked and nothing else. It is the scratch project used while developing the plugin; import your own `.sspj` into it to try something in a clean environment.
 
 ## 🔗 Related Repositories
 
