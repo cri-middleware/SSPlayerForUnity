@@ -347,7 +347,7 @@ player.UnregisterPartTracker(weapon.transform);
 var player = GetComponent<SpriteStudioPlayer>();
 
 // パーツを赤く着色（乗算）。通常（画像）パーツに適用されます。
-player.SetPartColorOverride("body", SpriteStudioBlendOp.Mul, Color.red);
+player.SetPartColorOverride("body", Color.red, SpriteStudioBlendOp.Mul);
 
 // 別のセルを描画させる（セルマップ名は ".ssce" を付けずに指定）。
 player.SetPartCellOverride("body", "Ringo", "effect3");
@@ -364,7 +364,7 @@ player.ClearAllPartOverrides();
 |---|---|
 | `GetPartNames()` | パーツ名の一覧（パーツ index 順）。イベントの `PartIndex` を人間が読める形に戻す、パーツ一覧 UI を作る、といった用途。名前の無いパーツは `""` で枠を保持するので index と揃ったままです。`Length` が個数 |
 | `FindPartIndex(name)` | パーツインデックス。アセットに無ければ `-1` |
-| `SetPartColorOverride(part, blendOp, color, priority)` | パーツカラーオーバーライド（単色。4隅指定のオーバーロードもあり：左上・右上・左下・右下） |
+| `SetPartColorOverride(part, color, blendOp, priority)` | パーツカラーオーバーライド（単色。4隅指定のオーバーロードもあり：左上・右上・左下・右下） |
 | `SetPartCellOverride(part, cellmapName, cellName, priority)` | 別のセルで描画する |
 | `SetPartVisibilityOverride(part, hide, cascade)` | 強制非表示（`hide: false` でアニメーションに戻す） |
 | `ClearPartColorOverride` / `ClearPartCellOverride` / `ClearPartVisibilityOverride` | 1パーツの1オーバーライドを解除 |

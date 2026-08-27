@@ -11,7 +11,7 @@ using UnityEngine;
 ///
 /// API used (all on SpriteStudioPlayer / SpriteStudioGraphic):
 ///   FindPartIndex(partName)
-///   SetPartColorOverride(part, blendOp, color, priority = HoldUntilNextAnimation)
+///   SetPartColorOverride(part, color, blendOp = Mix, priority = HoldUntilNextAnimation)
 ///   SetPartVisibilityOverride(part, hide, cascade = false)
 ///   SetPartCellOverride(part, cellmapName, cellName, priority = HoldUntilNextAnimation)
 ///   ClearAllPartOverrides()
@@ -114,7 +114,7 @@ public class OverrideDemo : MonoBehaviour
 
             // 1) Color — tint the body (Normal parts only). The default priority
             //    (HoldUntilNextAnimation) keeps it through animation loops.
-            _player.SetPartColorOverride(partIndex, SpriteStudioBlendOp.Mix, new Color(0f, 0.2f, 1f, 0.75f));
+            _player.SetPartColorOverride(partIndex, new Color(0f, 0.2f, 1f, 0.75f), SpriteStudioBlendOp.Mix);
             yield return Step("1) Color override:  body -> blue", 2f);
 
             // 2) Visibility — force-hide. Cascade would take the descendants with it; here the

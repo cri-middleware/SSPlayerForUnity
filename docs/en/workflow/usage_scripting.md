@@ -346,7 +346,7 @@ Per-part runtime overrides let a script say "make this part this color / this ce
 var player = GetComponent<SpriteStudioPlayer>();
 
 // Tint a part red (multiply). Applies to normal (image) parts.
-player.SetPartColorOverride("body", SpriteStudioBlendOp.Mul, Color.red);
+player.SetPartColorOverride("body", Color.red, SpriteStudioBlendOp.Mul);
 
 // Make a part draw a different cell (cellmap name is written without ".ssce").
 player.SetPartCellOverride("body", "Ringo", "effect3");
@@ -363,7 +363,7 @@ player.ClearAllPartOverrides();
 |---|---|
 | `GetPartNames()` | Part names in part-index order — what turns an event's `PartIndex` back into something a human reads, and what fills a part picker. An unnamed part holds its slot as `""` so the array stays index-aligned; `Length` is the part count |
 | `FindPartIndex(name)` | Part index, or `-1` if the part is not in the asset |
-| `SetPartColorOverride(part, blendOp, color, priority)` | Part Color override (single color, or a four-corner overload: left-top, right-top, left-bottom, right-bottom) |
+| `SetPartColorOverride(part, color, blendOp, priority)` | Part Color override (single color, or a four-corner overload: left-top, right-top, left-bottom, right-bottom) |
 | `SetPartCellOverride(part, cellmapName, cellName, priority)` | Draw a different cell |
 | `SetPartVisibilityOverride(part, hide, cascade)` | Force-hide (`hide: false` reverts to the animation) |
 | `ClearPartColorOverride` / `ClearPartCellOverride` / `ClearPartVisibilityOverride` | Clear one override on one part |
