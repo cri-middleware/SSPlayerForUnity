@@ -718,7 +718,13 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         {
             comp = SpriteStudioInternalPlayer.IsDrawnInsideMask(md, _player._inheritedVisibleInsideMask)
                 ? StencilCompNotEqual : StencilCompEqual;
-            return SpriteStudioInternalPlayer.IsMaskTarget(md, _player._inheritedMaskInfluence);
+            // Whether this part's own COLOUR is clipped by masks. A clipping part draws its pixels, then
+            // writes its clip below ("pixels, then mask"), so its own MaskWrite must not gate its colour -
+            // it is still clipped by OTHER masks purely on its real maskInfluence. IsMaskTarget adds
+            // "|| MaskWrite" for the propagation/target sense; using it here made a clipping writer test
+            // its own colour, so a visibleInsideMask writer with no covering mask (NotEqual) vanished when
+            // it should draw (maskInfluence=0), and one with maskInfluence=1 still resolves the same way.
+            return md.MaskInfluence && _player._inheritedMaskInfluence;
         }
 
         private unsafe void ProcessInstanceBatch(ss.runtime.DrawBatch b, int partsLength, ref int totalVertices, ref int totalIndices)
