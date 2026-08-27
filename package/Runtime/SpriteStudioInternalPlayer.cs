@@ -190,6 +190,20 @@ internal struct MaskPartData
         }
 
         /// <summary>
+        /// A mask WRITER's effective maskInfluence: its own value composed (AND) with the value inherited
+        /// down the instance chain. The writer's stencil op - and therefore its bit plane - follows this,
+        /// not the raw own flag: influence=1 -> Invert (parity plane, self-inverse), influence=0 ->
+        /// Incr/Decr (counter plane, union). So a mask inside a maskInfluence=0 instance moves to the
+        /// counter plane and composes with an outer mask as a union - which is what SS7.5 does when
+        /// maskInfluence is mixed. This is the writer-side twin of the target-side composition in
+        /// <see cref="IsMaskTarget"/>. A root player passes the AND identity (true), leaving a standalone
+        /// asset's planes unchanged; MaskWrite is deliberately outside it (a writer's op is about its own
+        /// mask, not something a descendant inherits).
+        /// </summary>
+        internal static bool EffectiveMaskInfluence(in MaskPartData md, bool inheritedMaskInfluence)
+            => md.MaskInfluence && inheritedMaskInfluence;
+
+        /// <summary>
         /// Suppress SpriteStudio internal masking for this player and (recursively) its instance
         /// children. Set true on the Canvas path; left false for the world path. Propagates so an
         /// instance child's own internal masks are also dropped on Canvas instead of writing stencil.
