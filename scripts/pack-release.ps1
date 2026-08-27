@@ -14,6 +14,7 @@ $metaDir = Join-Path $root "scripts\upm-meta"
 # third-party notices under this exact spelling.
 $docs = @(
     @{ Src = "LICENSE.md";             Dst = "LICENSE.md" },
+    @{ Src = "LICENSE.ja.md";          Dst = "LICENSE.ja.md" },
     @{ Src = "THIRD_PARTY_NOTICES.md"; Dst = "Third Party Notices.md" },
     @{ Src = "CHANGELOG.md";           Dst = "CHANGELOG.md" }
 )

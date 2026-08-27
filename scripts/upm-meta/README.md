@@ -11,7 +11,7 @@ releases. Two groups:
 
 | `.meta` | For | Placed by |
 |---|---|---|
-| `LICENSE.md.meta`, `Third Party Notices.md.meta`, `CHANGELOG.md.meta` | Repo-root documents staged into `package/` at pack time, so Package Manager can show the Licenses / Changelog tabs | `pack-release.sh` / `.ps1` |
+| `LICENSE.md.meta`, `LICENSE.ja.md.meta`, `Third Party Notices.md.meta`, `CHANGELOG.md.meta` | Repo-root documents staged into `package/` at pack time, so Package Manager can show the Licenses / Changelog tabs | `pack-release.sh` / `.ps1` |
 | `SSRuntimeMethods.g.cs.meta`, `SSConverterMethods.g.cs.meta` | The gitignored csbindgen FFI bindings — without a `.meta` the scripts are dropped and the package does not compile | `download-sdk.sh` / `.ps1` (release), `build-runtime.sh` / `.ps1` (local build) |
 
 `release.yml` asserts the binding `.meta` reached the package before packing.
