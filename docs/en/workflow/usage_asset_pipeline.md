@@ -102,7 +102,7 @@ This powerful editor-to-editor integration feature (`Open SSPJ` and `Reconvert`)
 
 > [!WARNING]
 > **SpriteStudio must be installed**
-> Pressing the `Open SSPJ` button launches SpriteStudio via the OS file association. Therefore, [OPTPiX SpriteStudio 7](https://www.webtech.co.jp/spritestudio/) must be installed on the PC you are operating.
+> Pressing the `Open SSPJ` button launches SpriteStudio via the OS file association. Therefore, [SpriteStudio](https://www.webtech.co.jp/spritestudio/) must be installed on the PC you are operating.
 
 > [!TIP]
 > **File path sharing and smart relinking in team development**

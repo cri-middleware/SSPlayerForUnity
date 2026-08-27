@@ -39,7 +39,7 @@ Of the stencil buffer, this plugin uses only the low 4 bits — the range URP le
 
 > [!WARNING]
 > - **Install from the tarball, not a git URL.** Package Manager's *Add package from URL…* cannot install this package: the native plugin binaries ship only inside the release tarball. Always use *Add package from tarball…* with the downloaded `.tgz` — see [Installation](./setup/install.md).
-> - **`Open SSPJ` needs SpriteStudio on the machine.** The button launches the editor through the OS file association, so [OPTPiX SpriteStudio 7](https://www.webtech.co.jp/spritestudio/) must be installed on the PC you are working on. The `.ssab` ↔ `.sspj` binding itself travels with the project as a relative path in `ProjectSettings/SpriteStudioSourceMap.json` — see [Asset Import and Editor Integration](./workflow/usage_asset_pipeline.md).
+> - **`Open SSPJ` needs SpriteStudio on the machine.** The button launches the editor through the OS file association, so [SpriteStudio](https://www.webtech.co.jp/spritestudio/) must be installed on the PC you are working on. The `.ssab` ↔ `.sspj` binding itself travels with the project as a relative path in `ProjectSettings/SpriteStudioSourceMap.json` — see [Asset Import and Editor Integration](./workflow/usage_asset_pipeline.md).
 
 > [!NOTE]
 > - **Edit mode shows a static preview of the start frame only.** Check behavior in Play mode.

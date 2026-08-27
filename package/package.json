@@ -2,7 +2,7 @@
   "name": "jp.co.cri-mw.spritestudio.ssplayer-unity",
   "version": "7.0.0-beta.1",
   "displayName": "SpriteStudioPlayer for Unity",
-  "description": "High-performance player for OPTPiX SpriteStudio 7 animations (.ssab). Renders in world space (MeshRenderer) and on a uGUI Canvas (CanvasRenderer), with an asset pipeline that converts .sspj at import time. Playback is driven by a native Rust runtime over FFI, with geometry built in Burst jobs and uploaded with no per-frame GC allocations.",
+  "description": "High-performance player for SpriteStudio animations (.ssab). Renders in world space (MeshRenderer) and on a uGUI Canvas (CanvasRenderer), with an asset pipeline that converts .sspj at import time. Playback is driven by a native Rust runtime over FFI, with geometry built in Burst jobs and uploaded with no per-frame GC allocations.",
   "unity": "6000.3",
   "documentationUrl": "https://cri-middleware.github.io/SSPlayerForUnity/",
   "changelogUrl": "https://github.com/cri-middleware/SSPlayerForUnity/blob/main/CHANGELOG.md",

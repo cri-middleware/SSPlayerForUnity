@@ -39,7 +39,7 @@
 
 > [!WARNING]
 > - **インストールは git URL ではなく tarball から。** ネイティブプラグインのバイナリはリリース tarball にのみ同梱されているため、Package Manager の *Add package from URL…* ではインストールできません。ダウンロードした `.tgz` を *Add package from tarball…* で追加してください（[インストール](./setup/install.md)）。
-> - **`Open SSPJ` には SpriteStudio 本体が必要です。** OS のファイル関連付け経由でエディタを起動するため、作業する PC に [OPTPiX SpriteStudio 7](https://www.webtech.co.jp/spritestudio/) がインストールされている必要があります。`.ssab` ↔ `.sspj` の紐付け自体は `ProjectSettings/SpriteStudioSourceMap.json` に相対パスで保存され、プロジェクトと一緒に共有されます（[アセットのインポートとエディタ連携](./workflow/usage_asset_pipeline.md)）。
+> - **`Open SSPJ` には SpriteStudio 本体が必要です。** OS のファイル関連付け経由でエディタを起動するため、作業する PC に [SpriteStudio](https://www.webtech.co.jp/spritestudio/) がインストールされている必要があります。`.ssab` ↔ `.sspj` の紐付け自体は `ProjectSettings/SpriteStudioSourceMap.json` に相対パスで保存され、プロジェクトと一緒に共有されます（[アセットのインポートとエディタ連携](./workflow/usage_asset_pipeline.md)）。
 
 > [!NOTE]
 > - **編集モードでは開始フレームの静止プレビューのみ表示されます。** 動作確認は再生モードで行ってください。
