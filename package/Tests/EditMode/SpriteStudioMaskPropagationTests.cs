@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using UnityEngine.Rendering;
 using SpriteStudio.Runtime;
 
 namespace SpriteStudio.Runtime.EditModeTests
@@ -145,6 +146,52 @@ namespace SpriteStudio.Runtime.EditModeTests
 
             Assert.IsTrue(SpriteStudioInternalPlayer.IsMaskTarget(Part(false, false, maskWrite: true), influence),
                 "a callee that writes its own mask is a target regardless of the inherited context");
+        }
+
+        // ---- writer op / plane composes with inherited maskInfluence ------------------------------
+        // A mask writer's op (and therefore its stencil bit plane) follows its EFFECTIVE maskInfluence -
+        // own AND inherited - so a mask inside a maskInfluence=0 instance moves from the parity plane
+        // (Invert, XOR) to the counter plane (Incr/Decr, union). That is what makes an instance-internal
+        // mask compose with an outer mask as a union instead of cancelling it (the reported bug: an MI=x
+        // instance's child MI=v mask XOR-cancelling against an outer Hole on the shared parity plane).
+
+        private static byte PlaneFor(bool influence)
+            => SpriteStudioMaterial.MaskWriteMaskForOp(
+                influence ? (byte)StencilOp.Invert : (byte)StencilOp.IncrementWrap);
+
+        [Test]
+        public void EffectiveMaskInfluence_ComposesWithAnd()
+        {
+            var mi = Part(maskInfluence: true, visibleInsideMask: false);
+            var noMi = Part(maskInfluence: false, visibleInsideMask: false);
+
+            Assert.IsTrue(SpriteStudioInternalPlayer.EffectiveMaskInfluence(mi, RootInfluence),
+                "own=1, inherited=1 -> 1");
+            Assert.IsFalse(SpriteStudioInternalPlayer.EffectiveMaskInfluence(mi, inheritedMaskInfluence: false),
+                "own=1, inherited=0 -> 0: an MI=0 instance forces its child writer's influence off");
+            Assert.IsFalse(SpriteStudioInternalPlayer.EffectiveMaskInfluence(noMi, RootInfluence),
+                "own=0, inherited=1 -> 0");
+            Assert.IsFalse(SpriteStudioInternalPlayer.EffectiveMaskInfluence(noMi, inheritedMaskInfluence: false),
+                "own=0, inherited=0 -> 0");
+        }
+
+        [Test]
+        public void WriterInsideAMaskInfluenceZeroInstance_MovesToTheCounterPlane()
+        {
+            var writer = Part(maskInfluence: true, visibleInsideMask: false, maskWrite: true);
+
+            // Standalone / under a maskInfluence=1 instance: parity plane (its own influence stands).
+            bool influenceAtRoot = SpriteStudioInternalPlayer.EffectiveMaskInfluence(writer, RootInfluence);
+            Assert.AreEqual(SpriteStudioMaterial.MaskStencilMaskParity, PlaneFor(influenceAtRoot),
+                "a maskInfluence=1 writer with no MI=0 ancestor writes on the parity plane");
+
+            // Inside a maskInfluence=0 instance: the composed influence is 0, so it moves to the counter plane.
+            bool influenceInherited0 = SpriteStudioInternalPlayer.EffectiveMaskInfluence(writer, inheritedMaskInfluence: false);
+            Assert.AreEqual(SpriteStudioMaterial.MaskStencilMaskCount, PlaneFor(influenceInherited0),
+                "inside a maskInfluence=0 instance the same writer moves to the counter plane (union, not XOR)");
+
+            Assert.AreNotEqual(PlaneFor(influenceAtRoot), PlaneFor(influenceInherited0),
+                "the inherited maskInfluence must actually change which plane the writer lands on");
         }
     }
 }

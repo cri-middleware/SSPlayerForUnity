@@ -36,6 +36,13 @@ namespace SpriteStudio.Runtime
         public byte StencilWriteMask;
         public float MaskThreshold;
 
+        // A Phase C clipping-mask restore (ColorMask 0 stencil revert). An enclosing instance parent
+        // relocates such a submesh to after its own parts - SS7.5 carries an instance-internal mask past
+        // the instance boundary, so the restore waits until the parent animation's own restore at the very
+        // end - instead of drawing it in place at the child's boundary. Data-only: the render path treats
+        // it exactly like Role == Write.
+        public bool DeferrableClose;
+
         public float P0, P1, P2, P3, P4, P5, P6, P7;  // Shader Params (for AddOn)
         public float CellL, CellT, CellR, CellB;      // cell rectangles / 0 for parts with no cell (Shape / Mesh)
     }
@@ -113,6 +120,16 @@ namespace SpriteStudio.Runtime
             if (_submeshCount == 0) return;
             ref var s = ref ((SubmeshInfo*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_submeshes))[_submeshCount - 1];
             s.P0 = p0; s.P1 = p1; s.P2 = p2; s.P3 = p3; s.P4 = p4; s.P5 = p5; s.P6 = p6; s.P7 = p7;
+        }
+
+        // Tag the most recently emitted submesh as a deferrable clipping-mask restore. Called right after
+        // a Phase C close (EmitMaskStep) or a flushed carried-up close (EmitSubmesh); both are Role == Write,
+        // which never merges, so the last submesh is always the one just created.
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public unsafe void MarkLastSubmeshDeferrableClose()
+        {
+            if (_submeshCount == 0) return;
+            ((SubmeshInfo*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_submeshes))[_submeshCount - 1].DeferrableClose = true;
         }
 
         // Stamp the per-part cell rectangle (pixel UVs) onto the most recently emitted submesh.

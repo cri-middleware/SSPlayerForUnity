@@ -19,6 +19,15 @@ namespace SpriteStudio.Runtime
         private readonly SpriteStudioMaskPlanner _maskPlanner = new SpriteStudioMaskPlanner();
         // --- Instance ---
 internal NativeArray<InstanceMeshPointer> _instanceMeshes;
+        // Instance-internal clipping masks carry past the instance boundary (SS7.5): the child's Phase C
+        // restores are collected here and flushed at THIS player's Phase C, after its own parts, instead of
+        // being drawn at the child's boundary. Grow-only; reset each ConsumeFrameData.
+        private NativeArray<SubmeshInfo> _deferredCloses;
+        private int _deferredCloseCount;
+        // True once a visible instance child this frame left an open (carried-over) clip. Parts drawn after
+        // that instance must then be emitted as stencil tests even when this asset has no mask writers of
+        // its own, because the instance's coverage reaches them.
+        private bool _instanceCoverageOpen;
         // Dependency array bundling the child Instances' UpdateMeshJob handles. Persistent, grow-only (avoids a per-frame Temp allocation).
         internal NativeArray<JobHandle> _childHandles;
         public float _lastBuiltDrawFrameNo = float.NaN;
@@ -43,6 +52,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             _updateJobHandle.Complete();
             _effectBuffer.Dispose();
             if (_instanceMeshes.IsCreated) _instanceMeshes.Dispose();
+            if (_deferredCloses.IsCreated) _deferredCloses.Dispose();
             if (_childHandles.IsCreated) _childHandles.Dispose();
             if (_meshVertices.IsCreated) _meshVertices.Dispose();
             if (_meshIndices.IsCreated) _meshIndices.Dispose();
@@ -381,6 +391,9 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 // Allocate the persistent buffers grow-only (do not new every frame)
                 _batchBuilder.BeginFrame(maxBatches);
+                // Reset the carried-up clipping restores / instance-coverage flag for this frame.
+                _deferredCloseCount = 0;
+                _instanceCoverageOpen = false;
                 SpriteStudioNativeBuffers.EnsureCapacity(ref _drawOrder, drawOrderLength);
                 SpriteStudioNativeBuffers.EnsureCapacity(ref _partStates, partsLength);
                 SpriteStudioNativeBuffers.EnsureCapacity(ref _partColors, partsColorLength);
@@ -417,7 +430,8 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 // Build the per-frame mask writer list (mirrors _build_mask_writers). Behaviour-neutral
                 // until the stencil submesh pipeline consumes it.
-                _maskPlanner.BuildWriters(frameData, _drawOrder, _player._hasMaskParts, _player._maskPartData, drawOrderLength, partsLength);
+                _maskPlanner.BuildWriters(frameData, _drawOrder, _player._hasMaskParts, _player._maskPartData, drawOrderLength, partsLength,
+                    _player._inheritedMaskInfluence);
 
                 int totalVertices = 0;
                 int totalIndices = 0;
@@ -488,7 +502,24 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         float threshold = md.DrawKind == SsDrawBatchKind.Shape ? -1f : w.Threshold;
                         _batchBuilder.EmitMaskStep(md.DrawKind, w.DrawRank, wvc, wic, _maskPlanner.GetPartTexHash(wp), _maskPlanner.GetPartBlend(wp),
                             StencilRole.Write, rop, 0, threshold, ref totalVertices, ref totalIndices);
+                        // Tag as a deferrable close: if THIS player is itself an instance child, its parent
+                        // carries this restore past the instance boundary (SS7.5) instead of closing here.
+                        _batchBuilder.MarkLastSubmeshDeferrableClose();
                     }
+                }
+
+                // Flush the clipping restores carried up from visible instance children (their Phase C,
+                // deferred to ours). Emitting them after every part of this player is what lets an
+                // instance-internal mask clip this player's later parts too. They stay tagged deferrable so
+                // an enclosing instance carries them up again (nesting). The geometry already exists in the
+                // merged mesh (built when the child mesh was copied in), so this only adds submeshes - no
+                // vertices/indices. Runs regardless of MaskActive: a child can have masks this player lacks.
+                for (int di = 0; di < _deferredCloseCount; di++)
+                {
+                    var s = _deferredCloses[di];
+                    _batchBuilder.EmitSubmesh(s.IndexStart, s.IndexCount, s.TextureHash, s.BlendType,
+                        s.Role, s.StencilOp, s.StencilComp, s.StencilRef, s.StencilReadMask, s.StencilWriteMask, s.MaskThreshold);
+                    _batchBuilder.MarkLastSubmeshDeferrableClose();
                 }
 
                 FillPartColors(frameDataPtr, tFrame, partsColorLength);
@@ -718,7 +749,13 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         {
             comp = SpriteStudioInternalPlayer.IsDrawnInsideMask(md, _player._inheritedVisibleInsideMask)
                 ? StencilCompNotEqual : StencilCompEqual;
-            return SpriteStudioInternalPlayer.IsMaskTarget(md, _player._inheritedMaskInfluence);
+            // Whether this part's own COLOUR is clipped by masks. A clipping part draws its pixels, then
+            // writes its clip below ("pixels, then mask"), so its own MaskWrite must not gate its colour -
+            // it is still clipped by OTHER masks purely on its real maskInfluence. IsMaskTarget adds
+            // "|| MaskWrite" for the propagation/target sense; using it here made a clipping writer test
+            // its own colour, so a visibleInsideMask writer with no covering mask (NotEqual) vanished when
+            // it should draw (maskInfluence=0), and one with maskInfluence=1 still resolves the same way.
+            return md.MaskInfluence && _player._inheritedMaskInfluence;
         }
 
         private unsafe void ProcessInstanceBatch(ss.runtime.DrawBatch b, int partsLength, ref int totalVertices, ref int totalIndices)
@@ -736,6 +773,10 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     int cvc = childPlayer.VertexCount;
                     int cic = childPlayer.IndexCount;
 
+                    // Base index of this child's block in the merged mesh. The mesh job places the whole
+                    // child index buffer contiguously here (BuildInstance), preserving per-index positions,
+                    // so a child submesh at within-child IndexStart lands at instanceIndexBase + IndexStart.
+                    int instanceIndexBase = totalIndices;
                     _batchBuilder.EmitInstanceBatch(p_idx, cvc, cic);
 
                     // The child already resolved each submesh's stencil role against the context handed to
@@ -747,7 +788,17 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     for (int sm = 0; sm < childPlayer.SubmeshCount; sm++)
                     {
                         var cs = childPlayer.Submeshes[sm];
-                        _batchBuilder.EmitSubmesh(totalIndices + cs.IndexStart, cs.IndexCount, cs.TextureHash, cs.BlendType,
+                        if (cs.DeferrableClose)
+                        {
+                            // A clipping-mask restore inside the child: don't close it here at the instance
+                            // boundary. Carry it (in this player's index space) to our Phase C so the
+                            // child's mask keeps clipping this player's parts drawn after the instance, and
+                            // flag that coverage is now open for those parts (see ProcessNormalShapeMeshBatch).
+                            StashDeferredClose(cs, instanceIndexBase + cs.IndexStart);
+                            _instanceCoverageOpen = true;
+                            continue;
+                        }
+                        _batchBuilder.EmitSubmesh(instanceIndexBase + cs.IndexStart, cs.IndexCount, cs.TextureHash, cs.BlendType,
                             cs.Role, cs.StencilOp, cs.StencilComp, cs.StencilRef, cs.StencilReadMask, cs.StencilWriteMask, cs.MaskThreshold);
                     }
 
@@ -755,6 +806,24 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     totalIndices += cic;
                 }
             }
+        }
+
+        /// <summary>
+        /// Record a clipping-mask restore carried up from an instance child, rewritten into this player's
+        /// index space (parentIndexStart). Flushed at this player's Phase C. Grow-only, preserving prior
+        /// entries so this frame's earlier instances keep their stashed closes.
+        /// </summary>
+        private unsafe void StashDeferredClose(in SubmeshInfo cs, int parentIndexStart)
+        {
+            if (!_deferredCloses.IsCreated || _deferredCloseCount >= _deferredCloses.Length)
+            {
+                int newSize = !_deferredCloses.IsCreated ? 8 : _deferredCloses.Length * 2;
+                if (newSize < _deferredCloseCount + 1) newSize = _deferredCloseCount + 1;
+                SpriteStudioNativeBuffers.EnsureCapacityPreserve(ref _deferredCloses, newSize);
+            }
+            var s = cs;
+            s.IndexStart = parentIndexStart;
+            ((SubmeshInfo*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_deferredCloses))[_deferredCloseCount++] = s;
         }
 
         private unsafe void ProcessEffectBatch(ss.runtime.DrawBatch b, int partsLength, ref int totalVertices, ref int totalIndices)
@@ -807,8 +876,11 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             int ic = 0;
 
             // Also taken when this player has no mask parts of its own but an instance ancestor's mask
-            // reaches it: those parts still need one submesh each to carry their own stencil role.
-            if (_player.MaskAffectsParts)
+            // reaches it (MaskAffectsParts), or a visible instance child EARLIER this frame left an open
+            // clip that carries up (_instanceCoverageOpen): those parts still need one submesh each to
+            // carry their own stencil role. The instance batch is processed before this one (draw order),
+            // so parts drawn before any such instance correctly see the flag still false.
+            if ((_player.MaskAffectsParts || _instanceCoverageOpen) && _player._maskPartData != null)
             {
                 byte kind = (byte)b.Kind;
                 for (int k = 0; k < b.Count; k++)
@@ -818,7 +890,11 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     if (p_idx < 0 || p_idx >= partsLength) continue;
                     if (!_maskPlanner.MaskPartVcIc(p_idx, kind, frame, _partStates, out int pvc, out int pic)) continue;
                     var md = _player._maskPartData[p_idx];
-                    if (!_player.MaskActive)
+                    // Canvas suppression (uGUI): drop pure masks, draw everything else unmasked. Within the
+                    // MaskAffectsParts branch this is exactly !MaskActive; testing the suppress flag directly
+                    // also routes the "coverage from an instance child, no own masks" case to the full logic
+                    // below (where MaskActive is false but suppression is off) instead of this Canvas branch.
+                    if (_player._suppressInternalMask)
                     {
                         // Canvas suppression: drop pure masks (no colour), draw everything else unmasked.
                         if (md.PureMask) continue;
@@ -826,9 +902,13 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                             StencilRole.None, 0, 0, 0f, ref totalVertices, ref totalIndices);
                         continue;
                     }
+                    // A writer's op/plane follows its EFFECTIVE maskInfluence (own AND inherited from the
+                    // instance chain), so a mask inside a maskInfluence=0 instance lands on the counter
+                    // plane (union) instead of the parity plane (XOR) - matching SS7.5's mixed-influence union.
+                    bool effInfluence = SpriteStudioInternalPlayer.EffectiveMaskInfluence(md, _player._inheritedMaskInfluence);
                     if (md.PureMask)
                     {
-                        byte rop = md.MaskInfluence ? StencilOpInvert : StencilOpDecr;
+                        byte rop = effInfluence ? StencilOpInvert : StencilOpDecr;
                         float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
                         _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
                             StencilRole.Write, rop, 0, th, ref totalVertices, ref totalIndices);
@@ -847,7 +927,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         }
                         if (md.IsClipping)
                         {
-                            byte wop = md.MaskInfluence ? StencilOpInvert : StencilOpIncr;
+                            byte wop = effInfluence ? StencilOpInvert : StencilOpIncr;
                             float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
                             _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
                                 StencilRole.Write, wop, 0, th, ref totalVertices, ref totalIndices);
@@ -978,7 +1058,8 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 var md = _player._maskPartData[p_idx];
                 if (!md.IsMaskPart) continue;
                 if (!_maskPlanner.MaskPartVcIc(p_idx, SsDrawBatchKind.Normal, frame, _partStates, out int mvc, out int mic)) continue;
-                byte rop = md.MaskInfluence ? StencilOpInvert : StencilOpDecr;
+                // Op/plane follows the effective maskInfluence (own AND inherited); see ProcessNormalShapeMeshBatch.
+                byte rop = SpriteStudioInternalPlayer.EffectiveMaskInfluence(md, _player._inheritedMaskInfluence) ? StencilOpInvert : StencilOpDecr;
                 float th = (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
                 _batchBuilder.EmitMaskStep(SsDrawBatchKind.Normal, rank, mvc, mic, b.TextureHash, (byte)b.BlendType,
                     StencilRole.Write, rop, 0, th, ref totalVertices, ref totalIndices);
