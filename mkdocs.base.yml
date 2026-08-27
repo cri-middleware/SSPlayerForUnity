@@ -96,8 +96,9 @@ markdown_extensions:
       pygments_lang_class: true
   - pymdownx.inlinehilite
   # `base_path` is resolved against this file's directory, which is the repository root for
-  # all three configs -- which is what lets docs/*/license.md pull in LICENSE.md and
-  # THIRD_PARTY_NOTICES.md from there instead of keeping a second copy per locale.
+  # all three configs -- which is what lets docs/en/license.md pull in LICENSE.md,
+  # docs/ja/license.md pull in LICENSE.ja.md, and both pull THIRD_PARTY_NOTICES.md
+  # from there instead of keeping a second copy per locale.
   - pymdownx.snippets:
       base_path:
         - .
