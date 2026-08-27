@@ -1,6 +1,6 @@
 # 🎮 SpriteStudioPlayer for Unity — ドキュメント
 
-[OPTPiX SpriteStudio 7](https://www.webtech.co.jp/spritestudio/) で作成したアニメーションを [Unity](https://unity.com/) 上で再生するためのハイパフォーマンスなプラグインです。
+[SpriteStudio](https://www.webtech.co.jp/spritestudio/) で作成したアニメーションを [Unity](https://unity.com/) 上で再生するためのハイパフォーマンスなプラグインです。
 再生処理は [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) が提供する共通の Rust コア `libssruntime` を介して行い、Unity の Job System と組み合わせることで極限のパフォーマンスを実現します。
 
 ## 目次
@@ -22,9 +22,9 @@
 
 ## 主な機能 (Key Features)
 
-本プラグインは、Unity 上で SpriteStudio 7 の表現力をフルに引き出しつつ、最高クラスのパフォーマンスを発揮するように設計されています。
+本プラグインは、Unity 上で SpriteStudio の表現力をフルに引き出しつつ、最高クラスのパフォーマンスを発揮するように設計されています。
 
-*   **完全な機能サポート:** ボーン階層、メッシュ＆デフォーム、パーティクルエフェクト、拡張ブレンド、マスクなど、SpriteStudio 7 の多彩な表現を標準でサポートします。
+*   **完全な機能サポート:** ボーン階層、メッシュ＆デフォーム、パーティクルエフェクト、拡張ブレンド、マスクなど、SpriteStudio の多彩な表現を標準でサポートします。
 *   **シームレスな統合と強力なアセットパイプライン:** `.sspj` ファイルを Unity エディタに取り込むだけでバックグラウンドで自動変換され、Unity 上のプレハブや ScriptableObject としてすぐに扱えます。
 *   **超高速・ゼロアロケーション:** Rust製コアと Unity の Job System (Burst Compiler) の組み合わせにより、毎フレームの GC アロケーションを完全に排除。多数のキャラクターを描画するモバイル環境でも極めて安定した高フレームレートを実現します。
 *   **滑らかなスローモーション:** サブフレーム補間（Sub-frame interpolation）をサポートし、高リフレッシュレートのモニターやスローモーション演出でもカクつかない滑らかな再生が可能です。

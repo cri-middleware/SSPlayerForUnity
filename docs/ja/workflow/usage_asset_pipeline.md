@@ -102,7 +102,7 @@ SpriteStudio 側でアニメーションを修正して保存したら、Unity �
 
 > [!WARNING]
 > **SpriteStudio のインストールが必要です**
-> `Open SSPJ` ボタンを押すと、OS の関連付けにより SpriteStudio が起動します。そのため、操作する PC 自体に [OPTPiX SpriteStudio 7](https://www.webtech.co.jp/spritestudio/) がインストールされている必要があります。
+> `Open SSPJ` ボタンを押すと、OS の関連付けにより SpriteStudio が起動します。そのため、操作する PC 自体に [SpriteStudio](https://www.webtech.co.jp/spritestudio/) がインストールされている必要があります。
 
 > [!TIP]
 > **チーム開発時のファイルパス共有とスマート再リンク**

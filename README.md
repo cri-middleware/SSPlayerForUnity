@@ -4,12 +4,12 @@
 
 **Professional 2D animations for your Unity games. A plugin that balances intuitive usability with extreme performance.**
 
-A high-performance plugin for playing back animations (`.ssab`) created with **[OPTPiX SpriteStudio 7](https://www.webtech.co.jp/spritestudio/)** inside [Unity](https://unity.com/). By combining Unity's powerful features with the expressive capabilities of a dedicated animation tool, it easily integrates raster-based 2D animations into your Unity projects.
+A high-performance plugin for playing back animations (`.ssab`) created with **[SpriteStudio](https://www.webtech.co.jp/spritestudio/)** inside [Unity](https://unity.com/). By combining Unity's powerful features with the expressive capabilities of a dedicated animation tool, it easily integrates raster-based 2D animations into your Unity projects.
 
 ## ✨ Why use SpriteStudio with Unity?
 
 - **A purpose-built 2D animation editor, beyond Unity's built-in tools**
-  SpriteStudio 7 is a dedicated editor for skeletal- and mesh-based 2D animation — bone rigging, mesh deformation, and particle effects made for animators. It unlocks expression that's tedious or impractical to build with Unity's native animation tools, and since the motion is authored outside Unity and exported as a `.ssab`, artists can iterate in their own tool without touching the engine.
+  SpriteStudio is a dedicated editor for skeletal- and mesh-based 2D animation — bone rigging, mesh deformation, and particle effects made for animators. It unlocks expression that's tedious or impractical to build with Unity's native animation tools, and since the motion is authored outside Unity and exported as a `.ssab`, artists can iterate in their own tool without touching the engine.
 - **Characters, effects, and whole scenes — all in one editor**
   Particle effects are a first-class part type, authored on the same timeline as your characters — there's no separate effect system to bolt on. And you're not limited to a single rigged character: combine characters, backgrounds, effects, and UI into an entire cutscene or full-screen sequence, and play it back in Unity as one animation.
 - **Renders in both world space and on a uGUI Canvas**

@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [7.0.0-beta.1] - Unreleased
 
 ### Added
-- **Initial public release (work in progress).** A Unity "Body" that plays OPTPiX SpriteStudio 7 animations (`.ssab`) by driving the SpriteStudio-SDK Rust runtime (`libssruntime`) over csbindgen-generated FFI, with per-frame geometry built in Burst jobs.
+- **Initial public release (work in progress).** A Unity "Body" that plays SpriteStudio animations (`.ssab`) by driving the SpriteStudio-SDK Rust runtime (`libssruntime`) over csbindgen-generated FFI, with per-frame geometry built in Burst jobs.
 - **Rendering**: world rendering (`SpriteStudioPlayer`, `MeshRenderer`) and uGUI rendering (`SpriteStudioGraphic`, Canvas), including Mask / RectMask2D support on Canvas. Universal (URP) and Built-in (BRP) render pipelines.
 - **Feature coverage**: bone hierarchies, mesh & deform, particle effects, extended blending, and masks.
 - **Asset pipeline**: `.sspj` is converted to `.ssab` / `.ssqb` at import time by the bundled `libssconverter`, driven from a `ScriptedImporter`, and packaged as a `SpriteStudioAnimeAsset` (textures, materials, animation names, external references). Batch conversion with `ssconverter-cli` is supported for CI/CD.

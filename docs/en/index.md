@@ -1,6 +1,6 @@
 # 🎮 SpriteStudioPlayer for Unity — Documentation
 
-A high-performance plugin for playing back animations created with [OPTPiX SpriteStudio 7](https://www.webtech.co.jp/spritestudio/) on [Unity](https://unity.com/).
+A high-performance plugin for playing back animations created with [SpriteStudio](https://www.webtech.co.jp/spritestudio/) on [Unity](https://unity.com/).
 Playback is performed through `libssruntime`, the shared Rust core provided by [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK), and combined with Unity's Job System to achieve extreme performance.
 
 ## Contents
@@ -22,9 +22,9 @@ This documentation is organized by purpose, as follows.
 
 ## Key Features
 
-This plugin is designed to fully bring out the expressiveness of SpriteStudio 7 on Unity while delivering top-class performance.
+This plugin is designed to fully bring out the expressiveness of SpriteStudio on Unity while delivering top-class performance.
 
-*   **Full Feature Support:** Supports the diverse expressions of SpriteStudio 7 out of the box, including bone hierarchies, mesh & deform, particle effects, extended blending, and masks.
+*   **Full Feature Support:** Supports the diverse expressions of SpriteStudio out of the box, including bone hierarchies, mesh & deform, particle effects, extended blending, and masks.
 *   **Seamless Integration and a Powerful Asset Pipeline:** Simply bring a `.sspj` file into the Unity editor and it is automatically converted in the background, ready to be used as a Unity prefab or ScriptableObject.
 *   **Ultra-Fast, Zero-Allocation:** By combining a Rust-based core with Unity's Job System (Burst Compiler), per-frame GC allocations are completely eliminated. This delivers an extremely stable, high frame rate even in mobile environments that render many characters.
 *   **Smooth Slow Motion:** Supports sub-frame interpolation, enabling smooth, stutter-free playback even on high-refresh-rate monitors and in slow-motion effects.
