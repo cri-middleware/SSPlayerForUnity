@@ -36,6 +36,7 @@
     "CHANGELOG.md",
     "CHANGELOG.md.meta",
     "LICENSE.md.meta",
+    "LICENSE.ja.md.meta",
     "Third Party Notices.md",
     "Third Party Notices.md.meta",
     "!Runtime/Resources/Shaders/AddOns/SpriteStudioTestStub.shader",

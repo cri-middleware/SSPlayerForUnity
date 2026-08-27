@@ -14,6 +14,7 @@ META_DIR="${ROOT}/scripts/upm-meta"
 # third-party notices under this exact spelling.
 DOCS=(
     "LICENSE.md:LICENSE.md"
+    "LICENSE.ja.md:LICENSE.ja.md"
     "THIRD_PARTY_NOTICES.md:Third Party Notices.md"
     "CHANGELOG.md:CHANGELOG.md"
 )

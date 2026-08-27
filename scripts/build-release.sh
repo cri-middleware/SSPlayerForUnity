@@ -364,7 +364,7 @@ if [ "$VERIFY" = "yes" ]; then
 
   # The documents pack-release.sh copies in, each with the .meta Unity needs to
   # show it in the Package Manager's Licenses / Changelog tabs.
-  for doc in "LICENSE.md" "CHANGELOG.md" "Third Party Notices.md"; do
+  for doc in "LICENSE.md" "LICENSE.ja.md" "CHANGELOG.md" "Third Party Notices.md"; do
     has "$doc"        || fail "$VERSIONED is missing $doc"
     has "$doc.meta"   || fail "$VERSIONED is missing $doc.meta"
   done
