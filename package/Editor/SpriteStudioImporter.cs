@@ -18,7 +18,7 @@ namespace SpriteStudio.Editor
     /// </summary>
     public static class SpriteStudioImporter
     {
-        private const string OutputFolderPrefKey = "SpriteStudio_OutputFolder";
+        private const string OutputFolderConfigKey = "SpriteStudio_OutputFolder";
         private const string DefaultOutputPath = "Assets/ssab_generated";
 
         /// <summary>
@@ -117,7 +117,8 @@ namespace SpriteStudio.Editor
         /// <summary>Returns the output base directory (absolute path). null if invalid.</summary>
         private static string ResolveOutputBaseDir()
         {
-            string assetPath = EditorPrefs.GetString(OutputFolderPrefKey, DefaultOutputPath);
+            // Null for a project that has never chosen one; the guard below falls back.
+            string assetPath = EditorUserSettings.GetConfigValue(OutputFolderConfigKey);
             if (string.IsNullOrEmpty(assetPath) || !AssetDatabase.IsValidFolder(assetPath))
             {
                 if (!AssetDatabase.IsValidFolder(DefaultOutputPath))
