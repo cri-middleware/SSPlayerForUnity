@@ -76,6 +76,6 @@ SDK の残り 4 本（`overall` / `allAttributeV7` / `allPartsV7` / `ParticleEff
 
 ## 📄 ライセンス (License)
 
-本プロジェクトは BSD-3-Clause ライセンスのもとで公開されています。詳細は [LICENSE.md](./LICENSE.md) をご参照ください。
+本プロジェクトは BSD-3-Clause ライセンスのもとで公開されています。詳細は [LICENSE.md](./LICENSE.md) をご参照ください。参考訳は [LICENSE.ja.md](./LICENSE.ja.md) にあります。
 
 同梱されている `SpriteStudio-SDK` や、依存するサードパーティライブラリ（FlatBuffers など）のライセンスについては、[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) をご参照ください。
