@@ -13,18 +13,18 @@ The **Pixels Per Unit (PPU)** of `SpriteStudioPlayer` (world) is the factor that
 
 > Canvas (`SpriteStudioGraphic`) is drawn in the RectTransform coordinate system, so it has no PPU setting.
 
-## Frame Progression: Skip Frames (Real-Time Tracking)
+## Frame Progression: Frame Skipping (Real-Time Tracking)
 
-**Skip Frames** switches how frames advance.
+**Frame Skipping** in the Inspector (`FrameSkipEnabled` from a script) switches how frames advance.
 
 | Setting | Behavior | Use case |
 |---|---|---|
 | ON (default / timed) | Advances frames by the elapsed time. Even if frames are dropped under load, the **playback time stays constant** | Normal playback |
 | OFF (fixed) | Always advances exactly one frame per update (frame-by-frame) | When you need to reliably draw every frame, such as for verification or recording |
 
-## Sub-Frame Interpolation (Sub Frame Enabled)
+## Sub-Frame Interpolation
 
-Enabling **Sub Frame Enabled** interpolates between frames for smoother rendering. It is useful when you want to make low-frame-rate animations look smooth at a high refresh rate.
+Enabling **Sub-Frame Interpolation** in the Inspector (`SubFrameEnabled` from a script) interpolates between frames for smoother rendering. It is useful when you want to make low-frame-rate animations look smooth at a high refresh rate.
 
 ## Playback Speed (Speed Scale)
 

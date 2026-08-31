@@ -13,18 +13,18 @@
 
 > Canvas (`SpriteStudioGraphic`) は RectTransform 座標系で描画されるため、PPU 設定はありません。
 
-## フレーム進行: Skip Frames（実時間追従）
+## フレーム進行: Frame Skipping（実時間追従）
 
-**Skip Frames** は、フレームの進め方を切り替えます。
+インスペクタの **Frame Skipping**（スクリプトからは `FrameSkipEnabled`）は、フレームの進め方を切り替えます。
 
 | 設定 | 挙動 | 用途 |
 |---|---|---|
 | ON（既定 / timed） | 経過時間ぶんフレームを進める。負荷でフレーム落ちしても**再生時間が一定**に保たれる | 通常の再生 |
 | OFF（fixed） | 毎 update で必ず 1 フレームずつ進める（コマ送り） | 検証・収録など、確実に全フレーム描きたい場合 |
 
-## サブフレーム補間（Sub Frame Enabled）
+## サブフレーム補間（Sub-Frame Interpolation）
 
-**Sub Frame Enabled** を有効にすると、フレーム間を補間して滑らかに描画します。低フレームレートのアニメーションを高リフレッシュレートで滑らかに見せたい場合に有効です。
+インスペクタの **Sub-Frame Interpolation**（スクリプトからは `SubFrameEnabled`）を有効にすると、フレーム間を補間して滑らかに描画します。低フレームレートのアニメーションを高リフレッシュレートで滑らかに見せたい場合に有効です。
 
 ## 再生速度（Speed Scale）
 

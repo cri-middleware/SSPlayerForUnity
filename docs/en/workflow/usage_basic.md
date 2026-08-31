@@ -12,6 +12,9 @@ This page describes the shortest path from importing a `.sspj` to playing back a
 
 When conversion completes, a `SpriteStudioAnimeAsset` (a ScriptableObject that embeds the `.ssab`) is generated in the output folder.
 
+> [!TIP]
+> If you do not have a `.sspj` yet and just want to try this out, the [official SpriteStudio sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is (that page is only available in Japanese; the downloads themselves are language-neutral). [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character sample, and [Particle](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) is a good one if you want effects. Drop the downloaded `.sspj` in exactly as described above.
+
 ## 2. Place a player
 
 Use one of two components depending on your use case.
@@ -30,7 +33,7 @@ When you drop it, a menu appears for choosing which component to place, so selec
 - **SpriteStudioPlayer** … For world space. A GameObject with the selected asset assigned is created.
 - **SpriteStudioGraphic (Canvas UI)** … For Canvas UI.
 
-Once selected, a GameObject is created, and **the asset you just dropped is automatically assigned to SpriteStudio Asset**. After that, set the **Animation Name** to play it back.
+Once selected, a GameObject is created, and **the asset you just dropped is automatically assigned to Anime Asset**. After that, set the **Animation Name** to play it back.
 
 > [!TIP]
 > - If you choose **SpriteStudioGraphic (Canvas UI)** and there is no `Canvas` in the scene, a `Canvas` (and an `EventSystem`) is automatically created, and the player is placed underneath it.
@@ -53,14 +56,14 @@ This method uses an empty GameObject to which you add the component yourself.
 
 1. Create an empty GameObject.
 2. From **Add Component**, add **SpriteStudio Player** (`MeshFilter` / `MeshRenderer` are added automatically).
-3. In the Inspector, assign the imported `SpriteStudioAnimeAsset` to **SpriteStudio Asset**.
+3. In the Inspector, assign the imported `SpriteStudioAnimeAsset` to **Anime Asset**, under the **SpriteStudio Asset** heading.
 4. Enter the name of the animation you want to play in **Animation Name**.
 
 #### Placing on a Canvas (uGUI) (`SpriteStudioGraphic`)
 
 1. Create an empty GameObject under a **Canvas**.
 2. From **Add Component**, add **SpriteStudio Graphic** (`RectTransform` / `CanvasRenderer` are added automatically).
-3. Set **SpriteStudio Asset** and **Animation Name** the same way as above.
+3. Set **Anime Asset** and **Animation Name** the same way as above.
 
 ## 3. Play back
 
@@ -86,26 +89,44 @@ public class Sample : MonoBehaviour
 
 ## Main Inspector settings
 
-These are the settings common to both `SpriteStudioPlayer` and `SpriteStudioGraphic`.
+Item names are written exactly as they appear in the Inspector, in the order the Inspector shows them.
+
+### Common to both components
 
 | Item | Default | Description |
 |---|---|---|
-| **SpriteStudio Asset** | (none) | The `SpriteStudioAnimeAsset` to play back |
-| **Animation Name** | `""` | The name of the animation to play |
+| **Anime Asset** | (none) | The `SpriteStudioAnimeAsset` to play back. It sits under a heading labelled **SpriteStudio Asset** |
+| **Animation Name** | `""` | The name of the animation to play. Once an asset is assigned, this becomes a dropdown |
 | **Auto Play** | `true` | Whether to play back automatically when the scene starts running |
 | **Loop Count** | `-1` | Number of loops (`-1` = infinite / `1` = once / `n` = n times / `0` = infinite, a synonym for `-1`) |
-| **Speed Scale** | `1.0` | Playback speed multiplier |
-| **Sub Frame Enabled** | `false` | Whether to perform inter-frame interpolation (sub-frame rendering) |
-| **Skip Frames** | `true` | Real-time tracking. ON = advance by the elapsed time / OFF = advance one frame per update |
+| **Speed Scale** | `1.0` | Playback speed multiplier (a `0`–`4` slider; `0` is a stop) |
+| **Frame Skipping** | `true` | Real-time tracking. ON = advance by the elapsed time / OFF = advance one frame per update |
+| **Sub-Frame Interpolation** | `false` | Whether to perform inter-frame interpolation (sub-frame rendering) |
 
-`SpriteStudioPlayer` (world) has the following additional items.
+The audio items are common too.
 
 | Item | Default | Description |
 |---|---|---|
-| **Sorting Layer / Sorting Order** | `Default` / `0` | Draw order (MeshRenderer sort settings) |
+| **Play Audio** | `true` | Whether to play sounds from audio events (ADIO). While this is off, the two items below are greyed out |
+| **Audio Volume** | `1.0` | Volume of the built-in playback. Ignored when an **Audio Backend** is used |
+| **Audio Backend** | (none) | A hook for routing playback to a custom backend such as audio middleware (see [Scripting Control and Events](./usage_scripting.md)) |
+
+At the end of the Inspector sit the playback-event UnityEvents (**On Animation Started Event** / **On Animation Finished Event** / **On Animation Looped Event** / **On User Data Event** / **On Signal Event** / **On Audio Event**). See [Scripting Control and Events](./usage_scripting.md) for details.
+
+### `SpriteStudioPlayer` (world) only
+
+| Item | Default | Description |
+|---|---|---|
+| **Sorting Layer Name / Sorting Order** | `Default` / `0` | Draw order (MeshRenderer sort settings) |
+| **Flip X / Flip Y** | `false` / `false` | Mirror only what is drawn, horizontally / vertically (the same idea as `SpriteRenderer.flipX`: the Transform is not negated, so children and colliders stay put) |
+| **Offset** | `(0, 0)` | Shift the drawn animation without moving the Transform (in world units) |
+| **Part Trackers** | (empty) | Settings that make a Transform follow a specified part (see [Scripting Control and Events](./usage_scripting.md)) |
 | **Pixels Per Unit (PPU)** | `1` | The number of pixels per world unit. To match Unity's sprite convention, set a value such as `100` |
 | **Shader Catalog** | (none) | A catalog of per-part AddOn / custom shaders (see [Advanced Settings](./tips.md)) |
-| **Part Trackers** | (empty) | Settings that make a Transform follow a specified part (see [Scripting Control and Events](./usage_scripting.md)) |
+
+### `SpriteStudioGraphic` (Canvas UI) only
+
+The **Color** / **Material** / **Raycast Target** / **Raycast Padding** items inherited from uGUI's `Graphic` are shown. The clickable area is the `RectTransform`'s rectangle, which is not tied to how large the animation looks. To widen it, adjust the `RectTransform`'s size or use **Raycast Padding**.
 
 > [!TIP]
 > 
@@ -116,7 +137,9 @@ These are the settings common to both `SpriteStudioPlayer` and `SpriteStudioGrap
 
 ## Preview in edit mode
 
-Both components run with `[ExecuteAlways]`, so when you place them in a scene, a **static preview of the start frame** is displayed. However, playback does not advance in edit mode. To check the animation's motion, enter **Play mode**.
+Both components also run in edit mode. Place one in a scene and a **static preview of the start frame** appears in the Scene / Game view without entering Play mode. There is no setting to switch this on or off; it is always on.
+
+What edit mode shows is a still image, though — playback does not advance. To check the animation's motion, enter **Play mode**.
 
 ## Support for mask parts
 

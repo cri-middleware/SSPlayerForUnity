@@ -43,7 +43,7 @@ _player.Play();
 | `IsPlayingForward` | `bool`（読取） | 再生ヘッドが**実際に**進んでいる向き。`PlaybackDirection` は設定した向きに過ぎず、`PlaybackStyle.PingPong` の戻りの脚では `PlaybackDirection` が `false` のままでもこれは `false` になります。**音声はこれでゲートしてください**（SpriteStudio に逆再生音声は無いため、後ろ向きの脚で跨いだキーは鳴らすべきものではありません） |
 | `FrameNo` | `float` | 現在フレーム。`set` で任意フレームへシーク（小数可） |
 | `TotalFrames` | `int`（読取） | 再生中の区間のフレーム数（両端を含む）。`SetAnimationSection` で区間を設定していればその区間（未ロード時 `0`） |
-| `FrameRate` | `int` | 再生フレームレート (fps)。`set` で実行時変更 |
+| `FrameRate` | `int` | 再生フレームレート (fps)。`set` で実行時変更。`0` 以下は値ではなく**上書きの解除**として扱われ、クリップに設定されたフレームレートへ戻ります。読み出しは常に実効値なので、`0` を書いて読み返すとクリップ本来の fps（例: `60`）が返ります |
 | `PlaybackDirection` | `enum` | 設定した進行方向（`Forward` / `Backward`） |
 | `PlaybackStyle` | `enum` | 終端での挙動（`Normal` / `PingPong`） |
 | `SetAnimationSection(int start, int end)` | メソッド | 再生範囲をフレームで限定（フレーム指定。ラベル指定は未対応） |
