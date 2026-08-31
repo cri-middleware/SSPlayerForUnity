@@ -14,6 +14,10 @@ This page explains how to add SpriteStudioPlayer for Unity to your project. Choo
 
 All dependent packages are standard Unity packages, so Package Manager resolves them automatically when you add this package.
 
+The project template you start from can be **either 2D or 3D**. What this package requires is that the render pipeline is URP or Built-in, not a particular template (URP is verified with the **Universal Renderer** setup).
+
+> **If you are asked to restart during installation:** when the Burst dependency is updated, Unity may show a **Burst Package Update Detected** dialog. This is not an error specific to this package — choose **Restart Now** to restart the editor.
+
 ---
 
 ## 1. Install from a Package (Recommended)

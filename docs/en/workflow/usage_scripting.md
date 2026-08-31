@@ -43,7 +43,7 @@ Your playback settings hold across the switch: `SpeedScale`, `FrameSkipEnabled`,
 | `IsPlayingForward` | `bool` (read) | Which way the playhead is **actually** travelling. `PlaybackDirection` is only the configured heading: on a `PlaybackStyle.PingPong` return leg this reads `false` while `PlaybackDirection` is still `false`. **Gate audio on it** — SpriteStudio has no reverse audio, so a key crossed on a backward leg is not meant to sound |
 | `FrameNo` | `float` | Current frame. Use `set` to seek to an arbitrary frame (fractional allowed) |
 | `TotalFrames` | `int` (read) | Frames in the range being played, both ends inclusive — the section when `SetAnimationSection` set one (`0` when not loaded) |
-| `FrameRate` | `int` | Playback frame rate (fps). Use `set` to change at runtime |
+| `FrameRate` | `int` | Playback frame rate (fps). Use `set` to change at runtime. `0` or less is not a value but a **clearing of the override**: the rate falls back to the one the clip was authored at. The getter always reports the effective rate, so writing `0` and reading it back returns the clip's own fps (e.g. `60`) |
 | `PlaybackDirection` | `enum` | The configured heading (`Forward` / `Backward`) |
 | `PlaybackStyle` | `enum` | What the playhead does at the far end (`Normal` / `PingPong`) |
 | `SetAnimationSection(int start, int end)` | Method | Limit the playback range by frame (frame-based; label specification is not supported) |
