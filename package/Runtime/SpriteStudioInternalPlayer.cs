@@ -41,6 +41,10 @@ namespace SpriteStudio.Runtime
         public NativeArray<SubmeshInfo> Submeshes => _geometryBuilder != null ? _geometryBuilder.Submeshes : default;
         public NativeArray<SsVertex> MeshVertices => _geometryBuilder.MeshVertices;
         public NativeArray<uint> MeshIndices => _geometryBuilder.MeshIndices;
+        // The child's own topology signature. A parent folds each visible instance child's signature into its
+        // own so its index-upload cache reacts to a child-internal reorder (which the parent's coarse per-batch
+        // signature cannot see on its own - it treats the child as one opaque block).
+        public ulong TopologySignature => _geometryBuilder != null ? _geometryBuilder.TopologySignature : 0UL;
 
         /// <summary>
         /// Uniform scale applied to vertex positions (= 1 / PixelsPerUnit). Default 1 (= pixel-for-pixel).

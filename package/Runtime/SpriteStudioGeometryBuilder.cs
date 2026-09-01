@@ -142,6 +142,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
         public int VertexCount => _vertexCount;
         public int IndexCount => _indexCount;
+        public ulong TopologySignature => _topologySignature;
         public int DrawBatchCount => _batchBuilder.DrawBatchCount;
         /// <summary>Number of draw batches (= SubMeshes) produced by the most recent ScheduleMeshUpdate.</summary>
         public int SubmeshCount => _batchBuilder.SubmeshCount;
@@ -541,6 +542,25 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 // index/submesh need no re-upload). For effects, QuadCount/Offset change every frame and
                 // naturally mismatch = not cached.
                 _topologySignature = _batchBuilder.ComputeTopologySignature(totalVertices, totalIndices);
+
+                // Fold each visible instance child's own topology signature into ours. EmitInstanceBatch records
+                // a child as a single opaque block (kind + total vertex/index count), so the batch signature is
+                // blind to a child-internal reorder (e.g. a PRIO keyframe): the child's merged index values move
+                // while its totals stay put, and the index-upload cache would wrongly keep the stale GPU indices
+                // (seen as a torn instanced mesh part). The child's own signature includes its draw ranks, so
+                // mixing it in makes our cache re-upload exactly when the child's geometry actually changed.
+                if (_player._hasInstanceParts)
+                {
+                    const ulong prime = 1099511628211UL;
+                    for (int k = 0; k < _player._instancePartCount; k++)
+                    {
+                        int i = _player._instancePartIndices[k];
+                        if (_instanceMeshes[i].Vertices == null) continue; // not visible this frame
+                        var child = _player._instanceChildren[i].Player;
+                        if (child == null) continue;
+                        _topologySignature = (_topologySignature ^ child.TopologySignature) * prime;
+                    }
+                }
 
                 // Keep at least 1 element in the merged arrays because the Job references them even with no effects.
                 _effectBuffer.EnsureGeometryMinimum();
