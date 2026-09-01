@@ -3,6 +3,12 @@
 A high-performance plugin for playing back animations created with [SpriteStudio](https://www.webtech.co.jp/spritestudio/) on [Unity](https://unity.com/).
 Playback is performed through `libssruntime`, the shared Rust core provided by [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK), and combined with Unity's Job System to achieve extreme performance.
 
+!!! tip "No SpriteStudio data of your own yet?"
+    The [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is — that page is
+    Japanese only, but the downloads themselves are language-neutral.
+    [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character sample, and
+    [Particle](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) is a good one if you want effects.
+
 ## Contents
 
 This documentation is organized by purpose, as follows.
