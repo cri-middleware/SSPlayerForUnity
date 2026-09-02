@@ -663,7 +663,6 @@ namespace SpriteStudio.Runtime
             // drive it with one material; MIX/ADD are split per-vertex in-shader. CanvasRenderer only
             // accepts 16-bit index meshes, so upload 16-bit.
             _core.Internal.ApplyToMesh(_sharedMesh, false, use16BitIndices: true);
-            UpdateRaycastArea();
             EnsureCanvasShaderChannels();
             UpdateCanvasMaterials();
             // CanvasRenderer multiplies the mesh vertex colours by its own colour. The normal uGUI
@@ -672,46 +671,6 @@ namespace SpriteStudio.Runtime
             // Push the Graphic colour every frame (default white = identity, also honours a user tint).
             canvasRenderer.SetColor(color);
             canvasRenderer.SetMesh(_sharedMesh);
-        }
-
-        // Expand the uGUI raycast area to cover the whole drawn animation. uGUI gates hit-testing on the
-        // RectTransform rect (adjusted by raycastPadding) BEFORE Graphic.Raycast is ever called, so a graphic
-        // whose art spills outside its rect is only clickable over that rect -- which is why a placed graphic's
-        // click area looks small. The art is drawn in this transform's local space (the same space as
-        // rectTransform.rect), so we drive raycastPadding each frame to make the effective raycast rectangle
-        // equal the mesh's local AABB. The RectTransform itself is left untouched, so its size / anchors stay
-        // the user's and layout is undisturbed. raycastPadding's setter has no side effects (no canvas rebuild).
-        // Padding is (left, bottom, right, top) and positive insets; a negative value grows the edge outward.
-        private void UpdateRaycastArea()
-        {
-            if (!raycastTarget || _sharedMesh == null) return;
-            Bounds b = _sharedMesh.bounds;
-            if (b.size.x <= 0f && b.size.y <= 0f)
-            {
-                // Nothing drawn this frame: fall back to the plain rect rather than leaving stale padding.
-                raycastPadding = Vector4.zero;
-                return;
-            }
-            Rect r = rectTransform.rect;
-            raycastPadding = new Vector4(
-                b.min.x - r.xMin,   // left
-                b.min.y - r.yMin,   // bottom
-                r.xMax - b.max.x,   // right
-                r.yMax - b.max.y);  // top
-        }
-
-        // Test hook (white-box): the local-space AABB of the mesh uploaded this frame, i.e. what the raycast
-        // area is expanded to cover.
-        internal Bounds RenderedLocalBounds => _sharedMesh != null ? _sharedMesh.bounds : new Bounds();
-
-        // Test hook (white-box): rebuild the mesh (and refresh the raycast area) without the canvas material
-        // step, which needs an imported asset's atlas textures. Runs the exact geometry + raycast-area path
-        // ApplyAndRender does, letting a raw-bytes test asset exercise it deterministically.
-        internal void RebuildForTest()
-        {
-            if (_core.Internal == null || _sharedMesh == null) return;
-            _core.Internal.ApplyToMesh(_sharedMesh, false, use16BitIndices: true);
-            UpdateRaycastArea();
         }
 
         // --- Single-material Canvas resolution (one atlas + one fixed PMA blend) ---
