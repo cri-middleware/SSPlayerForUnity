@@ -37,5 +37,19 @@ namespace SpriteStudio.Runtime
             packHash = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb).NameHash;
             return true;
         }
+
+        /// <summary>
+        /// Whether the part is a bone-skinned mesh — a mesh part whose vertices are driven by bound bones
+        /// (a MeshBinding with at least one influence bone). Such a part's own transform (the matrix part
+        /// tracking reads) sits at its setup/parent node, not where the bone-skinned vertices are drawn, so a
+        /// tracker pinned to it lands off the visible art; track a null / bone-point (bone or joint) part at
+        /// that spot instead. A rigid (deform-only) mesh has no bones and is NOT skinned — it tracks correctly.
+        /// The single source of truth for this test, shared by the runtime and the inspector so they agree.
+        /// </summary>
+        internal static bool IsSkinnedMeshPart(ss.format.PartData part)
+        {
+            var binding = part.MeshBinding;
+            return binding.HasValue && binding.Value.InfluenceBoneLength > 0;
+        }
     }
 }

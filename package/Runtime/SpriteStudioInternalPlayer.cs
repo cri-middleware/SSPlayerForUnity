@@ -118,6 +118,11 @@ internal struct MaskPartData
         // dispatch path resolves names by array lookup instead of decoding a fresh string from the
         // FlatBuffer per event. Null until SetupSlots runs.
         private string[] _partNames;
+        // Part index -> "is this a bone-skinned mesh part" (index-aligned with ssab parts). A skinned mesh's
+        // own transform (what part tracking reads) sits at its setup/parent node, not where the bone-driven
+        // vertices draw, so a tracker pinned to it lands off the art; a rigid (deform-only) mesh has no bones
+        // and is false. Built in SetupSlots; null until then.
+        private bool[] _partSkinnedMesh;
         // How many of `_partNames` belong to the current pack. The array is grown but never shrunk, so
         // its Length is capacity, not the part count.
         private int _partCount;
@@ -423,6 +428,7 @@ internal struct MaskPartData
             // asset that is no longer loaded.
             _partNameToIndex?.Clear();
             if (_partNames != null) System.Array.Clear(_partNames, 0, _partNames.Length);
+            if (_partSkinnedMesh != null) System.Array.Clear(_partSkinnedMesh, 0, _partSkinnedMesh.Length);
             _partCount = 0;
 
             // The ancestor chain is only needed while this subtree is being built. Take it and drop the
@@ -449,6 +455,7 @@ internal struct MaskPartData
                 // (Both tables were emptied above; only capacity is grown here.)
                 if (_partNameToIndex == null) _partNameToIndex = new Dictionary<string, int>(partsLength);
                 if (_partNames == null || _partNames.Length < partsLength) _partNames = new string[partsLength];
+                if (_partSkinnedMesh == null || _partSkinnedMesh.Length < partsLength) _partSkinnedMesh = new bool[partsLength];
                 _partCount = partsLength;
 
                 // What an Instance child may not resolve to: this pack, or any pack above it. Handed to
@@ -469,6 +476,10 @@ internal struct MaskPartData
                     _partNames[i] = partName;
                     if (!string.IsNullOrEmpty(partName) && !_partNameToIndex.ContainsKey(partName))
                         _partNameToIndex[partName] = i;
+
+                    // Cache whether this is a bone-skinned mesh (see the field / SpriteStudioSsabFormat): the
+                    // part-tracking path warns on these because a skinned mesh's own node is not where its art draws.
+                    _partSkinnedMesh[i] = SpriteStudioSsabFormat.IsSkinnedMeshPart(p);
 
                     // Cache the static mask flags for every part (any Normal/Mesh/Shape/Mask part can
                     // be a writer or a target). Derivation mirrors _build_mask_writers exactly.
@@ -749,6 +760,21 @@ internal struct MaskPartData
         {
             if (string.IsNullOrEmpty(partName) || _partNameToIndex == null) return -1;
             return _partNameToIndex.TryGetValue(partName, out int idx) ? idx : -1;
+        }
+
+        /// <summary>
+        /// Whether the given part is a bone-skinned mesh. Its own transform (what <see cref="TryGetPartLocalMatrix"/>
+        /// and part tracking read) is the setup/parent node, not where the skinned vertices draw, so a tracker
+        /// pinned to it lands off the visible art — track a null / bone-point (bone or joint) part instead.
+        /// Returns false (with <paramref name="isSkinnedMesh"/> = false) when the index is out of range or nothing
+        /// is loaded; a rigid (deform-only) mesh reports false because it tracks correctly.
+        /// </summary>
+        public bool TryGetPartSkinnedMesh(int partIndex, out bool isSkinnedMesh)
+        {
+            isSkinnedMesh = false;
+            if (_partSkinnedMesh == null || partIndex < 0 || partIndex >= _partCount) return false;
+            isSkinnedMesh = _partSkinnedMesh[partIndex];
+            return true;
         }
 
         /// <summary>

@@ -197,6 +197,28 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
+        public void TryGetPartSkinnedMesh_FlagsSkinnedMeshesButNotBonesNullsOrUnknowns()
+        {
+            var player = MakePlayingPlayer();
+
+            // Ringo's hand_r is a bone-skinned mesh: its vertices are driven by the arm bones while its own
+            // node sits near the root, which is exactly why a tracker on it lands off the art. This both
+            // exercises the flag and cross-checks that diagnosis.
+            Assert.IsTrue(player.TryGetPartSkinnedMesh("hand_r", out bool handSkinned), "hand_r should resolve");
+            Assert.IsTrue(handSkinned, "hand_r is a bone-skinned mesh");
+
+            // A bone (armature) and the root (null) are proper track targets — not skinned meshes.
+            Assert.IsTrue(player.TryGetPartSkinnedMesh("bone_14", out bool boneSkinned), "bone_14 should resolve");
+            Assert.IsFalse(boneSkinned, "an armature bone is not a skinned mesh");
+            Assert.IsTrue(player.TryGetPartSkinnedMesh("root", out bool rootSkinned), "root should resolve");
+            Assert.IsFalse(rootSkinned, "a null part is not a skinned mesh");
+
+            // Unknown part: returns false, out defaults to false.
+            Assert.IsFalse(player.TryGetPartSkinnedMesh("does_not_exist", out bool unknownSkinned));
+            Assert.IsFalse(unknownSkinned);
+        }
+
+        [Test]
         public void Pause_SetsPaused_ButStillPlaying()
         {
             var player = MakePlayingPlayer();

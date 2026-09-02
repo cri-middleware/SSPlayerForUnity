@@ -345,6 +345,20 @@ namespace SpriteStudio.Runtime
         /// <summary>Resolve a part name to its index, or -1 if the part is not in the loaded asset.</summary>
         public int FindPartIndex(string partName) => _core.Internal?.FindPartIndex(partName) ?? -1;
 
+        /// <summary>
+        /// Is the named part a bone-skinned mesh? Its vertices are drawn by bound bones while the part's own
+        /// transform stays at its setup node, so it is not a reliable target to pin an object to. (Part tracking
+        /// itself is a `SpriteStudioPlayer` feature; this query is provided for parity.) Returns false when the
+        /// part is unknown / not loaded; a rigid (deform-only) mesh reports false.
+        /// </summary>
+        public bool TryGetPartSkinnedMesh(string partName, out bool isSkinnedMesh)
+        {
+            isSkinnedMesh = false;
+            if (_core.Internal == null) return false;
+            int idx = _core.Internal.FindPartIndex(partName);
+            return idx >= 0 && _core.Internal.TryGetPartSkinnedMesh(idx, out isSkinnedMesh);
+        }
+
         /// <summary>Force-hide a part (or revert it to the animation), optionally cascading to its descendants.</summary>
         public bool SetPartVisibilityOverride(string partName, bool hide, bool cascade = false)
             => _core.Internal?.SetPartVisibilityOverride(partName, hide, cascade) ?? false;
