@@ -985,6 +985,22 @@ namespace SpriteStudio.Runtime
             return idx >= 0 && _core.Internal.TryGetPartState(idx, out hidden, out _, out _);
         }
 
+        /// <summary>
+        /// Is the named part a bone-skinned mesh? Such a part cannot be followed by <see cref="RegisterPartTracker"/>
+        /// as you would expect: its vertices are drawn by bound bones, but a tracker reads the part's own
+        /// transform, which stays at its setup node (near the character root) — so the target lands off the art.
+        /// To follow a skinned mesh's position, attach a null / bone-point (bone or joint) part at that spot in
+        /// SpriteStudio and track that instead. Returns false when the part is unknown / not loaded; a rigid
+        /// (deform-only) mesh reports false because it tracks correctly.
+        /// </summary>
+        public bool TryGetPartSkinnedMesh(string partName, out bool isSkinnedMesh)
+        {
+            isSkinnedMesh = false;
+            if (_core.Internal == null) return false;
+            int idx = _core.Internal.FindPartIndex(partName);
+            return idx >= 0 && _core.Internal.TryGetPartSkinnedMesh(idx, out isSkinnedMesh);
+        }
+
         /// <summary>Player-local matrix (1/PPU folded) of the named part for the current frame. False if unknown.</summary>
         /// <remarks>
         /// This is a general affine basis and may be a reflection, i.e. have a negative determinant.

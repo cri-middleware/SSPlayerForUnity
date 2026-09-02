@@ -266,6 +266,11 @@ A feature that makes a user-provided `Transform` (weapon, effect, hit detection,
 
 > This feature is specific to `SpriteStudioPlayer` (world). It is not available on `SpriteStudioGraphic` (Canvas).
 
+> [!NOTE]
+> **Mesh (skinned) parts cannot be followed directly.** A bone-bound mesh part (a deforming part such as a hand or a face) has its vertices drawn by bone skinning, while the part's own transform stays at its setup node position — usually near the character root. So naming such a part in Part Name snaps the target near the root rather than onto the visible art.
+>
+> To follow the position of a mesh part, add a **NULL part (a bone-point / empty part)** at that spot in SpriteStudio and target that part's name instead. A bone (armature) or joint part works the same way.
+
 Configure it by adding entries to the **Part Trackers** list of `SpriteStudioPlayer`.
 
 | Setting | Description |
