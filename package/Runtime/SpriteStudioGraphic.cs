@@ -46,10 +46,16 @@ namespace SpriteStudio.Runtime
         [Header("Playback Settings")]
         [Tooltip("Animation name to play (e.g. pack name / animation name)")]
         [SerializeField] private string _animationName = "";
+        /// <summary>
+        /// The configured animation name (the serialized field the inspector labels "Animation Name").
+        /// Read-only to callers: assigning it would only rewrite the field without touching the runtime, so
+        /// to switch animation at runtime call <see cref="SetAnimation"/> (the setter is internal, used by the
+        /// editor/importer to seed the field).
+        /// </summary>
         public string CurrentAnimation
         {
             get => _animationName;
-            set => _animationName = value;
+            internal set => _animationName = value;
         }
 
         [Tooltip("Whether to start playback automatically on startup")]

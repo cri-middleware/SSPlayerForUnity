@@ -302,6 +302,35 @@ namespace SpriteStudio.Runtime.Tests
             Assert.AreEqual(1, player.InternalPlayer.GetLoop());
         }
 
+        // Assigning the animation-name property (the field the inspector labels "Animation Name") is a plain
+        // field write with no side effect: it does NOT re-set-up the runtime, and Play() replays whatever is
+        // already set up rather than adopting the field. Only SetAnimation() switches the runtime. This is the
+        // asymmetry a QA report hit — the inspector switches on edit (via OnValidate) while the script property
+        // does not — so it is pinned here as intended behaviour.
+        [Test]
+        public void AnimationNameProperty_DoesNotSwitchTheRuntime_OnlySetAnimationDoes()
+        {
+            var player = MakePlayingPlayer("walk");
+            Assume.That(player.InternalPlayer.CurrentAnimationName, Is.EqualTo("walk"),
+                "precondition: the player is set up on walk");
+
+            // (1) Writing the property updates the serialized field but leaves the runtime on walk.
+            player.CurrentAnimation = "attack1";
+            Assert.AreEqual("attack1", player.CurrentAnimation, "the field reads back what was written");
+            Assert.AreEqual("walk", player.InternalPlayer.CurrentAnimationName,
+                "the property setter has no side effect — the runtime is still on the old animation");
+
+            // (2) Play() replays the currently set-up animation; it does not read the field.
+            player.Play();
+            Assert.AreEqual("walk", player.InternalPlayer.CurrentAnimationName,
+                "Play() restarts the set-up animation (walk); it does not adopt the property value");
+
+            // (3) SetAnimation is the switch.
+            Assert.IsTrue(player.SetAnimation("attack1"), "attack1 should be found in Ringo");
+            Assert.AreEqual("attack1", player.InternalPlayer.CurrentAnimationName,
+                "SetAnimation is what actually switches the runtime animation");
+        }
+
         [Test]
         public void Graphic_SetAnimation_KeepsTheConfiguredLoopCount()
         {
