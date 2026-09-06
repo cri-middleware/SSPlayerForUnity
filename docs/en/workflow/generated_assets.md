@@ -35,7 +35,7 @@ Converting one `.sspj` creates a `<sspj name>/` folder under the output folder (
 
 | File | Produced from | Unity representation | What it holds |
 |---|---|---|---|
-| `<anime pack>.ssab` | One file per `.ssae` | `SpriteStudioAnimeAsset` | Animations (keyframes), part structure, **the cell map (the source rectangle, pivot and original image size on the atlas)**, effect definitions, user data / signals, referenced texture names, sound references |
+| `<anime pack>.ssab` | One file per `.ssae` | `SpriteStudioAnimeAsset` | Animations (keyframes), part structure, **the cell map (the source rectangle, pivot and original image size on the atlas)**, effect definitions, user data / signals, **the referenced texture names (both the cell map atlases and the replacement textures for texture change)**, sound references |
 | `<sequence pack>.ssqb` | One file per `.ssqe` | `SpriteStudioSequenceAsset` | The animation playback order (sequence). Playback is not yet supported ([Limitations and Scope](../limitations.md)) |
 | `<texture>.png` and so on | The images referenced by the `.sspj` | `Texture2D` | The artwork itself (the atlas image) |
 | `<texture>.mat` | Generated automatically on import | `Material` | The shared material used for rendering (shader and texture reference) |
@@ -79,6 +79,7 @@ graph LR
 
 - **Every reference is a hard GUID reference.** Nothing is resolved by file path at runtime, so references resolve wherever the assets live — Resources, AssetBundle or Addressables. Conversely, a bundle that contains a `.ssab` pulls in its dependencies too (`.mat` → `.png`, `AudioClip`, and the `.ssab` an Instance part references).
 - **Paths are only searched at import time**: the importer looks for textures in the same folder as the `.ssab`, and uses the `.mat` adjacent to each texture. Move the files in a folder together.
+- The **Textures** edge above covers two kinds: the cell map atlases, and the textures a **texture change (TCHG)** swaps in. The importer collects both and references them by GUID, so neither can go missing from a bundle on its own.
 - **The shader** lives under `Runtime/Resources` in the package, so it is always included in the player build. The shader used for generated materials can be changed in the import settings shown when a `.ssab` is selected (**Generate Materials** / **Override Shader**).
 
 ---
