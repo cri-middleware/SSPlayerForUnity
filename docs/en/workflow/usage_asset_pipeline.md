@@ -94,6 +94,9 @@ This is the final product of the import (the actual converted `.ssab` data). It 
 
 When a `.ssab` is imported, a **shared material (`.mat`)** corresponding to the referenced texture is automatically generated in an adjacent location and bundled into the asset. In addition, textures in the same folder as the `.sspj` / `.ssab` automatically have import settings suited to 2D animation applied (uncompressed, Clamp, Mipmap disabled, and so on).
 
+> [!TIP]
+> [Generated Assets and AssetBundle](./generated_assets.md) covers what each generated file is responsible for, how they depend on each other, what changes in the game when you update one, and how to split them across AssetBundles / Addressables.
+
 ---
 
 ## Limitations and Notes for Team Development

@@ -8,7 +8,7 @@ For the basic import procedure, see [Asset Import and Editor Integration](./usag
 
 ## Configuring the output location
 
-The output location for conversion results is set via **Output Folder** in the SpriteStudio Importer window (default: `Assets/ssab_generated`). The setting is saved in `EditorPrefs` and shared across the entire editor.
+The output location for conversion results is set via **Output Folder** in the SpriteStudio Importer window (default: `Assets/ssab_generated`); any folder inside the project will do. The setting is saved in `EditorUserSettings` (`ProjectSettings/EditorUserSettings.asset`), so it is per project and per person.
 
 ## Automatic configuration on import into Unity (textures and materials)
 

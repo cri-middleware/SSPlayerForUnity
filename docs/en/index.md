@@ -17,6 +17,7 @@ This documentation is organized by purpose, as follows.
     - [Installation](./setup/install.md): Adding the package to your Unity project
     - [Basic Usage](./workflow/usage_basic.md): Placing components and playing back
     - [Asset Import and Editor Integration](./workflow/usage_asset_pipeline.md): Start here for your first `.sspj` import
+    - [Generated Assets and AssetBundle](./workflow/generated_assets.md): Per-file roles, dependencies, and how to split bundles
     - [Script Control and Events](./workflow/usage_scripting.md): Control from C# / Timeline and receiving events
     - [Performance Tuning and Advanced Settings](./workflow/tips.md): Settings for large-scale rendering and optimization
     - [Migration from SS6Player](./migration_from_ss6.md): Migration guide from the legacy SS6Player for Unity
