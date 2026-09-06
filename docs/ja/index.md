@@ -16,6 +16,7 @@
     - [インストール](./setup/install.md): Unity プロジェクトへのパッケージ導入
     - [基本的な使い方](./workflow/usage_basic.md): コンポーネントの配置と再生
     - [アセットのインポートとエディタ連携](./workflow/usage_asset_pipeline.md): 初回の `.sspj` インポートはこちら
+    - [生成アセットの構成と AssetBundle](./workflow/generated_assets.md): ファイルごとの役割・依存関係とバンドル分割
     - [スクリプト制御とイベント](./workflow/usage_scripting.md): C# / Timeline からの制御とイベント受信
     - [パフォーマンスチューニングと高度な設定](./workflow/tips.md): 大量描画・最適化のための設定
     - [SS6Player からのマイグレーション](./migration_from_ss6.md): 旧 SS6Player for Unity からの移行ガイド

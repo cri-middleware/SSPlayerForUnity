@@ -8,7 +8,7 @@
 
 ## 出力先の設定
 
-変換結果の出力先は SpriteStudio Importer ウィンドウの **Output Folder** で設定します（既定 `Assets/ssab_generated`）。設定は `EditorPrefs` に保存され、エディタ全体で共有されます。
+変換結果の出力先は SpriteStudio Importer ウィンドウの **Output Folder** で設定します（既定 `Assets/ssab_generated`）。プロジェクト内であれば任意のフォルダを指定できます。設定は `EditorUserSettings`（`ProjectSettings/EditorUserSettings.asset`）に保存されるため、プロジェクトごと・作業者ごとの設定になります。
 
 ## Unity へのインポート時の自動設定（テクスチャ・マテリアル）
 
