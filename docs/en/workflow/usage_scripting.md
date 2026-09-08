@@ -326,7 +326,7 @@ Trackers are driven in **LateUpdate**, after the frame's mesh is finalized and b
 
 The pose is written as a local TRS in the target's **parent space**, so how exactly it matches depends on where the target is placed.
 
-- Placed as a **child** of the player, the part's transform is written as-is (the only source of error is skew in the part hierarchy itself).
+- Placed as a **child** of the player, the part's transform is written as-is — an exact match. (Skew deforms the drawn vertices only; it is not carried in the part's coordinate frame, so it never reaches a follower.)
 - Placed in a separate hierarchy (anywhere that is not a child of the player), **world position is always exact**. However, if the target's parent or the player has both rotation and non-uniform scale, **rotation and scale become approximate**.
 
 > **A target in a separate hierarchy can lag by one frame.** The tracker writes using the player's transform as sampled at drive time, so it does not follow a move made to the player after that until the next frame. Driving happens early in LateUpdate (`DefaultExecutionOrder(-100)`), so take particular care when your own `LateUpdate` moves the player. A target placed as a child always follows, through hierarchy inheritance.

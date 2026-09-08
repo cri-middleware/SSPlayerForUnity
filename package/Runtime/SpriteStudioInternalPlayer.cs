@@ -803,6 +803,12 @@ internal struct MaskPartData
         /// own localScale (callers that want to ignore localScale divide it out from the extracted scale).
         /// Returns false if the handle is invalid or the index is out of range.
         /// <para>
+        /// The matrix carries no skew: SpriteStudio's Skew is a non-inheriting vertex deformation baked into
+        /// the drawn vertices, not into the part's coordinate frame, so a pose extracted from this matrix (and
+        /// therefore any part tracker driven by it) is skew-free — matching how skew does not propagate to a
+        /// part's children in the editor.
+        /// </para>
+        /// <para>
         /// The basis may be a reflection (negative determinant) — from the root transform's flip, or from a
         /// negative scale on the part or its parents. Callers must not extract a rotation or a scale from it
         /// without making the basis proper first; a quaternion cannot hold a reflection.
