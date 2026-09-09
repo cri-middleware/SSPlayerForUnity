@@ -41,6 +41,11 @@ namespace SpriteStudio.Runtime
         /// SpriteStudio Instances are mostly same-project references, so 2 is the primary path.
         /// At runtime no file is read at all; it only follows hard references (GUID references, so it is
         /// safe with Resources/AssetBundle/Addressables too).
+        /// Nothing else resolves: an unmatched pack_hash returns null and the caller skips the part.
+        /// Guessing by animation name instead would be worse than no answer — SpriteStudio names every
+        /// animation in a pack independently, so a project where each pack holds one "anime_1" makes every
+        /// such guess land on whichever pack happens to be first, silently playing the wrong animation.
+        /// A miss means the ExternalReferences are incomplete; reimporting the asset is what fixes it.
         /// </summary>
         /// <param name="packHash">Name hash of the referenced anime pack (PartTypeInstance.RefAnimePackHash).</param>
         /// <param name="nameHash">Name hash of the referenced animation. Used by SetupAnimationByHash after resolution.</param>
@@ -65,62 +70,11 @@ namespace SpriteStudio.Runtime
                 return SsabData;
             }
 
-            // 3. Fallback (a safeguard for when 1 does not match due to operational differences in the pack
-            //    name hash): search for an ssab that actually contains the requested animation name hash.
-            //    Resolves without depending on pack_hash. Reaching here means the part named a pack that
-            //    is not ours — 2 already returned for the ones that are — so the external references are
-            //    searched first and our own SSAB is the last resort. Preferring self here picks the wrong
-            //    animation whenever both packs happen to share an animation name, and feeds SetupSlots a
-            //    child that is its own parent.
-            //    Both branches are a guess made off a name collision, so neither resolves silently: the
-            //    caller gets a warning naming what was picked, and the import that caused it.
-            if (nameHash != 0)
-            {
-                if (ExternalReferences != null)
-                {
-                    for (int i = 0; i < ExternalReferences.Count; i++)
-                    {
-                        var ext = ExternalReferences[i];
-                        if (ext != null && ext.ContainsAnimationHash(nameHash))
-                        {
-                            Debug.LogWarning($"[SpriteStudioAnimeAsset] '{name}': Instance reference (pack=0x{packHash:X8}, name=0x{nameHash:X8}) matched no pack hash, so it was resolved by animation name to the external reference '{ext.name}'. Reimport the assets if that is not the intended animation.");
-                            return ext.SsabData;
-                        }
-                    }
-                }
-                if (ContainsAnimationHash(nameHash))
-                {
-                    // Instance parts are pack-level, so a child that is this very pack would recurse; the
-                    // player detects that and skips the part. Say so here, where the cause is visible.
-                    Debug.LogWarning($"[SpriteStudioAnimeAsset] '{name}': Instance reference (pack=0x{packHash:X8}, name=0x{nameHash:X8}) matched neither a pack hash nor an external reference, so it fell back to this pack's own animation of that name. The Instance part will be skipped — reimport the AnimeAsset to repopulate its external references.");
-                    return SsabData;
-                }
-            }
-
+            // The part named a pack that is neither ours nor in our external references, so there is no
+            // answer to give. Report the pack that is missing and let the caller skip the part: a wrong
+            // animation played silently costs far more to track down than a missing one.
+            Debug.LogWarning($"[SpriteStudioAnimeAsset] '{name}': Instance reference (pack=0x{packHash:X8}, name=0x{nameHash:X8}) is not among this asset's {(ExternalReferences == null ? 0 : ExternalReferences.Count)} external references. The Instance part will be skipped — reimport this .ssab to repopulate them.");
             return null;
-        }
-
-        [System.NonSerialized] private HashSet<uint> _animationHashes;
-
-        /// <summary>Whether this ssab contains an animation with the given animation name hash (checked against Animation.NameHash).</summary>
-        public bool ContainsAnimationHash(uint nameHash)
-        {
-            if (_animationHashes == null)
-            {
-                _animationHashes = new HashSet<uint>();
-                if (SsabData != null && SsabData.Length > 0)
-                {
-                    var bb = new Google.FlatBuffers.ByteBuffer(SsabData);
-                    var ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
-                    int n = ssab.AnimationsLength;
-                    for (int i = 0; i < n; i++)
-                    {
-                        var a = ssab.Animations(i);
-                        if (a.HasValue) _animationHashes.Add(a.Value.NameHash);
-                    }
-                }
-            }
-            return _animationHashes.Contains(nameHash);
         }
 
         // DrawBatch.TextureHash -> Materials index mapping table (serialized as parallel arrays).

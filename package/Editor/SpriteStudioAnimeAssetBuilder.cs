@@ -104,6 +104,25 @@ namespace SpriteStudio.Editor
         internal static string ResolveAudioClipPath(string baseDir, string fileName, out AudioClip clip, Action<string> onDependency)
             => ResolveAssetPath(baseDir, fileName, out clip, onDependency);
 
+        /// <summary>
+        /// The dependency hook to pass to <see cref="ResolveSsabPath"/> from a ScriptedImporter.
+        /// A .ssab -> .ssab reference is read through the *imported result* of the other file
+        /// (AssetDatabase.LoadAssetAtPath), so it needs an artifact dependency, not just a source one:
+        /// DependsOnSourceAsset alone leaves the referenced sibling free to be still unimported when this
+        /// import runs, and LoadAssetAtPath then hands back null. That drops the reference silently, and
+        /// a path with no GUID yet registers no dependency at all, so the import never re-runs to pick it
+        /// up. DependsOnArtifact is what orders the two imports and re-runs this one when the other's
+        /// result changes.
+        /// The asset being imported is skipped: an importer may not depend on its own artifact, and a
+        /// same-pack reference resolves to this very SSAB at runtime anyway.
+        /// </summary>
+        internal static Action<string> SsabDependency(AssetImportContext ctx) => path =>
+        {
+            ctx.DependsOnSourceAsset(path);
+            if (!string.Equals(path, ctx.assetPath, StringComparison.OrdinalIgnoreCase))
+                ctx.DependsOnArtifact(path);
+        };
+
         internal static string ResolveSsabPath(string baseDir, string animePackName, out SpriteStudioAnimeAsset asset, Action<string> onDependency)
         {
             asset = null;
@@ -427,7 +446,7 @@ namespace SpriteStudio.Editor
             foreach (var packName in packNames)
             {
                 if (string.IsNullOrEmpty(packName) || !seenPacks.Add(packName)) continue;
-                ResolveSsabPath(baseDir, packName, out var extAsset, ctx.DependsOnSourceAsset);
+                ResolveSsabPath(baseDir, packName, out var extAsset, SsabDependency(ctx));
                 if (extAsset == null || !seenAssets.Add(extAsset)) continue;
                 outRefs.Add(extAsset);
 
