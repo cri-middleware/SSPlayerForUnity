@@ -275,10 +275,8 @@ internal struct MaskPartData
         // The pack this player was loaded with (SsAnimeBinary.name_hash), and the packs loaded above it.
         // SetupSlots walks the *pack's* Instance parts, so a part that resolves back to a pack already on
         // this chain makes LoadSsab -> SetupSlots recurse until the stack dies — taking the Editor with it
-        // (a StackOverflowException cannot be caught). Resolution has two fallbacks that can return the
-        // resolver's own SsabData (a same-pack reference, and the animation-name-hash search that runs when
-        // the pack hash does not match), so this is reachable whenever an import leaves ExternalReferences
-        // unpopulated. Keyed on the pack hash rather than on `byte[]` identity, so a resolver that
+        // (a StackOverflowException cannot be caught). A same-pack reference resolves to the resolver's own
+        // SsabData, so an authored self-reference reaches this. Keyed on the pack hash rather than on `byte[]` identity, so a resolver that
         // materialises fresh bytes per call (Addressables / AssetBundle / File.ReadAllBytes) is caught too.
         // The chain is only meaningful while a subtree is being built; SetupSlots drops it on the way in.
         private uint _packHash;
@@ -550,7 +548,7 @@ internal struct MaskPartData
 
                         if (chain.Contains(childPackHash))
                         {
-                            UnityEngine.Debug.LogWarning($"[SpriteStudioInternalPlayer] Instance part {i}: referenced animation (pack=0x{packHash:X8}, name=0x{nameHash:X8}) resolved to pack 0x{childPackHash:X8}, which is already being loaded further up the chain — mounting it would recurse forever. Skipping the part. The AnimeAsset's external references are most likely unpopulated, so resolution fell back to its own SSAB — reimport it.");
+                            UnityEngine.Debug.LogWarning($"[SpriteStudioInternalPlayer] Instance part {i}: referenced animation (pack=0x{packHash:X8}, name=0x{nameHash:X8}) resolved to pack 0x{childPackHash:X8}, which is already being loaded further up the chain — mounting it would recurse forever. Skipping the part.");
                             continue;
                         }
 
