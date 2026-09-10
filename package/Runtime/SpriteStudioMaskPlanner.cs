@@ -32,6 +32,13 @@ namespace SpriteStudio.Runtime
         // Per-part (texture hash, blend) for the current frame, harvested from the draw batches.
         private NativeArray<uint> _maskPartTexHash;
         private NativeArray<byte> _maskPartBlend;
+        // Per part index: 1 where a writing part actually writes this frame (Rule_Mask.md §2-2 -
+        // mask != 0 and not hidden). Filled by BuildWriters for every part that Writes, whether or not
+        // it made the writer list, because the write and its removal are emitted from different loops:
+        // Phase A and Phase C walk the writer list, while a pure mask's removal and a clipping mask's
+        // own-rank write are driven by the draw batches off static MaskPartData. The pairs have to agree
+        // on which writers are live, or a removal lands with no write behind it and unbalances the plane.
+        private NativeArray<byte> _maskWriterActive;
 
         public int WriterCount { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => _maskWriterCount; }
 
@@ -45,8 +52,14 @@ namespace SpriteStudio.Runtime
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public unsafe byte GetPartBlend(int partIndex)
             => ((byte*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskPartBlend))[partIndex];
+        /// <summary>Whether the writing part at this index writes to the stencil this frame. Meaningful
+        /// only for a part whose static MaskPartData says it Writes; false for everything else.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public unsafe bool IsWriterActive(int partIndex)
+            => ((byte*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskWriterActive))[partIndex] != 0;
 
-        /// <summary>Build the current frame's mask writer list (mirrors _build_mask_writers).</summary>
+        /// <summary>Build the current frame's mask writer list (mirrors _build_mask_writers), and record
+        /// which writing parts write at all this frame for <see cref="IsWriterActive"/>.</summary>
         /// <param name="inheritedMaskInfluence">maskInfluence composed down the instance chain (AND). A
         /// writer's op/plane follows its EFFECTIVE maskInfluence, not just its own: an instance part with
         /// maskInfluence=0 puts its child's writers on the counter plane (union), which is what SS7.5 does
@@ -56,6 +69,15 @@ namespace SpriteStudio.Runtime
             bool inheritedMaskInfluence)
         {
             _maskWriterCount = 0;
+            // Cleared ahead of the early return: a writer that stopped writing this frame must not be read
+            // as live off the last frame's flags.
+            if (!_maskWriterActive.IsCreated || _maskWriterActive.Length < partsLength)
+            {
+                SpriteStudioNativeBuffers.EnsureCapacity(ref _maskWriterActive, partsLength < 1 ? 1 : partsLength);
+            }
+            UnsafeUtility.MemClear(
+                NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskWriterActive),
+                (long)partsLength * sizeof(byte));
             if (!hasMaskParts || maskPartData == null) return;
             SpriteStudioNativeBuffers.EnsureCapacity(ref _maskWriters, drawOrderLength < 1 ? 1 : drawOrderLength);
             for (int rank = 0; rank < drawOrderLength; rank++)
@@ -66,6 +88,13 @@ namespace SpriteStudio.Runtime
                 if (!md.Writes) continue;
                 var ps = frameData.Parts(p_idx);
                 if (!ps.HasValue) continue;
+                // A writer writes only where its per-frame mask is non-zero and it is not hidden
+                // (Rule_Mask.md §2-2). Both live in FrameData, so this is the half of the classification
+                // MaskPartData cannot answer: an authored MASK of 0 is how a writer is switched off over a
+                // range of frames, and Threshold cannot stand in for it - a shape mask samples no texture,
+                // so every emit path pins its threshold to -1 and its coverage is its whole geometry.
+                if (ps.Value.Mask == 0f || ps.Value.Hide) continue;
+                ((byte*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskWriterActive))[p_idx] = 1;
                 var pWriter = (MaskWriter*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskWriters);
                 pWriter[_maskWriterCount++] = new MaskWriter
                 {
@@ -157,6 +186,7 @@ namespace SpriteStudio.Runtime
             if (_maskWriters.IsCreated) _maskWriters.Dispose();
             if (_maskPartTexHash.IsCreated) _maskPartTexHash.Dispose();
             if (_maskPartBlend.IsCreated) _maskPartBlend.Dispose();
+            if (_maskWriterActive.IsCreated) _maskWriterActive.Dispose();
         }
     }
 }
