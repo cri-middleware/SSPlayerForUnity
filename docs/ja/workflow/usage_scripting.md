@@ -73,13 +73,12 @@ _player.FrameNo = 10f;          // 区間先頭へシーク
 
 ```csharp
 _player.SetAnimation("walk");
-// 方向とスタイルは 1 回で原子的に設定できます
-_player.SetPlaybackDirection(SpriteStudioPlaybackDirection.Backward,
-                             SpriteStudioPlaybackStyle.PingPong);
+_player.PlaybackDirection = SpriteStudioPlaybackDirection.Backward;
+_player.PlaybackStyle = SpriteStudioPlaybackStyle.PingPong;
 _player.Play();
 ```
 
-> `PlaybackDirection` / `PlaybackStyle` は `SetAnimation()` を跨いで保持されるので、設定は一度で済みます。インスペクタ側の既定値は無いため、スクリプトで指定するまでは Forward / Normal です。切り替えでリセットされるのは往復再生の進行中の向きだけで、新しいアニメーションは必ず往路から始まります。
+> `PlaybackDirection` / `PlaybackStyle` は `SetAnimation()` を跨いで保持されるので、設定は一度で済みます。インスペクタ側の既定値は無いため、スクリプトで指定するまでは Forward / Normal です。切り替えでリセットされるのは往復再生の進行中の向きだけで、新しいアニメーションは必ず往路から始まります。方向とスタイルは `SetPlaybackDirection(direction, style)` で 1 回にまとめて設定することもできます。
 
 ## 再生パラメータのプロパティ
 
@@ -369,7 +368,7 @@ player.ClearAllPartOverrides();
 |---|---|
 | `GetPartNames()` | パーツ名の一覧（パーツ index 順）。イベントの `PartIndex` を人間が読める形に戻す、パーツ一覧 UI を作る、といった用途。名前の無いパーツは `""` で枠を保持するので index と揃ったままです。`Length` が個数 |
 | `FindPartIndex(name)` | パーツインデックス。アセットに無ければ `-1` |
-| `SetPartColorOverride(part, color, blendOp, priority)` | パーツカラーオーバーライド（単色。4隅指定のオーバーロードもあり：左上・右上・左下・右下） |
+| `SetPartColorOverride(part, color, blendOp, priority)` | パーツカラーオーバーライド（単色）。4隅ごとのグラデーションは `SetPartColorOverrideCorners(part, SpriteStudioCornerColors, blendOp, priority)`（左上・右上・左下・右下） |
 | `SetPartCellOverride(part, cellmapName, cellName, priority)` | 別のセルで描画する |
 | `SetPartVisibilityOverride(part, hide, cascade)` | 強制非表示（`hide: false` でアニメーションに戻す） |
 | `ClearPartColorOverride` / `ClearPartCellOverride` / `ClearPartVisibilityOverride` | 1パーツの1オーバーライドを解除 |

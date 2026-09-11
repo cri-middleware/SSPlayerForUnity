@@ -121,8 +121,8 @@ public class Sample : MonoBehaviour
 | **Flip X / Flip Y** | `false` / `false` | 描画だけを左右／上下に反転します（`SpriteRenderer.flipX` と同じ考え方で、Transform を反転しないため子オブジェクトやコライダは動きません） |
 | **Offset** | `(0, 0)` | Transform を動かさずに描画位置だけをずらします（単位はワールド単位） |
 | **Part Trackers** | （空） | 指定パーツに Transform を追従させる設定（[スクリプト制御とイベント](./usage_scripting.md) 参照） |
-| **Pixels Per Unit (PPU)** | `1` | 1 ワールド単位あたりのピクセル数。Unity のスプライト慣習に合わせるなら `100` などを設定 |
-| **Shader Catalog** | （なし） | パーツ単位の AddOn / カスタムシェーダのカタログ（[高度な設定](./tips.md) 参照） |
+
+> **Pixels Per Unit** とパーツ単位の**カスタムシェーダ**は、このインスペクタ外で設定します。PPU はスクリプトの `PixelsPerUnit` プロパティで設定し、カスタムシェーダは AddOn カタログに登録します。詳細は [高度な設定](./tips.md) を参照してください。
 
 ### `SpriteStudioGraphic`（Canvas UI）のみ
 

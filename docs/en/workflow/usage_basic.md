@@ -121,8 +121,8 @@ At the end of the Inspector sit the playback-event UnityEvents (**On Animation S
 | **Flip X / Flip Y** | `false` / `false` | Mirror only what is drawn, horizontally / vertically (the same idea as `SpriteRenderer.flipX`: the Transform is not negated, so children and colliders stay put) |
 | **Offset** | `(0, 0)` | Shift the drawn animation without moving the Transform (in world units) |
 | **Part Trackers** | (empty) | Settings that make a Transform follow a specified part (see [Scripting Control and Events](./usage_scripting.md)) |
-| **Pixels Per Unit (PPU)** | `1` | The number of pixels per world unit. To match Unity's sprite convention, set a value such as `100` |
-| **Shader Catalog** | (none) | A catalog of per-part AddOn / custom shaders (see [Advanced Settings](./tips.md)) |
+
+> **Pixels Per Unit** and per-part **custom shaders** are configured outside this Inspector: set PPU from the `PixelsPerUnit` script property, and register custom shaders in the AddOn catalog. See [Advanced Settings](./tips.md).
 
 ### `SpriteStudioGraphic` (Canvas UI) only
 

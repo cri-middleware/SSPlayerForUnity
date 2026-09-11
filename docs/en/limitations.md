@@ -35,6 +35,13 @@ Of the stencil buffer, this plugin uses only the low 4 bits — the range URP le
 >
 > The ceiling is only reachable when eight or more mask-influence-off masks overlap the same pixel within the same draw scope. Ordinary animations do not reach it. If yours does, merge the masks or revisit their "mask influence" settings.
 
+## Part Tracking
+
+Part Tracking (making a `Transform` follow a part) is a `SpriteStudioPlayer` (world) feature only — it is not available on `SpriteStudioGraphic` (Canvas). See [Script Control and Events](./workflow/usage_scripting.md) for the full guide.
+
+> [!NOTE]
+> **A mesh (skinned) part cannot be followed directly.** Its vertices are drawn by bone skinning while the part's own transform stays at its setup-node position — usually near the character root — so targeting it snaps the follower near the root rather than onto the visible art. Add a **NULL / bone / joint part** at that spot in SpriteStudio and follow that part instead.
+
 ## Editor & Import
 
 > [!WARNING]
@@ -49,7 +56,7 @@ Of the stencil buffer, this plugin uses only the low 4 bits — the range URP le
 
 > [!NOTE]
 > - **Playback ranges are frame-based.** `SetAnimationSection(int start, int end)` takes frame numbers; specifying a label range is not supported.
-> - **`Play()` rewinds.** To resume from the current frame use `Pause()`, which toggles pause/resume and retains the frame — `Play()` cannot be used to resume.
+> - **`Play()` rewinds.** To resume from the current frame, `Pause()` holds it and `Resume()` lifts the hold — `Play()` cannot be used to resume.
 > - **Signals materialize managed strings.** The Tick / mesh-construction loop is zero-allocation, and numeric Signal parameters are decoded into a reusable typed buffer, but part names, command ids, and string-typed parameters must still become managed strings. Animations that fire Signals in large numbers or at high frequency can therefore cause minor hitches on mobile / WebGL.
 
 ## Playback Feature Constraints

@@ -6,7 +6,7 @@
 
 ## 座標スケール（Pixels Per Unit / PPU）
 
-`SpriteStudioPlayer`（ワールド）の **Pixels Per Unit (PPU)** は、SpriteStudio のピクセル座標を Unity のワールド単位へ換算する係数です。
+`SpriteStudioPlayer`（ワールド）の **Pixels Per Unit (PPU)** は、SpriteStudio のピクセル座標を Unity のワールド単位へ換算する係数です。設定はスクリプトの `PixelsPerUnit` プロパティで行います（インスペクタには表示されません）。
 
 - 既定値 `1` … ピクセル等倍（SS のピクセル座標がそのままワールド単位）。
 - `100` など … Unity のスプライト慣習（1 ユニット = 100 px）に合わせたい場合に設定。
@@ -50,8 +50,8 @@
 
 SpriteStudio のパーツに設定された AddOn（sepia / hsb / outline / blur / pixelate / noise / wave など）に対応します。
 
-- `SpriteStudioPlayer` の **Shader Catalog** に `SpriteStudioShaderCatalog` を割り当てると、パーツ単位のシェーダ割当が有効になります。
-- 組み込み AddOn はパッケージ同梱のカタログにあらかじめ登録されています。空のままにすると、パーツ単位のシェーダ割当は無効になります。
+- 組み込み AddOn は設定不要で動作します。パッケージには既定カタログ `Runtime/Resources/SpriteStudioAddOnCatalog.asset` が同梱されており、これが自動的に解決します。
+- 独自のカスタムシェーダを追加するには、この既定カタログに登録します。アセットを選択し、SpriteStudio エディタでパーツに設定したシェーダ ID と一致する **Id Name** と、AddOn 契約（`SpriteStudioAddOn.hlsl`）に従う **Shader** を持つエントリを追加してください。**Window > SpriteStudio > Create or Update Default AddOn Catalog** メニューはカタログを組み込み AddOn から再構築するため、実行後はカスタムエントリを追加し直してください。
 - `MaterialPropertyBlock` は使用せず、`(shaderId, blend)` ごとのマテリアルプールで供給するため、**SRP Batcher を阻害しません**。
 
 > AddOn 経路は URP / Built-in の両方に対応しています。
