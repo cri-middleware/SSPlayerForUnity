@@ -928,10 +928,17 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     bool effInfluence = SpriteStudioInternalPlayer.EffectiveMaskInfluence(md, _player._inheritedMaskInfluence);
                     if (md.PureMask)
                     {
-                        byte rop = effInfluence ? StencilOpInvert : StencilOpDecr;
-                        float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
-                        _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
-                            StencilRole.Write, rop, 0, th, ref totalVertices, ref totalIndices);
+                        // The removal half of the Phase A/B pair, so it runs only for a writer Phase A
+                        // actually wrote: a switched-off or hidden pure mask writes nothing, and decrementing
+                        // (or inverting) for it would take the plane past where it started. Skipping it emits
+                        // no submesh, which is what a pure mask contributes anyway - it never draws a colour.
+                        if (_maskPlanner.IsWriterActive(p_idx))
+                        {
+                            byte rop = effInfluence ? StencilOpInvert : StencilOpDecr;
+                            float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
+                            _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                                StencilRole.Write, rop, 0, th, ref totalVertices, ref totalIndices);
+                        }
                     }
                     else
                     {
@@ -945,7 +952,10 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                             _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
                                 StencilRole.None, 0, 0, 0f, ref totalVertices, ref totalIndices);
                         }
-                        if (md.IsClipping)
+                        // Its own colour is already emitted above, whatever the mask says: a clipping part
+                        // draws either way, and only the stencil write is switched off. Phase C closes this
+                        // write off the writer list, so both halves have to agree on which writers are live.
+                        if (md.IsClipping && _maskPlanner.IsWriterActive(p_idx))
                         {
                             byte wop = effInfluence ? StencilOpInvert : StencilOpIncr;
                             float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
@@ -1077,6 +1087,9 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 if (p_idx < 0 || p_idx >= partsLength) continue;
                 var md = _player._maskPartData[p_idx];
                 if (!md.IsMaskPart) continue;
+                // Phase B for a Mask part: the removal that pairs with Phase A's write, so a writer Phase A
+                // left out - switched off with mask == 0, or hidden - must be left out here too.
+                if (!_maskPlanner.IsWriterActive(p_idx)) continue;
                 if (!_maskPlanner.MaskPartVcIc(p_idx, SsDrawBatchKind.Normal, frame, _partStates, out int mvc, out int mic)) continue;
                 // Op/plane follows the effective maskInfluence (own AND inherited); see ProcessNormalShapeMeshBatch.
                 byte rop = SpriteStudioInternalPlayer.EffectiveMaskInfluence(md, _player._inheritedMaskInfluence) ? StencilOpInvert : StencilOpDecr;
