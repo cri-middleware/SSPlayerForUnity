@@ -55,7 +55,7 @@ _player.Play();
 | `IndexGetAnimation(name)` + `AnimationPlay(track, index, …)` | `SetAnimation(name)` + `Play()` | ロードと再生開始を分離 |
 | `AnimationPlay(…, frameOffset)` | `Play(float startFrame)` | 開始フレーム指定 |
 | `AnimationStop(track)` | `Stop()` | |
-| `AnimationPause(track, true/false)` | `Pause()` | **引数なしのトグル**（一時停止／再開） |
+| `AnimationPause(track, true/false)` | `Pause()` / `Resume()` | 2つに分離。`Pause()` でフレームを保持、`Resume()` で解除（`Play()` は巻き戻り） |
 | `CursorSet/Get(track, cursor)` | `FrameNo`（get/set） | シーク。小数フレーム可 |
 | `RateTimeSet/Get(track, rate)` | `SpeedScale` | 再生速度倍率 |
 | `AnimationPlay(…, timesPlay)` | `LoopCount` | **後述のループ回数の違いに注意** |
@@ -94,7 +94,7 @@ _player.PlaybackDirection = SpriteStudioPlaybackDirection.Backward;   // 方向�
 _player.Play();
 ```
 
-> `SetAnimation()` は毎回 Forward / Normal（非往復）へ戻すため、`PlaybackDirection` / `PlaybackStyle` は **`SetAnimation()` の後**に設定してください。
+> `PlaybackDirection` / `PlaybackStyle` はクリップではなく再生そのものを表すため、`SetAnimation()` をまたいでも**保持**されます。切り替えのたびに設定し直す必要はなく、`Play()` の前に一度設定すれば十分です（切り替えで再アームされるのは再生ヘッドとループ回数のみ）。
 
 ## 4. イベント／コールバックの変更
 

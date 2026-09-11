@@ -55,7 +55,7 @@ _player.Play();
 | `IndexGetAnimation(name)` + `AnimationPlay(track, index, …)` | `SetAnimation(name)` + `Play()` | Load and start are separated |
 | `AnimationPlay(…, frameOffset)` | `Play(float startFrame)` | Start from a given frame |
 | `AnimationStop(track)` | `Stop()` | |
-| `AnimationPause(track, true/false)` | `Pause()` | **No argument — it toggles** pause/resume |
+| `AnimationPause(track, true/false)` | `Pause()` / `Resume()` | Split in two: `Pause()` holds the frame, `Resume()` lifts the hold (`Play()` rewinds) |
 | `CursorSet/Get(track, cursor)` | `FrameNo` (get/set) | Seek; fractional frames allowed |
 | `RateTimeSet/Get(track, rate)` | `SpeedScale` | Playback speed multiplier |
 | `AnimationPlay(…, timesPlay)` | `LoopCount` | **See the loop-count difference below** |
@@ -90,11 +90,11 @@ In SS6Player you reversed playback by passing a negative `rateTime`. In this ver
 // Current version:
 _player.SetAnimation("walk");
 _player.SpeedScale = 2.0f;   // speed is a positive multiplier
-_player.PlaybackDirection = SpriteStudioPlaybackDirection.Backward;
+_player.PlaybackDirection = SpriteStudioPlaybackDirection.Backward;   // direction is an enum
 _player.Play();
 ```
 
-> `SetAnimation()` resets to Forward / Normal (non-ping-pong) every time, so set `PlaybackDirection` / `PlaybackStyle` **after** `SetAnimation()`.
+> `PlaybackDirection` / `PlaybackStyle` describe the playback rather than the clip, so they **survive** `SetAnimation()` — set them once (before `Play()`), not after every switch. A switch only re-arms the playhead and the loop budget.
 
 ## 4. Events and Callbacks
 

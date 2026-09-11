@@ -6,7 +6,7 @@ This page covers settings for adjusting display and performance, along with more
 
 ## Coordinate Scale (Pixels Per Unit / PPU)
 
-The **Pixels Per Unit (PPU)** of `SpriteStudioPlayer` (world) is the factor that converts SpriteStudio's pixel coordinates into Unity's world units.
+The **Pixels Per Unit (PPU)** of `SpriteStudioPlayer` (world) is the factor that converts SpriteStudio's pixel coordinates into Unity's world units. Set it from the `PixelsPerUnit` script property — it is not shown in the Inspector.
 
 - Default value `1` … pixel-to-unit 1:1 (SS pixel coordinates map directly to world units).
 - `100`, etc. … set this when you want to match Unity's sprite convention (1 unit = 100 px).
@@ -50,8 +50,8 @@ This plugin's Tick / mesh construction loop produces no GC allocations (it reuse
 
 Supports AddOns set on SpriteStudio parts (sepia / hsb / outline / blur / pixelate / noise / wave, etc.).
 
-- Assigning a `SpriteStudioShaderCatalog` to the **Shader Catalog** of `SpriteStudioPlayer` enables per-part shader assignment.
-- The built-in AddOns are pre-registered in the catalog bundled with the package. Leaving it empty disables per-part shader assignment.
+- The built-in AddOns are pre-registered and need no setup: the package ships a default catalog at `Runtime/Resources/SpriteStudioAddOnCatalog.asset` that resolves them automatically.
+- To add a custom shader, register it in that default catalog — select the asset and add an entry whose **Id Name** matches the shader id set on the part in the SpriteStudio editor, with a **Shader** that follows the AddOn contract (`SpriteStudioAddOn.hlsl`). The **Window > SpriteStudio > Create or Update Default AddOn Catalog** menu rebuilds the catalog from the built-in AddOns, so re-add custom entries after running it.
 - It does not use `MaterialPropertyBlock`; instead it supplies materials from a material pool keyed by `(shaderId, blend)`, so it **does not obstruct the SRP Batcher**.
 
 > The AddOn path supports both URP / Built-in.
