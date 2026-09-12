@@ -1,4 +1,4 @@
-[**日本語**](./README.ja.md) | [**English**](./README.md)
+[**English**](./README.md) | [**日本語**](./README.ja.md)
 
 # SpriteStudioPlayer for Unity
 
@@ -21,7 +21,7 @@ A high-performance plugin for playing back animations (`.ssab`) created with **[
 
 ## 📚 Documentation
 
-For detailed instructions, please refer to the documents in the `docs/` folder. The documentation is structured step-by-step according to the reader's needs.
+For detailed instructions, see the documents in the `docs/` folder — structured step by step, and where the data-flow diagram, key features and system requirements live.
 
 - [**Documentation site (hosted)**](https://cri-middleware.github.io/SSPlayerForUnity/) — 🚧 live after the first release
 - [**Documentation (English)**](./docs/en/index.md)
@@ -64,12 +64,6 @@ The SDK's other four test projects (`overall`, `allAttributeV7`, `allPartsV7`, `
 
 For advanced setups like compiling from source or modifying the package, please refer to the [Installation Guide](./docs/en/setup/install.md).
 
-## 💡 Overview
-
-This plugin features a **powerful asset pipeline that seamlessly integrates SpriteStudio and the Unity Editor**, enabling automatic conversion and instant updates of your assets.
-
-For details such as data flow diagrams, key features, and system requirements, please refer to the **[Documentation (English)](./docs/en/index.md)**.
-
 ## 🎬 Samples
 
 Sample projects are available under the [examples folder](./examples/).
@@ -80,7 +74,9 @@ Sample projects are available under the [examples folder](./examples/).
 
 ## 🔗 Related Repositories
 
-- [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — The core SDK providing `libssruntime` and `libssconverter`.
+- [SpriteStudio Docs](https://cri-middleware.github.io/SpriteStudio-Docs/) — the portal for the SDK and every official player
+- [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — the core SDK providing `libssruntime` and `libssconverter`
+- [SSConverterGUI](https://github.com/cri-middleware/SSConverterGUI) — desktop GUI for converting `.sspj` without a player
 
 ## 📄 License
 
