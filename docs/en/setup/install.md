@@ -16,7 +16,7 @@ All dependent packages are standard Unity packages, so Package Manager resolves 
 
 The project template you start from can be **either 2D or 3D**. What this package requires is that the render pipeline is URP or Built-in, not a particular template (URP is verified with the **Universal Renderer** setup).
 
-> **If you are asked to restart during installation:** when the Burst dependency is updated, Unity may show a **Burst Package Update Detected** dialog. This is not an error specific to this package — choose **Restart Now** to restart the editor.
+> **If you are asked to restart during installation:** if the Burst version in your project changes while the editor is running, Unity shows a **Burst Package Update Detected** dialog. This is not an error specific to this package — restart the editor (**Restart Now**, or **OK** and then restart it yourself, depending on the Burst version). Burst compilation stays shut down until you do, which makes playback far slower.
 
 ---
 
