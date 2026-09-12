@@ -1629,6 +1629,12 @@ examples/SampleProject/Assets/ssab_generated/**
 # to uncommitted payloads stay ignored by the rule above.
 !examples/SampleProject/Assets/*.meta
 
+# examples/UnityTestProject is the scratch project, so whatever it converts is that developer's,
+# not the repository's - nothing under its Assets/ is committed but .gitkeep and the one Editor
+# script. Its source map is already ignored by the rule above; this is the payload half of the
+# same decision, and without it every local import shows up as untracked noise.
+examples/UnityTestProject/Assets/ssab_generated/
+
 
 # Test Results
 *test-results.xml
@@ -1649,3 +1655,11 @@ site/
 # the directory keeps the checksums out too, and keeps both findable next to the
 # script that makes them.
 /release-dist/
+
+# AI assistant configuration
+# AGENTS.md is the tracked canonical guide; per-tool entrypoints that developers
+# symlink to it (e.g. CLAUDE.md) stay local.
+GEMINI.md
+.gemini/
+CLAUDE.md
+.claude/
