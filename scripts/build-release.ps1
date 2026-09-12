@@ -17,7 +17,8 @@
 # There are two checks and they catch different things.
 #
 #   Before packing: every plugin directory has native libraries, every one of
-#   them has a committed .meta, and both FFI bindings and their .meta are
+#   them has a committed .meta, every other committed asset under package/ has
+#   one too, and both FFI bindings and their .meta are
 #   present. A UPM package is extracted into an immutable folder, so Unity
 #   ignores any asset without a .meta -- a lib whose .meta was never committed
 #   installs as nothing at all, silently, and CI has no Unity to generate one.
@@ -289,6 +290,44 @@ if ($verify -eq "yes") {
         if (-not (Test-Path "$binding.meta"))  { $failed.Add("missing .meta for FFI binding: $relative.meta") }
     }
     if ($failed.Count -eq 0) { Write-Host "   both FFI bindings present, with their .meta" }
+
+    # The two checks above cover the assets that arrive from outside git -- the
+    # native libs and the generated bindings. Everything else in the package is
+    # committed, and needs a committed .meta for exactly the same reason: a .cs,
+    # an .asmdef, a shader, a folder. Nothing looked at those, which is how
+    # SpriteStudioPlayback.cs came to ship as nothing -- 45 tracked .cs files and
+    # 44 tracked .cs.meta, invisible to everyone whose Unity had already
+    # generated it. Asked of git rather than the working tree on purpose: Unity
+    # writes a .meta the moment the asset appears locally, so the file is right
+    # in front of whoever added it and missing for everyone who installs the
+    # tarball.
+    & git -C $rootFull rev-parse --git-dir *> $null
+    if ($LASTEXITCODE -eq 0) {
+        $tracked = @(& git -C $rootFull ls-files package/)
+        $needMeta = [System.Collections.Generic.List[string]]::new()
+        foreach ($entry in $tracked) {
+            if ($entry -notlike '*.meta') { $needMeta.Add($entry) }
+        }
+        foreach ($directory in ($tracked | ForEach-Object { Split-Path $_ -Parent } |
+                                ForEach-Object { $_ -replace '\\', '/' } |
+                                Sort-Object -Unique)) {
+            if ($directory -and $directory -ne 'package') { $needMeta.Add($directory) }
+        }
+        $trackedSet = [System.Collections.Generic.HashSet[string]]::new([string[]]$tracked)
+        $assetMetaMissing = 0
+        foreach ($path in $needMeta) {
+            if ($trackedSet.Contains("$path.meta")) { continue }
+            $failed.Add("committed asset has no committed .meta: $path")
+            $assetMetaMissing++
+        }
+        if ($assetMetaMissing -eq 0) {
+            Write-Host "   every committed asset under package/ has a committed .meta"
+        } else {
+            $failed.Add("$assetMetaMissing asset(s) missing a committed .meta -- git add them")
+        }
+    } else {
+        Write-Host "   not a git checkout: skipping the committed-.meta check"
+    }
 
     if ($failed.Count -gt 0) {
         Write-Host ""

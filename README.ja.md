@@ -1,4 +1,4 @@
-[**日本語**](./README.ja.md) | [**English**](./README.md)
+[**English**](./README.md) | [**日本語**](./README.ja.md)
 
 # SpriteStudioPlayer for Unity
 
@@ -21,7 +21,7 @@
 
 ## 📚 ドキュメント
 
-詳細な使い方は `docs/` フォルダ内のドキュメントを参照してください。読者の目的に合わせて、段階的に情報を整理しています。
+詳細な使い方は `docs/` フォルダ内のドキュメントにあります。目的に合わせて段階的に整理してあり、データフロー図・主な機能・対応環境もそちらです。
 
 - [**ドキュメントサイト (ホスト版)**](https://cri-middleware.github.io/SSPlayerForUnity/ja/) — 🚧 初回リリース後に公開
 - [**ドキュメント (日本語)**](./docs/ja/index.md)
@@ -63,12 +63,6 @@ SDK の残り 4 本（`overall` / `allAttributeV7` / `allPartsV7` / `ParticleEff
 
 カスタマイズを目的とした導入手順（手動ビルド等）の詳細は [インストールガイド](./docs/ja/setup/install.md) を参照してください。
 
-## 💡 概要 (Overview)
-
-本プラグインは、**SpriteStudio と Unity エディタをシームレスに行き来できる強力なアセットパイプライン**を備え、アセットの自動変換・更新が可能です。
-
-データフロー図、主な機能、対応環境などの詳細は **[ドキュメント (日本語)](./docs/ja/index.md)** を参照してください。
-
 ## 🎬 サンプル
 
 [examples フォルダ](./examples/) にサンプルプロジェクトがあります。
@@ -79,7 +73,9 @@ SDK の残り 4 本（`overall` / `allAttributeV7` / `allPartsV7` / `ParticleEff
 
 ## 🔗 関連リポジトリ
 
+- [SpriteStudio Docs](https://cri-middleware.github.io/SpriteStudio-Docs/ja/) — SDK と全公式 Player のドキュメントポータル
 - [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — `libssruntime` / `libssconverter` を提供する SDK 本体
+- [SSConverterGUI](https://github.com/cri-middleware/SSConverterGUI) — Player なしで `.sspj` を変換できるデスクトップ GUI
 
 ## 📄 ライセンス (License)
 

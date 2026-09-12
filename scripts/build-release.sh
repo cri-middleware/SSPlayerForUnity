@@ -19,7 +19,8 @@
 # There are two checks and they catch different things.
 #
 #   Before packing: every plugin directory has native libraries, every one of
-#   them has a committed .meta, and both FFI bindings and their .meta are
+#   them has a committed .meta, every other committed asset under package/ has
+#   one too, and both FFI bindings and their .meta are
 #   present. A UPM package is extracted into an immutable folder, so Unity
 #   ignores any asset without a .meta -- a lib whose .meta was never committed
 #   installs as nothing at all, silently, and CI has no Unity to generate one.
@@ -256,6 +257,21 @@ native_libs () {
     -not -path '*.bundle/*' -not -path '*.xcframework/*'
 }
 
+# Every committed path under package/ that Unity needs a .meta for, and does not
+# have one committed beside it. Asked of git rather than the working tree, which
+# is the whole point: Unity writes a .meta the moment the asset appears locally,
+# so the file is right in front of whoever added it and missing for everyone who
+# installs the tarball. Directories count -- Unity needs a .meta for those too.
+assets_without_meta () {
+  {
+    git -C "$ROOT_DIR" ls-files package/ | grep -v '\.meta$'
+    git -C "$ROOT_DIR" ls-files package/ | xargs -n1 dirname | sort -u | grep -v '^package$'
+  } | while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    git -C "$ROOT_DIR" ls-files --error-unmatch "$path.meta" >/dev/null 2>&1 || echo "$path"
+  done
+}
+
 if [ "$VERIFY" = "yes" ]; then
   step "checking the package tree"
 
@@ -302,6 +318,30 @@ EOF
     [ -f "$f.meta" ]   || fail "missing .meta for FFI binding: ${f#"$ROOT_DIR"/}.meta"
   done
   [ -n "$FAILED" ] || echo "   both FFI bindings present, with their .meta"
+
+  # The two checks above cover the assets that arrive from outside git -- the
+  # native libs and the generated bindings. Everything else in the package is
+  # committed, and needs a committed .meta for exactly the same reason: a .cs, an
+  # .asmdef, a shader, a folder. Nothing looked at those, which is how
+  # SpriteStudioPlayback.cs came to ship as nothing -- 45 tracked .cs files and 44
+  # tracked .cs.meta, invisible to everyone whose Unity had already generated it.
+  if git -C "$ROOT_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+    asset_meta_missing=0
+    while IFS= read -r asset; do
+      [ -n "$asset" ] || continue
+      fail "committed asset has no committed .meta: $asset"
+      asset_meta_missing=$((asset_meta_missing + 1))
+    done <<EOF
+$(assets_without_meta)
+EOF
+    if [ "$asset_meta_missing" -eq 0 ]; then
+      echo "   every committed asset under package/ has a committed .meta"
+    else
+      fail "$asset_meta_missing asset(s) missing a committed .meta -- git add them"
+    fi
+  else
+    echo "   not a git checkout: skipping the committed-.meta check"
+  fi
 
   if [ -n "$FAILED" ]; then
     echo "" >&2
