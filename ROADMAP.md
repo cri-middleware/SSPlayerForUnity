@@ -23,6 +23,34 @@ items marked **needs SDK** wait on a runtime capability from there.
 - [ ] Runtime material / texture override — swap the material or texture for a texture key at runtime.
 - [ ] Per-part colliders — auto-sized 2D / 3D colliders that follow parts, with enter / stay / exit callbacks.
 
+## UI integration
+
+Behaving like a UI element in the host's UI system, not merely drawing inside one. The vocabulary is shared
+with the sibling Players: `fit` / `align` for placement, a part rect read-out for hit areas, and a UI-state map.
+
+- [ ] Layout-aware `SpriteStudioGraphic` — fit the animation into the `RectTransform` rect (`fit` =
+  `contain` / `cover` / `none`, with `align`), and implement `ILayoutElement` so a `LayoutGroup` or
+  `ContentSizeFitter` can size it from the animation's content box. The Canvas path draws at authored pixel
+  size in the rect's local space and never reads `rectTransform`, so resizing the rect changes nothing today.
+- [ ] Part rect read-out — `TryGetPartRect(part, out Rect)` in player-local space, built from the `PartState`
+  fields the runtime already delivers every frame (`size_x` / `size_y`, `anchor`, `pivot`) and the part
+  transform. Also what per-part colliders above need, so build it once and share it.
+- [ ] Per-part hit testing — `HitTestPart(Vector2)` plus a `Graphic.Raycast` override that answers from part
+  rects rather than the whole `RectTransform`, so an irregularly shaped button stops eating clicks around its
+  artwork and a transparent margin lets the control behind it through.
+- [ ] UI state binding — a component that drives the player from `Selectable` state (normal / highlighted /
+  pressed / selected / disabled), each mapped to an animation or a label. Without it every project rewrites
+  the same `IPointerEnterHandler` glue.
+- [ ] The two part kinds authored for UI, neither of which draws today — `SpriteStudioGeometryBuilder.cs:474`
+  takes Normal / Shape / Mesh and drops `Nines` and `Text` on the floor. **Nines** is the cheap one: the
+  runtime hands over finished vertices, so it is a geometry path and nothing more. **Text** arrives as a
+  batch with no geometry plus the authored string — map it onto TextMeshPro rather than growing a glyph
+  atlas here, and allow substituting the string at runtime so a UI label can be localized.
+- [ ] `SpriteStudioVisualElement` for UI Toolkit — uGUI and UI Toolkit are separate systems, and everything
+  above reaches only the former.
+- [ ] Multi-atlas on the Canvas path — one `CanvasRenderer` is one mesh and one material, so the graphic draws
+  the first atlas only and warns. A UI screen is exactly where several atlases meet.
+
 ## Needs SDK
 
 Wait on a runtime capability from the SDK roadmap.
@@ -31,6 +59,11 @@ Wait on a runtime capability from the SDK roadmap.
 - [ ] Crowd / mesh sharing — render one shared evaluation at many transforms.
 - [ ] Multi-track playback — layered per-part animation with crossfade transitions.
 - [ ] Runtime instance swap — change the animation mounted on an Instance part at runtime.
+- [ ] Stretch a 9-slice part to a layout rect — drawing one at all is the UI-integration item above; this is
+  the step after it. The runtime evaluates the part's size from its keyframes and hands over finished
+  vertices, and the Override Layer covers color / cell / visibility only, so nothing can resize one from the
+  host — a UI panel that cannot follow its container is a picture of a panel. Waits on the SDK roadmap's
+  **Per-part size override** (Phase 3).
 
 ## Documentation
 
