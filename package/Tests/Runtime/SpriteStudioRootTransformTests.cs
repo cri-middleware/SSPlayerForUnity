@@ -8,7 +8,7 @@ namespace SpriteStudio.Runtime.Tests
     /// <summary>
     /// FlipX / FlipY / Offset are folded into the vertex positions rather than onto the GameObject's
     /// Transform, so they have two consumers that must agree: the Burst mesh job, and
-    /// <see cref="SpriteStudioInternalPlayer.TryGetPartLocalMatrix"/>, which is what drives part trackers.
+    /// <see cref="SpriteStudioInternalPlayer.TryGetPartTransform"/>, which is what drives part trackers.
     /// If those ever drift apart, a tracker silently detaches from the part it is pinned to the moment the
     /// player is flipped — which is the bug these tests exist to prevent.
     /// </summary>
@@ -65,7 +65,7 @@ namespace SpriteStudio.Runtime.Tests
                 partMatrix = Matrix4x4.identity;
                 if (samplePart >= 0)
                 {
-                    Assert.IsTrue(player.TryGetPartLocalMatrix(samplePart, out partMatrix),
+                    Assert.IsTrue(player.TryGetPartTransform(samplePart, out partMatrix),
                         $"part {samplePart} should resolve in every build");
                     partIndex = samplePart;
                 }
@@ -73,7 +73,7 @@ namespace SpriteStudio.Runtime.Tests
                 {
                     for (int i = 0; i < 64; i++)
                     {
-                        if (!player.TryGetPartLocalMatrix(i, out Matrix4x4 m)) continue;
+                        if (!player.TryGetPartTransform(i, out Matrix4x4 m)) continue;
                         if (Mathf.Abs(m.m03) > 1e-3f && Mathf.Abs(m.m13) > 1e-3f)
                         {
                             partIndex = i;

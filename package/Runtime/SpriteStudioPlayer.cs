@@ -544,7 +544,6 @@ namespace SpriteStudio.Runtime
         /// <summary>Clear every per-part override on this player.</summary>
         public bool ClearAllPartOverrides() => _core.Internal?.ClearAllPartOverrides() ?? false;
 
-        /// <summary>Names of the cellmaps in the loaded asset (for discovering cell-override targets).</summary>
         /// <summary>
         /// Part names in part-index order, empty before an <see cref="AnimeAsset"/> is set up.
         /// <para>
@@ -555,6 +554,7 @@ namespace SpriteStudio.Runtime
         /// </summary>
         public string[] GetPartNames() => _core.Internal?.GetPartNames() ?? System.Array.Empty<string>();
 
+        /// <summary>Names of the cellmaps in the loaded asset (for discovering cell-override targets).</summary>
         public string[] GetCellmapNames() => _core.Internal?.GetCellmapNames() ?? System.Array.Empty<string>();
 
         /// <summary>Names of the cells in the named cellmap (for discovering cell-override targets).</summary>
@@ -905,7 +905,7 @@ namespace SpriteStudio.Runtime
                     continue;
                 }
 
-                if (!internalPlayer.TryGetPartLocalMatrix(partIndex, out Matrix4x4 partLocal)) continue;
+                if (!internalPlayer.TryGetPartTransform(partIndex, out Matrix4x4 partLocal)) continue;
 
                 // Re-activate if it was auto-deactivated (absent / hidden) on a previous frame.
                 if (!tracker.target.gameObject.activeSelf) tracker.target.gameObject.SetActive(true);
@@ -1023,12 +1023,12 @@ namespace SpriteStudio.Runtime
         /// the rotation once the scale is dropped.
         /// </para>
         /// </remarks>
-        public bool TryGetPartLocalMatrix(string partName, out Matrix4x4 matrix)
+        public bool TryGetPartTransform(string partName, out Matrix4x4 matrix)
         {
             matrix = Matrix4x4.identity;
             if (_core.Internal == null) return false;
             int idx = _core.Internal.FindPartIndex(partName);
-            return idx >= 0 && _core.Internal.TryGetPartLocalMatrix(idx, out matrix);
+            return idx >= 0 && _core.Internal.TryGetPartTransform(idx, out matrix);
         }
 
         /// <summary>Force part trackers to re-resolve their part index (call after the asset/part set changes).</summary>

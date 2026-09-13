@@ -303,9 +303,9 @@ player.UnregisterPartTracker(weapon.transform);
 | `RegisterPartTracker(partName, target, driveScale, onHide, drivePosition, driveRotation)` | トラッカーを追加し、作成されたエントリを返す（末尾 4 つは省略可。`drivePosition` / `driveRotation` は既定 ON、`driveScale` は既定 OFF） |
 | `UnregisterPartTracker(target)` | その `Transform` を対象とするエントリをすべて削除し、削除件数を返す |
 | `TryGetPartHidden(partName, out bool hidden)` | そのパーツが現在フレームで hide かを取得。パーツが不明なら `false` を返す |
-| `TryGetPartLocalMatrix(partName, out Matrix4x4 matrix)` | そのパーツの現在フレームの変換行列（プレイヤーローカル、`1 / PixelsPerUnit` 適用済み）を取得 |
+| `TryGetPartTransform(partName, out Matrix4x4 matrix)` | そのパーツの現在フレームの変換行列（プレイヤーローカル、`1 / PixelsPerUnit` 適用済み）を取得 |
 
-> `Transform` を常時追従させるまでもなく「その瞬間のパーツ位置だけ知りたい」場合（弾の発射位置を取るなど）は、トラッカーを登録せず `TryGetPartLocalMatrix()` を直接呼ぶ方が簡潔です。
+> `Transform` を常時追従させるまでもなく「その瞬間のパーツ位置だけ知りたい」場合（弾の発射位置を取るなど）は、トラッカーを登録せず `TryGetPartTransform()` を直接呼ぶ方が簡潔です。
 
 ### 反転が絡むときの制約
 
@@ -313,7 +313,7 @@ player.UnregisterPartTracker(weapon.transform);
 
 **位置は常に正確です。** 影響を受けるのは向きと、ターゲット自身が鏡像化されるかどうかだけです。
 
-- **`TryGetPartLocalMatrix()` の戻り値から `matrix.rotation` / `matrix.lossyScale` を直接読まないでください。** 姿勢が鏡像のとき `Quaternion` はそれを表現できないため、これらは**未定義の値**を返します（精度の問題ではなく無意味な値です）。読む前に `matrix.determinant` の符号を確認してください。位置が欲しいだけなら第 4 列をそのまま使えます。
+- **`TryGetPartTransform()` の戻り値から `matrix.rotation` / `matrix.lossyScale` を直接読まないでください。** 姿勢が鏡像のとき `Quaternion` はそれを表現できないため、これらは**未定義の値**を返します（精度の問題ではなく無意味な値です）。読む前に `matrix.determinant` の符号を確認してください。位置が欲しいだけなら第 4 列をそのまま使えます。
 - **符号は仮定できません。** 鏡像かどうかは「パーツやその親に付いた反転」と「`FlipX` / `FlipY`」の**積**で決まります。反転が 2 つ重なれば打ち消し合って正に戻るため、元から反転しているパーツを `FlipX` すると行列式は**正**になります。「反転していないから正」とも「`FlipX` したから負」とも言えません。毎回確認してください。
 - **`Drive Scale` が OFF（既定）のターゲットには鏡像が届きません。** 鏡像は負のスケールとしてしか表せないためです。結果としてターゲット自身は反転せず、さらに **`FlipX`（左右反転）では向きに 180 度の差が残ります**。`FlipY`（上下反転）では残りません。左右と上下で挙動が違うのは、鏡像を「回転＋負のスケール」に分解する際、符号を Y 軸側に載せる規約を採っているためです。左右の鏡像はこの形に直すのに余分な 180 度回転を必要とし、それが回転側に残ります。
 - **`Drive Scale` を ON にすると鏡像は届きますが、負のスケールには副作用があります。** とくに **コライダーは負のスケールを反映しません**（PhysX の制約）。絵は反転しているのに当たり判定だけ元のまま、という状態になり、警告も出ません。パーティクルや 3D メッシュの子では、シミュレーション空間や面の向きにも影響します。

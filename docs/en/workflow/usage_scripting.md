@@ -303,9 +303,9 @@ player.UnregisterPartTracker(weapon.transform);
 | `RegisterPartTracker(partName, target, driveScale, onHide, drivePosition, driveRotation)` | Adds a tracker and returns the created entry (the last four are optional; `drivePosition` / `driveRotation` default on, `driveScale` off) |
 | `UnregisterPartTracker(target)` | Removes every entry targeting that `Transform` and returns the number removed |
 | `TryGetPartHidden(partName, out bool hidden)` | Whether the part is hidden on the current frame. Returns `false` if the part is unknown |
-| `TryGetPartLocalMatrix(partName, out Matrix4x4 matrix)` | The part's transform for the current frame (player-local, with `1 / PixelsPerUnit` already folded in) |
+| `TryGetPartTransform(partName, out Matrix4x4 matrix)` | The part's transform for the current frame (player-local, with `1 / PixelsPerUnit` already folded in) |
 
-> When you only need the part's position at a single moment (a projectile spawn point, for example) rather than continuous following, calling `TryGetPartLocalMatrix()` directly is simpler than registering a tracker.
+> When you only need the part's position at a single moment (a projectile spawn point, for example) rather than continuous following, calling `TryGetPartTransform()` directly is simpler than registering a tracker.
 
 ### What mirroring costs you
 
@@ -313,7 +313,7 @@ Once a part's pose is **mirrored**, part of it stops fitting into a `Transform`.
 
 **Position is always exact.** What suffers is orientation, and whether the target is mirrored at all.
 
-- **Do not read `matrix.rotation` or `matrix.lossyScale` off what `TryGetPartLocalMatrix()` returns.** A `Quaternion` cannot represent a mirrored pose, so both are **undefined** there — the values are meaningless, not merely imprecise. Check the sign of `matrix.determinant` first. If you only want the position, column 3 is fine as it is.
+- **Do not read `matrix.rotation` or `matrix.lossyScale` off what `TryGetPartTransform()` returns.** A `Quaternion` cannot represent a mirrored pose, so both are **undefined** there — the values are meaningless, not merely imprecise. Check the sign of `matrix.determinant` first. If you only want the position, column 3 is fine as it is.
 - **Never assume that sign.** Whether a pose is mirrored is the *product* of any mirroring authored on the part or its ancestors and the player's `FlipX` / `FlipY`. Two mirrorings cancel, so a part that is already mirrored comes back with a **positive** determinant once you flip the player. Neither "no flip, so it is positive" nor "flipped, so it is negative" holds. Check every time.
 - **A target with `Drive Scale` off (the default) never receives the mirroring**, because a mirror can only be expressed as a negative scale. The target itself stays unmirrored, and **`FlipX` additionally leaves its orientation 180 degrees away**; `FlipY` does not. The two axes differ because the decomposition into rotation plus negative scale puts the sign on the Y axis: expressing a horizontal mirror that way costs an extra 180-degree rotation, and that is what survives in the rotation.
 - **Turning `Drive Scale` on delivers the mirroring, but a negative scale has side effects in Unity.** Colliders in particular **do not honour negative scale** (a PhysX limitation), so the artwork mirrors while the hitbox stays as it was, silently. Particles and 3D mesh children are affected too, through simulation space and face winding.

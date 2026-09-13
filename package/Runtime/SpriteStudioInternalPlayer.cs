@@ -68,7 +68,7 @@ namespace SpriteStudio.Runtime
 
         /// <summary>
         /// <see cref="VertexScale"/> resolved per axis, negated on each flipped axis. This is the one place the
-        /// flip is turned into numbers: both the mesh job and <see cref="TryGetPartLocalMatrix"/> read it, so a
+        /// flip is turned into numbers: both the mesh job and <see cref="TryGetPartTransform"/> read it, so a
         /// part tracker cannot drift away from the geometry it is supposed to be pinned to.
         /// </summary>
         internal Vector2 RootScale => new Vector2(FlipX ? -VertexScale : VertexScale,
@@ -761,7 +761,7 @@ internal struct MaskPartData
         }
 
         /// <summary>
-        /// Whether the given part is a bone-skinned mesh. Its own transform (what <see cref="TryGetPartLocalMatrix"/>
+        /// Whether the given part is a bone-skinned mesh. Its own transform (what <see cref="TryGetPartTransform"/>
         /// and part tracking read) is the setup/parent node, not where the skinned vertices draw, so a tracker
         /// pinned to it lands off the visible art — track a null / bone-point (bone or joint) part instead.
         /// Returns false (with <paramref name="isSkinnedMesh"/> = false) when the index is out of range or nothing
@@ -812,7 +812,7 @@ internal struct MaskPartData
         /// without making the basis proper first; a quaternion cannot hold a reflection.
         /// </para>
         /// </summary>
-        public bool TryGetPartLocalMatrix(int partIndex, out Matrix4x4 matrix)
+        public bool TryGetPartTransform(int partIndex, out Matrix4x4 matrix)
         {
             matrix = Matrix4x4.identity;
             if (partIndex < 0) return false;
