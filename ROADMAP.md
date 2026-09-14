@@ -14,8 +14,18 @@ items marked **needs SDK** wait on a runtime capability from there.
 - [x] Events — animation finished / looped, user data, signal, audio.
 - [x] Flip / offset — mirror or shift what the player draws without moving the Transform, so children and
   colliders stay put. World renderer only so far; `SpriteStudioGraphic` (uGUI) does not expose them yet.
-- [ ] Label / frame-range / index playback — play a named label range with a start offset, and play by animation index.
+- [ ] Label playback — play a named label range with a start offset. `SetAnimationSection` takes frame
+  numbers only, so a label the animation already carries cannot be named from the host.
 - [ ] Player-level tint / opacity and a custom delta-time hook (per-player slow-motion / pause groups).
+- [ ] Multi-track playback — layered per-part animation with crossfade transitions. The runtime side is
+  done: the SDK's track stack ships, and its FFI (`ss_runtime_crossfade` / `set_track_animation` /
+  `track_add_source` / `fade_track`) is generated into `package/Runtime/Bindings/` with no C# caller. What
+  is left is the Player surface on top of it.
+- [ ] Per-player effect seed — an effect part is created with a seed derived from its part index and the
+  effect name (`SpriteStudioInternalPlayer.cs:513`), so every player built from the same asset draws the
+  identical particle pattern. Vary it per player instance, behind a serialized seed field (0 = pick one)
+  so a run stays reproducible. The seed is already an `ss_effect_slot_create` argument and the runtime
+  honours an authored `is_lock_rand_seed` ahead of it, so the work is Player-side only.
 
 ## Parts & materials
 
@@ -57,8 +67,9 @@ Wait on a runtime capability from the SDK roadmap.
 
 - [ ] Sequence playback — play `.ssqb` playlists with step control.
 - [ ] Crowd / mesh sharing — render one shared evaluation at many transforms.
-- [ ] Multi-track playback — layered per-part animation with crossfade transitions.
-- [ ] Runtime instance swap — change the animation mounted on an Instance part at runtime.
+- [ ] Runtime instance swap — change the animation mounted on an Instance part at runtime. Waits on the
+  SDK roadmap's **Instance Lifecycle API** (Phase 3), which builds it on the shared resource registry the
+  same item introduces.
 - [ ] Stretch a 9-slice part to a layout rect — drawing one at all is the UI-integration item above; this is
   the step after it. The runtime evaluates the part's size from its keyframes and hands over finished
   vertices, and the Override Layer covers color / cell / visibility only, so nothing can resize one from the
