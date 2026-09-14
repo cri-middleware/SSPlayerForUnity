@@ -164,7 +164,7 @@ namespace SpriteStudio.Runtime.Tests
             for (int a = 0; a < animCount; a++)
             {
                 string animName = ip.GetAnimationName(a);
-                if (string.IsNullOrEmpty(animName) || !core.SetAnimation(animName, "ClippingMaskTest")) continue;
+                if (string.IsNullOrEmpty(animName) || !core.SetAnimation(animName, null)) continue;
                 core.Play(0f);
                 for (int f = 0; f < 8; f++)
                 {
