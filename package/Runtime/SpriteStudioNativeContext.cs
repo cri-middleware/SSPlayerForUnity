@@ -60,7 +60,7 @@ namespace SpriteStudio.Runtime
                 // Release order matters: the old _resourceHandle and runtime borrow "the old pin's
                 // address". Freeing the old pin first would leave the borrow dangling, so always do it
                 // in the order:
-                //   destroy old resource -> Free old pin -> Alloc new pin -> create new resource -> load into runtime.
+                //   destroy old resource -> Free old pin -> Alloc new pin -> create new resource -> bind it.
                 // This path is also called on a reload (runtime asset swap), so it assumes the caller
                 // (SpriteStudioInternalPlayer.LoadSsab) has already Complete()d in-flight Jobs
                 // (no Job reading the old buffer is still running).
@@ -79,8 +79,15 @@ namespace SpriteStudio.Runtime
                 _ssabPin = GCHandle.Alloc(ssabData, GCHandleType.Pinned);
 
                 byte* ptr = (byte*)_ssabPin.AddrOfPinnedObject();
+                // Parse once, then bind that same resource. `ss_runtime_load_ssab_borrow` would parse the
+                // buffer a SECOND time -- it creates a resource of its own, binds it and drops its handle --
+                // and the parse is where every animation's metadata is built, so on a large pack it is not
+                // cheap. We need the handle anyway: `ss_effect_slot_create` takes it, and Dispose releases
+                // it. Binding clones the reference into the context, so both stay alive until each is
+                // released. A null resource (the pack's schema version is not one this runtime reads) binds
+                // nothing and returns false; SetupSlots sees the null handle and reports the failed load.
                 _resourceHandle = NativeMethods.ss_resource_create_borrow(ptr, (nuint)ssabData.Length);
-                NativeMethods.ss_runtime_load_ssab_borrow(_handle.ptr, ptr, (nuint)ssabData.Length);
+                NativeMethods.ss_runtime_bind_resource(_handle.ptr, _resourceHandle);
             }
         }
 
