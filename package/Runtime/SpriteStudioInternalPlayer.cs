@@ -1159,6 +1159,34 @@ internal struct MaskPartData
         }
         #endregion
 
+        /// <summary>
+        /// Why the last native call that tracks a reason failed, or null when it succeeded.
+        /// <para>
+        /// The runtime's own wording, not a code. It is for reporting, not for branching: branching would
+        /// mean hard-coding the integers from <c>SSRuntimeError::as_code</c>, which the C ABI publishes as a
+        /// compatibility surface but exports no constants for (unlike <c>SS_RUNTIME_TRACK_BLEND_*</c>).
+        /// </para>
+        /// <para>
+        /// Read it straight after the call that returned false — it describes the LAST failure, not a log.
+        /// The pointer is a static string in the runtime, so there is nothing to free and nothing to outlive.
+        /// </para>
+        /// </summary>
+        internal string LastErrorMessage
+        {
+            get
+            {
+                if (!_handle.IsValid) return null;
+                unsafe
+                {
+                    int code = NativeMethods.ss_runtime_get_last_error(_handle.ptr);
+                    if (code == 0) return null;
+                    var text = System.Runtime.InteropServices.Marshal.PtrToStringUTF8(
+                        (IntPtr)NativeMethods.ss_runtime_error_message(code));
+                    return string.IsNullOrEmpty(text) ? null : text;
+                }
+            }
+        }
+
         public bool SetupAnimation(string animationName)
         {
             if (!_handle.IsValid || string.IsNullOrEmpty(animationName)) return false;
