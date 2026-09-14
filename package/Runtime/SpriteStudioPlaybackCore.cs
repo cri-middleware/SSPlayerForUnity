@@ -145,8 +145,14 @@ namespace SpriteStudio.Runtime
                     _reportedMissingAnimation = animationName;
                     string pack = _loadedAsset != null ? _loadedAsset.name : "the loaded pack";
                     string who = context != null ? context.GetType().Name : nameof(SpriteStudioPlaybackCore);
+                    // The runtime's own reason, verbatim. This used to say "has no animation", which is the
+                    // common case and not the only one: the same call fails with "SSAB data is not loaded"
+                    // on a player still waiting for its asset to finish importing, and telling that reader
+                    // the name is missing sends them to look at the wrong thing.
+                    string reason = Internal.LastErrorMessage;
+                    string because = reason == null ? "" : $" -- {reason}";
                     Debug.LogWarning(
-                        $"[{who}] '{pack}' has no animation '{animationName}'. " +
+                        $"[{who}] '{pack}' could not select animation '{animationName}'{because}. " +
                         "Check AnimationNames for what it does have.", context);
                 }
                 return false;
