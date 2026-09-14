@@ -40,8 +40,7 @@ namespace SpriteStudio.Runtime
             if (asset != null && asset.SsabData != null
                 && (!Internal.HasSsab || !ReferenceEquals(asset, _loadedAsset)))
             {
-                Internal.LoadSsab(asset.SsabData, asset.ResolveExternalSsab);
-                _loadedAsset = asset;
+                LoadAsset(asset);
             }
         }
 
@@ -74,12 +73,20 @@ namespace SpriteStudio.Runtime
         private void RelaySignal(SpriteStudioSignal sig) => OnSignal?.Invoke(sig);
         private void RelayAudio(SpriteStudioAudio audio) => OnAudio?.Invoke(audio);
 
+        // The one place a pack reaches the Internal, so the one place the "already reported" memory has to
+        // be dropped: the names that are valid have just changed.
+        private void LoadAsset(SpriteStudioAnimeAsset asset)
+        {
+            Internal.LoadSsab(asset.SsabData, asset.ResolveExternalSsab);
+            _loadedAsset = asset;
+            _reportedMissingAnimation = null;
+        }
+
         public void ReloadAsset(SpriteStudioAnimeAsset asset)
         {
             if (Internal != null && asset != null && asset.SsabData != null)
             {
-                Internal.LoadSsab(asset.SsabData, asset.ResolveExternalSsab);
-                _loadedAsset = asset;
+                LoadAsset(asset);
             }
         }
 
@@ -95,15 +102,6 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// Sets up the data for the specified animation (posed at the first frame). Does not start playback.
-        /// Call <see cref="Play()"/> separately to start.
-        /// This is the bare setup: the Rust setup_animation resets the loop count and the playback section
-        /// (both are per-transition — the transition is what states them) and keeps speed, frame skip, the
-        /// frame-rate override and the direction / style. Nothing is re-applied here; the owning component
-        /// pushes its own configuration back in its SetAnimation, which is where the loop count is restored.
-        /// logContext is the tag for warning messages. Returns true if setup succeeded.
-        /// </summary>
-        /// <summary>
         /// Whether <paramref name="animationName"/> is the animation the native runtime already has set
         /// up. The owning component checks this before doing anything, so that re-asserting the current
         /// animation costs nothing — see its SetAnimation for why that matters.
@@ -111,15 +109,49 @@ namespace SpriteStudio.Runtime
         public bool IsAnimationSetUp(string animationName)
             => Internal != null && !string.IsNullOrEmpty(animationName) && Internal.CurrentAnimationName == animationName;
 
-        public bool SetAnimation(string animationName, string logContext)
+        // The animation name already reported missing. The owning component's early return compares against
+        // the name the RUNTIME has set up, and a failed setup leaves that alone -- so the early return cannot
+        // absorb a repeat, and a state machine asserting a typo every frame would warn every frame. Keyed on
+        // the name, so a second wrong one still gets its own line. Cleared on a successful setup, and by
+        // LoadAsset (a different pack has a different set of names).
+        private string _reportedMissingAnimation;
+
+        /// <summary>
+        /// Sets up the data for the specified animation (posed at the first frame). Does not start playback.
+        /// Call <see cref="Play()"/> separately to start.
+        /// This is the bare setup: the Rust setup_animation resets the loop count and the playback section
+        /// (both are per-transition — the transition is what states them) and keeps speed, frame skip, the
+        /// frame-rate override and the direction / style. Nothing is re-applied here; the owning component
+        /// pushes its own configuration back in its SetAnimation, which is where the loop count is restored.
+        /// Returns true if setup succeeded.
+        /// </summary>
+        /// <param name="context">
+        /// The owning component. It names the warning, and being handed to Unity's logger it makes the console
+        /// entry select the offending GameObject when clicked. May be null where there is no component behind
+        /// the core (a test driving it directly); the warning then names this class.
+        /// </param>
+        public bool SetAnimation(string animationName, Object context)
         {
             if (Internal == null || string.IsNullOrEmpty(animationName)) return false;
 
             if (!Internal.SetupAnimation(animationName))
             {
-                Debug.LogWarning($"[{logContext}] Failed to setup animation: {animationName}");
+                // Name the pack as well as the name asked for: it is what separates a typo from a name
+                // that belongs to a different asset (SDK: 20_design/40_api_conventions, §7). The names that
+                // WOULD have worked are not listed -- AnimationNames is public on both components, and the
+                // inspector's Animation Name dropdown is built from it.
+                if (_reportedMissingAnimation != animationName)
+                {
+                    _reportedMissingAnimation = animationName;
+                    string pack = _loadedAsset != null ? _loadedAsset.name : "the loaded pack";
+                    string who = context != null ? context.GetType().Name : nameof(SpriteStudioPlaybackCore);
+                    Debug.LogWarning(
+                        $"[{who}] '{pack}' has no animation '{animationName}'. " +
+                        "Check AnimationNames for what it does have.", context);
+                }
                 return false;
             }
+            _reportedMissingAnimation = null;
             return true;
         }
 

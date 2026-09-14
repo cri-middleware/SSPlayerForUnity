@@ -144,7 +144,7 @@ namespace SpriteStudio.Runtime
             // animation each frame would otherwise reset the loop budget each frame, and a finite
             // LoopCount would never run out. Restarting is Play()'s job; it heads out.
             if (_core.IsAnimationSetUp(animName)) return true;
-            bool ok = _core.SetAnimation(_animationName, "SpriteStudioGraphic");
+            bool ok = _core.SetAnimation(_animationName, this);
             // The runtime resets the loop count on every setup, so a switch would otherwise turn a
             // configured `LoopCount = 1` back into looping forever -- silently, and only when the
             // animation was changed at runtime rather than from the inspector. Every sibling Player
