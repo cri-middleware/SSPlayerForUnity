@@ -28,7 +28,7 @@ namespace SpriteStudio.Runtime
                 // the SDK defaults does not affect us.
                 if (_handle.IsValid)
                 {
-                    NativeMethods.ss_context_set_coordinate_system(_handle.ptr, 0);
+                    NativeMethods.ss_runtime_set_coordinate_system(_handle.ptr, 0);
                     NativeMethods.ss_runtime_set_render_mode(_handle.ptr, (byte)0);
                 }
             }

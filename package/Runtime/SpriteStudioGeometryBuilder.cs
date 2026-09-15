@@ -343,7 +343,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 SpriteStudioNativeBuffers.EnsureCapacity(ref _instanceMeshes, partsLength);
 
-                bool parentLooped = NativeMethods.ss_runtime_is_looped(_player._handle.ptr);
+                bool parentLooped = NativeMethods.ss_runtime_just_looped(_player._handle.ptr);
                 float fps = _player.GetFrameRate();
                 if (fps <= 0f) fps = 60f;
 
