@@ -700,21 +700,21 @@ internal struct MaskPartData
         /// <summary>
         /// Whether the last update crossed a loop boundary. A <b>pulse</b>: the runtime clears it at the
         /// top of every update, so it only reads true inside the tick that crossed — which is why it is
-        /// not named <c>IsLooped</c>. Reading it a tick late reads false.
+        /// not named <c>IsLooped</c>, here or in the Brain, whose C ABI spells it <c>ss_runtime_just_looped</c>. Reading it a tick late reads false.
         /// </summary>
-        public bool JustLooped() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_is_looped(_handle.ptr); } }
+        public bool JustLooped() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_just_looped(_handle.ptr); } }
         public void Pause() { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_pause(_handle.ptr); } }
         public void Resume() { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_resume(_handle.ptr); } }
         public void Stop() { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_stop(_handle.ptr); } }
 
-        public void SetSpeed(float speed) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_animation_speed(_handle.ptr, speed); } }
+        public void SetSpeed(float speed) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_speed_scale(_handle.ptr, speed); } }
 
         /// <summary>
         /// The speed in effect, as a multiple of the frame rate. Read from the runtime rather than from a
         /// copy of what was last set: a zero or negative rate is clamped to a stop there, so a cached value
         /// would report the -1 that was asked for while playback is actually held at 0.
         /// </summary>
-        public float GetSpeed() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_animation_speed(_handle.ptr) : 1.0f; } }
+        public float GetSpeed() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_speed_scale(_handle.ptr) : 1.0f; } }
 
         public void SetFrame(float frame) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_frame_no(_handle.ptr, frame); } }
         public float GetFrame() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_frame_no(_handle.ptr) : 0.0f; } }
@@ -734,7 +734,7 @@ internal struct MaskPartData
         }
 
         public void SetFrameRate(int fps) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_frame_rate(_handle.ptr, fps); } }
-        public int GetFrameRate() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_fps(_handle.ptr) : 0; } }
+        public int GetFrameRate() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_frame_rate(_handle.ptr) : 0; } }
 
         public void SetAnimationSection(int start, int end) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_animation_section(_handle.ptr, start, end); } }
         public int GetAnimationSectionStart() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_start_frame(_handle.ptr) : 0; } }
@@ -897,15 +897,15 @@ internal struct MaskPartData
         public int GetPlaybackDirection() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_playback_direction(_handle.ptr) : 0; } }
         public int GetPlaybackStyle() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_playback_style(_handle.ptr) : 0; } }
 
-        public void SetLoop(int count) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_loop(_handle.ptr, count); } }
-        public int GetLoop() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_loops(_handle.ptr) : 0; } }
+        public void SetLoop(int count) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_loop_count(_handle.ptr, count); } }
+        public int GetLoop() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_loop_count(_handle.ptr) : 0; } }
 
         /// <summary>
         /// Cycles left of <see cref="GetLoop"/>, counting down as playback completes them (-1 while the
         /// count is infinite). Writing the loop count RE-ARMS this, so anything that pushes the count
         /// back restarts the budget — which is why re-asserting the current animation must not.
         /// </summary>
-        public int GetRemainLoops() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_remain_loops(_handle.ptr) : 0; } }
+        public int GetRemainLoops() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_remaining_loops(_handle.ptr) : 0; } }
 
         // skip_frames (real-time following) state is held on the Rust side
         // (PlaybackController.is_skip_frames). This is a thin pass-through. Rust's setup() resets
@@ -1283,9 +1283,9 @@ internal struct MaskPartData
                     OnAnimationFinished?.Invoke();
                 }
 
-                // is_looped is reset to false every update() and becomes true only on an update that
+                // just_looped is reset to false every update() and becomes true only on an update that
                 // crosses a loop boundary (one pulse per update), so it can be fired as-is.
-                if (NativeMethods.ss_runtime_is_looped(_handle.ptr))
+                if (NativeMethods.ss_runtime_just_looped(_handle.ptr))
                 {
                     OnAnimationLooped?.Invoke();
                 }
