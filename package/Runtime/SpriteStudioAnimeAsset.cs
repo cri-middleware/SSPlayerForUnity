@@ -137,6 +137,108 @@ namespace SpriteStudio.Runtime
             return null;
         }
 
+        // Cellmap / external-texture name -> the candidate DrawBatch.TextureHash values it can appear as.
+        // Built lazily from SsabData (like the sound tables) and used by the runtime texture-replacement
+        // feature (SpriteStudioPlayer.SetCellmapTexture) to translate a resource NAME into the hash key(s)
+        // the draw path binds by. A cellmap contributes both its NameHash and its ImagePathHash (either can
+        // reach a batch); an external texture contributes its NameHash. NOT the Override Layer API.
+        [System.NonSerialized] private Dictionary<string, uint[]> _cellmapNameToHashes;
+        [System.NonSerialized] private string[] _cellmapNames;
+
+        private void EnsureCellmapTable()
+        {
+            if (_cellmapNameToHashes != null) return;
+            _cellmapNameToHashes = new Dictionary<string, uint[]>();
+            var names = new List<string>();
+            // Accumulate per name so that a name appearing in both tables (a cellmap and a like-named
+            // external texture) collects every candidate hash instead of the first table winning.
+            var acc = new Dictionary<string, List<uint>>();
+
+            void Add(string texName, params uint[] hashes)
+            {
+                if (string.IsNullOrEmpty(texName)) return;
+                if (!acc.TryGetValue(texName, out var list))
+                {
+                    list = new List<uint>();
+                    acc[texName] = list;
+                    names.Add(texName); // preserve first-seen order for the discovery list
+                }
+                foreach (var h in hashes)
+                {
+                    if (h != 0 && !list.Contains(h)) list.Add(h);
+                }
+            }
+
+            if (SpriteStudioSsabFormat.IsSsabBuffer(SsabData))
+            {
+                var bb = new Google.FlatBuffers.ByteBuffer(SsabData);
+                var ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
+
+                // cellmaps: the primary textures. Both the cellmap NameHash and the ImagePathHash are valid
+                // batch keys (the importer registers both), so a replacement must cover both.
+                int cmLen = ssab.CellmapsLength;
+                for (int i = 0; i < cmLen; i++)
+                {
+                    var cm = ssab.Cellmaps(i);
+                    if (!cm.HasValue) continue;
+                    var c = cm.Value;
+                    Add(c.Name, c.NameHash, c.ImagePathHash);
+                }
+
+                // external_textures: the names a TextureChange (TCHG) attribute binds. Keyed by their own
+                // NameHash (a different hash space than the cellmap name), so they are separately replaceable.
+                int exLen = ssab.ExternalTexturesLength;
+                for (int i = 0; i < exLen; i++)
+                {
+                    var ex = ssab.ExternalTextures(i);
+                    if (!ex.HasValue) continue;
+                    var e = ex.Value;
+                    Add(e.Name, e.NameHash);
+                }
+            }
+
+            foreach (var kv in acc) _cellmapNameToHashes[kv.Key] = kv.Value.ToArray();
+            _cellmapNames = names.ToArray();
+        }
+
+        // Drop the lazily-built cellmap table so it is rebuilt from SsabData on next use. Called from
+        // OnDisable alongside the material caches; also the reset path if SsabData is reassigned on a reused
+        // asset instance (import normally creates a fresh asset, so this rarely matters).
+        private void InvalidateCellmapTable()
+        {
+            _cellmapNameToHashes = null;
+            _cellmapNames = null;
+        }
+
+        /// <summary>
+        /// The names that can be handed to the runtime texture-replacement API: every cellmap name plus
+        /// every external-texture (TextureChange target) name. Discovery helper for building an inspector or
+        /// a call to <c>SetCellmapTexture</c>. Returns a copy; empty when the asset carries no textures.
+        /// (Distinct from the internal player's GetCellmapNames, which lists cellmaps only for the cell
+        /// Override Layer; texture replacement also covers external-texture names.)
+        /// </summary>
+        public string[] GetReplaceableTextureNames()
+        {
+            EnsureCellmapTable();
+            return (string[])_cellmapNames.Clone();
+        }
+
+        /// <summary>
+        /// Resolve a cellmap / external-texture name to the DrawBatch.TextureHash key(s) it can bind by.
+        /// A cellmap yields both its NameHash and ImagePathHash; an external texture yields its NameHash.
+        /// False (and hashes = null) when the name is unknown to this asset.
+        /// </summary>
+        public bool TryGetCellmapHashes(string cellmapName, out uint[] hashes)
+        {
+            EnsureCellmapTable();
+            if (!string.IsNullOrEmpty(cellmapName) && _cellmapNameToHashes.TryGetValue(cellmapName, out hashes))
+            {
+                return true;
+            }
+            hashes = null;
+            return false;
+        }
+
         // Runtime cache of per-(texture, blend) material variants. Asset-level so that multiple
         // players sharing this asset reuse the same variants. Variants are clones flagged
         // HideAndDontSave and destroyed in OnDisable; never serialized.
@@ -363,6 +465,7 @@ namespace SpriteStudio.Runtime
         // clones only). The serialized base materials must not be touched here.
         private void OnDisable()
         {
+            InvalidateCellmapTable();
             if (_whiteBaseMaterial != null)
             {
                 if (Application.isPlaying) Destroy(_whiteBaseMaterial); else DestroyImmediate(_whiteBaseMaterial);

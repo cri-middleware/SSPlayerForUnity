@@ -42,6 +42,14 @@ namespace SpriteStudio.Runtime
 
         private SpriteStudioAudioController _audioController;
 
+        [Tooltip("Runtime texture replacements, keyed by cellmap / external-texture name. Applied on load and " +
+                 "kept when the asset is swapped. Set programmatically with SetCellmapTexture or edit here; " +
+                 "use GetReplaceableTextureNames() to discover the replaceable names.")]
+        [SerializeField] private System.Collections.Generic.List<SpriteStudioCellmapTextureOverride> _cellmapTextureOverrides = new System.Collections.Generic.List<SpriteStudioCellmapTextureOverride>();
+
+        // Per-player, draw-time replacement map derived from _cellmapTextureOverrides (never serialized).
+        private readonly SpriteStudioTextureOverride _textureOverride = new SpriteStudioTextureOverride();
+
         public SpriteStudioAnimeAsset AnimeAsset
         {
             get => _animeAsset;
@@ -49,6 +57,8 @@ namespace SpriteStudio.Runtime
             {
                 _animeAsset = value;
                 _core.ReloadAsset(_animeAsset);
+                // The cellmap name->hash table belongs to the new asset: re-resolve name-keyed replacements.
+                _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
                 // The part set (and thus name->index mapping) may have changed: re-resolve trackers.
                 MarkPartTrackersDirty();
 #if UNITY_EDITOR
@@ -648,6 +658,8 @@ namespace SpriteStudio.Runtime
 
             _core.EnsureCreated(_animeAsset, _subFrameEnabled);
             ApplyPixelsPerUnit();
+            // Resolve the serialized cellmap texture replacements against the asset (applied on the next build).
+            _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
             SpriteStudioUpdateManager.Register(this);
 
             _core.OnAnimationStarted += InvokeAnimationStarted;
@@ -700,6 +712,7 @@ namespace SpriteStudio.Runtime
             // Release the per-part AddOn material instances and force a material-list rebuild on
             // re-enable (the cleared list count no longer matches the submesh count).
             DestroyAddOnInstances();
+            DestroyTextureOverrideInstances();
             _submeshMaterials.Clear();
             _core.Dispose();
             // Internal was disposed, so reset the Timeline control state too. Without this, on re-enable the
@@ -760,6 +773,10 @@ namespace SpriteStudio.Runtime
                 // New part set: trackers must re-resolve their names.
                 MarkPartTrackersDirty();
             }
+
+            // Reflect inspector edits to the replacement list (or an asset swap) into the draw-time map.
+            // Rebuild bumps the override version, so UpdateSubmeshMaterials rebuilds the material list.
+            _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
 
             if (Application.isPlaying)
             {
@@ -1060,6 +1077,9 @@ namespace SpriteStudio.Runtime
 
             // Layout signature. threshold is per-frame variable, so it is not included here and is passed via the MPB.
             uint signature = (uint)subCount;
+            // Fold in the texture-replacement version so changing a replacement rebuilds the material list
+            // even when the draw layout (count/hashes/blends/roles) is otherwise identical.
+            signature = signature * 31u + (uint)_textureOverride.Version;
             bool hasWrite = false;
             bool hasAddOn = false;
             for (int s = 0; s < subCount; s++)
@@ -1082,6 +1102,8 @@ namespace SpriteStudio.Runtime
                 // Per-part AddOn material instances are owned by this player; recreate them when the
                 // submesh layout changes (rare). Destroy the previous set first so they do not leak.
                 DestroyAddOnInstances();
+                // Texture-replacement clones are owned per-player too; rebuilt below alongside the list.
+                DestroyTextureOverrideInstances();
                 if (_submeshMaterials.Capacity < subCount)
                 {
                     _submeshMaterials.Capacity = subCount;
@@ -1096,6 +1118,9 @@ namespace SpriteStudio.Runtime
                 {
                     var info = submeshes[s];
                     Material mat;
+                    // Whether mat is already a fresh instance this player owns (an AddOn per-part clone). Such
+                    // a material can have its texture swapped in place; a shared/cached one must be cloned.
+                    bool matIsOwnedInstance = false;
                     switch (info.Role)
                     {
                         case StencilRole.Write:
@@ -1112,7 +1137,7 @@ namespace SpriteStudio.Runtime
                                 // not stomp other parts'), tracked for destruction. Params are pushed in
                                 // the per-frame pass below.
                                 mat = _animeAsset.CreatePerPartMaterialInstance(addonShader, info.TextureHash, info.BlendType);
-                                if (mat != null) _addOnInstances.Add(mat);
+                                if (mat != null) { _addOnInstances.Add(mat); matIsOwnedInstance = true; }
                                 else mat = _animeAsset.ResolveMaterial(info.TextureHash, info.BlendType);
                             }
                             else
@@ -1131,6 +1156,10 @@ namespace SpriteStudio.Runtime
                         Debug.LogWarning($"[SpriteStudioPlayer] TextureHash {info.TextureHash} not resolved (Submesh {s}, role {info.Role}). Falling back to material 0.");
                         mat = fallback;
                     }
+                    // Runtime cellmap texture replacement (Player-side override): swap the bound texture for
+                    // this batch's hash. Owned AddOn instances are edited in place; every other (shared)
+                    // material is cloned so the asset's material stays untouched and per-player.
+                    mat = ApplyTextureOverride(mat, info.TextureHash, matIsOwnedInstance);
                     _submeshMaterials.Add(mat);
                 }
                 _meshRenderer.SetSharedMaterials(_submeshMaterials);
@@ -1183,6 +1212,104 @@ namespace SpriteStudio.Runtime
             }
             _addOnInstances.Clear();
         }
+
+        // Per-player material clones created for cellmap texture replacement (a clone of the asset-shared
+        // material with its main texture swapped). Owned by this player and rebuilt with the material list.
+        private readonly System.Collections.Generic.List<Material> _textureOverrideInstances = new System.Collections.Generic.List<Material>();
+
+        // Apply a cellmap texture replacement to a resolved material. Returns the material unchanged when no
+        // replacement targets this hash. An owned AddOn instance is swapped in place; a shared/cached
+        // material is cloned (never mutated) so the replacement stays per-player and SRP-Batcher friendly.
+        private Material ApplyTextureOverride(Material mat, uint textureHash, bool matIsOwnedInstance)
+        {
+            if (mat == null || !_textureOverride.HasAny || !_textureOverride.TryGet(textureHash, out var tex))
+            {
+                return mat;
+            }
+            if (matIsOwnedInstance)
+            {
+                mat.mainTexture = tex;
+                return mat;
+            }
+            var clone = new Material(mat) { hideFlags = HideFlags.HideAndDontSave, name = mat.name + "_TexOverride" };
+            clone.mainTexture = tex;
+            _textureOverrideInstances.Add(clone);
+            return clone;
+        }
+
+        // Destroy the texture-replacement material clones this player owns (HideAndDontSave; nothing else
+        // releases them). Called on a material-list rebuild and on disable, like the AddOn instances.
+        private void DestroyTextureOverrideInstances()
+        {
+            for (int i = 0; i < _textureOverrideInstances.Count; i++)
+            {
+                var m = _textureOverrideInstances[i];
+                if (m == null) continue;
+                if (Application.isPlaying) Destroy(m); else DestroyImmediate(m);
+            }
+            _textureOverrideInstances.Clear();
+        }
+
+        #region Runtime texture replacement (Player-side override)
+
+        /// <summary>
+        /// Replace, at runtime, the texture bound for a cellmap (or external-texture) name for THIS player
+        /// only — the asset and other players are untouched. Pass <paramref name="texture"/> = null to
+        /// restore the original. This is a Player-side override and is deliberately separate from the
+        /// Override Layer API (per-part Color/Cell/Visibility); do not mix the two.
+        ///
+        /// The replacement is keyed by NAME and persists across an asset swap (it re-resolves to the new
+        /// resource's hashes). It does not propagate into Instance children, which are independent players
+        /// with their own textures — set it on the child too if needed.
+        ///
+        /// Note: a TextureChange (TCHG) frame binds the external-texture hash, so replacing a cellmap name
+        /// also covers that cellmap's image-path hash; replace the external-texture name (see
+        /// <see cref="GetReplaceableTextureNames"/>) to target a TCHG destination that resolves to a different texture.
+        /// The replacement texture should share the original's size / atlas layout.
+        ///
+        /// The swap applies to every draw that binds the texture, mask writers included (a draw_as_mask part
+        /// sampling this cellmap cuts against the replacement's alpha) — the same whole-map behaviour as
+        /// ForGodot. Replace with a texture whose alpha silhouette matches if the cellmap is used as a mask.
+        /// </summary>
+        /// <param name="cellmapName">Cellmap name (e.g. "common") or external-texture name (e.g. "common.png").</param>
+        /// <param name="texture">Replacement texture, or null to restore the original.</param>
+        public void SetCellmapTexture(string cellmapName, Texture2D texture)
+        {
+            if (string.IsNullOrEmpty(cellmapName)) return;
+
+            // Update the name-keyed serialized source of truth (add / replace / remove), then re-resolve.
+            SpriteStudioTextureOverride.SetEntry(_cellmapTextureOverrides, cellmapName, texture);
+            _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
+            // Do NOT touch the material list here: UpdateSubmeshMaterials reads job-managed submesh buffers,
+            // so calling it off-cycle (e.g. from the caller's Update) could race an in-flight mesh job. The
+            // version fold makes the next ApplyAndRender rebuild the materials; that call site completes the
+            // job first. In edit mode nothing drives that, so poke the static preview.
+#if UNITY_EDITOR
+            if (!Application.isPlaying) _editPreviewDirty = true;
+#endif
+        }
+
+        /// <summary>
+        /// The current replacement texture for a cellmap name, or null when none is set (like ForGodot's
+        /// get_cellmap_texture, this returns only the override value, never the original texture).
+        /// </summary>
+        public Texture2D GetCellmapTexture(string cellmapName)
+        {
+            return SpriteStudioTextureOverride.GetEntry(_cellmapTextureOverrides, cellmapName);
+        }
+
+        /// <summary>
+        /// The names accepted by <see cref="SetCellmapTexture"/>: every cellmap name plus every
+        /// external-texture (TextureChange target) name in the current asset. Empty when no asset is set.
+        /// (Distinct from <see cref="GetCellmapNames"/>, which lists cellmaps only for the cell Override
+        /// Layer; texture replacement can also target external-texture names.)
+        /// </summary>
+        public string[] GetReplaceableTextureNames()
+        {
+            return _animeAsset != null ? _animeAsset.GetReplaceableTextureNames() : System.Array.Empty<string>();
+        }
+
+        #endregion
 
         #region ITimeControl (Timeline integration)
 
