@@ -396,6 +396,43 @@ Part Color and cell overrides conflict with the animation, so they take a `Sprit
 - A cell override is resolved when you set it, so an unknown cellmap / cell name fails immediately (returns `false`).
 - Overrides live on the runtime, which owns their lifecycle. Do not re-apply them after an animation change; choose the priority mode that expresses what you want instead.
 
+## Dynamic Texture Replacement (CellMap Overrides / Avatar Customization)
+
+Replace the texture bound for a cellmap (external texture), **at runtime and for that player only**. This lets you implement color variations or costume / equipment changes (avatar customization) without authoring a separate asset per outfit. The asset and other players are untouched. Works on both `SpriteStudioPlayer` and `SpriteStudioGraphic`. This is a **separate** feature from the Part Overrides above (see the note on when to use which, below).
+
+### Example: Changing an Outfit
+
+```csharp
+var player = GetComponent<SpriteStudioPlayer>();
+
+// The cellmap name is the SpriteStudio-defined name. Discover the replaceable names with
+// GetReplaceableTextureNames(); they also appear under "Cellmap Texture Overrides" in the inspector.
+Texture2D sailorUniform = ...; // replacement (should share the original's size / atlas layout)
+player.SetCellmapTexture("Clothes 1", sailorUniform);
+
+// Restore the original texture (pass null).
+player.SetCellmapTexture("Clothes 1", null);
+```
+
+You do not need a separate asset per outfit: one animation drives an efficient avatar system where only the texture is swapped.
+
+| Method | Description |
+|---|---|
+| `SetCellmapTexture(cellmapName, texture)` | Replace the texture for the named cellmap. Pass `null` to restore the original |
+| `GetCellmapTexture(cellmapName)` | The current **replacement** value (`null` when none is set — it never returns the original texture) |
+| `GetReplaceableTextureNames()` | The replaceable names (cellmap names + external-texture names). Read from the assigned asset; empty when none is assigned |
+
+Replacements set in the inspector's **"Cellmap Texture Overrides"** (a name / texture pair) are saved into the scene and re-applied by name at runtime and across an asset swap.
+
+> **When to use `SetCellmapTexture()` vs `SetPartCellOverride()`**: `SetCellmapTexture()` replaces a **whole cellmap (texture)** and affects every part that uses it at once (good for outfits / color variations). `SetPartCellOverride()` replaces the drawn cell (the artwork) for **a single part** (e.g. a facial expression). Use whichever matches your goal.
+
+### Notes
+
+- It is **per player**. The replacement is kept by name and re-resolves to the new resource's hashes across an asset swap. It **does not propagate into Instance (sub-animation) children** — a child is an independent player with its own textures, so set it on the child too if needed.
+- The replacement texture should share the **original's size / atlas layout**. UVs (cell rects) stay in the original cellmap's pixel space, so a texture of a different resolution or layout samples a different region.
+- The swap applies to **every draw that binds the texture, mask writers included**. If a `draw_as_mask` part uses that cellmap, the replacement's alpha changes the mask shape.
+- The uGUI path (`SpriteStudioGraphic`) draws a single atlas only, so replacing a name that resolves to a non-first atlas will not show.
+
 ## Driving from Timeline
 
 `SpriteStudioPlayer` implements `ITimeControl`, allowing playback time to be controlled from a Unity Timeline track. Timeline tracks / assets are also included.

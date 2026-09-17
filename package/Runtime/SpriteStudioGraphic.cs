@@ -21,6 +21,14 @@ namespace SpriteStudio.Runtime
         [Tooltip("The converted ssab asset to render")]
         [SerializeField] private SpriteStudioAnimeAsset _animeAsset;
 
+        [Tooltip("Runtime texture replacements, keyed by cellmap / external-texture name. Applied on load and " +
+                 "kept when the asset is swapped. Set programmatically with SetCellmapTexture or edit here; " +
+                 "use GetReplaceableTextureNames() to discover the replaceable names.")]
+        [SerializeField] private System.Collections.Generic.List<SpriteStudioCellmapTextureOverride> _cellmapTextureOverrides = new System.Collections.Generic.List<SpriteStudioCellmapTextureOverride>();
+
+        // Per-player, draw-time replacement map derived from _cellmapTextureOverrides (never serialized).
+        private readonly SpriteStudioTextureOverride _textureOverride = new SpriteStudioTextureOverride();
+
         public SpriteStudioAnimeAsset AnimeAsset
         {
             get => _animeAsset;
@@ -28,6 +36,9 @@ namespace SpriteStudio.Runtime
             {
                 _animeAsset = value;
                 _core.ReloadAsset(_animeAsset);
+                // The cellmap name->hash table belongs to the new asset: re-resolve name-keyed replacements.
+                _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
+                _canvasMaterialDirty = true;
             }
         }
 
@@ -533,6 +544,8 @@ namespace SpriteStudio.Runtime
             // Canvas path: drop SpriteStudio internal masking; a parent uGUI Mask/RectMask2D clips this
             // graphic read-only via the per-submesh stencil wrap below.
             if (_core.Internal != null) _core.Internal.SuppressInternalMask = true;
+            // Resolve the serialized cellmap texture replacements against the asset (applied on the next build).
+            _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
             _canvasMaterialDirty = true;
             SpriteStudioUpdateManager.Register(this);
 
@@ -642,6 +655,9 @@ namespace SpriteStudio.Runtime
             base.OnValidate();
             // An inspector change (animation name, etc.) rebuilds the edit preview from setup.
             _editPreviewNeedsSetup = true;
+            // Reflect inspector edits to the replacement list (or an asset swap) into the draw-time map.
+            _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
+            _canvasMaterialDirty = true;
             if (_core.Internal == null) return;
             _core.Internal.SetSpeed(_speedScale);
             _core.Internal.SetLoop(_loopCount);
@@ -759,6 +775,16 @@ namespace SpriteStudio.Runtime
                 return;
             }
 
+            // Runtime cellmap texture replacement (Player-side override): clone the asset-shared canvas
+            // material and swap its texture so the replacement is per-player. Cloned (never mutated) and
+            // released with the stencil wrapper. ReleaseCanvasStencil above already freed any prior clone.
+            if (_textureOverride.HasAny && _textureOverride.TryGet(texHash, out var ovrTex))
+            {
+                _canvasTexOverride = new Material(baseMat) { hideFlags = HideFlags.HideAndDontSave, name = baseMat.name + "_TexOverride" };
+                _canvasTexOverride.mainTexture = ovrTex;
+                baseMat = _canvasTexOverride;
+            }
+
             Material finalMat = baseMat;
             if (stencilDepth > 0)
             {
@@ -792,6 +818,11 @@ namespace SpriteStudio.Runtime
             }
         }
 
+        // Per-player canvas material clone holding a replaced texture (null when no replacement is active).
+        // Released together with the stencil wrapper, so every ReleaseCanvasStencil site (rebuild start,
+        // empty-mesh path, OnDisable) frees it too.
+        private Material _canvasTexOverride;
+
         private void ReleaseCanvasStencil()
         {
             if (_canvasStencilWrapped != null)
@@ -799,7 +830,59 @@ namespace SpriteStudio.Runtime
                 UnityEngine.UI.StencilMaterial.Remove(_canvasStencilWrapped);
                 _canvasStencilWrapped = null;
             }
+            if (_canvasTexOverride != null)
+            {
+                if (Application.isPlaying) Destroy(_canvasTexOverride); else DestroyImmediate(_canvasTexOverride);
+                _canvasTexOverride = null;
+            }
         }
+
+        #region Runtime texture replacement (Player-side override)
+
+        /// <summary>
+        /// Replace, at runtime, the texture bound for a cellmap (or external-texture) name for THIS graphic
+        /// only — the asset and other players are untouched. Pass <paramref name="texture"/> = null to
+        /// restore the original. This is a Player-side override, separate from the Override Layer API.
+        ///
+        /// The Canvas (uGUI) path is single-atlas: only the first atlas is drawn, so a replacement targeting
+        /// a name that resolves to a non-first atlas will not show. Otherwise identical to the world player:
+        /// keyed by name, persists across an asset swap, does not propagate into Instance children.
+        /// </summary>
+        /// <param name="cellmapName">Cellmap name (e.g. "common") or external-texture name (e.g. "common.png").</param>
+        /// <param name="texture">Replacement texture, or null to restore the original.</param>
+        public void SetCellmapTexture(string cellmapName, Texture2D texture)
+        {
+            if (string.IsNullOrEmpty(cellmapName)) return;
+
+            SpriteStudioTextureOverride.SetEntry(_cellmapTextureOverrides, cellmapName, texture);
+            _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
+            // Flag a re-resolve; the next ApplyAndRender (every managed frame in play mode, every editor
+            // frame in edit mode) rebuilds the canvas material. Not resolved synchronously here so a caller
+            // invoking this off-cycle cannot race the mesh-update job UpdateCanvasMaterials reads from.
+            _canvasMaterialDirty = true;
+        }
+
+        /// <summary>
+        /// The current replacement texture for a cellmap name, or null when none is set (returns only the
+        /// override value, never the original texture).
+        /// </summary>
+        public Texture2D GetCellmapTexture(string cellmapName)
+        {
+            return SpriteStudioTextureOverride.GetEntry(_cellmapTextureOverrides, cellmapName);
+        }
+
+        /// <summary>
+        /// The names accepted by <see cref="SetCellmapTexture"/>: every cellmap name plus every
+        /// external-texture (TextureChange target) name in the current asset. Empty when no asset is set.
+        /// (Distinct from <see cref="GetCellmapNames"/>, which lists cellmaps only for the cell Override
+        /// Layer; texture replacement can also target external-texture names.)
+        /// </summary>
+        public string[] GetReplaceableTextureNames()
+        {
+            return _animeAsset != null ? _animeAsset.GetReplaceableTextureNames() : System.Array.Empty<string>();
+        }
+
+        #endregion
 
         // --- Avoid conflicts with the Canvas Rebuild flow ---
         // Prevent uGUI's automatic Layout/Vertex rebuild from firing and
