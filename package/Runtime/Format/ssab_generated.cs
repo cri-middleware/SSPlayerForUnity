@@ -5812,7 +5812,8 @@ public struct AnimationData : IFlatbufferObject
   public short EndFrame { get { int o = __p.__offset(20); return o != 0 ? __p.bb.GetShort(o + __p.bb_pos) : (short)0; } }
   public short TotalFrame { get { int o = __p.__offset(22); return o != 0 ? __p.bb.GetShort(o + __p.bb_pos) : (short)0; } }
   public short Fps { get { int o = __p.__offset(24); return o != 0 ? __p.bb.GetShort(o + __p.bb_pos) : (short)0; } }
-  public ss.format.Rect? Canvas { get { int o = __p.__offset(26); return o != 0 ? (ss.format.Rect?)(new ss.format.Rect()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
+  public ss.format.Vec2? CanvasSize { get { int o = __p.__offset(26); return o != 0 ? (ss.format.Vec2?)(new ss.format.Vec2()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
+  public ss.format.Vec2? Pivot { get { int o = __p.__offset(28); return o != 0 ? (ss.format.Vec2?)(new ss.format.Vec2()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
 
   public static Offset<ss.format.AnimationData> CreateAnimationData(FlatBufferBuilder builder,
       StringOffset nameOffset = default(StringOffset),
@@ -5826,9 +5827,11 @@ public struct AnimationData : IFlatbufferObject
       short end_frame = 0,
       short total_frame = 0,
       short fps = 0,
-      Offset<ss.format.Rect> canvasOffset = default(Offset<ss.format.Rect>)) {
-    builder.StartTable(12);
-    AnimationData.AddCanvas(builder, canvasOffset);
+      Offset<ss.format.Vec2> canvas_sizeOffset = default(Offset<ss.format.Vec2>),
+      Offset<ss.format.Vec2> pivotOffset = default(Offset<ss.format.Vec2>)) {
+    builder.StartTable(13);
+    AnimationData.AddPivot(builder, pivotOffset);
+    AnimationData.AddCanvasSize(builder, canvas_sizeOffset);
     AnimationData.AddLabels(builder, labelsOffset);
     AnimationData.AddInitialEvents(builder, initial_eventsOffset);
     AnimationData.AddEvents(builder, eventsOffset);
@@ -5843,7 +5846,7 @@ public struct AnimationData : IFlatbufferObject
     return AnimationData.EndAnimationData(builder);
   }
 
-  public static void StartAnimationData(FlatBufferBuilder builder) { builder.StartTable(12); }
+  public static void StartAnimationData(FlatBufferBuilder builder) { builder.StartTable(13); }
   public static void AddName(FlatBufferBuilder builder, StringOffset nameOffset) { builder.AddOffset(0, nameOffset.Value, 0); }
   public static void AddNameHash(FlatBufferBuilder builder, uint nameHash) { builder.AddUint(1, nameHash, 0); }
   public static void AddPartsInitialAttributes(FlatBufferBuilder builder, VectorOffset partsInitialAttributesOffset) { builder.AddOffset(2, partsInitialAttributesOffset.Value, 0); }
@@ -5880,13 +5883,15 @@ public struct AnimationData : IFlatbufferObject
   public static void AddEndFrame(FlatBufferBuilder builder, short endFrame) { builder.AddShort(8, endFrame, 0); }
   public static void AddTotalFrame(FlatBufferBuilder builder, short totalFrame) { builder.AddShort(9, totalFrame, 0); }
   public static void AddFps(FlatBufferBuilder builder, short fps) { builder.AddShort(10, fps, 0); }
-  public static void AddCanvas(FlatBufferBuilder builder, Offset<ss.format.Rect> canvasOffset) { builder.AddOffset(11, canvasOffset.Value, 0); }
+  public static void AddCanvasSize(FlatBufferBuilder builder, Offset<ss.format.Vec2> canvasSizeOffset) { builder.AddOffset(11, canvasSizeOffset.Value, 0); }
+  public static void AddPivot(FlatBufferBuilder builder, Offset<ss.format.Vec2> pivotOffset) { builder.AddOffset(12, pivotOffset.Value, 0); }
   public static Offset<ss.format.AnimationData> EndAnimationData(FlatBufferBuilder builder) {
     int o = builder.EndTable();
     builder.Required(o, 4);  // name
     builder.Required(o, 8);  // parts_initial_attributes
     builder.Required(o, 10);  // parts_animation_data
-    builder.Required(o, 26);  // canvas
+    builder.Required(o, 26);  // canvas_size
+    builder.Required(o, 28);  // pivot
     return new Offset<ss.format.AnimationData>(o);
   }
 }
@@ -5908,7 +5913,8 @@ static public class AnimationDataVerify
       && verifier.VerifyField(tablePos, 20 /*EndFrame*/, 2 /*short*/, 2, false)
       && verifier.VerifyField(tablePos, 22 /*TotalFrame*/, 2 /*short*/, 2, false)
       && verifier.VerifyField(tablePos, 24 /*Fps*/, 2 /*short*/, 2, false)
-      && verifier.VerifyTable(tablePos, 26 /*Canvas*/, ss.format.RectVerify.Verify, true)
+      && verifier.VerifyTable(tablePos, 26 /*CanvasSize*/, ss.format.Vec2Verify.Verify, true)
+      && verifier.VerifyTable(tablePos, 28 /*Pivot*/, ss.format.Vec2Verify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -6159,7 +6165,7 @@ public struct SsAnimeBinary : IFlatbufferObject
   public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
   public SsAnimeBinary __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
 
-  public uint Version { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)1; } }
+  public uint Version { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)0; } }
   public string Name { get { int o = __p.__offset(6); return o != 0 ? __p.__string(o + __p.bb_pos) : null; } }
 #if ENABLE_SPAN_T
   public Span<byte> GetNameBytes() { return __p.__vector_as_span<byte>(6, 1); }
@@ -6194,7 +6200,7 @@ public struct SsAnimeBinary : IFlatbufferObject
   public ss.format.EmbeddedAsset? EmbeddedAssetsByKey(uint key) { int o = __p.__offset(26); return o != 0 ? ss.format.EmbeddedAsset.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
 
   public static Offset<ss.format.SsAnimeBinary> CreateSsAnimeBinary(FlatBufferBuilder builder,
-      uint version = 1,
+      uint version = 0,
       StringOffset nameOffset = default(StringOffset),
       uint name_hash = 0,
       VectorOffset partsOffset = default(VectorOffset),
@@ -6223,7 +6229,7 @@ public struct SsAnimeBinary : IFlatbufferObject
   }
 
   public static void StartSsAnimeBinary(FlatBufferBuilder builder) { builder.StartTable(12); }
-  public static void AddVersion(FlatBufferBuilder builder, uint version) { builder.AddUint(0, version, 1); }
+  public static void AddVersion(FlatBufferBuilder builder, uint version) { builder.AddUint(0, version, 0); }
   public static void AddName(FlatBufferBuilder builder, StringOffset nameOffset) { builder.AddOffset(1, nameOffset.Value, 0); }
   public static void AddNameHash(FlatBufferBuilder builder, uint nameHash) { builder.AddUint(2, nameHash, 0); }
   public static void AddParts(FlatBufferBuilder builder, VectorOffset partsOffset) { builder.AddOffset(3, partsOffset.Value, 0); }

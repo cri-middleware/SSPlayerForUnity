@@ -198,13 +198,13 @@ public struct SsSequenceBinary : IFlatbufferObject
   public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
   public SsSequenceBinary __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
 
-  public uint Version { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)1; } }
+  public uint Version { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)0; } }
   public ss.format.Sequence? SequenceList(int j) { int o = __p.__offset(6); return o != 0 ? (ss.format.Sequence?)(new ss.format.Sequence()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
   public int SequenceListLength { get { int o = __p.__offset(6); return o != 0 ? __p.__vector_len(o) : 0; } }
   public ss.format.Sequence? SequenceListByKey(string key) { int o = __p.__offset(6); return o != 0 ? ss.format.Sequence.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
 
   public static Offset<ss.format.SsSequenceBinary> CreateSsSequenceBinary(FlatBufferBuilder builder,
-      uint version = 1,
+      uint version = 0,
       VectorOffset sequence_listOffset = default(VectorOffset)) {
     builder.StartTable(2);
     SsSequenceBinary.AddSequenceList(builder, sequence_listOffset);
@@ -213,7 +213,7 @@ public struct SsSequenceBinary : IFlatbufferObject
   }
 
   public static void StartSsSequenceBinary(FlatBufferBuilder builder) { builder.StartTable(2); }
-  public static void AddVersion(FlatBufferBuilder builder, uint version) { builder.AddUint(0, version, 1); }
+  public static void AddVersion(FlatBufferBuilder builder, uint version) { builder.AddUint(0, version, 0); }
   public static void AddSequenceList(FlatBufferBuilder builder, VectorOffset sequenceListOffset) { builder.AddOffset(1, sequenceListOffset.Value, 0); }
   public static VectorOffset CreateSequenceListVector(FlatBufferBuilder builder, Offset<ss.format.Sequence>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
   public static VectorOffset CreateSequenceListVectorBlock(FlatBufferBuilder builder, Offset<ss.format.Sequence>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
