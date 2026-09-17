@@ -39,6 +39,7 @@ This plugin is designed to fully bring out the expressiveness of SpriteStudio on
 *   **Timeline Integration:** Animations can be controlled directly from Timeline tracks, making cutscenes and complex staging easy to implement.
 *   **Signals and Events:** Receive "user data" and "signals" set on the timeline as Unity events, allowing you to trigger SE playback and scripts with precise timing.
 *   **Dynamic Part Following:** Any GameObject can follow (Constraint) a specific part of a character, making it easy to swap weapons or attach effects.
+*   **Dynamic Texture Replacement (Avatar Customization / CellMap Overrides):** Swap a cellmap's texture at runtime, per player, to implement color variations or costume / equipment changes for a character.
 
 ## Overview
 
