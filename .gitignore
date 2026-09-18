@@ -1610,24 +1610,44 @@ package/Editor/Bindings/*.g.cs.meta
 # ignored, which is what the rule at the top of this file is about.
 !examples/SampleProject/ProjectSettings/SpriteStudioSourceMap.json
 
-# Of the five SDK test projects the sample imports, only Ringo's output is committed - that is
-# what makes the project show an animation the moment it opens, with no .sspj to bring along. It
-# costs 304 KB. The other four are 8 MB of binaries the submodule already carries, and would take
-# a binary diff every time the SDK's test assets change, so they stay out; drag them onto
+# No converter output is committed. scripts/deploy-examples.sh regenerates what the two sample
+# projects need - the .ssab, the .ssqb and the .png copied out of the cellmap - from
+# SpriteStudio-SDK/tests/Ringo, which the submodule already carries; committing it too would put
+# the same binaries in the repository twice and take a binary diff every time the SDK's test
+# assets change. The other four SDK test projects (overall, allAttributeV7, allPartsV7,
+# ParticleEffect) are not wired into the script at all; drag them onto
 # Window > SpriteStudio > Importer when you need them.
 #
-# Ringo's .meta come with it. The scene references the imported .ssab by GUID, and
-# SpriteStudioAnimeAsset serializes its textures and materials as object references, so the .meta
-# are what survives scripts/deploy-examples.sh rewriting the payloads underneath them.
+# Every .meta IS committed, and so is the material the importer generated beside Ringo. The
+# scenes reference the imported .ssab by GUID, and SpriteStudioAnimeAsset serializes its textures
+# and materials as object references, so the .meta are what makes a regenerated payload land back
+# under the references the scene already holds. Unity deletes a .meta whose asset is missing,
+# which is why the regeneration has to happen before the project is opened, not after - see the
+# Samples section of the README.
+!examples/SampleProject/Assets/**/*.meta
 examples/SampleProject/Assets/ssab_generated/**
 !examples/SampleProject/Assets/ssab_generated/**/
 !examples/SampleProject/Assets/ssab_generated/Ringo.meta
-!examples/SampleProject/Assets/ssab_generated/Ringo/**
+!examples/SampleProject/Assets/ssab_generated/Ringo/*.meta
+!examples/SampleProject/Assets/ssab_generated/Ringo/Ringo.mat
 
-# .meta for what sits directly in Assets - the sample scene, and the ssab_generated folder. These
-# are committed assets, so their .meta travel with them; the ones under ssab_generated/ that belong
-# to uncommitted payloads stay ignored by the rule above.
-!examples/SampleProject/Assets/*.meta
+# examples/Override_Ringo is the second project that carries Ringo, and the same split applies to
+# it. It is a URP template project, so its .meta reach past ssab_generated/: the scene, the
+# script the scene binds by GUID, and Assets/Settings, which ProjectSettings/GraphicsSettings and
+# QualitySettings address by GUID as well. Without them a clone gets fresh GUIDs and every one of
+# those references comes up empty.
+!examples/Override_Ringo/Assets/**/*.meta
+examples/Override_Ringo/Assets/ssab_generated/**
+!examples/Override_Ringo/Assets/ssab_generated/**/
+!examples/Override_Ringo/Assets/ssab_generated/Ringo.meta
+!examples/Override_Ringo/Assets/ssab_generated/Ringo/*.meta
+!examples/Override_Ringo/Assets/ssab_generated/Ringo/Ringo.mat
+
+# The "_" prefix at the top of this file means local-only, and the .meta re-includes above would
+# otherwise outrank it inside these two Assets trees - a scratch folder there would leave its
+# .meta showing as untracked.
+examples/SampleProject/Assets/**/_*
+examples/Override_Ringo/Assets/**/_*
 
 # examples/UnityTestProject is the scratch project, so whatever it converts is that developer's,
 # not the repository's - nothing under its Assets/ is committed but .gitkeep and the one Editor

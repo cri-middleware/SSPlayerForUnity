@@ -53,11 +53,12 @@
 ### 2. サンプルで動作確認する
 
 > 🚧 こちらは**チェックアウト**で、上のインストール手順の一部ではありません。パッケージ公開までの間、
-> 動いているところを見るための入口です。`examples/SampleProject` は SpriteStudio パッケージがリンク済みで、SDK の **Ringo** アニメーションを同梱しています。自分の `.sspj` を用意しなくても動くものを見られます。
+> 動いているところを見るための入口です。`examples/SampleProject` は SpriteStudio パッケージがリンク済みで、手順 3 で SDK の **Ringo** アニメーションを取り込みます。自分の `.sspj` を用意しなくても動くものを見られます。
 1. **取得**: 本リポジトリを `--recurse-submodules` 付きでクローンします（サンプルの元プロジェクトは `SpriteStudio-SDK/tests` にあります）。
 2. **準備**: `./scripts/download-sdk.sh` (Mac/Linux) または `scripts\download-sdk.ps1` (Windows) を実行してネイティブライブラリ（`libssruntime`）を取得・配置します。
-3. **開く**: Unity Hub から `examples/SampleProject` を開きます。
-4. **試す**: `Assets/Test.unity` を開いて Play を押します。
+3. **サンプルアニメーションを用意**: `./scripts/deploy-examples.sh` (Mac/Linux) または `scripts\deploy-examples.ps1` (Windows) を実行します。変換済みのアニメーションはリポジトリに入っていないので、Ringo をプロジェクトに入れるのはこの手順です。**Unity でプロジェクトを開く前に**実行してください。シーンの参照を保持している `.meta` は、対応するアセットが無い状態で Unity に見つかると削除されます。（先に開いてしまったときは `git checkout -- examples/SampleProject/Assets` で戻してから実行してください。）Rust ツールチェインが必要です。用意できない場合は、プロジェクトを開いてから `SpriteStudio-SDK/tests/Ringo/Ringo.sspj` を **Window > SpriteStudio > Importer** にドラッグし、シーン上の Player に取り込んだアセットを割り当て直してください。
+4. **開く**: Unity Hub から `examples/SampleProject` を開きます。
+5. **試す**: `Assets/Test.unity` を開いて Play を押します。
 
 SDK の残り 4 本（`overall` / `allAttributeV7` / `allPartsV7` / `ParticleEffect`）は同梱していません。サイズが大きく、submodule が原本を持っているためです。必要なときは `SpriteStudio-SDK/tests` から **Window > SpriteStudio > Importer** にドラッグしてください。
 
@@ -67,8 +68,8 @@ SDK の残り 4 本（`overall` / `allAttributeV7` / `allPartsV7` / `ParticleEff
 
 [examples フォルダ](./examples/) にサンプルプロジェクトがあります。
 
-- [SampleProject](./examples/SampleProject) — まず開くのはこちらです。SDK の Ringo アニメーションを同梱しているので、自分の `.sspj` が無くても再生できます。先に `download-sdk`（クイックスタート参照）を実行してください。メンテナ向け: `./scripts/deploy-examples.sh` が同梱の Ringo を submodule から再生成します。`SpriteStudio-SDK/tests/Ringo` が変わったら実行してください。
-- [Override_Ringo](./examples/Override_Ringo) — パーツ単位のオーバーライドを `OverrideDemo.cs` から操作するサンプルです。同じ Ringo で、実行時の色変え・非表示・セル差し替えを試せます。
+- [SampleProject](./examples/SampleProject) — まず開くのはこちらです。SDK の Ringo アニメーションを再生するので、自分の `.sspj` が無くても動きます。Unity で開く前に `download-sdk` → `deploy-examples` の順で実行してください（クイックスタート参照）。`SpriteStudio-SDK/tests/Ringo` が変わったときに実行し直すのも `deploy-examples` です。
+- [Override_Ringo](./examples/Override_Ringo) — パーツ単位のオーバーライドを `OverrideDemo.cs` から操作するサンプルです。同じ Ringo で、実行時の色変え・非表示・セル差し替えを試せます。こちらも `deploy-examples` が中身を用意するので、開く前に実行する点は同じです。
 - [UnityTestProject](./examples/UnityTestProject) — パッケージがリンクされているだけの空のプロジェクトです。プラグイン開発中のスクラッチ用で、自分の `.sspj` を取り込んでクリーンな環境で試すときに使います。
 
 ## 🔗 関連リポジトリ
