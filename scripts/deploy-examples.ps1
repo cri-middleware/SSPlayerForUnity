@@ -1,6 +1,7 @@
 #!/usr/bin/env pwsh
 
-# Regenerates the sample assets that the example projects commit.
+# Builds the sample assets the example projects need. Nothing it writes is committed, and it has
+# to run before the project is opened in Unity.
 # See scripts/deploy-examples.sh for the full rationale; this is the Windows mirror of it.
 
 $ErrorActionPreference = "Stop"
@@ -33,4 +34,4 @@ try {
     Pop-Location
 }
 
-Write-Host "Done. Open each example project in Unity to let it reimport, then commit the changed .ssab."
+Write-Host "Done. Open either example project in Unity; it imports what was just written on first open."

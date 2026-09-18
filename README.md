@@ -54,11 +54,12 @@ This player supports Unity 6.3 LTS and later, and works in both URP and BRP. Pro
 ### 2. Try out the Sample Project
 
 > 🚧 This one is a **checkout**, not part of the install above — it is how to watch the player work
-> until the package is published. `examples/SampleProject` has the SpriteStudio package already linked and ships the SDK's **Ringo** animation, so you do not need a `.sspj` of your own to see something move.
+> until the package is published. `examples/SampleProject` has the SpriteStudio package already linked, and step 3 converts the SDK's **Ringo** animation into it, so you do not need a `.sspj` of your own to see something move.
 1. **Get the Repo**: Clone this repository with `--recurse-submodules` (the sample's source project lives in `SpriteStudio-SDK/tests`).
 2. **Prepare**: Run `./scripts/download-sdk.sh` (Mac/Linux) or `scripts\download-sdk.ps1` (Windows) to fetch and place the native library (`libssruntime`).
-3. **Open**: Open `examples/SampleProject` in Unity Hub.
-4. **Try it**: Open `Assets/Test.unity` and press Play.
+3. **Build the sample animation**: Run `./scripts/deploy-examples.sh` (Mac/Linux) or `scripts\deploy-examples.ps1` (Windows). No converted animation is committed, so this is the step that puts Ringo in the project — and it has to run **before** the project is opened in Unity, because Unity deletes the committed `.meta` that carry the scene's references the moment it finds them without their assets. (Already opened it? `git checkout -- examples/SampleProject/Assets` puts them back; then run the script.) It needs a Rust toolchain — without one, open the project and drag `SpriteStudio-SDK/tests/Ringo/Ringo.sspj` onto **Window > SpriteStudio > Importer** instead, then re-assign the imported asset on the player in the scene.
+4. **Open**: Open `examples/SampleProject` in Unity Hub.
+5. **Try it**: Open `Assets/Test.unity` and press Play.
 
 The SDK's other four test projects (`overall`, `allAttributeV7`, `allPartsV7`, `ParticleEffect`) are not bundled — they are large, and the submodule already carries them. Drag any of them from `SpriteStudio-SDK/tests` onto **Window > SpriteStudio > Importer** when you want them.
 
@@ -68,8 +69,8 @@ For advanced setups like compiling from source or modifying the package, please 
 
 Sample projects are available under the [examples folder](./examples/).
 
-- [SampleProject](./examples/SampleProject) — The one to open. It bundles the SDK's Ringo animation, so it plays something without a `.sspj` of your own. Run `download-sdk` first (see Quick Start). Maintainers: `./scripts/deploy-examples.sh` regenerates the bundled Ringo output from the submodule, and should be run whenever `SpriteStudio-SDK/tests/Ringo` changes.
-- [Override_Ringo](./examples/Override_Ringo) — The per-part override layer, driven from `OverrideDemo.cs`: recolour, hide and swap a part at runtime, on the same Ringo character.
+- [SampleProject](./examples/SampleProject) — The one to open. It plays the SDK's Ringo animation, so you need no `.sspj` of your own. Run `download-sdk` and then `deploy-examples` first, before the project is opened in Unity (see Quick Start); `deploy-examples` is also what to re-run whenever `SpriteStudio-SDK/tests/Ringo` changes.
+- [Override_Ringo](./examples/Override_Ringo) — The per-part override layer, driven from `OverrideDemo.cs`: recolour, hide and swap a part at runtime, on the same Ringo character. `deploy-examples` fills this project too, and the same "before you open it" rule applies.
 - [UnityTestProject](./examples/UnityTestProject) — A blank project with the package linked and nothing else. It is the scratch project used while developing the plugin; import your own `.sspj` into it to try something in a clean environment.
 
 ## 🔗 Related Repositories

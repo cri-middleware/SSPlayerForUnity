@@ -1,24 +1,22 @@
 #!/usr/bin/env zsh
 set -e
 
-# Regenerates the sample assets that the example projects commit.
+# Builds the sample assets the example projects need. Nothing it writes is committed.
 #
 # Two projects carry Ringo: examples/SampleProject, and examples/Override_Ringo, whose demo drives
 # the part overrides against that same asset. Both get the identical conversion, so a Ringo change
 # cannot land in one and go stale in the other.
 #
-# Only Ringo is committed - it is what makes the projects show an animation the moment they open,
-# without the reader bringing a .sspj. The other four SDK test projects (overall, allAttributeV7,
-# allPartsV7, ParticleEffect) are 8 MB of binaries the submodule already carries, so they stay out;
-# drag them onto Window > SpriteStudio > Importer when you need them.
+# Run it after cloning, and again whenever SpriteStudio-SDK/tests/Ringo changes - and run it
+# BEFORE opening either project in Unity. It writes only the payloads; the .mat and every .meta
+# are committed and stay where they are, which is what keeps each sample scene's GUID references
+# intact across a regeneration. Open the project first and Unity deletes those .meta as orphans,
+# and the next conversion lands under fresh GUIDs with the scene's references empty.
 #
-# Run this at release time, or whenever SpriteStudio-SDK/tests/Ringo changes: the committed .ssab
-# is a build output and goes stale otherwise. It writes only the payloads. The .mat and every .meta
-# are Unity's - they stay where they are, which is what keeps each sample scene's GUID references
-# intact across a regeneration.
-#
-# For SDK/Player developers: this needs the submodule and a Rust toolchain, unlike download-sdk.sh,
-# which takes prebuilt libraries from a release.
+# The other four SDK test projects (overall, allAttributeV7, allPartsV7, ParticleEffect) are not
+# wired in here; drag them onto Window > SpriteStudio > Importer when you need them. That window
+# is also how to get Ringo in without a Rust toolchain - this script needs the submodule and
+# cargo, unlike download-sdk.sh, which takes prebuilt libraries from a release.
 
 BASEDIR=$(dirname $0)
 BASEDIR=$(cd $BASEDIR && pwd -P)
@@ -47,4 +45,4 @@ for OUT_DIR in ${OUT_DIRS[@]}; do
 done
 popd > /dev/null
 
-echo "Done. Open each example project in Unity to let it reimport, then commit the changed .ssab."
+echo "Done. Open either example project in Unity; it imports what was just written on first open."

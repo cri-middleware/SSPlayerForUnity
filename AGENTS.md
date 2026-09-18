@@ -25,7 +25,7 @@ uploaded to a `Mesh` via `SetVertexBufferData` (zero-allocation). `.sspj` projec
 | `package/Editor/` | Importers (`SpriteStudioSsabImporter`, `SpriteStudioSsqbImporter`), the conversion driver, the Importer window, and inspectors. |
 | `package/Tests/` | PlayMode (Runtime) and EditMode tests. |
 | `SpriteStudio-SDK/` | Rust runtime / converter submodule. |
-| `scripts/` | Build & setup wrappers (`build-runtime`, `download-sdk`, `download-flatbuffers`, `run-tests`) and the release (`build-release`, which packs via `pack-release`; `release-version`). |
+| `scripts/` | Build & setup wrappers (`build-runtime`, `download-sdk`, `download-flatbuffers`, `run-tests`), the example-project filler (`deploy-examples`) and the release (`build-release`, which packs via `pack-release`; `release-version`). |
 
 ## Hard constraints
 
@@ -68,6 +68,7 @@ Two things to know about callouts, which Zensical parses natively now that `mkdo
 | Fetch prebuilt SDK libs | `./scripts/download-sdk.sh` |
 | Set up FlatBuffers C# source | `./scripts/download-flatbuffers.sh` |
 | Build the release | `./scripts/build-release.sh` — the tarball that ships, checked. `.ps1` twin on Windows |
+| Fill the example projects | `./scripts/deploy-examples.sh` — converts the SDK's Ringo into `examples/SampleProject` and `examples/Override_Ringo`. No converted asset is committed, so this is what makes either project show anything; run it **before** the project is opened in Unity, or Unity deletes the committed `.meta` that carry the scenes' references. `.ps1` twin on Windows |
 | Run tests | **Editor open:** ask the user to run the Unity Test Runner. **Headless:** `./scripts/run-tests.sh` (POSIX) · `.\scripts\run-tests.ps1` (Windows). Do not run the headless script while the Editor is open (project lock). |
 
 ## Releases
