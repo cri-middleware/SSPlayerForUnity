@@ -65,7 +65,10 @@ function Show-Usage {
     Write-Host "  verify=<yes|no>         Run both checks (default: yes). no packs whatever is"
     Write-Host "                          there, which is not a thing to ship."
     Write-Host "  clean=<yes|no>          Delete <out> before building (default: yes)."
-    Write-Host "  -h | --help             Show this help"
+        Write-Host "  in= skip=               Accepted and ignored here. The family's build-release"
+    Write-Host "                          scripts share out= clean= verify= in= sdk= skip=,"
+    Write-Host "                          so one command line drives all of them."
+Write-Host "  -h | --help             Show this help"
     Write-Host ""
     Write-Host "Output: <out>/ holds <name>-<version>.tgz, the version-less <name>.tgz alias"
     Write-Host "the README and docs link to via releases/latest/download/, and SHA256SUMS over"
@@ -93,8 +96,17 @@ foreach ($argument in $Arguments) {
         '^sdk='    { $sdk = $argument.Substring(4).ToLower() }
         '^verify=' { $verify = $argument.Substring(7).ToLower() }
         '^clean='  { $clean = $argument.Substring(6).ToLower() }
+        # Accepted so one command line drives build-release in every repository
+        # of the family; this one has no use for them.
+        '^(in|skip)=' {
+            [Console]::Error.WriteLine("${app}: " + ($argument -replace '=.*$', '') + "= does not apply here; ignored")
+        }
         default {
-            Write-Error "${app}: unknown argument '$argument' (options are key=value; see $app --help)"
+            # Plain stderr and the code, matching the .sh twin (2 = bad usage).
+            # Write-Error throws under $ErrorActionPreference = "Stop", so an
+            # `exit 2` after one never runs and the shell sees 1.
+            [Console]::Error.WriteLine("${app}: unknown argument '$argument' (options are key=value; see $app --help)")
+            exit 2
         }
     }
 }

@@ -62,7 +62,10 @@ usage () {
   echo "  verify=<yes|no>         Run both checks (default: $VERIFY). no packs whatever"
   echo "                          is there, which is not a thing to ship."
   echo "  clean=<yes|no>          Delete <out> before building (default: $CLEAN)."
-  echo "  -h | --help             Show this help"
+    echo "  in= skip=               Accepted and ignored here. The family's build-release"
+  echo "                          scripts share out= clean= verify= in= sdk= skip=,"
+  echo "                          so one command line drives all of them."
+echo "  -h | --help             Show this help"
   echo ""
   echo "Output: <out>/ holds <name>-<version>.tgz, the version-less <name>.tgz alias"
   echo "the README and docs link to via releases/latest/download/, and SHA256SUMS over"
@@ -100,6 +103,9 @@ while [ $# -gt 0 ]; do
         sdk)    SDK="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')" ;;
         verify) VERIFY="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')" ;;
         clean)  CLEAN="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')" ;;
+        # Accepted so one command line drives build-release in every repository
+        # of the family; this one has no use for them (AGENTS.md).
+        in|skip) echo "$APP: ${key}= does not apply here; ignored" >&2 ;;
         *)
           echo "$APP: unknown option '$key' (see $APP --help)" >&2
           exit 2
