@@ -1,6 +1,25 @@
 #!/usr/bin/env pwsh
 $ErrorActionPreference = "Stop"
 
+$HelpApp = Split-Path -Leaf $PSCommandPath
+function Show-Usage {
+    Write-Host "Usage: ${HelpApp} [--help]"
+    Write-Host "  flatc --csharp over the SDK's .fbs schemas, into package/Runtime/Format/. Needs flatc."
+    Write-Host "  The csbindgen FFI bindings are NOT this script's output: the SDK's own build emits"
+    Write-Host "  them and build-runtime / download-sdk place them."
+}
+
+foreach ($arg in $args) {
+    switch -Regex ($arg) {
+        '^(-h|--help|help)$' { Show-Usage; exit 0 }
+        default {
+            [Console]::Error.WriteLine("${HelpApp}: unknown argument '$arg'")
+            Show-Usage
+            exit 2
+        }
+    }
+}
+
 $baseDirectory = Split-Path -Parent $PSCommandPath
 $rootDirectory = Split-Path -Parent $baseDirectory
 
