@@ -146,7 +146,7 @@ static public class EffectNodeBehaviorVerify
         result = ss.format.Vec2ValueEntryVerify.Verify(verifier, tablePos);
         break;
       case EffectNodeBehavior.EffectParticleElementPosition:
-        result = ss.format.RectValueEntryVerify.Verify(verifier, tablePos);
+        result = ss.format.MinMax2ValueEntryVerify.Verify(verifier, tablePos);
         break;
       case EffectNodeBehavior.EffectParticleElementRotation:
         result = ss.format.EffectParticleElementRotationVerify.Verify(verifier, tablePos);
@@ -170,10 +170,10 @@ static public class EffectNodeBehaviorVerify
         result = ss.format.Vec2ValueEntryVerify.Verify(verifier, tablePos);
         break;
       case EffectNodeBehavior.EffectParticleElementSize:
-        result = ss.format.RectAndVec2ValueTableVerify.Verify(verifier, tablePos);
+        result = ss.format.MinMax2AndVec2ValueTableVerify.Verify(verifier, tablePos);
         break;
       case EffectNodeBehavior.EffectParticleElementTransSize:
-        result = ss.format.RectAndVec2ValueTableVerify.Verify(verifier, tablePos);
+        result = ss.format.MinMax2AndVec2ValueTableVerify.Verify(verifier, tablePos);
         break;
       case EffectNodeBehavior.EffectParticlePointGravity:
         result = ss.format.EffectParticlePointGravityVerify.Verify(verifier, tablePos);
@@ -492,6 +492,110 @@ static public class RectVerify
       && verifier.VerifyField(tablePos, 6 /*Y1*/, 4 /*float*/, 4, false)
       && verifier.VerifyField(tablePos, 8 /*X2*/, 4 /*float*/, 4, false)
       && verifier.VerifyField(tablePos, 10 /*Y2*/, 4 /*float*/, 4, false)
+      && verifier.VerifyTableEnd(tablePos);
+  }
+}
+public struct Region : IFlatbufferObject
+{
+  private Table __p;
+  public ByteBuffer ByteBuffer { get { return __p.bb; } }
+  public static void ValidateVersion() { FlatBufferConstants.FLATBUFFERS_25_12_19(); }
+  public static Region GetRootAsRegion(ByteBuffer _bb) { return GetRootAsRegion(_bb, new Region()); }
+  public static Region GetRootAsRegion(ByteBuffer _bb, Region obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
+  public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
+  public Region __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
+
+  public float X { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
+  public float Y { get { int o = __p.__offset(6); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
+  public float W { get { int o = __p.__offset(8); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
+  public float H { get { int o = __p.__offset(10); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
+
+  public static Offset<ss.format.Region> CreateRegion(FlatBufferBuilder builder,
+      float x = 0.0f,
+      float y = 0.0f,
+      float w = 0.0f,
+      float h = 0.0f) {
+    builder.StartTable(4);
+    Region.AddH(builder, h);
+    Region.AddW(builder, w);
+    Region.AddY(builder, y);
+    Region.AddX(builder, x);
+    return Region.EndRegion(builder);
+  }
+
+  public static void StartRegion(FlatBufferBuilder builder) { builder.StartTable(4); }
+  public static void AddX(FlatBufferBuilder builder, float x) { builder.AddFloat(0, x, 0.0f); }
+  public static void AddY(FlatBufferBuilder builder, float y) { builder.AddFloat(1, y, 0.0f); }
+  public static void AddW(FlatBufferBuilder builder, float w) { builder.AddFloat(2, w, 0.0f); }
+  public static void AddH(FlatBufferBuilder builder, float h) { builder.AddFloat(3, h, 0.0f); }
+  public static Offset<ss.format.Region> EndRegion(FlatBufferBuilder builder) {
+    int o = builder.EndTable();
+    return new Offset<ss.format.Region>(o);
+  }
+}
+
+
+static public class RegionVerify
+{
+  static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
+  {
+    return verifier.VerifyTableStart(tablePos)
+      && verifier.VerifyField(tablePos, 4 /*X*/, 4 /*float*/, 4, false)
+      && verifier.VerifyField(tablePos, 6 /*Y*/, 4 /*float*/, 4, false)
+      && verifier.VerifyField(tablePos, 8 /*W*/, 4 /*float*/, 4, false)
+      && verifier.VerifyField(tablePos, 10 /*H*/, 4 /*float*/, 4, false)
+      && verifier.VerifyTableEnd(tablePos);
+  }
+}
+public struct MinMax2 : IFlatbufferObject
+{
+  private Table __p;
+  public ByteBuffer ByteBuffer { get { return __p.bb; } }
+  public static void ValidateVersion() { FlatBufferConstants.FLATBUFFERS_25_12_19(); }
+  public static MinMax2 GetRootAsMinMax2(ByteBuffer _bb) { return GetRootAsMinMax2(_bb, new MinMax2()); }
+  public static MinMax2 GetRootAsMinMax2(ByteBuffer _bb, MinMax2 obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
+  public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
+  public MinMax2 __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
+
+  public float XMin { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
+  public float YMin { get { int o = __p.__offset(6); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
+  public float XMax { get { int o = __p.__offset(8); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
+  public float YMax { get { int o = __p.__offset(10); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
+
+  public static Offset<ss.format.MinMax2> CreateMinMax2(FlatBufferBuilder builder,
+      float x_min = 0.0f,
+      float y_min = 0.0f,
+      float x_max = 0.0f,
+      float y_max = 0.0f) {
+    builder.StartTable(4);
+    MinMax2.AddYMax(builder, y_max);
+    MinMax2.AddXMax(builder, x_max);
+    MinMax2.AddYMin(builder, y_min);
+    MinMax2.AddXMin(builder, x_min);
+    return MinMax2.EndMinMax2(builder);
+  }
+
+  public static void StartMinMax2(FlatBufferBuilder builder) { builder.StartTable(4); }
+  public static void AddXMin(FlatBufferBuilder builder, float xMin) { builder.AddFloat(0, xMin, 0.0f); }
+  public static void AddYMin(FlatBufferBuilder builder, float yMin) { builder.AddFloat(1, yMin, 0.0f); }
+  public static void AddXMax(FlatBufferBuilder builder, float xMax) { builder.AddFloat(2, xMax, 0.0f); }
+  public static void AddYMax(FlatBufferBuilder builder, float yMax) { builder.AddFloat(3, yMax, 0.0f); }
+  public static Offset<ss.format.MinMax2> EndMinMax2(FlatBufferBuilder builder) {
+    int o = builder.EndTable();
+    return new Offset<ss.format.MinMax2>(o);
+  }
+}
+
+
+static public class MinMax2Verify
+{
+  static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
+  {
+    return verifier.VerifyTableStart(tablePos)
+      && verifier.VerifyField(tablePos, 4 /*XMin*/, 4 /*float*/, 4, false)
+      && verifier.VerifyField(tablePos, 6 /*YMin*/, 4 /*float*/, 4, false)
+      && verifier.VerifyField(tablePos, 8 /*XMax*/, 4 /*float*/, 4, false)
+      && verifier.VerifyField(tablePos, 10 /*YMax*/, 4 /*float*/, 4, false)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -819,41 +923,41 @@ static public class Vec2ValueEntryVerify
       && verifier.VerifyTableEnd(tablePos);
   }
 }
-public struct RectValueEntry : IFlatbufferObject
+public struct MinMax2ValueEntry : IFlatbufferObject
 {
   private Table __p;
   public ByteBuffer ByteBuffer { get { return __p.bb; } }
   public static void ValidateVersion() { FlatBufferConstants.FLATBUFFERS_25_12_19(); }
-  public static RectValueEntry GetRootAsRectValueEntry(ByteBuffer _bb) { return GetRootAsRectValueEntry(_bb, new RectValueEntry()); }
-  public static RectValueEntry GetRootAsRectValueEntry(ByteBuffer _bb, RectValueEntry obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
+  public static MinMax2ValueEntry GetRootAsMinMax2ValueEntry(ByteBuffer _bb) { return GetRootAsMinMax2ValueEntry(_bb, new MinMax2ValueEntry()); }
+  public static MinMax2ValueEntry GetRootAsMinMax2ValueEntry(ByteBuffer _bb, MinMax2ValueEntry obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
   public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
-  public RectValueEntry __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
+  public MinMax2ValueEntry __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
 
-  public ss.format.Rect? Value { get { int o = __p.__offset(4); return o != 0 ? (ss.format.Rect?)(new ss.format.Rect()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
+  public ss.format.MinMax2? Value { get { int o = __p.__offset(4); return o != 0 ? (ss.format.MinMax2?)(new ss.format.MinMax2()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
 
-  public static Offset<ss.format.RectValueEntry> CreateRectValueEntry(FlatBufferBuilder builder,
-      Offset<ss.format.Rect> valueOffset = default(Offset<ss.format.Rect>)) {
+  public static Offset<ss.format.MinMax2ValueEntry> CreateMinMax2ValueEntry(FlatBufferBuilder builder,
+      Offset<ss.format.MinMax2> valueOffset = default(Offset<ss.format.MinMax2>)) {
     builder.StartTable(1);
-    RectValueEntry.AddValue(builder, valueOffset);
-    return RectValueEntry.EndRectValueEntry(builder);
+    MinMax2ValueEntry.AddValue(builder, valueOffset);
+    return MinMax2ValueEntry.EndMinMax2ValueEntry(builder);
   }
 
-  public static void StartRectValueEntry(FlatBufferBuilder builder) { builder.StartTable(1); }
-  public static void AddValue(FlatBufferBuilder builder, Offset<ss.format.Rect> valueOffset) { builder.AddOffset(0, valueOffset.Value, 0); }
-  public static Offset<ss.format.RectValueEntry> EndRectValueEntry(FlatBufferBuilder builder) {
+  public static void StartMinMax2ValueEntry(FlatBufferBuilder builder) { builder.StartTable(1); }
+  public static void AddValue(FlatBufferBuilder builder, Offset<ss.format.MinMax2> valueOffset) { builder.AddOffset(0, valueOffset.Value, 0); }
+  public static Offset<ss.format.MinMax2ValueEntry> EndMinMax2ValueEntry(FlatBufferBuilder builder) {
     int o = builder.EndTable();
     builder.Required(o, 4);  // value
-    return new Offset<ss.format.RectValueEntry>(o);
+    return new Offset<ss.format.MinMax2ValueEntry>(o);
   }
 }
 
 
-static public class RectValueEntryVerify
+static public class MinMax2ValueEntryVerify
 {
   static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
   {
     return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyTable(tablePos, 4 /*Value*/, ss.format.RectVerify.Verify, true)
+      && verifier.VerifyTable(tablePos, 4 /*Value*/, ss.format.MinMax2Verify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -1361,7 +1465,7 @@ public struct Cell : IFlatbufferObject
   public ArraySegment<byte>? GetNameBytes() { return __p.__vector_as_arraysegment(6); }
 #endif
   public byte[] GetNameArray() { return __p.__vector_as_array<byte>(6); }
-  public ss.format.Rect? Rectangle { get { int o = __p.__offset(8); return o != 0 ? (ss.format.Rect?)(new ss.format.Rect()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
+  public ss.format.Region? Region { get { int o = __p.__offset(8); return o != 0 ? (ss.format.Region?)(new ss.format.Region()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
   public ss.format.Vec2? Pivot { get { int o = __p.__offset(10); return o != 0 ? (ss.format.Vec2?)(new ss.format.Vec2()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
   public bool Rotated { get { int o = __p.__offset(12); return o != 0 ? 0!=__p.bb.Get(o + __p.bb_pos) : (bool)false; } }
   public float TableCoordX(int j) { int o = __p.__offset(14); return o != 0 ? __p.bb.GetFloat(__p.__vector(o) + j * 4) : (float)0; }
@@ -1392,7 +1496,7 @@ public struct Cell : IFlatbufferObject
   public static Offset<ss.format.Cell> CreateCell(FlatBufferBuilder builder,
       uint name_hash = 0,
       StringOffset nameOffset = default(StringOffset),
-      Offset<ss.format.Rect> rectangleOffset = default(Offset<ss.format.Rect>),
+      Offset<ss.format.Region> regionOffset = default(Offset<ss.format.Region>),
       Offset<ss.format.Vec2> pivotOffset = default(Offset<ss.format.Vec2>),
       bool rotated = false,
       VectorOffset table_coord_xOffset = default(VectorOffset),
@@ -1403,7 +1507,7 @@ public struct Cell : IFlatbufferObject
     Cell.AddTableCoordY(builder, table_coord_yOffset);
     Cell.AddTableCoordX(builder, table_coord_xOffset);
     Cell.AddPivot(builder, pivotOffset);
-    Cell.AddRectangle(builder, rectangleOffset);
+    Cell.AddRegion(builder, regionOffset);
     Cell.AddName(builder, nameOffset);
     Cell.AddNameHash(builder, name_hash);
     Cell.AddRotated(builder, rotated);
@@ -1413,7 +1517,7 @@ public struct Cell : IFlatbufferObject
   public static void StartCell(FlatBufferBuilder builder) { builder.StartTable(8); }
   public static void AddNameHash(FlatBufferBuilder builder, uint nameHash) { builder.AddUint(0, nameHash, 0); }
   public static void AddName(FlatBufferBuilder builder, StringOffset nameOffset) { builder.AddOffset(1, nameOffset.Value, 0); }
-  public static void AddRectangle(FlatBufferBuilder builder, Offset<ss.format.Rect> rectangleOffset) { builder.AddOffset(2, rectangleOffset.Value, 0); }
+  public static void AddRegion(FlatBufferBuilder builder, Offset<ss.format.Region> regionOffset) { builder.AddOffset(2, regionOffset.Value, 0); }
   public static void AddPivot(FlatBufferBuilder builder, Offset<ss.format.Vec2> pivotOffset) { builder.AddOffset(3, pivotOffset.Value, 0); }
   public static void AddRotated(FlatBufferBuilder builder, bool rotated) { builder.AddBool(4, rotated, false); }
   public static void AddTableCoordX(FlatBufferBuilder builder, VectorOffset tableCoordXOffset) { builder.AddOffset(5, tableCoordXOffset.Value, 0); }
@@ -1437,7 +1541,7 @@ public struct Cell : IFlatbufferObject
   public static Offset<ss.format.Cell> EndCell(FlatBufferBuilder builder) {
     int o = builder.EndTable();
     builder.Required(o, 6);  // name
-    builder.Required(o, 8);  // rectangle
+    builder.Required(o, 8);  // region
     builder.Required(o, 10);  // pivot
     return new Offset<ss.format.Cell>(o);
   }
@@ -1480,7 +1584,7 @@ static public class CellVerify
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*NameHash*/, 4 /*uint*/, 4, false)
       && verifier.VerifyString(tablePos, 6 /*Name*/, true)
-      && verifier.VerifyTable(tablePos, 8 /*Rectangle*/, ss.format.RectVerify.Verify, true)
+      && verifier.VerifyTable(tablePos, 8 /*Region*/, ss.format.RegionVerify.Verify, true)
       && verifier.VerifyTable(tablePos, 10 /*Pivot*/, ss.format.Vec2Verify.Verify, true)
       && verifier.VerifyField(tablePos, 12 /*Rotated*/, 1 /*bool*/, 1, false)
       && verifier.VerifyVectorOfData(tablePos, 14 /*TableCoordX*/, 4 /*float*/, false)
@@ -1655,45 +1759,45 @@ static public class EffectParticlePointGravityVerify
       && verifier.VerifyTableEnd(tablePos);
   }
 }
-public struct RectAndVec2ValueTable : IFlatbufferObject
+public struct MinMax2AndVec2ValueTable : IFlatbufferObject
 {
   private Table __p;
   public ByteBuffer ByteBuffer { get { return __p.bb; } }
   public static void ValidateVersion() { FlatBufferConstants.FLATBUFFERS_25_12_19(); }
-  public static RectAndVec2ValueTable GetRootAsRectAndVec2ValueTable(ByteBuffer _bb) { return GetRootAsRectAndVec2ValueTable(_bb, new RectAndVec2ValueTable()); }
-  public static RectAndVec2ValueTable GetRootAsRectAndVec2ValueTable(ByteBuffer _bb, RectAndVec2ValueTable obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
+  public static MinMax2AndVec2ValueTable GetRootAsMinMax2AndVec2ValueTable(ByteBuffer _bb) { return GetRootAsMinMax2AndVec2ValueTable(_bb, new MinMax2AndVec2ValueTable()); }
+  public static MinMax2AndVec2ValueTable GetRootAsMinMax2AndVec2ValueTable(ByteBuffer _bb, MinMax2AndVec2ValueTable obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
   public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
-  public RectAndVec2ValueTable __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
+  public MinMax2AndVec2ValueTable __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
 
-  public ss.format.Rect? Size { get { int o = __p.__offset(4); return o != 0 ? (ss.format.Rect?)(new ss.format.Rect()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
+  public ss.format.MinMax2? Size { get { int o = __p.__offset(4); return o != 0 ? (ss.format.MinMax2?)(new ss.format.MinMax2()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
   public ss.format.Vec2? ScaleFactorValue { get { int o = __p.__offset(6); return o != 0 ? (ss.format.Vec2?)(new ss.format.Vec2()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
 
-  public static Offset<ss.format.RectAndVec2ValueTable> CreateRectAndVec2ValueTable(FlatBufferBuilder builder,
-      Offset<ss.format.Rect> sizeOffset = default(Offset<ss.format.Rect>),
+  public static Offset<ss.format.MinMax2AndVec2ValueTable> CreateMinMax2AndVec2ValueTable(FlatBufferBuilder builder,
+      Offset<ss.format.MinMax2> sizeOffset = default(Offset<ss.format.MinMax2>),
       Offset<ss.format.Vec2> scale_factor_valueOffset = default(Offset<ss.format.Vec2>)) {
     builder.StartTable(2);
-    RectAndVec2ValueTable.AddScaleFactorValue(builder, scale_factor_valueOffset);
-    RectAndVec2ValueTable.AddSize(builder, sizeOffset);
-    return RectAndVec2ValueTable.EndRectAndVec2ValueTable(builder);
+    MinMax2AndVec2ValueTable.AddScaleFactorValue(builder, scale_factor_valueOffset);
+    MinMax2AndVec2ValueTable.AddSize(builder, sizeOffset);
+    return MinMax2AndVec2ValueTable.EndMinMax2AndVec2ValueTable(builder);
   }
 
-  public static void StartRectAndVec2ValueTable(FlatBufferBuilder builder) { builder.StartTable(2); }
-  public static void AddSize(FlatBufferBuilder builder, Offset<ss.format.Rect> sizeOffset) { builder.AddOffset(0, sizeOffset.Value, 0); }
+  public static void StartMinMax2AndVec2ValueTable(FlatBufferBuilder builder) { builder.StartTable(2); }
+  public static void AddSize(FlatBufferBuilder builder, Offset<ss.format.MinMax2> sizeOffset) { builder.AddOffset(0, sizeOffset.Value, 0); }
   public static void AddScaleFactorValue(FlatBufferBuilder builder, Offset<ss.format.Vec2> scaleFactorValueOffset) { builder.AddOffset(1, scaleFactorValueOffset.Value, 0); }
-  public static Offset<ss.format.RectAndVec2ValueTable> EndRectAndVec2ValueTable(FlatBufferBuilder builder) {
+  public static Offset<ss.format.MinMax2AndVec2ValueTable> EndMinMax2AndVec2ValueTable(FlatBufferBuilder builder) {
     int o = builder.EndTable();
     builder.Required(o, 6);  // scale_factor_value
-    return new Offset<ss.format.RectAndVec2ValueTable>(o);
+    return new Offset<ss.format.MinMax2AndVec2ValueTable>(o);
   }
 }
 
 
-static public class RectAndVec2ValueTableVerify
+static public class MinMax2AndVec2ValueTableVerify
 {
   static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
   {
     return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyTable(tablePos, 4 /*Size*/, ss.format.RectVerify.Verify, false)
+      && verifier.VerifyTable(tablePos, 4 /*Size*/, ss.format.MinMax2Verify.Verify, false)
       && verifier.VerifyTable(tablePos, 6 /*ScaleFactorValue*/, ss.format.Vec2Verify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
@@ -1971,7 +2075,7 @@ public struct EffectNodeBehaviorWrapper : IFlatbufferObject
   public ss.format.IntValueEntry ValueAsEffectParticleElementRndSeedChange() { return Value<ss.format.IntValueEntry>().Value; }
   public ss.format.IntValueEntry ValueAsEffectParticleElementDelay() { return Value<ss.format.IntValueEntry>().Value; }
   public ss.format.Vec2ValueEntry ValueAsEffectParticleElementGravity() { return Value<ss.format.Vec2ValueEntry>().Value; }
-  public ss.format.RectValueEntry ValueAsEffectParticleElementPosition() { return Value<ss.format.RectValueEntry>().Value; }
+  public ss.format.MinMax2ValueEntry ValueAsEffectParticleElementPosition() { return Value<ss.format.MinMax2ValueEntry>().Value; }
   public ss.format.EffectParticleElementRotation ValueAsEffectParticleElementRotation() { return Value<ss.format.EffectParticleElementRotation>().Value; }
   public ss.format.EffectParticleElementRotationTrans ValueAsEffectParticleElementRotationTrans() { return Value<ss.format.EffectParticleElementRotationTrans>().Value; }
   public ss.format.Vec2ValueEntry ValueAsEffectParticleElementTransSpeed() { return Value<ss.format.Vec2ValueEntry>().Value; }
@@ -1979,8 +2083,8 @@ public struct EffectNodeBehaviorWrapper : IFlatbufferObject
   public ss.format.EffectParticleElementInitColor ValueAsEffectParticleElementInitColor() { return Value<ss.format.EffectParticleElementInitColor>().Value; }
   public ss.format.EffectParticleElementTransColor ValueAsEffectParticleElementTransColor() { return Value<ss.format.EffectParticleElementTransColor>().Value; }
   public ss.format.Vec2ValueEntry ValueAsEffectParticleElementAlphaFade() { return Value<ss.format.Vec2ValueEntry>().Value; }
-  public ss.format.RectAndVec2ValueTable ValueAsEffectParticleElementSize() { return Value<ss.format.RectAndVec2ValueTable>().Value; }
-  public ss.format.RectAndVec2ValueTable ValueAsEffectParticleElementTransSize() { return Value<ss.format.RectAndVec2ValueTable>().Value; }
+  public ss.format.MinMax2AndVec2ValueTable ValueAsEffectParticleElementSize() { return Value<ss.format.MinMax2AndVec2ValueTable>().Value; }
+  public ss.format.MinMax2AndVec2ValueTable ValueAsEffectParticleElementTransSize() { return Value<ss.format.MinMax2AndVec2ValueTable>().Value; }
   public ss.format.EffectParticlePointGravity ValueAsEffectParticlePointGravity() { return Value<ss.format.EffectParticlePointGravity>().Value; }
   public ss.format.FloatValueEntry ValueAsEffectParticleTurnToDirectionEnabled() { return Value<ss.format.FloatValueEntry>().Value; }
   public ss.format.IntValueEntry ValueAsEffectParticleInfiniteEmitEnabled() { return Value<ss.format.IntValueEntry>().Value; }
@@ -2396,7 +2500,7 @@ public struct FontGlyphBitmap : IFlatbufferObject
   public FontGlyphBitmap __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
 
   public ushort Id { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetUshort(o + __p.bb_pos) : (ushort)0; } }
-  public ss.format.Rect? Atlas { get { int o = __p.__offset(6); return o != 0 ? (ss.format.Rect?)(new ss.format.Rect()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
+  public ss.format.Region? Atlas { get { int o = __p.__offset(6); return o != 0 ? (ss.format.Region?)(new ss.format.Region()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
   public ss.format.Vec2? Offset { get { int o = __p.__offset(8); return o != 0 ? (ss.format.Vec2?)(new ss.format.Vec2()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
   public float WidthAdvance { get { int o = __p.__offset(10); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
   public string Text { get { int o = __p.__offset(12); return o != 0 ? __p.__string(o + __p.bb_pos) : null; } }
@@ -2411,7 +2515,7 @@ public struct FontGlyphBitmap : IFlatbufferObject
 
   public static Offset<ss.format.FontGlyphBitmap> CreateFontGlyphBitmap(FlatBufferBuilder builder,
       ushort id = 0,
-      Offset<ss.format.Rect> atlasOffset = default(Offset<ss.format.Rect>),
+      Offset<ss.format.Region> atlasOffset = default(Offset<ss.format.Region>),
       Offset<ss.format.Vec2> offsetOffset = default(Offset<ss.format.Vec2>),
       float width_advance = 0.0f,
       StringOffset textOffset = default(StringOffset),
@@ -2430,7 +2534,7 @@ public struct FontGlyphBitmap : IFlatbufferObject
 
   public static void StartFontGlyphBitmap(FlatBufferBuilder builder) { builder.StartTable(7); }
   public static void AddId(FlatBufferBuilder builder, ushort id) { builder.AddUshort(0, id, 0); }
-  public static void AddAtlas(FlatBufferBuilder builder, Offset<ss.format.Rect> atlasOffset) { builder.AddOffset(1, atlasOffset.Value, 0); }
+  public static void AddAtlas(FlatBufferBuilder builder, Offset<ss.format.Region> atlasOffset) { builder.AddOffset(1, atlasOffset.Value, 0); }
   public static void AddOffset(FlatBufferBuilder builder, Offset<ss.format.Vec2> offsetOffset) { builder.AddOffset(2, offsetOffset.Value, 0); }
   public static void AddWidthAdvance(FlatBufferBuilder builder, float widthAdvance) { builder.AddFloat(3, widthAdvance, 0.0f); }
   public static void AddText(FlatBufferBuilder builder, StringOffset textOffset) { builder.AddOffset(4, textOffset.Value, 0); }
@@ -2478,7 +2582,7 @@ static public class FontGlyphBitmapVerify
   {
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyField(tablePos, 4 /*Id*/, 2 /*ushort*/, 2, false)
-      && verifier.VerifyTable(tablePos, 6 /*Atlas*/, ss.format.RectVerify.Verify, false)
+      && verifier.VerifyTable(tablePos, 6 /*Atlas*/, ss.format.RegionVerify.Verify, false)
       && verifier.VerifyTable(tablePos, 8 /*Offset*/, ss.format.Vec2Verify.Verify, false)
       && verifier.VerifyField(tablePos, 10 /*WidthAdvance*/, 4 /*float*/, 4, false)
       && verifier.VerifyString(tablePos, 12 /*Text*/, false)
