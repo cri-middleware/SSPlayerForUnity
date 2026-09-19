@@ -116,25 +116,25 @@ public struct Vec2 : IFlatbufferObject
   }
 }
 
-public struct U8Rect : IFlatbufferObject
+public struct U8Color : IFlatbufferObject
 {
   private Struct __p;
   public ByteBuffer ByteBuffer { get { return __p.bb; } }
   public void __init(int _i, ByteBuffer _bb) { __p = new Struct(_i, _bb); }
-  public U8Rect __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
+  public U8Color __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
 
   public byte A { get { return __p.bb.Get(__p.bb_pos + 0); } }
   public byte R { get { return __p.bb.Get(__p.bb_pos + 1); } }
   public byte G { get { return __p.bb.Get(__p.bb_pos + 2); } }
   public byte B { get { return __p.bb.Get(__p.bb_pos + 3); } }
 
-  public static Offset<ss.runtime.U8Rect> CreateU8Rect(FlatBufferBuilder builder, byte A, byte R, byte G, byte B) {
+  public static Offset<ss.runtime.U8Color> CreateU8Color(FlatBufferBuilder builder, byte A, byte R, byte G, byte B) {
     builder.Prep(1, 4);
     builder.PutByte(B);
     builder.PutByte(G);
     builder.PutByte(R);
     builder.PutByte(A);
-    return new Offset<ss.runtime.U8Rect>(builder.Offset);
+    return new Offset<ss.runtime.U8Color>(builder.Offset);
   }
 }
 
@@ -145,7 +145,7 @@ public struct SsAttributePartColorKeyValueColor : IFlatbufferObject
   public void __init(int _i, ByteBuffer _bb) { __p = new Struct(_i, _bb); }
   public SsAttributePartColorKeyValueColor __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
 
-  public ss.runtime.U8Rect Rgba { get { return (new ss.runtime.U8Rect()).__assign(__p.bb_pos + 0, __p.bb); } }
+  public ss.runtime.U8Color Rgba { get { return (new ss.runtime.U8Color()).__assign(__p.bb_pos + 0, __p.bb); } }
   public float Rate { get { return __p.bb.GetFloat(__p.bb_pos + 4); } }
 
   public static Offset<ss.runtime.SsAttributePartColorKeyValueColor> CreateSsAttributePartColorKeyValueColor(FlatBufferBuilder builder, byte rgba_A, byte rgba_R, byte rgba_G, byte rgba_B, float Rate) {

@@ -702,7 +702,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         {
             // Eliminate the per-element nested accessor (frameData.PartsColor(i)) and read the contiguous
             // parts_color struct-vector (vtable offset 8, 36B stride) directly via the RawPartColor mirror.
-            // U8Rect is in ARGB byte order, so reorder into Color32(R,G,B,A) (identical to the prior behavior).
+            // U8Color is in ARGB byte order, so reorder into Color32(R,G,B,A) (identical to the prior behavior).
             int vecOff = tFrame.__offset(PartsColorVtoff);
             if (vecOff == 0) return;
             RawPartColor* raw = (RawPartColor*)(frameDataPtr + tFrame.__vector(vecOff));
@@ -1106,7 +1106,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
     // Byte-compatible with framedata_generated.cs's PartState(144B) / PartAttributePartColor(36B) / U8Rect.
     // Warning: if you regenerate the .fbs and the layout changes, update these too (the startup sizeof assert detects total-size drift).
     [StructLayout(LayoutKind.Explicit, Size = 8)]
-    internal struct RawCorner   // U8Rect(ARGB) + Rate (SsAttributePartColorKeyValueColor)
+    internal struct RawCorner   // U8Color(ARGB) + Rate (SsAttributePartColorKeyValueColor)
     {
         [FieldOffset(0)] public byte A;
         [FieldOffset(1)] public byte R;
@@ -1215,7 +1215,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     mc->Lb.A == cAcc.Lb.Rgba.A && mc->Lb.R == cAcc.Lb.Rgba.R && mc->Lb.G == cAcc.Lb.Rgba.G && mc->Lb.B == cAcc.Lb.Rgba.B && mc->Lb.Rate == cAcc.Lb.Rate &&
                     mc->Rb.A == cAcc.Rb.Rgba.A && mc->Rb.R == cAcc.Rb.Rgba.R && mc->Rb.G == cAcc.Rb.Rgba.G && mc->Rb.B == cAcc.Rb.Rgba.B && mc->Rb.Rate == cAcc.Rb.Rate;
                 UnityEngine.Debug.Assert(colorOk,
-                    "RawPartColor field offsets do not match the framedata PartAttributePartColor accessor - verify BlendType@0/Lt@4/Rt@12/Lb@20/Rb@28 and U8Rect A@0/R@1/G@2/B@3+Rate@4, then update the mirror struct");
+                    "RawPartColor field offsets do not match the framedata PartAttributePartColor accessor - verify BlendType@0/Lt@4/Rt@12/Lb@20/Rb@28 and U8Color A@0/R@1/G@2/B@3+Rate@4, then update the mirror struct");
             }
 #endif
         }

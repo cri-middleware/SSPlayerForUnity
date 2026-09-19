@@ -1320,7 +1320,7 @@ internal struct MaskPartData
                                     HasString = val.Str != null,
                                     StringValue = val.Str,
                                     HasRect = val.Rect.HasValue,
-                                    RectValue = val.Rect.HasValue ? new UnityEngine.Rect(val.Rect.Value.X1, val.Rect.Value.Y1, val.Rect.Value.X2 - val.Rect.Value.X1, val.Rect.Value.Y2 - val.Rect.Value.Y1) : default,
+                                    RectValue = val.Rect.HasValue ? new UnityEngine.Rect(val.Rect.Value.Left, val.Rect.Value.Top, val.Rect.Value.Right - val.Rect.Value.Left, val.Rect.Value.Bottom - val.Rect.Value.Top) : default,
                                     HasPoint = val.Point.HasValue,
                                     PointValue = val.Point.HasValue ? new UnityEngine.Vector2(val.Point.Value.V1, val.Point.Value.V2) : default
                                 };
