@@ -72,19 +72,21 @@
 
 > **補足:** ホスト環境と同じ platform/arch を指定した場合は `cargo build` を直接実行します。それ以外（クロスコンパイル）の場合は SDK 側のリリーススクリプトへ委譲します。
 
-## FFI バインディングのみ再生成する
+## FlatBuffers アクセサを再生成する
 
-SDK 側で FFI が追加・変更された際に、バインディングコードだけを再生成したい場合は次を実行します。
+SDK 側で `.fbs` スキーマが変更された際は、`package/Runtime/Format/` 以下の C# アクセサを再生成します。`flatc` に PATH が通っている必要があります。
 
 ```sh
 # macOS / Linux
-./scripts/generate-runtime-code.sh
+./scripts/generate-fbs-code.sh
 
 # Windows (PowerShell)
-.\scripts\generate-runtime-code.ps1
+.\scripts\generate-fbs-code.ps1
 ```
 
-> 生成されたファイル（`SSRuntimeMethods.g.cs` / `ssab_generated.cs` など）は手で編集しないでください。必ずスクリプトで再生成します。
+> 生成されたファイル（`ssab_generated.cs` / `framedata_generated.cs` など）は手で編集しないでください。必ずスクリプトで再生成します。
+
+> csbindgen による FFI バインディング（`SSRuntimeMethods.g.cs` / `SSConverterMethods.g.cs`）は**このスクリプトの出力ではありません**。SDK 側のビルドが生成し、`build-runtime` / `download-sdk` がパッケージへ配置します。
 
 ## よくある注意点
 
