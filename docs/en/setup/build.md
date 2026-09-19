@@ -72,19 +72,21 @@ Examples:
 
 > **Note:** If you specify the same platform/arch as the host environment, `cargo build` is run directly. Otherwise (cross-compilation), the work is delegated to the release script on the SDK side.
 
-## Regenerating Only the FFI Bindings
+## Regenerating the FlatBuffers Accessors
 
-When FFI is added or changed on the SDK side and you want to regenerate only the binding code, run the following.
+When the `.fbs` schemas change on the SDK side, regenerate the C# accessors under `package/Runtime/Format/`. This requires `flatc` on your PATH.
 
 ```sh
 # macOS / Linux
-./scripts/generate-runtime-code.sh
+./scripts/generate-fbs-code.sh
 
 # Windows (PowerShell)
-.\scripts\generate-runtime-code.ps1
+.\scripts\generate-fbs-code.ps1
 ```
 
-> Do not manually edit the generated files (`SSRuntimeMethods.g.cs`, `ssab_generated.cs`, etc.). Always regenerate them with the script.
+> Do not manually edit the generated files (`ssab_generated.cs`, `framedata_generated.cs`, etc.). Always regenerate them with the script.
+
+> The csbindgen FFI bindings (`SSRuntimeMethods.g.cs`, `SSConverterMethods.g.cs`) are **not** this script's output. The SDK's own build emits them, and `build-runtime` / `download-sdk` place them into the package.
 
 ## Common Pitfalls
 
