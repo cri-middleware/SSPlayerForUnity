@@ -443,55 +443,55 @@ static public class Vec2Verify
       && verifier.VerifyTableEnd(tablePos);
   }
 }
-public struct Rect : IFlatbufferObject
+public struct Bounds : IFlatbufferObject
 {
   private Table __p;
   public ByteBuffer ByteBuffer { get { return __p.bb; } }
   public static void ValidateVersion() { FlatBufferConstants.FLATBUFFERS_25_12_19(); }
-  public static Rect GetRootAsRect(ByteBuffer _bb) { return GetRootAsRect(_bb, new Rect()); }
-  public static Rect GetRootAsRect(ByteBuffer _bb, Rect obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
+  public static Bounds GetRootAsBounds(ByteBuffer _bb) { return GetRootAsBounds(_bb, new Bounds()); }
+  public static Bounds GetRootAsBounds(ByteBuffer _bb, Bounds obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
   public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
-  public Rect __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
+  public Bounds __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
 
-  public float X1 { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
-  public float Y1 { get { int o = __p.__offset(6); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
-  public float X2 { get { int o = __p.__offset(8); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
-  public float Y2 { get { int o = __p.__offset(10); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
+  public float Left { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
+  public float Top { get { int o = __p.__offset(6); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
+  public float Right { get { int o = __p.__offset(8); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
+  public float Bottom { get { int o = __p.__offset(10); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
 
-  public static Offset<ss.format.Rect> CreateRect(FlatBufferBuilder builder,
-      float x1 = 0.0f,
-      float y1 = 0.0f,
-      float x2 = 0.0f,
-      float y2 = 0.0f) {
+  public static Offset<ss.format.Bounds> CreateBounds(FlatBufferBuilder builder,
+      float left = 0.0f,
+      float top = 0.0f,
+      float right = 0.0f,
+      float bottom = 0.0f) {
     builder.StartTable(4);
-    Rect.AddY2(builder, y2);
-    Rect.AddX2(builder, x2);
-    Rect.AddY1(builder, y1);
-    Rect.AddX1(builder, x1);
-    return Rect.EndRect(builder);
+    Bounds.AddBottom(builder, bottom);
+    Bounds.AddRight(builder, right);
+    Bounds.AddTop(builder, top);
+    Bounds.AddLeft(builder, left);
+    return Bounds.EndBounds(builder);
   }
 
-  public static void StartRect(FlatBufferBuilder builder) { builder.StartTable(4); }
-  public static void AddX1(FlatBufferBuilder builder, float x1) { builder.AddFloat(0, x1, 0.0f); }
-  public static void AddY1(FlatBufferBuilder builder, float y1) { builder.AddFloat(1, y1, 0.0f); }
-  public static void AddX2(FlatBufferBuilder builder, float x2) { builder.AddFloat(2, x2, 0.0f); }
-  public static void AddY2(FlatBufferBuilder builder, float y2) { builder.AddFloat(3, y2, 0.0f); }
-  public static Offset<ss.format.Rect> EndRect(FlatBufferBuilder builder) {
+  public static void StartBounds(FlatBufferBuilder builder) { builder.StartTable(4); }
+  public static void AddLeft(FlatBufferBuilder builder, float left) { builder.AddFloat(0, left, 0.0f); }
+  public static void AddTop(FlatBufferBuilder builder, float top) { builder.AddFloat(1, top, 0.0f); }
+  public static void AddRight(FlatBufferBuilder builder, float right) { builder.AddFloat(2, right, 0.0f); }
+  public static void AddBottom(FlatBufferBuilder builder, float bottom) { builder.AddFloat(3, bottom, 0.0f); }
+  public static Offset<ss.format.Bounds> EndBounds(FlatBufferBuilder builder) {
     int o = builder.EndTable();
-    return new Offset<ss.format.Rect>(o);
+    return new Offset<ss.format.Bounds>(o);
   }
 }
 
 
-static public class RectVerify
+static public class BoundsVerify
 {
   static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
   {
     return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyField(tablePos, 4 /*X1*/, 4 /*float*/, 4, false)
-      && verifier.VerifyField(tablePos, 6 /*Y1*/, 4 /*float*/, 4, false)
-      && verifier.VerifyField(tablePos, 8 /*X2*/, 4 /*float*/, 4, false)
-      && verifier.VerifyField(tablePos, 10 /*Y2*/, 4 /*float*/, 4, false)
+      && verifier.VerifyField(tablePos, 4 /*Left*/, 4 /*float*/, 4, false)
+      && verifier.VerifyField(tablePos, 6 /*Top*/, 4 /*float*/, 4, false)
+      && verifier.VerifyField(tablePos, 8 /*Right*/, 4 /*float*/, 4, false)
+      && verifier.VerifyField(tablePos, 10 /*Bottom*/, 4 /*float*/, 4, false)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -599,47 +599,47 @@ static public class MinMax2Verify
       && verifier.VerifyTableEnd(tablePos);
   }
 }
-public struct U8Rect : IFlatbufferObject
+public struct U8Color : IFlatbufferObject
 {
   private Table __p;
   public ByteBuffer ByteBuffer { get { return __p.bb; } }
   public static void ValidateVersion() { FlatBufferConstants.FLATBUFFERS_25_12_19(); }
-  public static U8Rect GetRootAsU8Rect(ByteBuffer _bb) { return GetRootAsU8Rect(_bb, new U8Rect()); }
-  public static U8Rect GetRootAsU8Rect(ByteBuffer _bb, U8Rect obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
+  public static U8Color GetRootAsU8Color(ByteBuffer _bb) { return GetRootAsU8Color(_bb, new U8Color()); }
+  public static U8Color GetRootAsU8Color(ByteBuffer _bb, U8Color obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
   public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
-  public U8Rect __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
+  public U8Color __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
 
   public byte A { get { int o = __p.__offset(4); return o != 0 ? __p.bb.Get(o + __p.bb_pos) : (byte)0; } }
   public byte R { get { int o = __p.__offset(6); return o != 0 ? __p.bb.Get(o + __p.bb_pos) : (byte)0; } }
   public byte G { get { int o = __p.__offset(8); return o != 0 ? __p.bb.Get(o + __p.bb_pos) : (byte)0; } }
   public byte B { get { int o = __p.__offset(10); return o != 0 ? __p.bb.Get(o + __p.bb_pos) : (byte)0; } }
 
-  public static Offset<ss.format.U8Rect> CreateU8Rect(FlatBufferBuilder builder,
+  public static Offset<ss.format.U8Color> CreateU8Color(FlatBufferBuilder builder,
       byte a = 0,
       byte r = 0,
       byte g = 0,
       byte b = 0) {
     builder.StartTable(4);
-    U8Rect.AddB(builder, b);
-    U8Rect.AddG(builder, g);
-    U8Rect.AddR(builder, r);
-    U8Rect.AddA(builder, a);
-    return U8Rect.EndU8Rect(builder);
+    U8Color.AddB(builder, b);
+    U8Color.AddG(builder, g);
+    U8Color.AddR(builder, r);
+    U8Color.AddA(builder, a);
+    return U8Color.EndU8Color(builder);
   }
 
-  public static void StartU8Rect(FlatBufferBuilder builder) { builder.StartTable(4); }
+  public static void StartU8Color(FlatBufferBuilder builder) { builder.StartTable(4); }
   public static void AddA(FlatBufferBuilder builder, byte a) { builder.AddByte(0, a, 0); }
   public static void AddR(FlatBufferBuilder builder, byte r) { builder.AddByte(1, r, 0); }
   public static void AddG(FlatBufferBuilder builder, byte g) { builder.AddByte(2, g, 0); }
   public static void AddB(FlatBufferBuilder builder, byte b) { builder.AddByte(3, b, 0); }
-  public static Offset<ss.format.U8Rect> EndU8Rect(FlatBufferBuilder builder) {
+  public static Offset<ss.format.U8Color> EndU8Color(FlatBufferBuilder builder) {
     int o = builder.EndTable();
-    return new Offset<ss.format.U8Rect>(o);
+    return new Offset<ss.format.U8Color>(o);
   }
 }
 
 
-static public class U8RectVerify
+static public class U8ColorVerify
 {
   static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
   {
@@ -2938,11 +2938,11 @@ public struct SsAttributePartColorKeyValueColor : IFlatbufferObject
   public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
   public SsAttributePartColorKeyValueColor __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
 
-  public ss.format.U8Rect? Rgba { get { int o = __p.__offset(4); return o != 0 ? (ss.format.U8Rect?)(new ss.format.U8Rect()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
+  public ss.format.U8Color? Rgba { get { int o = __p.__offset(4); return o != 0 ? (ss.format.U8Color?)(new ss.format.U8Color()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
   public float Rate { get { int o = __p.__offset(6); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
 
   public static Offset<ss.format.SsAttributePartColorKeyValueColor> CreateSsAttributePartColorKeyValueColor(FlatBufferBuilder builder,
-      Offset<ss.format.U8Rect> rgbaOffset = default(Offset<ss.format.U8Rect>),
+      Offset<ss.format.U8Color> rgbaOffset = default(Offset<ss.format.U8Color>),
       float rate = 0.0f) {
     builder.StartTable(2);
     SsAttributePartColorKeyValueColor.AddRate(builder, rate);
@@ -2951,7 +2951,7 @@ public struct SsAttributePartColorKeyValueColor : IFlatbufferObject
   }
 
   public static void StartSsAttributePartColorKeyValueColor(FlatBufferBuilder builder) { builder.StartTable(2); }
-  public static void AddRgba(FlatBufferBuilder builder, Offset<ss.format.U8Rect> rgbaOffset) { builder.AddOffset(0, rgbaOffset.Value, 0); }
+  public static void AddRgba(FlatBufferBuilder builder, Offset<ss.format.U8Color> rgbaOffset) { builder.AddOffset(0, rgbaOffset.Value, 0); }
   public static void AddRate(FlatBufferBuilder builder, float rate) { builder.AddFloat(1, rate, 0.0f); }
   public static Offset<ss.format.SsAttributePartColorKeyValueColor> EndSsAttributePartColorKeyValueColor(FlatBufferBuilder builder) {
     int o = builder.EndTable();
@@ -2965,7 +2965,7 @@ static public class SsAttributePartColorKeyValueColorVerify
   static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
   {
     return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyTable(tablePos, 4 /*Rgba*/, ss.format.U8RectVerify.Verify, false)
+      && verifier.VerifyTable(tablePos, 4 /*Rgba*/, ss.format.U8ColorVerify.Verify, false)
       && verifier.VerifyField(tablePos, 6 /*Rate*/, 4 /*float*/, 4, false)
       && verifier.VerifyTableEnd(tablePos);
   }
@@ -3406,7 +3406,7 @@ public struct PartAttributeUserData : IFlatbufferObject
   public PartAttributeUserData __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
 
   public ss.format.IntValueEntry? Integer { get { int o = __p.__offset(4); return o != 0 ? (ss.format.IntValueEntry?)(new ss.format.IntValueEntry()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
-  public ss.format.Rect? Rect { get { int o = __p.__offset(6); return o != 0 ? (ss.format.Rect?)(new ss.format.Rect()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
+  public ss.format.Bounds? Rect { get { int o = __p.__offset(6); return o != 0 ? (ss.format.Bounds?)(new ss.format.Bounds()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
   public ss.format.Vec2? Point { get { int o = __p.__offset(8); return o != 0 ? (ss.format.Vec2?)(new ss.format.Vec2()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
   public string Str { get { int o = __p.__offset(10); return o != 0 ? __p.__string(o + __p.bb_pos) : null; } }
 #if ENABLE_SPAN_T
@@ -3418,7 +3418,7 @@ public struct PartAttributeUserData : IFlatbufferObject
 
   public static Offset<ss.format.PartAttributeUserData> CreatePartAttributeUserData(FlatBufferBuilder builder,
       Offset<ss.format.IntValueEntry> integerOffset = default(Offset<ss.format.IntValueEntry>),
-      Offset<ss.format.Rect> rectOffset = default(Offset<ss.format.Rect>),
+      Offset<ss.format.Bounds> rectOffset = default(Offset<ss.format.Bounds>),
       Offset<ss.format.Vec2> pointOffset = default(Offset<ss.format.Vec2>),
       StringOffset strOffset = default(StringOffset)) {
     builder.StartTable(4);
@@ -3431,7 +3431,7 @@ public struct PartAttributeUserData : IFlatbufferObject
 
   public static void StartPartAttributeUserData(FlatBufferBuilder builder) { builder.StartTable(4); }
   public static void AddInteger(FlatBufferBuilder builder, Offset<ss.format.IntValueEntry> integerOffset) { builder.AddOffset(0, integerOffset.Value, 0); }
-  public static void AddRect(FlatBufferBuilder builder, Offset<ss.format.Rect> rectOffset) { builder.AddOffset(1, rectOffset.Value, 0); }
+  public static void AddRect(FlatBufferBuilder builder, Offset<ss.format.Bounds> rectOffset) { builder.AddOffset(1, rectOffset.Value, 0); }
   public static void AddPoint(FlatBufferBuilder builder, Offset<ss.format.Vec2> pointOffset) { builder.AddOffset(2, pointOffset.Value, 0); }
   public static void AddStr(FlatBufferBuilder builder, StringOffset strOffset) { builder.AddOffset(3, strOffset.Value, 0); }
   public static Offset<ss.format.PartAttributeUserData> EndPartAttributeUserData(FlatBufferBuilder builder) {
@@ -3447,7 +3447,7 @@ static public class PartAttributeUserDataVerify
   {
     return verifier.VerifyTableStart(tablePos)
       && verifier.VerifyTable(tablePos, 4 /*Integer*/, ss.format.IntValueEntryVerify.Verify, false)
-      && verifier.VerifyTable(tablePos, 6 /*Rect*/, ss.format.RectVerify.Verify, false)
+      && verifier.VerifyTable(tablePos, 6 /*Rect*/, ss.format.BoundsVerify.Verify, false)
       && verifier.VerifyTable(tablePos, 8 /*Point*/, ss.format.Vec2Verify.Verify, false)
       && verifier.VerifyString(tablePos, 10 /*Str*/, false)
       && verifier.VerifyTableEnd(tablePos);
