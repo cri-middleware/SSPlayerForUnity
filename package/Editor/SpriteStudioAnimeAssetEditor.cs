@@ -14,7 +14,8 @@ namespace SpriteStudio.Editor
             bool wasEnabled = GUI.enabled;
             GUI.enabled = true;
 
-            string sspjPath = SpriteStudioSourceMap.GetSspjForSsab(AssetDatabase.GetAssetPath(target));
+            string ssabPath = AssetDatabase.GetAssetPath(target);
+            string sspjPath = SpriteStudioSourceMap.GetSspjForSsab(ssabPath);
             bool hasSspj = !string.IsNullOrEmpty(sspjPath) && File.Exists(sspjPath);
 
             GUILayout.BeginVertical(EditorStyles.helpBox);
@@ -32,7 +33,9 @@ namespace SpriteStudio.Editor
                 
                 if (GUILayout.Button("Reconvert"))
                 {
-                    SpriteStudioImporterWindow.RunConvertDirect(sspjPath);
+                    // Back into the folder this asset lives in, not the Output Folder setting: the folder
+                    // may have been moved or renamed since it was generated.
+                    SpriteStudioImporter.ReconvertInto(sspjPath, Path.GetDirectoryName(ssabPath));
                 }
                 GUILayout.EndHorizontal();
             }
@@ -45,7 +48,7 @@ namespace SpriteStudio.Editor
                 // Broken-link repair: re-pick the .sspj and batch re-link + reconvert the .ssab files in the same output folder
                 if (GUILayout.Button("Relink SSPJ..."))
                 {
-                    SpriteStudioReconvertMenu.RelinkSsab(AssetDatabase.GetAssetPath(target));
+                    SpriteStudioReconvertMenu.RelinkSsab(ssabPath);
                 }
             }
             GUILayout.EndVertical();

@@ -8,7 +8,7 @@ For the basic import procedure, see [Asset Import and Editor Integration](./usag
 
 ## Configuring the output location
 
-The output location for conversion results is set via **Output Folder** in the SpriteStudio Importer window (default: `Assets/ssab_generated`); any folder inside the project will do. The setting is saved in `EditorUserSettings` (`ProjectSettings/EditorUserSettings.asset`), so it is per project and per person.
+The output location for conversion results is set via **Output Folder** in the SpriteStudio Importer window (default: `Assets/ssab_generated`); any folder under `Assets/` will do. Anything else — a file, or a folder outside `Assets/` — is refused with the reason, and the field goes back to the folder the next import will actually use. The setting is saved in `EditorUserSettings` (`ProjectSettings/EditorUserSettings.asset`), so it is per project and per person.
 
 ## Automatic configuration on import into Unity (textures and materials)
 
@@ -27,8 +27,9 @@ Dropping a **folder** into the drop area of the SpriteStudio Importer window (Un
 
 When you modify an animation on the SpriteStudio side, there are several ways to reload the latest `.sspj` and update (re-convert) the `.ssab` in Unity.
 
-- **Generated asset inspector**: You can run it from the **Reconvert** button in the `SpriteStudioAnimeAsset` inspector.
-- **Recent list in the SpriteStudio Importer window**: Clicking a row triggers re-conversion. You can also run it from **Reconvert** in the right-click menu.
+- **Generated asset inspector**: You can run it from the **Reconvert** button in the `SpriteStudioAnimeAsset` inspector. It writes back into the folder that asset is in, so it still lands in the right place after you have moved or renamed the folder.
+- **Project browser right-click**: **SpriteStudio > Reconvert** on one or more `.ssab` does the same for each of them.
+- **Recent list in the SpriteStudio Importer window**: Clicking a row triggers re-conversion. You can also run it from **Reconvert** in the right-click menu. These start from the `.sspj`, so they write into **Output Folder**, exactly as a fresh drop would.
 
 ## Notes
 

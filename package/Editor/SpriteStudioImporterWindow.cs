@@ -8,9 +8,9 @@ namespace SpriteStudio.Editor
 {
     public class SpriteStudioImporterWindow : EditorWindow
     {
+        // The field's value only ever comes from SpriteStudioOutputFolder, so what the window shows is
+        // what the next import writes into. See CommitOutputFolder.
         private DefaultAsset outputFolder = null;
-        private const string OUTPUT_FOLDER_CONFIG_KEY = "SpriteStudio_OutputFolder";
-        private const string DEFAULT_OUTPUT_PATH = "Assets/ssab_generated";
 
         private Vector2 scrollPosition;
 
@@ -27,21 +27,16 @@ namespace SpriteStudio.Editor
 
         private void OnEnable()
         {
-            // Null for a project that has never chosen one; the guard below falls back.
-            string savedPath = EditorUserSettings.GetConfigValue(OUTPUT_FOLDER_CONFIG_KEY);
-            if (string.IsNullOrEmpty(savedPath) || !AssetDatabase.IsValidFolder(savedPath))
-            {
-                savedPath = DEFAULT_OUTPUT_PATH;
-            }
-
-            if (!AssetDatabase.IsValidFolder(savedPath) && savedPath == DEFAULT_OUTPUT_PATH)
-            {
-                AssetDatabase.CreateFolder("Assets", "ssab_generated");
-            }
-            outputFolder = AssetDatabase.LoadAssetAtPath<DefaultAsset>(savedPath);
+            outputFolder = LoadOutputFolderAsset();
 
             converterVersion = LoadConverterVersion();
             playerVersion = LoadPlayerVersion();
+        }
+
+        private static DefaultAsset LoadOutputFolderAsset()
+        {
+            string assetPath = SpriteStudioOutputFolder.GetAssetPath();
+            return assetPath == null ? null : AssetDatabase.LoadAssetAtPath<DefaultAsset>(assetPath);
         }
 
         private void OnGUI()
@@ -62,23 +57,16 @@ namespace SpriteStudio.Editor
             GUILayout.Label("Output Folder", GUILayout.Width(100));
 
             EditorGUI.BeginChangeCheck();
-            outputFolder = (DefaultAsset)EditorGUILayout.ObjectField(outputFolder, typeof(DefaultAsset), false);
+            var picked = (DefaultAsset)EditorGUILayout.ObjectField(outputFolder, typeof(DefaultAsset), false);
             if (EditorGUI.EndChangeCheck())
             {
-                if (outputFolder != null)
-                {
-                    EditorUserSettings.SetConfigValue(OUTPUT_FOLDER_CONFIG_KEY, AssetDatabase.GetAssetPath(outputFolder));
-                }
+                CommitOutputFolder(picked);
             }
 
             if (GUILayout.Button("Reset", GUILayout.Width(50)))
             {
-                if (!AssetDatabase.IsValidFolder(DEFAULT_OUTPUT_PATH))
-                {
-                    AssetDatabase.CreateFolder("Assets", "ssab_generated");
-                }
-                outputFolder = AssetDatabase.LoadAssetAtPath<DefaultAsset>(DEFAULT_OUTPUT_PATH);
-                EditorUserSettings.SetConfigValue(OUTPUT_FOLDER_CONFIG_KEY, DEFAULT_OUTPUT_PATH);
+                SpriteStudioOutputFolder.ResetToDefault();
+                outputFolder = LoadOutputFolderAsset();
             }
 
             if (GUILayout.Button("Reveal", GUILayout.Width(60)))
@@ -91,6 +79,26 @@ namespace SpriteStudio.Editor
             }
             GUILayout.EndHorizontal();
             GUILayout.EndVertical();
+        }
+
+        /// <summary>
+        /// Takes the field's new value only when it is a folder this package can write into, and rolls the
+        /// field back to the folder the next import will actually use when it is not. An ObjectField of
+        /// DefaultAsset accepts files as well as folders -- a .sspj has no importer, so it is one -- and
+        /// clearing it used to leave the stored setting untouched, both of which left the window naming a
+        /// destination the import never used.
+        /// </summary>
+        private void CommitOutputFolder(DefaultAsset picked)
+        {
+            string assetPath = picked == null ? null : AssetDatabase.GetAssetPath(picked);
+            if (SpriteStudioOutputFolder.TrySet(assetPath, out string reason))
+            {
+                outputFolder = picked;
+                return;
+            }
+
+            outputFolder = LoadOutputFolderAsset();
+            EditorUtility.DisplayDialog("SpriteStudio: Output folder", reason, "OK");
         }
 
         private void DrawDropArea()
@@ -257,10 +265,13 @@ namespace SpriteStudio.Editor
                 string version = PtrToStringUtf8(p);
                 SpriteStudio.SsConverter.NativeMethods.ss_converter_version_free(p);
 
+                // Both schema versions: a conversion emits both formats and this package imports both, and
+                // this is the line people copy into a bug report.
                 uint ssabVersion = SpriteStudio.SsConverter.NativeMethods.ss_converter_ssab_schema_version();
+                uint ssqbVersion = SpriteStudio.SsConverter.NativeMethods.ss_converter_ssqb_schema_version();
                 string libVer = string.IsNullOrEmpty(version) ? "unknown" : version;
-                
-                return $"{libVer} (ssab v{ssabVersion})";
+
+                return $"{libVer} (ssab v{ssabVersion}, ssqb v{ssqbVersion})";
             }
             catch (System.Exception e)
             {
@@ -287,9 +298,11 @@ namespace SpriteStudio.Editor
         }
 
         /// <summary>
-        /// Existing API that converts a single .sspj (non-interactive).
-        /// Called from the Reconvert paths in AssetPostprocessor / AnimeAssetEditor, so the signature is kept.
+        /// Existing API that converts a single .sspj (non-interactive) into the Output Folder.
+        /// Called from AssetPostprocessor when a .sspj inside the project is imported, so the signature is kept.
         /// The actual work is delegated to the batch import infrastructure (<see cref="SpriteStudioImporter"/>).
+        /// A reconvert anchored on an existing .ssab goes to <see cref="SpriteStudioImporter.ReconvertInto"/>
+        /// instead, so that it writes back into the folder that .ssab lives in.
         /// </summary>
         public static void RunConvertDirect(string sspjPath)
         {
