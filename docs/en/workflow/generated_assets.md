@@ -46,7 +46,7 @@ Converting one `.sspj` creates a `<sspj name>/` folder under the output folder (
 
 > [!TIP]
 > **The output can live anywhere in the project**
-> `Assets/ssab_generated` is only the default. **Output Folder** in the Importer window accepts any folder in the project, and you may move or rename the `<sspj name>/` folder afterwards (the binding to the `.sspj` follows the move). If your Addressables groups are organized by folder, lay the output out to match.
+> `Assets/ssab_generated` is only the default. **Output Folder** in the Importer window accepts any folder in the project, and you may move or rename the `<sspj name>/` folder afterwards (the binding to the `.sspj` follows the move, and **Reconvert** on the asset writes back into the folder it is in). If your Addressables groups are organized by folder, lay the output out to match.
 >
 > Keep the `.ssab`, its images and its `.mat` **in the same place relative to each other**, though. Textures are looked for inside the `.ssab`'s own folder only — the project is never searched — so splitting the folder's contents apart breaks resolution.
 
@@ -91,6 +91,7 @@ graph LR
 | `.ssab` / `.ssqb` / images | **Overwritten.** The files are rewritten rather than deleted, so the `.meta` (GUID, AssetBundle name) survives — and so does Addressables group membership, which is keyed by GUID |
 | `.mat` | **Not regenerated** if it already exists. A replaced shader or adjusted properties are kept |
 | Texture import settings | The defaults suited to 2D animation (uncompressed, Clamp, mipmaps disabled, and so on) are applied only the first time Unity imports the texture. Settings you change by hand are never overwritten afterwards |
+| Two `.sspj` in **one** import whose file names match | Their output folder is the same, so only the first is converted. The rest are named in the console — rename one, or import them into separate output folders |
 | Images and anime packs removed from the `.sspj` | **Stale files remain** in the output folder. Delete them by hand if they are no longer needed |
 
 ---
@@ -115,7 +116,7 @@ There is really only one design decision: **at what granularity do you want to b
 1. Assign the `.png` to its own group / bundle (the `.ssab` and `.mat` may live in a different bundle).
 2. Build and ship the bundles and the application.
 3. Repaint the artwork, reload it in SpriteStudio, and save the `.sspj`.
-4. Press **Reconvert** on the asset in Unity (re-dropping onto the Importer window does the same). The `.png` is overwritten and its `.meta` is preserved, so the bundle assignment is unchanged.
+4. Press **Reconvert** on the asset in Unity. The `.png` is overwritten and its `.meta` is preserved, so the bundle assignment is unchanged. (Dropping the `.sspj` onto the Importer window converts it too, but into `<Output Folder>/<sspj name>/` — a different place once the folder has been moved or renamed.)
 5. Rebuild the bundles and ship only the texture bundle.
 
 > [!WARNING]

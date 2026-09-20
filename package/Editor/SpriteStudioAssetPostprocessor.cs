@@ -267,6 +267,24 @@ namespace SpriteStudio.Editor
             return createdAny;
         }
 
+        [InitializeOnLoadMethod]
+        private static void WatchConversionResults()
+        {
+            SpriteStudioConversionRunner.JobFinished += OnConversionFinished;
+        }
+
+        /// <summary>
+        /// The mtime recorded before a conversion starts is what keeps an unchanged .sspj from being
+        /// reconverted on every import. A conversion that failed converted nothing, so its record goes:
+        /// otherwise the file is skipped for the rest of the session and reimporting it -- the obvious
+        /// thing to try after fixing whatever the converter complained about -- does nothing at all.
+        /// </summary>
+        private static void OnConversionFinished(string sspjPath, bool succeeded)
+        {
+            if (succeeded || string.IsNullOrEmpty(sspjPath)) return;
+            convertedSspjMtime.Remove(Path.GetFullPath(sspjPath));
+        }
+
         private static bool ConvertSspj(string sspjPath)
         {
             string sspjAbsolutePath = Path.GetFullPath(sspjPath);
