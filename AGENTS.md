@@ -1,19 +1,27 @@
-# SpriteStudioPlayer for Unity — AI Agent Guide
+# SSPlayerForUnity — AI Agent Guide
 
 ## Operating rules
 
-*   Keep changes scoped to the requested task.
+*   Keep changes scoped to the requested task. Unrequested hardening is a suggestion, not a commit; a defect
+    you actually hit in the code you touched is not — fix it, or say plainly why you did not.
 *   Do not commit, push, or open PRs unless the user explicitly asks.
-*   Before editing, read enough surrounding context to understand callers and invariants.
-*   Follow the existing code style of the file you touch (naming, C# conventions).
-*   Validate with the commands in [CONTRIBUTING.md](./CONTRIBUTING.md). With the Editor open, ask
-    the user to run the Unity Test Runner — the headless script cannot take the project lock. For
-    docs changes, the both-locale build in [RELEASING.md](./RELEASING.md) is the only gate a pull
-    request does not run.
-*   **Dependencies:** standard Unity packages only (Burst, Mathematics, Collections, Timeline).
-    Do not add third-party packages.
-*   **Playback semantics are the SDK's.** When touching core playback, read
-    [the SDK's AGENTS.md](./SpriteStudio-SDK/AGENTS.md) and do not reimplement the rules it owns.
+*   Before editing, read enough surrounding context to understand callers and invariants, the ones below
+    included. If the read tool truncated a file, read the remaining ranges first.
+*   Follow the existing style of the file you touch (naming, type usage, control flow, error handling).
+*   **Anything that exists twice changes twice** — a page and its translation, a `.sh` and its `.ps1`. A
+    change that lands in one half is the defect this family produces most.
+*   **Finish by running this repository's checks**: the commands in [CONTRIBUTING.md](./CONTRIBUTING.md).
+    With the Editor open, ask the user to run the Unity Test Runner — the headless script cannot take the
+    project lock. Read what a run says it verified rather than its exit code — several checks here pass, or
+    skip themselves, when a prerequisite is missing.
+*   **Do not restate here what another file owns.** The table below says which file that is; a fact that
+    belongs to none of them goes where it will be seen to go stale.
+*   **Never commit inside the `SpriteStudio-SDK` submodule.** A change the core needs is a pull request in
+    the SDK repository, followed by a submodule bump here.
+*   **Playback semantics are the SDK's** — see [its AGENTS.md](./SpriteStudio-SDK/AGENTS.md); do not
+    reimplement the rules it owns.
+*   **Dependencies:** standard Unity packages only (Burst, Mathematics, Collections, Timeline). Do not add
+    third-party packages.
 
 ## What this repo is
 
@@ -40,27 +48,25 @@ to a `Mesh` with `SetVertexBufferData`. `.sspj` projects are converted to `.ssab
 | What to build next, and what is out of scope | [ROADMAP.md](./ROADMAP.md) |
 | What each script does and takes | that script's `--help` |
 
-Do not restate those here. This file is for what an agent would otherwise break silently.
-
 ## Invariants
 
 *   **Complete before you free.** Native handles (`SsPlayerHandle`) are `IDisposable`; call
     `JobHandle.Complete()` before releasing native resources, or a running Burst job segfaults.
-*   **The Tick and mesh-update loop allocates no GC memory.** Reuse `NativeArray`, and update
-    meshes through `SetVertexBufferData`.
-*   **`SpriteStudioGraphic` bypasses the canvas rebuild** by overriding `OnPopulateMesh` and the
-    vertex and material dirty flags, so Unity does not destroy and reallocate canvas meshes.
-    Keep that path intact when touching the uGUI player.
-*   **The split is lifecycle versus geometry.** `SpriteStudioInternalPlayer` owns the native
-    lifecycle, the FFI calls and `IDisposable`; everything per-frame — frame-data decode,
-    effect/instance/mask batching, Burst scheduling, mesh upload — lives in
-    `SpriteStudioGeometryBuilder`, its collaborators and `SpriteStudioMeshJob`. Add rendering
-    features there, and preserve the struct layouts Burst and the FFI require.
-*   **Iterate the snapshotted `_tickCount`, not the live list.** `SpriteStudioUpdateManager`
-    batch-updates the components, and instantiating or destroying one mid-iteration over the live
-    list is a `NullReferenceException`.
-*   **A `.meta` that is not committed is an asset Unity ignores.** A UPM package is extracted into
-    an immutable folder, so a native library or binding that ships without its `.meta` installs as
-    nothing, silently. This is also why `deploy-examples` has to run before Unity first opens an
-    example project — see [CONTRIBUTING.md](./CONTRIBUTING.md).
+*   **The Tick and mesh-update loop allocates no GC memory.** Reuse `NativeArray`, and update meshes through
+    `SetVertexBufferData`.
+*   **`SpriteStudioGraphic` bypasses the canvas rebuild** by overriding `OnPopulateMesh` and the vertex and
+    material dirty flags, so Unity does not destroy and reallocate canvas meshes. Keep that path intact when
+    touching the uGUI player.
+*   **The split is lifecycle versus geometry.** `SpriteStudioInternalPlayer` owns the native lifecycle, the
+    FFI calls and `IDisposable`; everything per-frame — frame-data decode, effect/instance/mask batching,
+    Burst scheduling, mesh upload — lives in `SpriteStudioGeometryBuilder`, its collaborators and
+    `SpriteStudioMeshJob`. Add rendering features there, and preserve the struct layouts Burst and the FFI
+    require.
+*   **Iterate the snapshotted `_tickCount`, not the live list.** `SpriteStudioUpdateManager` batch-updates
+    the components, and instantiating or destroying one mid-iteration over the live list is a
+    `NullReferenceException`.
+*   **A `.meta` that is not committed is an asset Unity ignores.** A UPM package is extracted into an
+    immutable folder, so a native library or binding that ships without its `.meta` installs as nothing,
+    silently. This is also why `deploy-examples` has to run before Unity first opens an example project —
+    see [CONTRIBUTING.md](./CONTRIBUTING.md).
 *   **Keep `package/Tests/` green** when changing core logic or the geometry builder.
