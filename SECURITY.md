@@ -13,9 +13,12 @@ older one, please reproduce on the current release before reporting.
 ## Reporting a Vulnerability
 
 **Please do not open a public GitHub Issue for a security problem.** Report it privately through the
-Help Center, which accepts file attachments if you need to send a reproduction:
+official inquiry form:
 
-👉 [**CRI Middleware Help Center (Inquiry Form)**](https://www.webtech.co.jp/help/en/spritestudio7/inquiries/ssplayer_tool/)
+👉 [**CRI Middleware Inquiry Form (English)**](https://www.webtech.co.jp/contact/en.html)
+
+The English form has no file upload. If you need to send a reproduction, use the [Japanese Help
+Center form](https://www.webtech.co.jp/help/ja/spritestudio7/inquiries/ssplayer_tool/), which takes a zip of up to 8 MB.
 
 Please include:
 
