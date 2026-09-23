@@ -19,7 +19,7 @@ items marked **needs SDK** wait on a runtime capability from there.
 - [ ] Player-level tint / opacity and a custom delta-time hook (per-player slow-motion / pause groups).
 - [ ] Multi-track playback — layered per-part animation with crossfade transitions. The runtime side is
   done: the SDK's track stack ships, and its FFI (`ss_runtime_crossfade` / `set_track_animation` /
-  `track_add_source` / `fade_track`) is generated into `package/Runtime/Bindings/` with no C# caller. What
+  `add_track_source` / `fade_track`) is generated into `package/Runtime/Bindings/` with no C# caller. What
   is left is the Player surface on top of it.
 - [ ] Per-player effect seed — an effect part is created with a seed derived from its part index and the
   effect name (`SpriteStudioInternalPlayer.cs:513`), so every player built from the same asset draws the
@@ -30,7 +30,10 @@ items marked **needs SDK** wait on a runtime capability from there.
 ## Parts & materials
 
 - [x] Per-part runtime overrides — color, cell, and visibility, by part name or index, with priority modes.
-- [ ] Runtime material / texture override — swap the material or texture for a texture key at runtime.
+- [x] Runtime texture replacement — `SetCellmapTexture` / `GetCellmapTexture` / `GetReplaceableTextureNames` on
+  `SpriteStudioPlayer` and `SpriteStudioGraphic`, keyed by cellmap or external-texture name; `null` restores the
+  original.
+- [ ] Runtime material override — swap the material for a texture key at runtime.
 - [ ] Per-part colliders — auto-sized 2D / 3D colliders that follow parts, with enter / stay / exit callbacks.
 
 ## UI integration
