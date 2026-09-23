@@ -1,4 +1,6 @@
 $ErrorActionPreference = "Stop"
+# Invoke-WebRequest's progress bar slows the download itself in Windows PowerShell 5.1.
+$ProgressPreference = "SilentlyContinue"
 
 $HelpApp = Split-Path -Leaf $PSCommandPath
 function Show-Usage {
@@ -89,7 +91,15 @@ try {
             }
         }
         Write-Host "Checksum OK: $asset"
-        Expand-Archive -Path $zip -DestinationPath "$tmp/$kind" -Force
+        # Expand-Archive is a script-module function: run from a session, it reads
+        # the global progress preference rather than this script's.
+        $savedProgress = $global:ProgressPreference
+        $global:ProgressPreference = "SilentlyContinue"
+        try {
+            Expand-Archive -Path $zip -DestinationPath "$tmp/$kind" -Force
+        } finally {
+            $global:ProgressPreference = $savedProgress
+        }
     }
 
     # Flat archives: libs/, include/, bindings/, VERSION sit at the extraction root.
