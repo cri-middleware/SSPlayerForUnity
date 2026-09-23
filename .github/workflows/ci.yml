@@ -1,8 +1,9 @@
 name: CI
 
 # Cheap consistency checks that need neither Unity nor the SDK binaries, so they
-# run on every push and PR. Anything requiring the editor (the test suite) or the
-# native libs (a real pack) stays in release.yml / the local scripts.
+# run on every push and PR. The test suite needs the Editor and a licence, so no
+# workflow runs it: it is scripts/run-tests.sh, on a maintainer's machine. A real
+# pack needs the native libs, and is built by release.yml.
 #
 # These exist because of what actually went wrong: a package.json missing the
 # dependencies its asmdefs use, native plugins shipped without a .meta, and

@@ -32,7 +32,7 @@ current step in the top-left corner:
 `FindPartIndex`, then drives the overrides from a coroutine. Which part / cell it touches is
 editable on the component, so the same script works on other animations.
 
-The API is documented in [the scripting guide](../../docs/en/workflow/usage_scripting.md#part-overrides-color--cell--visibility).
+The API is documented in [the scripting guide](../../docs/en/workflow/usage_scripting.md#part-overrides-part-color--cell--visibility).
 
 ## Notes on the scene
 
