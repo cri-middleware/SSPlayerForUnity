@@ -494,7 +494,7 @@ namespace SpriteStudio.Runtime
         /// </summary>
         /// <remarks>
         /// The colour comes first and <paramref name="blendOp"/> trails with a default, which is the
-        /// family's order (SDK: <c>20_design/40_api_conventions</c>) and lets the common case read
+        /// family's order and lets the common case read
         /// <c>SetPartColorOverride("hat", Color.red)</c>. The C ABI puts the blend first; this face
         /// deliberately does not.
         /// </remarks>

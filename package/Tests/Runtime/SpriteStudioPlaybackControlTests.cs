@@ -161,7 +161,7 @@ namespace SpriteStudio.Runtime.Tests
         public void IsFinished_SeparatesACompletedRunFromAStoppedOne()
         {
             // The distinction !IsPlaying cannot make, and the reason substituting it for completion
-            // is one of the defects the SDK's porting guide records.
+            // is a defect.
             var player = MakePlayingPlayer();
             player.LoopCount = 1;
             player.Play();

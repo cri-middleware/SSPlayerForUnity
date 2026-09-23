@@ -21,6 +21,9 @@
     the SDK repository, followed by a submodule bump here.
 *   **Playback semantics are the SDK's** — see [its AGENTS.md](./SpriteStudio-SDK/AGENTS.md); do not
     reimplement the rules it owns.
+*   **Code comments do not cite the SDK's porting guide** — no section numbers, page paths or quotes.
+    Its sections move as it is revised and nothing checks a citation inside a comment; say what breaks
+    if the code changes, and leave the rule to the guide.
 *   **Dependencies:** standard Unity packages only (Burst, Mathematics, Collections, Timeline). Do not add
     third-party packages.
 

@@ -386,8 +386,8 @@ namespace SpriteStudio.Runtime
 
         /// <summary>
         /// Override a Normal part's colour with a single value (all four corners). The colour comes
-        /// first and <paramref name="blendOp"/> trails with a default — see the SDK's Player API
-        /// conventions; the C ABI's order is the other way round.
+        /// first and <paramref name="blendOp"/> trails with a default;
+        /// the C ABI's order is the other way round.
         /// </summary>
         public bool SetPartColorOverride(string partName, Color color,
             SpriteStudioBlendOp blendOp = SpriteStudioBlendOp.Mix,

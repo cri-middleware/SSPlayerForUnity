@@ -32,8 +32,8 @@ namespace SpriteStudio.Runtime
         // Per-part (texture hash, blend) for the current frame, harvested from the draw batches.
         private NativeArray<uint> _maskPartTexHash;
         private NativeArray<byte> _maskPartBlend;
-        // Per part index: 1 where a writing part actually writes this frame (Rule_Mask.md §2-2 -
-        // mask != 0 and not hidden). Filled by BuildWriters for every part that Writes, whether or not
+        // Per part index: 1 where a writing part actually writes this frame
+        // (mask != 0 and not hidden). Filled by BuildWriters for every part that Writes, whether or not
         // it made the writer list, because the write and its removal are emitted from different loops:
         // Phase A and Phase C walk the writer list, while a pure mask's removal and a clipping mask's
         // own-rank write are driven by the draw batches off static MaskPartData. The pairs have to agree
@@ -88,8 +88,8 @@ namespace SpriteStudio.Runtime
                 if (!md.Writes) continue;
                 var ps = frameData.Parts(p_idx);
                 if (!ps.HasValue) continue;
-                // A writer writes only where its per-frame mask is non-zero and it is not hidden
-                // (Rule_Mask.md §2-2). Both live in FrameData, so this is the half of the classification
+                // A writer writes only where its per-frame mask is non-zero and it is not hidden.
+                // Both live in FrameData, so this is the half of the classification
                 // MaskPartData cannot answer: an authored MASK of 0 is how a writer is switched off over a
                 // range of frames, and Threshold cannot stand in for it - a shape mask samples no texture,
                 // so every emit path pins its threshold to -1 and its coverage is its whole geometry.
