@@ -7,7 +7,7 @@ using UnityEngine;
 namespace SpriteStudio.Runtime.Tests
 {
     /// <summary>
-    /// Verifies the structural behavior of built-in audio (SpriteStudioAudioController) (per SDK doc §4).
+    /// Verifies the structural behavior of built-in audio (SpriteStudioAudioController).
     /// Since real sound cannot play under batchmode/-nographics, this only guarantees AudioSource allocation/stop/pause
     /// and duplicate-playback prevention via the identity key (per part) (playback timing/count depend on dspTime and are out of scope).
     /// loop_num is the play count (1=one-shot / N>=2=N times). &lt;=0 cannot occur per spec -> defensively does not play.
@@ -62,7 +62,7 @@ namespace SpriteStudio.Runtime.Tests
         [Test]
         public void SinglePlay_RefireSameKey_DoesNotDuplicate()
         {
-            // SDK doc §4: retriggering the same sound on the same part prevents duplicate playback (one-shots are deduped too).
+            // Retriggering the same sound on the same part prevents duplicate playback (one-shots are deduped too).
             var go = new GameObject("ss-audio");
             var asset = MakeAssetWithSound(15u, 25u, out var clip);
             var prevGlobal = SpriteStudioAudioBackend.Global;

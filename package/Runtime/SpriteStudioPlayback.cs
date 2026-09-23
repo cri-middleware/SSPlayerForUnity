@@ -9,7 +9,7 @@ namespace SpriteStudio.Runtime
     /// </summary>
     /// <remarks>
     /// A pair of enums rather than two booleans, so the heading and the style can
-    /// be set atomically in one call — see the SDK's Player API conventions.
+    /// be set atomically in one call.
     /// The values are the wire encoding the C-API expects, which is 0/1 and not
     /// the runtime's own <c>+1 / -1</c> discriminants.
     /// </remarks>

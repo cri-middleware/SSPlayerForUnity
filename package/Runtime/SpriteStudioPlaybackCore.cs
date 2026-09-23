@@ -137,7 +137,7 @@ namespace SpriteStudio.Runtime
             if (!Internal.SetupAnimation(animationName))
             {
                 // Name the pack as well as the name asked for: it is what separates a typo from a name
-                // that belongs to a different asset (SDK: 20_design/40_api_conventions, §7). The names that
+                // that belongs to a different asset. The names that
                 // WOULD have worked are not listed -- AnimationNames is public on both components, and the
                 // inspector's Animation Name dropdown is built from it.
                 if (_reportedMissingAnimation != animationName)
