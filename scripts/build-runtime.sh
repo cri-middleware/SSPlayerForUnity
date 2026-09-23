@@ -130,6 +130,14 @@ EDITOR_DIR=${ROOTDIR}/package/Editor/Plugins
 mkdir -p ${RUNTIME_DIR}
 mkdir -p ${EDITOR_DIR}
 
+# Plugins/VERSION names the SDK release download-sdk installed, and everything
+# below replaces files with this local build. Stamp both "local" first, so a
+# later download-sdk sees a mismatch and reinstalls instead of skipping as up to
+# date. Overwritten rather than removed: each has a committed .meta, which Unity
+# deletes when its asset is gone.
+echo "local" > ${RUNTIME_DIR}/VERSION
+echo "local" > ${EDITOR_DIR}/VERSION
+
 # C# Bindings. Each .g.cs also gets its committed .meta from scripts/upm-meta: the
 # .g.cs are gitignored so their .meta cannot live next to them, and a script with no
 # .meta is ignored by Unity inside an immutable package folder (see that README).
