@@ -82,6 +82,16 @@ if ($IS_HOST_BUILD) {
 }
 popd
 
+# Plugins/VERSION names the SDK release download-sdk installed, and everything
+# below replaces files with this local build. Stamp both "local" first, so a
+# later download-sdk sees a mismatch and reinstalls instead of skipping as up to
+# date. Overwritten rather than removed: each has a committed .meta, which Unity
+# deletes when its asset is gone.
+foreach ($pluginsDir in @("$rootDirectory/package/Runtime/Plugins", "$rootDirectory/package/Editor/Plugins")) {
+    New-Item -ItemType Directory -Path $pluginsDir -Force | Out-Null
+    Set-Content -Path "$pluginsDir/VERSION" -Value "local"
+}
+
 # 1. Collect C# Bindings. Each .g.cs also gets its committed .meta from scripts/upm-meta:
 # the .g.cs are gitignored so their .meta cannot live next to them, and a script with no
 # .meta is ignored by Unity inside an immutable package folder (see that README).
