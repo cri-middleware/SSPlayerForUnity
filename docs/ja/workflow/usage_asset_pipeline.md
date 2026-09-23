@@ -19,8 +19,7 @@ Unity 上で再生・制御可能な専用の最適化バイナリ（**`.ssab`**
 2. 出力先（**Output Folder**、デフォルトは `Assets/ssab_generated`）を確認します。
 3. エクスプローラーや Finder から、目的の **`.sspj` ファイルを SpriteStudio Importer ウィンドウのドロップ領域へドラッグ＆ドロップ** します。
 
-これだけでコンバート処理が走り、指定した出力先に `SpriteStudioAnimeAsset`（`.ssab` を内包した ScriptableObject）が生成されます。
-生成されたアセットを Hierarchy ウィンドウや Scene ビューへドラッグ＆ドロップして、`SpriteStudioPlayer` / `SpriteStudioGraphic` を配置しましょう（詳細は [基本的な使い方](./usage_basic.md) を参照）。
+これだけでコンバート処理が走り、指定した出力先に `SpriteStudioAnimeAsset`（`.ssab` を内包した ScriptableObject）が生成されます。生成されたアセットを Hierarchy ウィンドウや Scene ビューへドラッグ＆ドロップして、`SpriteStudioPlayer` / `SpriteStudioGraphic` を配置しましょう（詳細は [基本的な使い方](./usage_basic.md) を参照）。
 
 > [!TIP]
 > 
@@ -54,15 +53,13 @@ Unity で作業中に「もう少しアニメーションを微調整したい�
 
 ## 3. 強力なアセットパイプライン (シームレスなエディタ間連携)
 
-SpriteStudio 側でアニメーションを修正して保存したら、Unity エディタに戻ります。
-以下の操作だけで、変更内容がゲーム（およびエディタ上のプレビュー）に一瞬で反映されます。
+SpriteStudio 側でアニメーションを修正して保存したら、Unity エディタに戻ります。以下の操作だけで、変更内容がゲーム（およびエディタ上のプレビュー）に一瞬で反映されます。
 
 1. 先ほどと同様に、プロジェクトウィンドウで対象の **`SpriteStudioAnimeAsset`** を選択します。
 2. インスペクタの「Open SSPJ」ボタンの横にある **「Reconvert」ボタン** をクリックします。
 
 > [!IMPORTANT]
-> **「開く」→「保存」→「再コンバート」の最短ワークフロー**
-> アセットを選択したままインスペクタから SpriteStudio を呼び出し、編集後すぐに Unity 上で `.ssab` へ最新の変更を反映（再コンバート）させることができます。**SpriteStudio と Unity をシームレスに行き来できるこの強力なアセットパイプライン**により、アニメーション調整におけるトライアンドエラーのコストが劇的に下がります。
+> **「開く」→「保存」→「再コンバート」の最短ワークフロー**アセットを選択したままインスペクタから SpriteStudio を呼び出し、編集後すぐに Unity 上で `.ssab` へ最新の変更を反映（再コンバート）させることができます。**SpriteStudio と Unity をシームレスに行き来できるこの強力なアセットパイプライン**により、アニメーション調整におけるトライアンドエラーのコストが劇的に下がります。
 
 > [!TIP]
 > SpriteStudio Importer ウィンドウの **Recent SSPJs** からも再変換できます（行をクリック、または右クリック →「Reconvert」）。同一内容（更新日時が同一）の `.sspj` は無駄な再変換をスキップします。

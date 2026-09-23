@@ -80,11 +80,7 @@ instead. Use `sdk=build` to get a package to look at; never to cut a release.
 ./scripts/build-pages.sh serve=yes # 公開ツリー、両ロケール -> http://localhost:8000/
 ```
 
-必ず両ロケールを、英語を先に。英語ビルドは `site/`（その中に `site/ja` がある）を消すため、英語だけ
-建てると古い日本語サイトが残り、壊したページが無傷に見えます。`mkdocs.base.yml` が `strict: true` を
-設定します。`zensical serve` は `--strict` を付けても何も検証せず、1 ロケールずつしか配信しないため、
-言語セレクタの動作を見られるのは `build-pages.sh serve=yes` だけです。`pages.yml` のビルドジョブは
-そのスクリプト（オプションはすべて明示）です。Windows は `.ps1` 双子、どちらも `key=value` と
+必ず両ロケールを、英語を先に。英語ビルドは `site/`（その中に `site/ja` がある）を消すため、英語だけ建てると古い日本語サイトが残り、壊したページが無傷に見えます。`mkdocs.base.yml` が `strict: true` を設定します。`zensical serve` は `--strict` を付けても何も検証せず、1 ロケールずつしか配信しないため、言語セレクタの動作を見られるのは `build-pages.sh serve=yes` だけです。`pages.yml` のビルドジョブはそのスクリプト（オプションはすべて明示）です。Windows は `.ps1` 双子、どちらも `key=value` と
 `--help` を取ります。
 
 ## リリースの手順
@@ -98,39 +94,24 @@ git tag v7.0.0-beta.1 && git push origin v7.0.0-beta.1
 ```
 
 タグは受け渡されません。`build-release.sh` が `GITHUB_REF_NAME`（ローカルでは `HEAD` のタグ）を読み、
-`release.yml` も同じ ref を `tag_name` に使います。ブランチからのディスパッチはパッケージビルドで
-あってリリースではありません。`v*` タグ以外からの `upload_release=true` は、Release を黙って飛ばさずに
-実行を失敗させます。`scripts/release-version.sh` が本来のタグ名（`package/package.json` の `version`。
+`release.yml` も同じ ref を `tag_name` に使います。ブランチからのディスパッチはパッケージビルドであってリリースではありません。`v*` タグ以外からの `upload_release=true` は、Release を黙って飛ばさずに実行を失敗させます。`scripts/release-version.sh` が本来のタグ名（`package/package.json` の `version`。
 **`SDK_VERSION.txt` ではありません**）を表示し、食い違えば `build-release.sh` が指摘します。
 
-下書きの公開が `release: published` イベントを発行し、Pages のデプロイを起動します。README と docs の
-インストール URL である `releases/latest/download/<name>.tgz` が解決するのもこれによってです。
+下書きの公開が `release: published` イベントを発行し、Pages のデプロイを起動します。README と docs のインストール URL である `releases/latest/download/<name>.tgz` が解決するのもこれによってです。
 pre-release にせず、通常のリリースとして手作業で公開してください。
 
-`release.yml` のジョブは `scripts/build-release.sh`（オプションはすべて明示）です。同名の SDK の
-スクリプトとは違い、こちらは 1 台で製品そのものを作れます（中身は C# とビルド済みネイティブライブラリ
-だけだからです）。リリースを確認する方法は、実際に作って tarball からインストールすることです。
+`release.yml` のジョブは `scripts/build-release.sh`（オプションはすべて明示）です。同名の SDK のスクリプトとは違い、こちらは 1 台で製品そのものを作れます（中身は C# とビルド済みネイティブライブラリだけだからです）。リリースを確認する方法は、実際に作って tarball からインストールすることです。
 
 ```bash
 ./scripts/build-release.sh
 # Window > Package Manager > + > Install package from tarball...
 ```
 
-このスクリプトは、別々の失敗に対して 2 回検査します。**パッケージ前**: 各 plugin ディレクトリに
-ネイティブライブラリがあり、それぞれにコミット済みの `.meta` があり、FFI バインディングとその `.meta`
-も揃っていること。UPM パッケージは変更不可のフォルダに展開されるため、`.meta` の無いアセットを Unity は
-無視します。`.meta` をコミットし忘れたライブラリは、何も言わずに**存在しないもの**としてインストール
-されます（CI には `.meta` を生成する Unity がありません）。**パッケージ後**: tarball に実際に入っている
-こと。`npm pack` は `package.json` の `files` 許可リストを適用するため、1 つめの検査では見えない
+このスクリプトは、別々の失敗に対して 2 回検査します。**パッケージ前**: 各 plugin ディレクトリにネイティブライブラリがあり、それぞれにコミット済みの `.meta` があり、FFI バインディングとその `.meta`
+も揃っていること。UPM パッケージは変更不可のフォルダに展開されるため、`.meta` の無いアセットを Unity は無視します。`.meta` をコミットし忘れたライブラリは、何も言わずに**存在しないもの**としてインストールされます（CI には `.meta` を生成する Unity がありません）。**パッケージ後**: tarball に実際に入っていること。`npm pack` は `package.json` の `files` 許可リストを適用するため、1 つめの検査では見えない
 2 つめの消失ポイントになります。（`LICENSE.md` を `files` に入れていないのは意図的です。npm は
-`LICENSE*` を常に含めるので、列挙が要るのは `.meta` だけです。覚えているかどうかに任せず、検査が
-そう表明します。）
+`LICENSE*` を常に含めるので、列挙が要るのは `.meta` だけです。覚えているかどうかに任せず、検査がそう表明します。）
 
 `sdk=<download|build>` はネイティブライブラリの入手元です。`download` は `download-sdk.sh` で、
-`scripts/SDK_VERSION.txt` のビルド済みリリースを全プラットフォーム分取得します。出荷可能な
-パッケージが持てる唯一の入手元です。`build` は `build-runtime.sh` で、submodule の Rust から
-コンパイルします。そのバージョンの SDK リリースがまだ存在しないときに使うもので、代償は
-**このホストのプラットフォームだけ**になることです。検査はこの 2 つを区別できません（各 plugin ツリーに
-ライブラリが「ある」ことを見るだけで、「すべてある」ことは見ないため）。1 プラットフォームだけの
-tarball も通るので、代わりにスクリプトが明示的に警告します。`sdk=build` は中身を見るためのもので、
-リリースを切るために使ってはいけません。
+`scripts/SDK_VERSION.txt` のビルド済みリリースを全プラットフォーム分取得します。出荷可能なパッケージが持てる唯一の入手元です。`build` は `build-runtime.sh` で、submodule の Rust からコンパイルします。そのバージョンの SDK リリースがまだ存在しないときに使うもので、代償は**このホストのプラットフォームだけ**になることです。検査はこの 2 つを区別できません（各 plugin ツリーにライブラリが「ある」ことを見るだけで、「すべてある」ことは見ないため）。1 プラットフォームだけの
+tarball も通るので、代わりにスクリプトが明示的に警告します。`sdk=build` は中身を見るためのもので、リリースを切るために使ってはいけません。
