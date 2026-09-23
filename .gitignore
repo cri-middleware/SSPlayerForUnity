@@ -1589,13 +1589,15 @@ InitTestScene*.unity*
 # Auto-generated cache in Assets folder
 [Aa]ssets/[Ss]ceneDependencyCache*
 
-# Tests runtime generated resources
-package/Tests/Runtime/Resources/Ringo/
-package/Tests/Runtime/Resources/TestConvertOut/
+# Tests runtime generated resources: every .ssab fixture run-tests.* converts from the SDK sources,
+# and the conversion tests' output. Nothing under Resources/ is a source file.
+package/Tests/Runtime/Resources/
 
 !package/**/*.meta
 package/Runtime/Bindings/*.g.cs.meta
 package/Editor/Bindings/*.g.cs.meta
+# The folder's own .meta sits beside it, where the re-include above would reach it.
+package/Tests/Runtime/Resources.meta
 
 # .meta for the documents pack-release.sh copies into package/ at pack time. They
 # live outside package/ (the documents only exist there during a pack), so the
