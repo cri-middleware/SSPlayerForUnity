@@ -13,7 +13,7 @@ A high-performance plugin for playing back animations (`.ssab`) created with **[
 - **Characters, effects, and whole scenes — all in one editor**
   Particle effects are a first-class part type, authored on the same timeline as your characters — there's no separate effect system to bolt on. And you're not limited to a single rigged character: combine characters, backgrounds, effects, and UI into an entire cutscene or full-screen sequence, and play it back in Unity as one animation.
 - **Renders in both world space and on a uGUI Canvas**
-  `SpriteStudioPlayer` draws in world space (MeshRenderer) and `SpriteStudioGraphic` draws on a uGUI Canvas (CanvasRenderer) — the same animation drops into either context like any other component, driven from C# or sequenced on Timeline. On a Canvas it automatically follows uGUI **Mask** / **RectMask2D**. CanvasRenderer's "one mesh, one material" rule does narrow that path: it assumes a **single atlas**, and collapses every blend but **MIX / ADD** — the world path has neither limit. See [Limitations](./docs/en/limitations.md).
+  `SpriteStudioPlayer` draws in world space (MeshRenderer) and `SpriteStudioGraphic` draws on a uGUI Canvas (CanvasRenderer) — the same animation drops into either context like any other component, driven from C# or sequenced on Timeline. On a Canvas it automatically follows uGUI **Mask** / **RectMask2D**. CanvasRenderer's "one mesh, one material" rule does narrow that path: it assumes a **single atlas**, and collapses every blend but **MIX / ADD** to MIX — the world path has neither limit. See [Limitations](./docs/en/limitations.md).
 - **A seamless SpriteStudio ⇄ Unity asset pipeline**
   Drop a `.sspj` into Unity and it's automatically converted to an optimized `.ssab` and a ready-to-use `SpriteStudioAnimeAsset`; re-edit in SpriteStudio and your Unity assets update instantly. Because the animation lives in assets separate from the scene, you avoid the Git conflicts that come with scene-embedded animation.
 - **A low-memory, high-performance native runtime**
@@ -61,7 +61,7 @@ This player supports Unity 6.3 LTS and later, and works in both URP and BRP. Pro
 4. **Open**: Open `examples/SampleProject` in Unity Hub.
 5. **Try it**: Open `Assets/Test.unity` and press Play.
 
-The SDK's other four test projects (`overall`, `allAttributeV7`, `allPartsV7`, `ParticleEffect`) are not bundled — they are large, and the submodule already carries them. Drag any of them from `SpriteStudio-SDK/tests` onto **Window > SpriteStudio > Importer** when you want them.
+The SDK's other five test projects (`overall`, `allAttributeV7`, `allPartsV7`, `ParticleEffect`, `Doll`) are not bundled — they are large, and the submodule already carries them. Drag any of them from `SpriteStudio-SDK/tests` onto **Window > SpriteStudio > Importer** when you want them.
 
 For advanced setups like compiling from source or modifying the package, please refer to the [Installation Guide](./docs/en/setup/install.md).
 

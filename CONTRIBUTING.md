@@ -19,8 +19,8 @@ This player is a thin C# "Body" driving the SpriteStudio-SDK Rust "Brain" (`libs
 - **Unity idioms first:** match the C# conventions and the existing style of the file you touch.
 - **Standard packages only:** Burst, Mathematics, Collections, and Timeline. Please do not introduce third-party dependencies.
 - **Zero allocation in the hot path:** the tick / mesh-update loop must not allocate GC memory. Reuse `NativeArray`, and upload meshes with `SetVertexBufferData`.
-- **FFI safety:** native handles (`SsPlayerHandle`) are `IDisposable`. Always `JobHandle.Complete()` before freeing native resources - a running Burst job will segfault otherwise.
-- **Respect the layer split:** `SpriteStudioInternalPlayer` owns the native lifecycle, FFI, and `IDisposable`; all per-frame geometry (frame-data decode, effect / instance / mask batching, Burst scheduling, mesh upload) lives in `SpriteStudioGeometryBuilder`, its collaborators, and `SpriteStudioMeshJob`. Add rendering features there rather than in the player component, and preserve the struct layouts Burst and the FFI depend on.
+- **FFI safety:** native handles (`SsPlayerHandle`) are plain pointers owned by `IDisposable` classes (`SpriteStudioNativeContext`, `SpriteStudioInternalPlayer`). Always `JobHandle.Complete()` before freeing native resources - a running Burst job will segfault otherwise.
+- **Respect the layer split:** `SpriteStudioInternalPlayer` owns the native lifecycle, FFI, and `IDisposable`; all per-frame geometry (frame-data decode, effect / instance / mask batching, Burst scheduling, mesh upload) lives in `SpriteStudioGeometryBuilder`, its collaborators, and `SpriteStudioMeshJob.cs`. Add rendering features there rather than in the player component, and preserve the struct layouts Burst and the FFI depend on.
 - **SDK separation:** the core animation logic lives in the `SpriteStudio-SDK` submodule (Rust `libssruntime` / `libssconverter`). Changes to the core or the algorithms belong in the SDK repository; Unity-specific rendering belongs in `package/`.
 - **Generated code is never hand-edited:** regenerate the FFI bindings and FlatBuffers accessors with the provided scripts and commit the result.
 
@@ -99,8 +99,8 @@ SSPlayerForUnity への貢献にご関心をお寄せいただきありがとう
 - **まず Unity の作法に従う:** 編集するファイルの C# の規約と既存スタイルに合わせてください。
 - **標準パッケージのみ:** Burst / Mathematics / Collections / Timeline。サードパーティ依存の追加はご遠慮ください。
 - **ホットパスでのアロケーション禁止:** tick／メッシュ更新ループで GC アロケーションを発生させないでください。`NativeArray` を再利用し、メッシュ更新は `SetVertexBufferData` で行います。
-- **FFI の安全性:** ネイティブハンドル（`SsPlayerHandle`）は `IDisposable` です。ネイティブリソースの解放前には必ず `JobHandle.Complete()` を呼んでください。実行中の Burst ジョブがあるとクラッシュします。
-- **レイヤー分離の遵守:** `SpriteStudioInternalPlayer` がネイティブのライフサイクル・FFI・`IDisposable` を持ち、フレームごとのジオメトリ処理（フレームデータのデコード、エフェクト／インスタンス／マスクのバッチング、Burst のスケジューリング、メッシュのアップロード）は `SpriteStudioGeometryBuilder` とその協調クラス、`SpriteStudioMeshJob` にあります。描画機能の追加は Player コンポーネントではなくそちらへ。Burst と FFI が依存する構造体レイアウトは維持してください。
+- **FFI の安全性:** ネイティブハンドル（`SsPlayerHandle`）はただのポインタで、`IDisposable` なクラス（`SpriteStudioNativeContext`、`SpriteStudioInternalPlayer`）が所有します。ネイティブリソースの解放前には必ず `JobHandle.Complete()` を呼んでください。実行中の Burst ジョブがあるとクラッシュします。
+- **レイヤー分離の遵守:** `SpriteStudioInternalPlayer` がネイティブのライフサイクル・FFI・`IDisposable` を持ち、フレームごとのジオメトリ処理（フレームデータのデコード、エフェクト／インスタンス／マスクのバッチング、Burst のスケジューリング、メッシュのアップロード）は `SpriteStudioGeometryBuilder` とその協調クラス、`SpriteStudioMeshJob.cs` にあります。描画機能の追加は Player コンポーネントではなくそちらへ。Burst と FFI が依存する構造体レイアウトは維持してください。
 - **SDK との分離:** アニメーションのコアロジックは `SpriteStudio-SDK` サブモジュール（Rust の `libssruntime` / `libssconverter`）にあります。コアやアルゴリズムの変更は SDK リポジトリへ、Unity 固有の描画は `package/` へ。
 - **生成コードは手編集しない:** FFI バインディングと FlatBuffers アクセサーは、付属スクリプトで再生成してコミットしてください。
 
