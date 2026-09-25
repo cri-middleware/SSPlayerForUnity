@@ -1,5 +1,9 @@
 # Issues are for bugs and feature requests. Everything else has a better home —
 # see SUPPORT.md, which these links mirror.
+#
+# One link the sibling players carry is deliberately absent: the shared
+# SpriteStudio core's issue tracker. SpriteStudio-SDK is not public, so it
+# would 404 for exactly the people who would follow it.
 blank_issues_enabled: false
 contact_links:
   - name: ❓ Question about how to use the player / 使い方の質問
@@ -17,7 +21,3 @@ contact_links:
   - name: 🛡️ Security vulnerability / 脆弱性の報告
     url: https://github.com/cri-middleware/SSPlayerForUnity/blob/HEAD/SECURITY.md
     about: Do not open a public issue. See the security policy for how to report privately.
-
-  - name: 🧩 Problem in the shared SpriteStudio core / 共通コアの問題
-    url: https://github.com/cri-middleware/SpriteStudio-SDK/issues
-    about: If the same problem reproduces on another SpriteStudio player, it most likely belongs to the shared runtime.

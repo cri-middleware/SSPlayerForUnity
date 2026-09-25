@@ -35,9 +35,8 @@ Please give us a chance to release that fix before disclosing publicly.
 ### Which repository to report to
 
 Playback is driven by a native Rust runtime shared with the other SpriteStudio players. If the same
-problem reproduces on a different SpriteStudio player, it is most likely in that shared core — see
-[SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK). Reporting here is still fine;
-we will route it.
+problem reproduces on a different SpriteStudio player, it is most likely in that shared core, which
+lives in SpriteStudio-SDK. Report it here all the same and say so; we will route it.
 
 ## Scope Notes
 
@@ -87,8 +86,7 @@ SSPlayerForUnity は beta 版です。修正は最新リリースに対しての
 ### 報告先リポジトリの判断
 
 再生処理は、他の SpriteStudio Player と共通のネイティブ Rust ランタイムが担っています。他の
-SpriteStudio Player でも同じ問題が再現する場合、共通コア側の問題である可能性が高いため
-[SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) をご確認ください。判断がつかない場合は本リポジトリへご報告いただければ、こちらで振り分けます。
+SpriteStudio Player でも同じ問題が再現する場合、SpriteStudio-SDK にある共通コア側の問題である可能性が高いため、その旨を添えて本リポジトリへご報告ください。こちらで振り分けます。
 
 ## 既知の注意点
 
