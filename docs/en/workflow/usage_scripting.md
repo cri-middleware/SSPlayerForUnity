@@ -40,7 +40,7 @@ Your playback settings hold across the switch: `SpeedScale`, `FrameSkipEnabled`,
 | `IsPlaying` | `bool` (read) | Whether a playback session is active (`true` even while paused) |
 | `IsPausing` | `bool` (read) | Whether currently paused |
 | `IsFinished` | `bool` (read) | Whether every configured loop has played. A **state**, not a pulse — it latches on completion and holds until the next `Play()` / `SetAnimation()`, so `Play(); yield return new WaitUntil(() => player.IsFinished);` waits for the run you just started. Never true under an infinite `LoopCount`, and **not raised by `Stop()`** — a commanded stop is not a completion, which is what separates it from `!IsPlaying` |
-| `IsPlayingForward` | `bool` (read) | Which way the playhead is **actually** travelling. `PlaybackDirection` is only the configured heading: on a `PlaybackStyle.PingPong` return leg this reads `false` while `PlaybackDirection` is still `false`. **Gate audio on it** — SpriteStudio has no reverse audio, so a key crossed on a backward leg is not meant to sound |
+| `IsPlayingForward` | `bool` (read) | Which way the playhead is **actually** travelling. `PlaybackDirection` is only the configured heading: on a `PlaybackStyle.PingPong` return leg this reads `false` while `PlaybackDirection` is still `Forward`. **Gate audio on it** — SpriteStudio has no reverse audio, so a key crossed on a backward leg is not meant to sound |
 | `FrameNo` | `float` | Current frame. Use `set` to seek to an arbitrary frame (fractional allowed) |
 | `TotalFrames` | `int` (read) | Frames in the range being played, both ends inclusive — the section when `SetAnimationSection` set one (`0` when not loaded) |
 | `FrameRate` | `int` | Playback frame rate (fps). Use `set` to change at runtime. `0` or less is not a value but a **clearing of the override**: the rate falls back to the one the clip was authored at. The getter always reports the effective rate, so writing `0` and reading it back returns the clip's own fps (e.g. `60`) |
@@ -120,7 +120,7 @@ with caveats — see "What mirroring costs you".
 
 ## Event Notifications
 
-You can receive five types of events as the animation progresses. Both `C# events` and inspector-wireable `UnityEvent`s are provided.
+You can receive six types of events as the animation progresses. Both `C# events` and inspector-wireable `UnityEvent`s are provided.
 
 | Event | C# event | UnityEvent field | Payload | Trigger timing |
 |---|---|---|---|---|

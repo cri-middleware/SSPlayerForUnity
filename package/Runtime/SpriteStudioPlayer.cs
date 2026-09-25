@@ -356,7 +356,8 @@ namespace SpriteStudio.Runtime
         /// Which way the playhead is actually travelling this frame. This is <b>not</b>
         /// <see cref="PlaybackDirection"/>, which is only the heading that was configured: under
         /// <see cref="SpriteStudioPlaybackStyle.PingPong"/> the return leg runs backward while it still
-        /// reads false. A speed of zero or below is a stop, not a reversal, and does not flip it.
+        /// reads <see cref="SpriteStudioPlaybackDirection.Forward"/>. A speed of zero or below is a stop,
+        /// not a reversal, and does not flip it.
         /// <para>
         /// This is the gate to put in front of audio. SpriteStudio has no reverse audio, so a sound
         /// key crossed on a backward leg is not meant to sound — the player applies exactly this
