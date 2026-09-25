@@ -12,8 +12,7 @@ body:
         [inquiry form](https://www.webtech.co.jp/contact/en.html) and we will arrange a private
         transfer.
 
-        投稿前に既存の Issue を検索してください。**業務データの `.sspj` は公開の場である本 Issue に
-        添付しないでください。** 送付が必要な場合はヘルプセンターをご利用ください。
+        投稿前に既存の Issue を検索してください。**業務データの `.sspj` は公開の場である本 Issue に添付しないでください。** 送付が必要な場合はヘルプセンターをご利用ください。
 
   - type: textarea
     id: what-happened
@@ -103,6 +102,6 @@ body:
     attributes:
       label: Does it reproduce on another SpriteStudio player? / 他の SpriteStudio Player でも再現しますか？
       description: |
-        If yes, it most likely belongs to the shared native runtime — please report it in
-        [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK/issues) instead.
-        再現する場合は共通コア側の可能性が高いため、SpriteStudio-SDK へご報告ください。
+        If it does, the cause is most likely the shared SpriteStudio runtime rather than this
+        player, and saying so here saves a round trip.
+        再現する場合は、この Player 固有ではなく共通ランタイム側の可能性が高いため、その旨をお書きください。
