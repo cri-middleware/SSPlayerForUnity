@@ -55,7 +55,7 @@
 4. **開く**: Unity Hub から `examples/SampleProject` を開きます。
 5. **試す**: `Assets/Test.unity` を開いて Play を押します。
 
-SDK の残り 4 本（`overall` / `allAttributeV7` / `allPartsV7` / `ParticleEffect`）は同梱していません。サイズが大きく、submodule が原本を持っているためです。必要なときは `SpriteStudio-SDK/tests` から **Window > SpriteStudio > Importer** にドラッグしてください。
+SDK の残り 5 本（`overall` / `allAttributeV7` / `allPartsV7` / `ParticleEffect` / `Doll`）は同梱していません。サイズが大きく、submodule が原本を持っているためです。必要なときは `SpriteStudio-SDK/tests` から **Window > SpriteStudio > Importer** にドラッグしてください。
 
 カスタマイズを目的とした導入手順（手動ビルド等）の詳細は [インストールガイド](./docs/ja/setup/install.md) を参照してください。
 

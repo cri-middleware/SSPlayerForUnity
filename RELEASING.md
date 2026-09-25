@@ -14,7 +14,7 @@ Both locales, English first: it clears `site/`, which contains `site/ja`, so an 
 leaves a stale Japanese site behind and a page you just broke still looks fine. `mkdocs.base.yml`
 sets `strict: true`; `zensical serve` validates nothing, `--strict` or not, and serves one locale at
 a time, so `build-pages.sh serve=yes` is the only way to watch the language selector resolve.
-`pages.yml`'s build job **is** that script with every option spelled out. `.ps1` twins on Windows,
+`pages.yml`'s build job **is** that script. `.ps1` twins on Windows,
 `key=value` options and `--help` on both.
 
 ## Cutting a release
@@ -38,7 +38,7 @@ Publishing the draft is what emits the `release: published` event that triggers 
 and what makes `releases/latest/download/<name>.tgz` — the install URL in the README and the docs —
 resolve. Keep it a full, non-prerelease release, and publish it by hand.
 
-`release.yml`'s job **is** `scripts/build-release.sh` with every option spelled out, and unlike the
+`release.yml`'s job **is** `scripts/build-release.sh`, and unlike the
 SDK's script of the same name this one really does produce the whole package on one machine: it is
 C# plus prebuilt native libraries. The way to review a release is to build it and install it.
 
@@ -80,7 +80,7 @@ instead. Use `sdk=build` to get a package to look at; never to cut a release.
 ./scripts/build-pages.sh serve=yes # 公開ツリー、両ロケール -> http://localhost:8000/
 ```
 
-必ず両ロケールを、英語を先に。英語ビルドは `site/`（その中に `site/ja` がある）を消すため、英語だけ建てると古い日本語サイトが残り、壊したページが無傷に見えます。`mkdocs.base.yml` が `strict: true` を設定します。`zensical serve` は `--strict` を付けても何も検証せず、1 ロケールずつしか配信しないため、言語セレクタの動作を見られるのは `build-pages.sh serve=yes` だけです。`pages.yml` のビルドジョブはそのスクリプト（オプションはすべて明示）です。Windows は `.ps1` 双子、どちらも `key=value` と
+必ず両ロケールを、英語を先に。英語ビルドは `site/`（その中に `site/ja` がある）を消すため、英語だけ建てると古い日本語サイトが残り、壊したページが無傷に見えます。`mkdocs.base.yml` が `strict: true` を設定します。`zensical serve` は `--strict` を付けても何も検証せず、1 ロケールずつしか配信しないため、言語セレクタの動作を見られるのは `build-pages.sh serve=yes` だけです。`pages.yml` のビルドジョブはそのスクリプトです。Windows は `.ps1` 双子、どちらも `key=value` と
 `--help` を取ります。
 
 ## リリースの手順
@@ -100,7 +100,7 @@ git tag v7.0.0-beta.1 && git push origin v7.0.0-beta.1
 下書きの公開が `release: published` イベントを発行し、Pages のデプロイを起動します。README と docs のインストール URL である `releases/latest/download/<name>.tgz` が解決するのもこれによってです。
 pre-release にせず、通常のリリースとして手作業で公開してください。
 
-`release.yml` のジョブは `scripts/build-release.sh`（オプションはすべて明示）です。同名の SDK のスクリプトとは違い、こちらは 1 台で製品そのものを作れます（中身は C# とビルド済みネイティブライブラリだけだからです）。リリースを確認する方法は、実際に作って tarball からインストールすることです。
+`release.yml` のジョブは `scripts/build-release.sh` です。同名の SDK のスクリプトとは違い、こちらは 1 台で製品そのものを作れます（中身は C# とビルド済みネイティブライブラリだけだからです）。リリースを確認する方法は、実際に作って tarball からインストールすることです。
 
 ```bash
 ./scripts/build-release.sh
