@@ -1,4 +1,4 @@
-# 🎮 SpriteStudioPlayer for Unity — Documentation
+# 🎮 SpriteStudio Player for Unity — Documentation
 
 A high-performance plugin for playing back animations created with [SpriteStudio](https://www.webtech.co.jp/spritestudio/) on [Unity](https://unity.com/).
 Playback is performed through `libssruntime`, the shared Rust core provided by [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK), and combined with Unity's Job System to achieve extreme performance.

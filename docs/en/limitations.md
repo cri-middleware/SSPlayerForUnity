@@ -1,6 +1,6 @@
 # ⚠️ Limitations & Scope
 
-Constraints and caveats to be aware of when shipping with the current SpriteStudioPlayer for Unity. For what *is* supported, see [Key Features](./index.md#key-features) and the workflow guides.
+Constraints and caveats to be aware of when shipping with the current SpriteStudio Player for Unity. For what *is* supported, see [Key Features](./index.md#key-features) and the workflow guides.
 
 > [!NOTE]
 > This is a living document. Items are added as they are confirmed; wording and coverage may change as the plugin evolves.

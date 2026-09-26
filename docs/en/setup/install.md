@@ -2,7 +2,7 @@
 
 [← Back to documentation index](../index.md)
 
-This page explains how to add SpriteStudioPlayer for Unity to your project. Choose one of the three installation methods that best fits your needs.
+This page explains how to add SpriteStudio Player for Unity to your project. Choose one of the three installation methods that best fits your needs.
 
 ## Supported Environment
 
