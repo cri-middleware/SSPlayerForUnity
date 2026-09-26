@@ -664,7 +664,10 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 if (step.transitioned)
                 {
-                    childPlayer.Play(); // Trigger side effects (UnityEvents) if needed
+                    // Starts the child. ss_instance_slot_step configured it for the new key
+                    // (section, direction, loop count) but does not play it, and an independent
+                    // child never advances until it plays.
+                    childPlayer.Play();
                 }
 
                 if (step.visible)
