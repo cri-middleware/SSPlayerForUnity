@@ -1,6 +1,6 @@
 [**English**](./README.md) | [**日本語**](./README.ja.md)
 
-# SpriteStudioPlayer for Unity
+# SpriteStudio Player for Unity
 
 **Professional 2D animations for your Unity games. A plugin that balances intuitive usability with extreme performance.**
 

@@ -1,4 +1,4 @@
-# SpriteStudioPlayer for Unity — Roadmap
+# SpriteStudio Player for Unity — Roadmap
 
 The C# Player roadmap. Runtime and converter work lives in the
 [SpriteStudio-SDK roadmap](https://github.com/cri-middleware/SpriteStudio-SDK/blob/main/ROADMAP.md);

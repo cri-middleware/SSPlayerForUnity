@@ -1,6 +1,6 @@
 # Support Guide
 
-Thank you for using SSPlayerForUnity! We want to ensure you have the best experience possible. Please use the following channels to get help, report issues, or suggest improvements.
+Thank you for using SpriteStudio Player for Unity! We want to ensure you have the best experience possible. Please use the following channels to get help, report issues, or suggest improvements.
 
 ## 🛠️ GitHub Issues (Public)
 For Bug Reports and Feature Requests, please use [GitHub Issues](https://github.com/cri-middleware/SSPlayerForUnity/issues). This is the best place for:
@@ -32,7 +32,7 @@ Please do **not** report security vulnerabilities through public GitHub Issues. 
 
 ## 日本語でのサポート (Support in Japanese)
 
-SSPlayerForUnity をご利用いただきありがとうございます。ご質問や不具合の報告は、以下の窓口をご利用ください。
+SpriteStudio Player for Unity をご利用いただきありがとうございます。ご質問や不具合の報告は、以下の窓口をご利用ください。
 
 ### 🛠️ GitHub Issues (公開)
 不具合のご報告や新機能のご要望は [GitHub Issues](https://github.com/cri-middleware/SSPlayerForUnity/issues) へ投稿してください。

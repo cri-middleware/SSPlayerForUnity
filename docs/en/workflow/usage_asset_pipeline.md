@@ -4,7 +4,7 @@
 
 This page explains the **initial procedure for importing (converting) a `.sspj` into a Unity project**, and the workflow for iterating quickly by moving back and forth between SpriteStudio and Unity.
 
-SpriteStudioPlayer for Unity does not just play back animations; it provides a **powerful asset pipeline that lets you move seamlessly between SpriteStudio and Unity**. This lets you iterate quickly, from editing an animation to reflecting it in your game.
+SpriteStudio Player for Unity does not just play back animations; it provides a **powerful asset pipeline that lets you move seamlessly between SpriteStudio and Unity**. This lets you iterate quickly, from editing an animation to reflecting it in your game.
 
 ---
 

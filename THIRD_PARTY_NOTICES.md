@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-This file contains the license notices for third-party libraries used in **SpriteStudioPlayer for Unity**.
+This file contains the license notices for third-party libraries used in **SpriteStudio Player for Unity**.
 
 We would like to thank the authors and contributors of these open-source projects.
 

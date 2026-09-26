@@ -137,7 +137,7 @@ jobs:
           # The ref this was dispatched from, which the step above has already
           # established is a v* tag — the same string build-release.sh reported.
           tag_name: ${{ github.ref_name }}
-          name: SSPlayer for Unity ${{ github.ref_name }}
+          name: SpriteStudio Player for Unity ${{ github.ref_name }}
           draft: true
           generate_release_notes: true
           # The version-pinned tarball, the stable alias filename, and the
