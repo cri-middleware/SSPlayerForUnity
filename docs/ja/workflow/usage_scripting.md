@@ -48,6 +48,8 @@ _player.Play();
 | `PlaybackStyle` | `enum` | 終端での挙動（`Normal` / `PingPong`） |
 | `SetAnimationSection(int start, int end)` | メソッド | 再生範囲をフレームで限定（フレーム指定。ラベル指定は未対応） |
 
+プレイヤーの進行とメッシュの構築は、すべての `Update`・Timeline・Animator が終わった後、**LateUpdate** の早い段階（`DefaultExecutionOrder(-100)`）で行われます。そのため自前の `Update` から呼んだ `SetAnimation`・`Play`・`FrameNo` によるシークは、Animator への変更と同じく同じフレームで描画されます。自前の `LateUpdate` から呼んだものは次のフレームで描画されます。
+
 ### 例: 一時停止と再開
 
 ```csharp

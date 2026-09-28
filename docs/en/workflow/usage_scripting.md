@@ -48,6 +48,8 @@ Your playback settings hold across the switch: `SpeedScale`, `FrameSkipEnabled`,
 | `PlaybackStyle` | `enum` | What the playhead does at the far end (`Normal` / `PingPong`) |
 | `SetAnimationSection(int start, int end)` | Method | Limit the playback range by frame (frame-based; label specification is not supported) |
 
+The players advance and build their meshes early in **LateUpdate** (`DefaultExecutionOrder(-100)`), after every `Update`, the Timeline and the Animator have run. A call made from your `Update` — `SetAnimation`, `Play`, a seek through `FrameNo` — is therefore drawn in the same frame, as a change to an Animator is; one made from your own `LateUpdate` is drawn in the next.
+
 ### Example: Pause and Resume
 
 ```csharp

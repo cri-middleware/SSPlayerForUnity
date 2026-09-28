@@ -562,6 +562,46 @@ namespace SpriteStudio.Runtime.Tests
             Assert.IsFalse(player.IsPlaying);
         }
 
+        // Seeks the player from a default-order Update, then records in its own LateUpdate -- which runs
+        // after the runner's (-100) -- which frame the player built this frame.
+        private sealed class SeekFromUpdate : MonoBehaviour
+        {
+            public SpriteStudioPlayer Player;
+            public float Target;
+            public float BuiltThisFrame = float.NaN;
+            private bool _sought;
+
+            private void Update()
+            {
+                Player.FrameNo = Target;
+                _sought = true;
+            }
+
+            private void LateUpdate()
+            {
+                if (_sought && float.IsNaN(BuiltThisFrame))
+                    BuiltThisFrame = Player.InternalPlayer._geometryBuilder._lastBuiltDrawFrameNo;
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator SeekFromUpdate_IsBuiltInTheSameFrame()
+        {
+            if (!Application.isPlaying) Assert.Ignore("The update runner drives players in Play mode only.");
+            var player = MakePlayingPlayer();
+            player.Pause();
+            yield return null;
+            Assume.That(player.TotalFrames, Is.GreaterThan(5), "walk needs more than five frames");
+
+            var probe = player.gameObject.AddComponent<SeekFromUpdate>();
+            probe.Player = player;
+            probe.Target = 5f;
+            yield return null;
+            yield return null;
+
+            Assert.AreEqual(5f, probe.BuiltThisFrame, 0.001f, "A seek made in Update should be built before that frame's LateUpdate");
+        }
+
         [UnityTest]
         public IEnumerator Graphic_ReEnable_SetsTheAnimationUpAgain_AndAutoPlays()
         {

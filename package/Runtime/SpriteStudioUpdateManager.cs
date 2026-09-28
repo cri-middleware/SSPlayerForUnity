@@ -30,14 +30,19 @@ namespace SpriteStudio.Runtime
     }
 
     /// <summary>
-    /// Centrally manages all SpriteStudio renderers and drives the per-frame update and render:
-    ///   1. Update (serial): advance each player by 1 frame + decide drawFrame/frame-skip.
-    ///   2. Update (parallel): run get_frame_data for non-skip players across workers via IJobParallelFor.
+    /// Centrally manages all SpriteStudio renderers and drives the per-frame update and render, all in
+    /// one LateUpdate:
+    ///   1. Serial: advance each player by 1 frame + decide drawFrame/frame-skip.
+    ///   2. Parallel: run get_frame_data for non-skip players across workers via IJobParallelFor.
     ///      get_frame_data is independent per context (no global mutable state) = concurrency-safe, so the
     ///      heaviest pose/matrix/vertex/draw batch computation is parallelized across characters. Wait for
     ///      completion at a barrier.
-    ///   3. Update (serial): consume the obtained frame-data pointers and issue the mesh-build Burst Jobs.
-    ///   4. LateUpdate: wait for all Jobs + apply to the meshes.
+    ///   3. Serial: consume the obtained frame-data pointers and issue the mesh-build Burst Jobs, which
+    ///      run on the workers while the main thread issues the rest.
+    ///   4. Wait for all Jobs + apply to the meshes.
+    /// LateUpdate, not Update: every Update, the Timeline (PlayableDirector, evaluated after Update) and
+    /// the Animator have run by then, so what they set -- an animation switched, a frame sought, a
+    /// keyframed property -- is drawn in the same frame, as it is on an Animator-driven SpriteRenderer.
     ///
     /// Central management runs in play mode only. In edit mode (the Graphic ExecuteAlways preview), each
     /// component calls _core.TickAndSchedule/ApplyAndRender serially on its own (separate from the parallel path).
@@ -251,20 +256,16 @@ namespace SpriteStudio.Runtime
     }
 
     /// <summary>Hidden MonoBehaviour that drives the UpdateManager every frame (exactly one is created in play mode).</summary>
-    // Run early so the per-frame tick (Update/Schedule) and the apply + part-tracker mirror (LateUpdate)
-    // complete before default-order user scripts: a user script reading a tracked Transform in its own
-    // LateUpdate then sees this frame's value, not a stale one.
+    // Run early so the tick, the apply and the part-tracker mirror complete before default-order user
+    // scripts' LateUpdate: a user script reading a tracked Transform in its own LateUpdate then sees this
+    // frame's value, not a stale one.
     [DefaultExecutionOrder(-100)]
     [AddComponentMenu("")]
     internal sealed class SpriteStudioUpdateRunner : MonoBehaviour
     {
-        private void Update()
-        {
-            SpriteStudioUpdateManager.Schedule(Time.deltaTime);
-        }
-
         private void LateUpdate()
         {
+            SpriteStudioUpdateManager.Schedule(Time.deltaTime);
             SpriteStudioUpdateManager.Apply();
         }
 
