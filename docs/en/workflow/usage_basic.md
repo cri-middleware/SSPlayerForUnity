@@ -67,7 +67,7 @@ This method uses an empty GameObject to which you add the component yourself.
 
 ## 3. Play back
 
-If **Auto Play** is enabled (the default), the animation in **Animation Name** plays back automatically when you enter Play mode.
+If **Auto Play** is enabled (the default), the animation in **Animation Name** plays back automatically when you enter Play mode, and again each time the object is enabled again: a pooled object taken back out with `SetActive(true)` starts over, as an Animator does.
 
 To play back explicitly from a script, do the following.
 
@@ -97,7 +97,7 @@ Item names are written exactly as they appear in the Inspector, in the order the
 |---|---|---|
 | **Anime Asset** | (none) | The `SpriteStudioAnimeAsset` to play back. It sits under a heading labelled **SpriteStudio Asset** |
 | **Animation Name** | `""` | The name of the animation to play. Once an asset is assigned, this becomes a dropdown |
-| **Auto Play** | `true` | Whether to play back automatically when the scene starts running |
+| **Auto Play** | `true` | Whether to play back automatically when the scene starts running, and again whenever the component is enabled again |
 | **Loop Count** | `-1` | Number of loops (`-1` = infinite / `1` = once / `n` = n times / `0` = infinite, a synonym for `-1`) |
 | **Speed Scale** | `1.0` | Playback speed multiplier (a `0`–`4` slider; `0` is a stop) |
 | **Frame Skipping** | `true` | Real-time tracking. ON = advance by the elapsed time / OFF = advance one frame per update |

@@ -575,6 +575,17 @@ namespace SpriteStudio.Runtime
 
         private void Start()
         {
+            _started = true;
+            StartPlayback();
+        }
+
+        // Whether Start has run. OnDisable disposes the native player, so a player enabled again comes back
+        // with nothing set up; from the second enable on, OnEnable repeats what Start did, as an Animator
+        // returns to its default state and a Play On Awake particle system plays again.
+        [System.NonSerialized] private bool _started;
+
+        private void StartPlayback()
+        {
             if (string.IsNullOrEmpty(_animationName)) return;
             // Always call SetAnimation so the first frame is posed even when AutoPlay is off; actually start
             // playback only when AutoPlay is on. SetAnimation pushes the serialized loop/speed/skip itself,
@@ -677,6 +688,7 @@ namespace SpriteStudio.Runtime
             // In edit mode, build the start-frame static preview once right after placement (consumed in LateUpdate).
             if (!Application.isPlaying) _editPreviewDirty = true;
 #endif
+            if (_started && Application.isPlaying) StartPlayback();
         }
 
         private void InvokeAnimationStarted() => OnAnimationStartedEvent?.Invoke();

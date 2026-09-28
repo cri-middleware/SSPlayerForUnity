@@ -88,7 +88,7 @@ _player.Play();
 |---|---|---|
 | `AnimeAsset` | `SpriteStudioAnimeAsset` | 再生対象アセット（差し替え可） |
 | `CurrentAnimation` | `string` | アニメーション名 |
-| `AutoPlay` | `bool` | 起動時自動再生 |
+| `AutoPlay` | `bool` | 起動時と再有効化時の自動再生 |
 | `LoopCount` | `int` | ループ回数（`-1` または `0` = 無限 / `n` = n 回） |
 | `SpeedScale` | `float` | 再生速度倍率。ランタイムの実値を読み返す。`0` と負値は**停止**にクランプされる（逆再生は `PlaybackDirection` の役目）ため、`-1` を設定すると `0` が返る |
 | `SubFrameEnabled` | `bool` | サブフレーム補間 |

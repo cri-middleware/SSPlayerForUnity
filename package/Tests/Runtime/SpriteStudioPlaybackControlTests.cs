@@ -516,6 +516,75 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         // ============================================================
+        // (A''') Enabling again: OnDisable disposes the native player, so each later enable has to set the
+        // configured animation up again and honour AutoPlay, as Start did the first time.
+        // ============================================================
+
+        [UnityTest]
+        public IEnumerator ReEnable_SetsTheAnimationUpAgain_AndAutoPlays()
+        {
+            if (!Application.isPlaying) Assert.Ignore("Start and AutoPlay run in Play mode only.");
+            var go = new GameObject("ReEnablePlayer");
+            _objects.Add(go);
+            go.SetActive(false);
+            var player = go.AddComponent<SpriteStudioPlayer>();
+            player.AnimeAsset = MakeAsset();
+            player.CurrentAnimation = "walk";
+            go.SetActive(true);
+            yield return null; // Start
+
+            Assert.IsTrue(player.IsPlaying, "AutoPlay should have started walk");
+            go.SetActive(false);
+            go.SetActive(true);
+
+            Assert.AreEqual("walk", player.InternalPlayer.CurrentAnimationName, "The re-created native player should have walk set up");
+            Assert.IsTrue(player.IsPlaying, "AutoPlay should start it again");
+        }
+
+        [UnityTest]
+        public IEnumerator ReEnable_WithoutAutoPlay_PosesTheAnimationButDoesNotPlay()
+        {
+            if (!Application.isPlaying) Assert.Ignore("Start and AutoPlay run in Play mode only.");
+            var go = new GameObject("ReEnablePlayerNoAutoPlay");
+            _objects.Add(go);
+            go.SetActive(false);
+            var player = go.AddComponent<SpriteStudioPlayer>();
+            player.AnimeAsset = MakeAsset();
+            player.CurrentAnimation = "walk";
+            player.AutoPlay = false;
+            go.SetActive(true);
+            yield return null; // Start
+
+            go.SetActive(false);
+            go.SetActive(true);
+
+            Assert.AreEqual("walk", player.InternalPlayer.CurrentAnimationName);
+            Assert.IsFalse(player.IsPlaying);
+        }
+
+        [UnityTest]
+        public IEnumerator Graphic_ReEnable_SetsTheAnimationUpAgain_AndAutoPlays()
+        {
+            if (!Application.isPlaying) Assert.Ignore("Start and AutoPlay run in Play mode only.");
+            var go = new GameObject("ReEnableGraphic");
+            _objects.Add(go);
+            go.SetActive(false);
+            go.AddComponent<Canvas>();
+            var graphic = go.AddComponent<SpriteStudioGraphic>();
+            graphic.AnimeAsset = MakeAsset();
+            graphic.CurrentAnimation = "walk";
+            go.SetActive(true);
+            yield return null; // Start
+
+            Assert.IsTrue(graphic.IsPlaying, "AutoPlay should have started walk");
+            go.SetActive(false);
+            go.SetActive(true);
+
+            Assert.AreEqual("walk", graphic.InternalPlayer.CurrentAnimationName, "The re-created native player should have walk set up");
+            Assert.IsTrue(graphic.IsPlaying, "AutoPlay should start it again");
+        }
+
+        // ============================================================
         // (B) Internal-player layer: advance behavior via manual Tick (deterministic)
         // ============================================================
 

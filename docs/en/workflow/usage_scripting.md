@@ -88,7 +88,7 @@ These properties correspond to the inspector items. Changing them at runtime is 
 |---|---|---|
 | `AnimeAsset` | `SpriteStudioAnimeAsset` | Playback target asset (swappable) |
 | `CurrentAnimation` | `string` | Animation name |
-| `AutoPlay` | `bool` | Auto-play at startup |
+| `AutoPlay` | `bool` | Auto-play at startup and each time the component is enabled again |
 | `LoopCount` | `int` | Loop count (`-1` or `0` = infinite / `n` = n times) |
 | `SpeedScale` | `float` | Playback speed multiplier. Read back from the runtime, which clamps `0` and negatives to a **stop** (reverse is `PlaybackDirection`'s job), so `-1` reads back as `0` |
 | `SubFrameEnabled` | `bool` | Sub-frame interpolation |

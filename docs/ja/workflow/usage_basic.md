@@ -67,7 +67,7 @@
 
 ## 3. 再生する
 
-**Auto Play** が有効（既定）であれば、再生（Play）モードに入ると **Animation Name** のアニメーションが自動的に再生されます。
+**Auto Play** が有効（既定）であれば、再生（Play）モードに入ると **Animation Name** のアニメーションが自動的に再生されます。オブジェクトを再び有効にしたとき（プールから `SetActive(true)` で取り出したときなど）も、Animator と同じく最初から再生し直します。
 
 スクリプトから明示的に再生する場合は次のようにします。
 
@@ -97,7 +97,7 @@ public class Sample : MonoBehaviour
 |---|---|---|
 | **Anime Asset** | （なし） | 再生対象の `SpriteStudioAnimeAsset`。**SpriteStudio Asset** という見出しの下に置かれています |
 | **Animation Name** | `""` | 再生するアニメーション名。アセットを割り当てるとドロップダウンで選べます |
-| **Auto Play** | `true` | シーンの実行起動時に自動再生するか |
+| **Auto Play** | `true` | シーンの実行起動時と、コンポーネントを再び有効にしたときに自動再生するか |
 | **Loop Count** | `-1` | ループ回数（`-1` = 無限 / `1` = 1 回 / `n` = n 回 / `0` = 無限、`-1` の別名） |
 | **Speed Scale** | `1.0` | 再生速度の倍率（`0`〜`4` のスライダー。`0` は停止） |
 | **Frame Skipping** | `true` | 実時間追従。ON = 経過時間ぶん進める / OFF = 毎 update で 1 フレームずつ |
