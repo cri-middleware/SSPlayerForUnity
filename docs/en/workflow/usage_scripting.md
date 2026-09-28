@@ -337,13 +337,15 @@ When `Drive Scale` is ON, only the **inherited** scale is reflected; the part's 
 
 ### Notes
 
-- **The player controls the target's `SetActive`.** It is deactivated automatically in the two cases below, and reactivated automatically once the condition clears, so an active state you set yourself may be overwritten.
+- **The player deactivates the target in the two cases below**, and activates it again once the condition clears — only a target it deactivated itself. A target you deactivate yourself, such as a weapon kept out of sight until it is picked up, stays inactive. A target you deactivate while the player already has it deactivated still comes back when the condition clears: nothing on the target tells the two apart.
     - The part name does not exist in the current animation (always deactivated, regardless of the `On Hide` setting)
     - The part is hidden on this frame and `On Hide` is `Deactivate`
+
+    Replacing a tracker's `target`, or removing the tracker with `UnregisterPartTracker`, activates the target it had deactivated again.
 - Part names resolve against the parts of the animation the player itself is running. **Parts inside an Instance part (the child animation) cannot be specified** (the Instance part itself can).
 - If several parts share a name, the first one found is used.
 - Swapping `AnimeAsset` re-resolves part names automatically, so trackers do not need to be registered again.
-- In edit mode, trackers are applied once as well, when the static start-frame preview is built.
+- In edit mode, trackers are applied once as well, when the static start-frame preview is built. They move the target but never change its active state there.
 
 ## Part Overrides (Part Color / Cell / Visibility)
 

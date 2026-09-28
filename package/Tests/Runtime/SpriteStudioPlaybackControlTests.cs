@@ -604,6 +604,65 @@ namespace SpriteStudio.Runtime.Tests
             Assert.IsTrue(player.InternalPlayer.FlipX, "the player should have pushed it to the runtime");
         }
 
+        // ============================================================
+        // Part trackers deactivate a target for an absent or hidden part, and activate again only what they
+        // deactivated.
+        // ============================================================
+
+        private static void BuildOnce(SpriteStudioPlayer player)
+        {
+            player.InternalPlayer.ScheduleMeshUpdate(0f);
+            player.ApplyAndRender();
+        }
+
+        [Test]
+        public void PartTracker_LeavesATargetTheUserDeactivatedInactive()
+        {
+            if (!Application.isPlaying) Assert.Ignore("Trackers change the active state in Play mode only.");
+            var player = MakePlayingPlayer();
+            var weapon = new GameObject("Weapon");
+            _objects.Add(weapon);
+            player.RegisterPartTracker(player.GetPartNames()[1], weapon.transform);
+            weapon.SetActive(false); // holstered until picked up
+
+            BuildOnce(player);
+
+            Assert.IsFalse(weapon.activeSelf, "the tracker must not show a target it did not hide");
+        }
+
+        [Test]
+        public void PartTracker_ActivatesAgainWhatItDeactivated()
+        {
+            if (!Application.isPlaying) Assert.Ignore("Trackers change the active state in Play mode only.");
+            var player = MakePlayingPlayer();
+            var target = new GameObject("Follower");
+            _objects.Add(target);
+            var tracker = player.RegisterPartTracker("no such part", target.transform);
+
+            BuildOnce(player);
+            Assert.IsFalse(target.activeSelf, "an absent part deactivates the target");
+
+            tracker.partName = player.GetPartNames()[1];
+            tracker.ResolvedIndex = SpriteStudioPartTracker.ResolveDirty;
+            BuildOnce(player);
+            Assert.IsTrue(target.activeSelf, "the target comes back once its part is there");
+        }
+
+        [Test]
+        public void PartTracker_Unregistered_ActivatesWhatItDeactivated()
+        {
+            if (!Application.isPlaying) Assert.Ignore("Trackers change the active state in Play mode only.");
+            var player = MakePlayingPlayer();
+            var target = new GameObject("Follower");
+            _objects.Add(target);
+            player.RegisterPartTracker("no such part", target.transform);
+            BuildOnce(player);
+            Assume.That(target.activeSelf, Is.False);
+
+            Assert.AreEqual(1, player.UnregisterPartTracker(target.transform));
+            Assert.IsTrue(target.activeSelf, "a target the tracker hid goes back as it was found");
+        }
+
         // Seeks the player from a default-order Update, then records in its own LateUpdate -- which runs
         // after the runner's (-100) -- which frame the player built this frame.
         private sealed class SeekFromUpdate : MonoBehaviour

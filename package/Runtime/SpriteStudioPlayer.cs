@@ -938,7 +938,10 @@ namespace SpriteStudio.Runtime
             for (int i = 0; i < _partTrackers.Count; i++)
             {
                 var tracker = _partTrackers[i];
-                if (tracker == null || tracker.target == null) continue;
+                if (tracker == null) continue;
+                // A target swapped out while this tracker had it deactivated goes back as it was found.
+                if (tracker.HiddenTarget != null && tracker.HiddenTarget != tracker.target) ActivateHiddenTarget(tracker);
+                if (tracker.target == null) continue;
 
                 // Resolve part index (cached; rebuilt on asset reload via MarkPartTrackersDirty).
                 if (tracker.ResolvedIndex == SpriteStudioPartTracker.ResolveDirty)
@@ -948,7 +951,7 @@ namespace SpriteStudio.Runtime
                 if (partIndex < 0)
                 {
                     // Part absent from this animation: nothing to follow, so deactivate the target.
-                    if (tracker.target.gameObject.activeSelf) tracker.target.gameObject.SetActive(false);
+                    DeactivateTarget(tracker);
                     continue;
                 }
 
@@ -956,14 +959,14 @@ namespace SpriteStudio.Runtime
                 bool hasState = internalPlayer.TryGetPartState(partIndex, out bool hidden, out float lsx, out float lsy);
                 if (hidden && tracker.onHide == SpriteStudioPartTrackerHide.Deactivate)
                 {
-                    if (tracker.target.gameObject.activeSelf) tracker.target.gameObject.SetActive(false);
+                    DeactivateTarget(tracker);
                     continue;
                 }
 
                 if (!internalPlayer.TryGetPartTransform(partIndex, out Matrix4x4 partLocal)) continue;
 
-                // Re-activate if it was auto-deactivated (absent / hidden) on a previous frame.
-                if (!tracker.target.gameObject.activeSelf) tracker.target.gameObject.SetActive(true);
+                // Re-activate what this tracker deactivated (absent / hidden) on a previous frame.
+                ActivateHiddenTarget(tracker);
 
                 // Remove the part's own localScale (it scales the basis columns) so only the inherited
                 // scale drives the target. Exact; a degenerate (~0) localScale axis is left untouched.
@@ -1003,6 +1006,25 @@ namespace SpriteStudio.Runtime
             }
         }
 
+        // Deactivate a tracker's target, recording that the tracker did so it can be activated again -- and
+        // only then: a target already inactive is the user's to keep so. Play mode only: the edit-mode preview
+        // would save the target inactive into the scene, and the record does not survive a domain reload to
+        // undo it.
+        private static void DeactivateTarget(SpriteStudioPartTracker tracker)
+        {
+            if (!Application.isPlaying || !tracker.target.gameObject.activeSelf) return;
+            tracker.target.gameObject.SetActive(false);
+            tracker.HiddenTarget = tracker.target;
+        }
+
+        private static void ActivateHiddenTarget(SpriteStudioPartTracker tracker)
+        {
+            var hidden = tracker.HiddenTarget;
+            if (hidden == null) return;
+            tracker.HiddenTarget = null;
+            if (!hidden.gameObject.activeSelf) hidden.gameObject.SetActive(true);
+        }
+
         // --- Part tracking public API ---
 
         /// <summary>Register a part tracker at runtime. Returns the created entry.</summary>
@@ -1024,11 +1046,19 @@ namespace SpriteStudio.Runtime
             return tracker;
         }
 
-        /// <summary>Remove all trackers whose target is the given Transform. Returns the number removed.</summary>
+        /// <summary>
+        /// Remove all trackers whose target is the given Transform, activating it again if a tracker had
+        /// deactivated it. Returns the number removed.
+        /// </summary>
         public int UnregisterPartTracker(Transform target)
         {
             if (_partTrackers == null) return 0;
-            return _partTrackers.RemoveAll(t => t != null && t.target == target);
+            return _partTrackers.RemoveAll(t =>
+            {
+                if (t == null || t.target != target) return false;
+                ActivateHiddenTarget(t);
+                return true;
+            });
         }
 
         /// <summary>Is the named part hidden on the current frame? False if the part is unknown / absent.</summary>
