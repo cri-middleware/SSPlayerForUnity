@@ -13,7 +13,7 @@ Usage: run-tests.ps1 [--help]
   Each suite prints its counts from its NUnit result file. Skipped and
   inconclusive tests are counted there, never as passes.
 
-  Exit status: 0 every suite passed, 1 a suite failed,
+  Exit status: 0 every suite passed, 1 a suite failed or wrote no results,
                2 bad arguments or a missing prerequisite.
 "@
 
@@ -109,7 +109,7 @@ try {
         $xml = "$ProjectPath/$Suite-$ResultsFile"
         if (-not (Test-Path $xml)) {
             Write-Host "  ${Suite}: no result file ($xml) -- the run did not finish; see $Suite-$LogFile"
-            return
+            return $false
         }
         # The opening tag alone, as the .sh reads it: a file Unity cut short still reports its counts.
         $tag = [regex]::Match((Get-Content -Raw $xml), '<test-run [^>]*>').Value
@@ -118,6 +118,7 @@ try {
         $skipped = & $count "skipped"
         Write-Host "  ${Suite}: $(& $count "total") total, $(& $count "passed") passed, $(& $count "failed") failed, $inconclusive inconclusive, $skipped skipped"
         $script:NotPassed += $inconclusive + $skipped
+        return $true
     }
     # A suite that dies before writing its results must not be summarized from the previous run's file.
     function Clear-Results($Suite) {
@@ -158,21 +159,31 @@ try {
     Write-Host "Running EditMode Tests..."
     Clear-Results "editmode"
     $processEdit = Start-Process -FilePath $UnityPath -ArgumentList "-batchmode", "-runTests", "-projectPath", $ProjectPath, "-testPlatform", "editmode", "-testResults", "editmode-$ResultsFile", "-logFile", "editmode-$LogFile", "-assemblyNames", "SpriteStudio.Runtime.Tests;SpriteStudio.Runtime.EditModeTests;SpriteStudio.Editor.Tests" -Wait -PassThru -NoNewWindow
-    Show-Summary "editmode"
+    $ranEdit = Show-Summary "editmode"
 
     if ($processEdit.ExitCode -ne 0) {
         Write-Error "EditMode Tests failed with exit code $($processEdit.ExitCode)! See editmode-$LogFile for details."
         exit $processEdit.ExitCode
     }
+    # Unity can also exit 0 having run nothing -- a startup dialog it cancels in batchmode ends the process
+    # before the first test -- so a suite with no result file is a failure too.
+    if (-not $ranEdit) {
+        Write-Error "EditMode Tests did not run! See editmode-$LogFile for details."
+        exit 1
+    }
 
     Write-Host "Running PlayMode Tests..."
     Clear-Results "playmode"
     $processPlay = Start-Process -FilePath $UnityPath -ArgumentList "-batchmode", "-runTests", "-projectPath", $ProjectPath, "-testPlatform", "playmode", "-testResults", "playmode-$ResultsFile", "-logFile", "playmode-$LogFile", "-assemblyNames", "SpriteStudio.Runtime.Tests;SpriteStudio.Runtime.EditModeTests;SpriteStudio.Editor.Tests" -Wait -PassThru -NoNewWindow
-    Show-Summary "playmode"
+    $ranPlay = Show-Summary "playmode"
 
     if ($processPlay.ExitCode -ne 0) {
         Write-Error "PlayMode Tests failed with exit code $($processPlay.ExitCode)! See playmode-$LogFile for details."
         exit $processPlay.ExitCode
+    }
+    if (-not $ranPlay) {
+        Write-Error "PlayMode Tests did not run! See playmode-$LogFile for details."
+        exit 1
     }
 
     Write-Host "Running Standalone Player Tests..."
@@ -184,11 +195,15 @@ try {
 
     Clear-Results "player"
     $processPlayer = Start-Process -FilePath $UnityPath -ArgumentList "-batchmode", "-runTests", "-projectPath", $ProjectPath, "-testPlatform", "playmode", "-buildTarget", $BuildTarget, "-testResults", "player-$ResultsFile", "-logFile", "player-$LogFile", "-assemblyNames", "SpriteStudio.Runtime.Tests;SpriteStudio.Runtime.EditModeTests;SpriteStudio.Editor.Tests" -Wait -PassThru -NoNewWindow
-    Show-Summary "player"
+    $ranPlayer = Show-Summary "player"
 
     if ($processPlayer.ExitCode -ne 0) {
         Write-Error "Standalone Player Tests failed with exit code $($processPlayer.ExitCode)! See player-$LogFile for details."
         exit $processPlayer.ExitCode
+    }
+    if (-not $ranPlayer) {
+        Write-Error "Standalone Player Tests did not run! See player-$LogFile for details."
+        exit 1
     }
 
     Write-Host "All tests passed successfully!"
