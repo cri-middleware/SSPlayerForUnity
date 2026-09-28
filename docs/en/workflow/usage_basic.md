@@ -96,7 +96,7 @@ Item names are written exactly as they appear in the Inspector, in the order the
 | Item | Default | Description |
 |---|---|---|
 | **Anime Asset** | (none) | The `SpriteStudioAnimeAsset` to play back. It sits under a heading labelled **SpriteStudio Asset** |
-| **Animation Name** | `""` | The name of the animation to play. Once an asset is assigned, this becomes a dropdown |
+| **Animation Name** | `""` | The name of the animation to play. Once an asset is assigned, this becomes a dropdown, and assigning one sets it to the asset's first animation if the asset lacks the current name. A name the asset does not have shows as `(missing)` rather than being replaced |
 | **Auto Play** | `true` | Whether to play back automatically when the scene starts running, and again whenever the component is enabled again |
 | **Loop Count** | `-1` | Number of loops (`-1` = infinite / `1` = once / `n` = n times / `0` = infinite, a synonym for `-1`) |
 | **Speed Scale** | `1.0` | Playback speed multiplier (a `0`–`4` slider; `0` is a stop) |

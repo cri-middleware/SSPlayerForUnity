@@ -58,9 +58,8 @@ namespace SpriteStudio.Editor
         {
             serializedObject.Update();
 
-            EditorGUILayout.PropertyField(_animeAssetProp);
-
-            DrawAnimationNameDropdown();
+            SpriteStudioAnimationNameField.DrawAsset(_animeAssetProp, _animationNameProp);
+            SpriteStudioAnimationNameField.DrawName(_animeAssetProp, _animationNameProp);
 
             EditorGUILayout.PropertyField(_autoPlayProp);
             EditorGUILayout.PropertyField(_loopProp);
@@ -92,29 +91,6 @@ namespace SpriteStudio.Editor
             EditorGUILayout.PropertyField(_onAudioEventProp);
 
             serializedObject.ApplyModifiedProperties();
-        }
-
-        private void DrawAnimationNameDropdown()
-        {
-            var asset = _animeAssetProp.objectReferenceValue as SpriteStudioAnimeAsset;
-            if (asset == null || asset.AnimationNames == null || asset.AnimationNames.Length == 0)
-            {
-                EditorGUILayout.PropertyField(_animationNameProp);
-                return;
-            }
-
-            string currentName = _animationNameProp.stringValue;
-            int currentIndex = Mathf.Max(0, System.Array.IndexOf(asset.AnimationNames, currentName));
-
-            int newIndex = EditorGUILayout.Popup("Animation Name", currentIndex, asset.AnimationNames);
-            // Write only when the stored value differs from what the popup shows: an unconditional write
-            // re-marks the scene modified on every repaint. An unset name still differs from the entry the
-            // popup falls back to, so a graphic that reaches the inspector without one is still filled in.
-            if (newIndex >= 0 && newIndex < asset.AnimationNames.Length
-                && _animationNameProp.stringValue != asset.AnimationNames[newIndex])
-            {
-                _animationNameProp.stringValue = asset.AnimationNames[newIndex];
-            }
         }
     }
 }
