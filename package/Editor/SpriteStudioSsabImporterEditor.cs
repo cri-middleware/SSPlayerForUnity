@@ -11,6 +11,7 @@ namespace SpriteStudio.Editor
     /// delegated to the ScriptedImporterEditor's default drawing.
     /// </summary>
     [CustomEditor(typeof(SpriteStudioSsabImporter))]
+    [CanEditMultipleObjects]
     public class SpriteStudioSsabImporterEditor : ScriptedImporterEditor
     {
         private SerializedProperty _generateMaterials;
@@ -36,7 +37,7 @@ namespace SpriteStudio.Editor
             {
                 EditorGUILayout.PropertyField(_overrideShader, new GUIContent(
                     "Override Shader",
-                    "Shader used for material generation. Defaults to SpriteStudio/Default when unset."));
+                    "Shader a newly created .mat uses; SpriteStudio/Default when unset. A .mat that already exists keeps its own shader: change it on the .mat."));
             }
 
             EditorGUILayout.HelpBox(

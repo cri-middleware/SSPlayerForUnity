@@ -15,7 +15,7 @@ namespace SpriteStudio.Editor
         [Tooltip("Use a shared per-texture material (.mat). When OFF, no material is assigned.")]
         public bool GenerateMaterials = true;
 
-        [Tooltip("Shader used for material generation. When unset, SpriteStudio/Default is used.")]
+        [Tooltip("Shader a newly created .mat uses; SpriteStudio/Default when unset. A .mat that already exists keeps its own shader: change it on the .mat.")]
         public Shader OverrideShader;
 
         public override void OnImportAsset(AssetImportContext ctx)
