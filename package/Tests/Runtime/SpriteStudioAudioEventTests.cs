@@ -117,56 +117,81 @@ namespace SpriteStudio.Runtime.Tests
             }
         }
 
-        /// <summary>
-        /// Confirms that AnimeAsset.TryGetSoundInfo() can look up ssab sound metadata (alias / file_path / duration)
-        /// using the hash key of a sound that actually fired. A round-trip verification of the opt-in accessor that
-        /// supplements file_path etc. not carried by the firing payload (addresses only). Unknown hashes return false.
-        /// </summary>
-        [Test]
-        public void TryGetSoundInfo_ResolvesMetadata_ForFiredSound()
+        // The first animation, and the frame of its first audio key, found by playing it through.
+        private static void FindFirstAudioKey(byte[] ssab, out string animation, out int keyFrame)
         {
-            Assert.IsNotNull(_sound, $"Sound.ssab is required: {Path.GetFullPath(SoundResSsabPath)}");
-
-            // Capture one hash of a sound that actually fired (a key guaranteed to exist in the ssab).
-            SpriteStudioAudio captured = default;
-            bool got = false;
+            int found = int.MinValue;
             using (var player = new SpriteStudioInternalPlayer())
             {
-                player.LoadSsab(_sound);
-                player.OnAudio += a => { if (!got) { captured = a; got = true; } };
-                string anim = player.GetAnimationName(0);
-                Assert.IsTrue(player.SetupAnimation(anim), $"The first animation '{anim}' should be found");
+                player.LoadSsab(ssab);
+                player.OnAudio += a => { if (found == int.MinValue) found = a.FrameNo; };
+                animation = player.GetAnimationName(0);
+                Assert.IsTrue(player.SetupAnimation(animation));
                 player.SetLoop(1);
                 player.Play();
                 int guard = 0;
-                while (player.IsPlaying() && guard++ < 10000) player.Tick(1f / 60f, false);
+                while (player.IsPlaying() && found == int.MinValue && guard++ < 10000) player.Tick(1f / 60f, false);
             }
-            Assert.IsTrue(got, "At least one audio event should be captured");
+            Assert.AreNotEqual(int.MinValue, found, "The animation should carry an audio key");
+            keyFrame = found;
+        }
 
-            // From an AnimeAsset loaded with the same ssab, that sound's metadata should be resolvable.
-            var asset = ScriptableObject.CreateInstance<SpriteStudioAnimeAsset>();
+        // The Sound pack as the overall fixture imports it: with the clips beside it resolved, which the copy
+        // under Resources/Sound, a lone .ssab, has none of.
+        private const string SoundWithClipsResourcePath = "overall/Sound";
+
+        // A player on the Sound pack with its clips, playing its first animation, and the frame of that
+        // animation's first audio key.
+        private static SpriteStudioPlayer MakePlayingSoundPlayer(out int keyFrame)
+        {
+            var asset = Resources.Load<SpriteStudioAnimeAsset>(SoundWithClipsResourcePath);
+            Assert.IsTrue(asset != null && asset.Sounds.Count > 0, "The overall fixture's Sound pack, with its clips, is required");
+            FindFirstAudioKey(asset.SsabData, out string animation, out keyFrame);
+            var player = new GameObject("SoundPlayer").AddComponent<SpriteStudioPlayer>();
+            player.AnimeAsset = asset;
+            Assert.IsTrue(player.SetAnimation(animation));
+            player.Play();
+            return player;
+        }
+
+        [Test]
+        public void SeekWhilePlaying_NotifiesTheLandingFramesKey_ButDoesNotPlayIt()
+        {
+            if (!Application.isPlaying) Assert.Ignore("The built-in playback runs in Play mode only.");
+            var player = MakePlayingSoundPlayer(out int keyFrame);
             try
             {
-                asset.SsabData = _sound;
+                int notified = 0;
+                player.OnAudio += a => { if (a.FrameNo == keyFrame) notified++; };
 
-                bool ok = asset.TryGetSoundInfo(captured.SoundListNameHash, captured.SoundNameHash, out var info);
-                Assert.IsTrue(ok, "The fired sound's hash should exist in the ssab's SoundList");
-                Assert.IsFalse(string.IsNullOrEmpty(info.FilePath), "file_path should be retrievable");
-                Assert.IsFalse(string.IsNullOrEmpty(info.Alias), "alias should be retrievable");
-                // The firing payload's SoundName is diagnostic (optional), so verify the match only if present.
-                if (!string.IsNullOrEmpty(captured.SoundName))
-                    Assert.AreEqual(captured.SoundName, info.Alias, "alias should match the firing payload's SoundName");
-                Debug.Log($"[AUDIO] TryGetSoundInfo: alias={info.Alias} file={info.FilePath} ms={info.TimeTotalMs}");
+                player.FrameNo = keyFrame;
+                player.PrepareFrame(1f / 60f, out _, out _);   // the next update reports the landing frame's keys
 
-                // An unknown hash returns false, and out is default.
-                Assert.IsFalse(asset.TryGetSoundInfo(0xDEADBEEFu, 0xCAFEBABEu, out var none),
-                    "An unknown hash should return false");
-                Assert.IsNull(none.FilePath);
+                Assert.Greater(notified, 0, "The landing frame's key is still notified");
+                Assert.IsNull(player.GetComponent<AudioSource>(), "but the playhead crossed nothing, so it does not sound");
             }
-            finally
+            finally { Object.DestroyImmediate(player.gameObject); }
+        }
+
+        [Test]
+        public void PlayingOntoAKey_SoundsIt_UntilStopAllSounds()
+        {
+            // The control for the test above: the same key, reached by playing rather than by a seek. The
+            // animation's first key sits on its start frame, which the first update after Play reports and plays.
+            if (!Application.isPlaying) Assert.Ignore("The built-in playback runs in Play mode only.");
+            var player = MakePlayingSoundPlayer(out _);
+            try
             {
-                Object.DestroyImmediate(asset);
+                player.PrepareFrame(1f / 60f, out _, out _);
+
+                var source = player.GetComponent<AudioSource>();
+                Assert.IsNotNull(source, "A key the playhead reaches by playing sounds");
+                Assert.IsNotNull(source.clip);
+
+                player.StopAllSounds();
+                Assert.IsNull(source.clip, "StopAllSounds silences what the player started");
             }
+            finally { Object.DestroyImmediate(player.gameObject); }
         }
     }
 }

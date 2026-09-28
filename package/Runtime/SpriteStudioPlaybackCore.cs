@@ -188,6 +188,27 @@ namespace SpriteStudio.Runtime
             OnAnimationStarted?.Invoke();
         }
 
+        // A seek made while playing reports the landing frame's keys on the next update, though the playhead
+        // crossed none of them: their sounds are not played, and their notifications still fire.
+        private bool _seekPending;
+        private int _seekLandingFrame;
+
+        /// <summary>Moves the playhead, remembering where a seek made while playing lands.</summary>
+        public void Seek(float frame)
+        {
+            var p = Internal;
+            if (p == null) return;
+            p.SetFrame(frame);
+            _seekPending = p.IsPlaying() && !p.IsPausing();
+            if (_seekPending) _seekLandingFrame = Mathf.FloorToInt(p.GetFrame());
+        }
+
+        /// <summary>Whether an audio key on <paramref name="frameNo"/> is a seek's landing frame, not one crossed.</summary>
+        public bool IsSeekLanding(int frameNo) => _seekPending && frameNo == _seekLandingFrame;
+
+        /// <summary>Called after each update: the landing frame's keys have been reported by then.</summary>
+        public void EndUpdate() => _seekPending = false;
+
         /// <summary>Advances the animation and schedules the mesh-build job (does not wait for the Job to complete).</summary>
         public void TickAndSchedule(float deltaTime, bool subFrameEnabled)
         {

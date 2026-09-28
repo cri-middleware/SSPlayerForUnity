@@ -108,9 +108,8 @@ public class Sample : MonoBehaviour
 
 | 項目 | 既定値 | 説明 |
 |---|---|---|
-| **Play Audio** | `true` | 音源イベント（ADIO）の音を鳴らすか。これが OFF のあいだ、下の 2 項目は灰色（無効）になります |
-| **Audio Volume** | `1.0` | 組み込み再生の音量。**Audio Backend** を使う場合は無視されます |
-| **Audio Backend** | （なし） | 音声ミドルウェア等へ再生を差し替えるためのフック（[スクリプト制御とイベント](./usage_scripting.md) 参照） |
+| **Play Audio** | `true` | 音源イベント（ADIO）の音を鳴らすか。OFF でもイベントは発火するので、自前で鳴らせます（[スクリプト制御とイベント](./usage_scripting.md) 参照）。OFF のあいだ、下の項目は灰色（無効）になります |
+| **Audio Volume** | `1.0` | 組み込み再生の音量 |
 
 インスペクタの末尾には、再生イベントの UnityEvent（**On Animation Started Event** / **On Animation Finished Event** / **On Animation Looped Event** / **On User Data Event** / **On Signal Event** / **On Audio Event**）が並びます。詳細は [スクリプト制御とイベント](./usage_scripting.md) を参照してください。
 

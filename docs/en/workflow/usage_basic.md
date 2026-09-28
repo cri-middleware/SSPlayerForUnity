@@ -108,9 +108,8 @@ The audio items are common too.
 
 | Item | Default | Description |
 |---|---|---|
-| **Play Audio** | `true` | Whether to play sounds from audio events (ADIO). While this is off, the two items below are greyed out |
-| **Audio Volume** | `1.0` | Volume of the built-in playback. Ignored when an **Audio Backend** is used |
-| **Audio Backend** | (none) | A hook for routing playback to a custom backend such as audio middleware (see [Scripting Control and Events](./usage_scripting.md)) |
+| **Play Audio** | `true` | Whether to play sounds from audio events (ADIO). Turned off, the events still fire, for playing the sounds yourself (see [Scripting Control and Events](./usage_scripting.md)); the item below is greyed out |
+| **Audio Volume** | `1.0` | Volume of the built-in playback |
 
 At the end of the Inspector sit the playback-event UnityEvents (**On Animation Started Event** / **On Animation Finished Event** / **On Animation Looped Event** / **On User Data Event** / **On Signal Event** / **On Audio Event**). See [Scripting Control and Events](./usage_scripting.md) for details.
 

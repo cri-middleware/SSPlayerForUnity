@@ -487,7 +487,6 @@ namespace SpriteStudio.Runtime
             InvalidateCellmapTable();
             _hashToMaterial = null;
             _soundToClip = null;
-            _soundInfo = null;
             if (_whiteBaseMaterial != null)
             {
                 if (Application.isPlaying) Destroy(_whiteBaseMaterial); else DestroyImmediate(_whiteBaseMaterial);
@@ -549,8 +548,9 @@ namespace SpriteStudio.Runtime
         [System.NonSerialized] private Dictionary<ulong, AudioClip> _soundToClip;
 
         /// <summary>
-        /// Returns the AudioClip corresponding to EventAudio's (sound_list_name_hash, sound_name_hash).
-        /// Returns null if not found. The resolution hook for implementing runtime sequence/sound playback (currently no callers).
+        /// Returns the AudioClip corresponding to EventAudio's (sound_list_name_hash, sound_name_hash), or null if
+        /// not found. The built-in playback resolves through it, and so can a host that plays the sounds itself
+        /// from the audio events.
         /// </summary>
         public AudioClip ResolveAudioClip(uint soundListNameHash, uint soundNameHash)
         {
@@ -567,52 +567,6 @@ namespace SpriteStudio.Runtime
             }
             ulong k = ((ulong)soundListNameHash << 32) | soundNameHash;
             return _soundToClip.TryGetValue(k, out var clip) ? clip : null;
-        }
-
-        [System.NonSerialized] private Dictionary<ulong, SpriteStudioSoundInfo> _soundInfo;
-
-        /// <summary>
-        /// Returns the ssab sound metadata (alias / file_path / file_path_hash / time_total) corresponding
-        /// to EventAudio's (sound_list_name_hash, sound_name_hash). An opt-in accessor paired with
-        /// ResolveAudioClip, intended for a custom audio backend that does not go through AudioClip.
-        /// Confines raw FlatBuffers parsing to this one place and does not expose SsabData to callers.
-        /// Default playback (PlayOneShot) does not call this and uses ResolveAudioClip instead.
-        /// </summary>
-        public bool TryGetSoundInfo(uint soundListNameHash, uint soundNameHash, out SpriteStudioSoundInfo info)
-        {
-            if (_soundInfo == null)
-            {
-                _soundInfo = new Dictionary<ulong, SpriteStudioSoundInfo>();
-                if (SsabData != null && SsabData.Length > 0)
-                {
-                    var bb = new Google.FlatBuffers.ByteBuffer(SsabData);
-                    var ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
-                    int listLen = ssab.SoundListsLength;
-                    for (int li = 0; li < listLen; li++)
-                    {
-                        var sl = ssab.SoundLists(li);
-                        if (!sl.HasValue) continue;
-                        var soundList = sl.Value;
-                        int fileLen = soundList.TableDataLength;
-                        for (int fi = 0; fi < fileLen; fi++)
-                        {
-                            var sf = soundList.TableData(fi);
-                            if (!sf.HasValue) continue;
-                            var soundFile = sf.Value;
-                            ulong key = ((ulong)soundList.NameHash << 32) | soundFile.NameHash;
-                            _soundInfo[key] = new SpriteStudioSoundInfo
-                            {
-                                Alias = soundFile.Name,
-                                FilePath = soundFile.FilePath,
-                                FilePathHash = soundFile.FilePathHash,
-                                TimeTotalMs = soundFile.TimeTotal,
-                            };
-                        }
-                    }
-                }
-            }
-            ulong k = ((ulong)soundListNameHash << 32) | soundNameHash;
-            return _soundInfo.TryGetValue(k, out info);
         }
     }
 }
