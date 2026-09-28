@@ -562,6 +562,36 @@ namespace SpriteStudio.Runtime.Tests
             Assert.IsFalse(player.IsPlaying);
         }
 
+        [Test]
+        public void TimelineClip_KeepsTheConfiguredLoopCount()
+        {
+            var player = MakePlayingPlayer();
+            player.LoopCount = 1;
+
+            player.EvaluateTimelineClip("run", 0.0);
+            Assert.AreEqual(1, player.InternalPlayer.GetLoop(), "the Timeline's setup should keep LoopCount");
+
+            // After the cutscene the animation is already set up, so SetAnimation changes nothing and Play
+            // runs with whatever loop count the runtime holds.
+            player.ReleaseTimelineControl();
+            player.SetAnimation("run");
+            player.Play();
+            Assert.AreEqual(1, player.InternalPlayer.GetLoop());
+        }
+
+        [Test]
+        public void ControlTrack_KeepsTheConfiguredLoopCount()
+        {
+            var player = MakePlayingPlayer();
+            player.LoopCount = 1;
+
+            player.OnControlTimeStart();
+            player.SetTime(0.1);
+
+            Assert.AreEqual(1, player.InternalPlayer.GetLoop());
+            player.OnControlTimeStop();
+        }
+
         // ============================================================
         // (A'''') Keyed fields: an Animator writes the serialized fields directly, then calls
         // OnDidApplyAnimationProperties.

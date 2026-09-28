@@ -440,3 +440,5 @@ Replacements set in the inspector's **"Cellmap Texture Overrides"** (a name / te
 ## Driving from Timeline
 
 `SpriteStudioPlayer` implements `ITimeControl`, allowing playback time to be controlled from a Unity Timeline track. Timeline tracks / assets are also included.
+
+A clip's time counts from the animation's first frame. The player keeps its own **Loop Count**, **Speed Scale** and **Frame Skipping** through the clips, so a player set to play once still plays once when a script plays it after the cutscene.

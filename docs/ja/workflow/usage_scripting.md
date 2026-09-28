@@ -436,3 +436,5 @@ player.SetCellmapTexture("Clothes 1", null);
 ## Timeline からの駆動
 
 `SpriteStudioPlayer` は `ITimeControl` を実装しており、Unity の Timeline トラックから再生時刻を制御できます。Timeline 用のトラック / アセットも同梱されています。
+
+クリップの時刻はアニメーションの先頭フレームから数えます。プレイヤー自身の **Loop Count**・**Speed Scale**・**Frame Skipping** はクリップを跨いで保持されるため、1 回再生に設定したプレイヤーは、カットシーンの後にスクリプトから再生しても 1 回で止まります。

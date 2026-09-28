@@ -1389,7 +1389,7 @@ namespace SpriteStudio.Runtime
             // Set the animation up when clip control begins
             if (_core.Internal != null && !string.IsNullOrEmpty(_animationName))
             {
-                _core.Internal.SetupAnimation(_animationName);
+                SetUpForTimeline(_animationName);
             }
         }
 
@@ -1397,9 +1397,26 @@ namespace SpriteStudio.Runtime
         {
             // Seek via Timeline: convert clip-local time (seconds) to a frame number and set it
             if (_core.Internal == null) return;
+            SeekForTimeline(time);
+        }
+
+        // The Timeline sets the animation up itself rather than through SetAnimation, which would write the
+        // serialized Animation Name. The runtime resets the loop count on every setup, so put this
+        // component's playback settings back as SetAnimation does: a player that plays once after the
+        // cutscene would otherwise loop forever.
+        private bool SetUpForTimeline(string animationName)
+        {
+            if (!_core.Internal.SetupAnimation(animationName)) return false;
+            ApplyPlaybackSettings();
+            return true;
+        }
+
+        // Clip-local time counts from the animation's first frame, not from frame 0.
+        private void SeekForTimeline(double clipLocalTime)
+        {
             int fps = _core.Internal.GetFrameRate();
             if (fps <= 0) fps = 60;
-            _core.Internal.SetFrame((float)(time * fps));
+            _core.Internal.SetFrame(_core.Internal.GetAnimationSectionStart() + (float)(clipLocalTime * fps));
         }
 
         public void OnControlTimeStop()
@@ -1419,8 +1436,8 @@ namespace SpriteStudio.Runtime
         /// (only when it changes) and seeks to the frame for the clip-local time (seconds). State is computed
         /// in bulk by Rust based on the time, so no matter how far the seek bar is scrubbed back and forth it
         /// stays deterministic and does not break.
-        /// NOTE: Play-mode only (SpriteStudioPlayer is not ExecuteAlways, so in edit mode the Internal/Mesh
-        /// are not created and nothing renders). Edit-mode seek preview is future work.
+        /// NOTE: drawn in Play mode only. The UpdateManager, which renders what this seeks, runs in Play mode,
+        /// and the edit-mode preview holds the start frame.
         /// </summary>
         public void EvaluateTimelineClip(string animationName, double clipLocalTime)
         {
@@ -1429,13 +1446,11 @@ namespace SpriteStudio.Runtime
 
             if (!string.IsNullOrEmpty(animationName) && animationName != _timelineCurrentAnim)
             {
-                if (_core.Internal.SetupAnimation(animationName))
+                if (SetUpForTimeline(animationName))
                     _timelineCurrentAnim = animationName;
             }
 
-            int fps = _core.Internal.GetFrameRate();
-            if (fps <= 0) fps = 60;
-            _core.Internal.SetFrame((float)(clipLocalTime * fps));
+            SeekForTimeline(clipLocalTime);
             // Rendering is done by the UpdateManager via PrepareFrame(advance=false) -> ApplyAndRender (same path as SetTime).
         }
 
