@@ -5,7 +5,7 @@ A runnable Unity project that demonstrates the **Override Layer API**: per-part 
 animation blending, so a script can say "make this part this color / this cell / hidden **now**"
 without fighting the animation.
 
-- Unity **6000.3.16f1**, **URP**. (The player also runs on the Built-in Render Pipeline; only this
+- Unity **6000.3.25f1**, **URP**. (The player also runs on the Built-in Render Pipeline; only this
   project's render-pipeline settings are URP-specific.)
 - The package is referenced from this repository through a local path
   (`Packages/manifest.json` → `file:../../../package`), so the project always builds against the

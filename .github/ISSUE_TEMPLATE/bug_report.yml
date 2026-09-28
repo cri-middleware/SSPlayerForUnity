@@ -50,7 +50,7 @@ body:
     id: unity-version
     attributes:
       label: Unity version / Unity のバージョン
-      placeholder: 6000.3.16f1
+      placeholder: 6000.3.25f1
     validations:
       required: true
 
