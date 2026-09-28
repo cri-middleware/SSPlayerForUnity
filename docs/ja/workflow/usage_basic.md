@@ -36,8 +36,9 @@
 選択すると GameObject が作成され、**Anime Asset には今ドロップしたアセットが自動的に割り当てられます**。あとは **Animation Name** を設定すれば再生できます。
 
 > [!TIP]
-> - **SpriteStudioGraphic (Canvas UI)** を選んだ際にシーンへ `Canvas` が無い場合は、`Canvas`（および `EventSystem`）が自動的に作成され、その下に設置されます。
-> - Hierarchy 上で既存の GameObject の上にドロップすると、その子として設置されます。
+> - **SpriteStudioGraphic (Canvas UI)** を選んだ際にシーンへ `Canvas` が無い場合は、**GameObject > UI > Canvas** と同じように `Canvas`（およびプロジェクトの入力方式に合った入力モジュール付きの `EventSystem`）が自動的に作成され、その下に設置されます。
+> - Hierarchy 上で既存の GameObject の上にドロップすると、その子として設置されます。行と行の間にドロップした場合は、その並びに設置されます。
+> - Prefab Mode では、GameObject メニューと同じく編集中のプリファブの中に設置されます。
 > - 複数のアセットを同時にドロップした場合は、まとめて設置されます。
 > - `SpriteStudioAnimeAsset` のインスペクタにある **「Instantiate in Scene」** ボタンからもワールド用プレイヤーを設置できます。
 

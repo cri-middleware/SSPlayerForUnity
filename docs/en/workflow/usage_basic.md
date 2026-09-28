@@ -36,8 +36,9 @@ When you drop it, a menu appears for choosing which component to place, so selec
 Once selected, a GameObject is created, and **the asset you just dropped is automatically assigned to Anime Asset**. After that, set the **Animation Name** to play it back.
 
 > [!TIP]
-> - If you choose **SpriteStudioGraphic (Canvas UI)** and there is no `Canvas` in the scene, a `Canvas` (and an `EventSystem`) is automatically created, and the player is placed underneath it.
-> - If you drop it onto an existing GameObject in the Hierarchy, it is placed as a child of that GameObject.
+> - If you choose **SpriteStudioGraphic (Canvas UI)** and there is no `Canvas` in the scene, a `Canvas` (and an `EventSystem`, with the input module your project's input handling uses) is automatically created as **GameObject > UI > Canvas** creates them, and the player is placed underneath it.
+> - If you drop it onto an existing GameObject in the Hierarchy, it is placed as a child of that GameObject; dropped between two rows, it is placed beside them.
+> - In Prefab Mode it is placed inside the prefab you are editing, as the GameObject menu places objects.
 > - If you drop multiple assets at once, they are all placed together.
 > - You can also place a world player from the **"Instantiate in Scene"** button in the `SpriteStudioAnimeAsset` Inspector.
 

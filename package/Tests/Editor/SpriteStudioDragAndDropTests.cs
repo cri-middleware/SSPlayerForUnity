@@ -58,8 +58,8 @@ namespace SpriteStudio.Editor.Tests
             Assert.IsNull(InvokePrivateStatic("GetDefaultAnimationName", MakeAsset(null)));
         }
 
-        // The UI branch is intentionally not exercised: it creates a Canvas / EventSystem in the open
-        // scene when none exists. Both branches select the default through the same helper, covered above.
+        // Placement with no canvas to go under is not exercised: it creates a Canvas / EventSystem in the open
+        // scene. Both branches select the default through the same helper, covered above.
         [Test]
         public void InstantiatePlayers_WorldPlayer_SelectsAnAnimation()
         {
@@ -75,6 +75,34 @@ namespace SpriteStudio.Editor.Tests
             Assert.AreEqual(asset, player.AnimeAsset);
             Assert.AreEqual("walk", player.CurrentAnimation,
                 "A placed player must start on the asset's first animation, or it renders nothing.");
+        }
+
+        [Test]
+        public void InstantiatePlayers_WorldPlayer_GoesUnderTheDropTarget()
+        {
+            var parent = new GameObject("DropTarget");
+            _created.Add(parent);
+
+            InvokePrivateStatic("InstantiatePlayers", new List<SpriteStudioAnimeAsset> { MakeAsset("walk") }, parent, null, false);
+
+            var player = parent.GetComponentInChildren<SpriteStudioPlayer>();
+            Assert.IsNotNull(player, "The player should have been created under the row it was dropped on.");
+            Assert.AreSame(parent.transform, player.transform.parent);
+        }
+
+        [Test]
+        public void InstantiatePlayers_Graphic_UnderACanvas_GoesThereOnTheCanvasLayer()
+        {
+            var canvas = new GameObject("DropCanvas", typeof(RectTransform), typeof(Canvas)) { layer = LayerMask.NameToLayer("UI") };
+            _created.Add(canvas);
+
+            InvokePrivateStatic("InstantiatePlayers", new List<SpriteStudioAnimeAsset> { MakeAsset("walk") }, canvas, null, true);
+
+            var graphic = canvas.GetComponentInChildren<SpriteStudioGraphic>();
+            Assert.IsNotNull(graphic, "The graphic should have been created under the canvas it was dropped on.");
+            Assert.AreSame(canvas.transform, graphic.transform.parent);
+            Assert.AreEqual(canvas.layer, graphic.gameObject.layer, "A child takes its parent's layer, as the GameObject menu gives it");
+            Assert.AreEqual("walk", graphic.CurrentAnimation);
         }
     }
 }
