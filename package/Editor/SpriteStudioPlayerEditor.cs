@@ -20,6 +20,7 @@ namespace SpriteStudio.Editor
         private SerializedProperty _flipYProp;
         private SerializedProperty _offsetProp;
         private SerializedProperty _partTrackersProp;
+        private SerializedProperty _shaderCatalogProp;
         private SerializedProperty _playAudioProp;
         private SerializedProperty _audioVolumeProp;
         private SerializedProperty _audioBackendProp;
@@ -49,6 +50,7 @@ namespace SpriteStudio.Editor
             _flipYProp = serializedObject.FindProperty("_flipY");
             _offsetProp = serializedObject.FindProperty("_offset");
             _partTrackersProp = serializedObject.FindProperty("_partTrackers");
+            _shaderCatalogProp = serializedObject.FindProperty("_shaderCatalog");
             _playAudioProp = serializedObject.FindProperty("_playAudio");
             _audioVolumeProp = serializedObject.FindProperty("_audioVolume");
             _audioBackendProp = serializedObject.FindProperty("_audioBackend");
@@ -81,6 +83,7 @@ namespace SpriteStudio.Editor
             EditorGUILayout.PropertyField(_offsetProp);
 
             EditorGUILayout.Space();
+            EditorGUILayout.PropertyField(_shaderCatalogProp);
             EditorGUILayout.PropertyField(_partTrackersProp, true);
 
             EditorGUILayout.Space();

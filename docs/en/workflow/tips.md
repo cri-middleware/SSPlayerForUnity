@@ -51,7 +51,7 @@ This plugin's Tick / mesh construction loop produces no GC allocations (it reuse
 Supports AddOns set on SpriteStudio parts (sepia / hsb / outline / blur / pixelate / noise / wave, etc.).
 
 - The built-in AddOns are pre-registered and need no setup: the package ships a default catalog at `Runtime/Resources/SpriteStudioAddOnCatalog.asset` that resolves them automatically.
-- To add a custom shader, register it in that default catalog — select the asset and add an entry whose **Id Name** matches the shader id set on the part in the SpriteStudio editor, with a **Shader** that follows the AddOn contract (`SpriteStudioAddOn.hlsl`). The **Window > SpriteStudio > Create or Update Default AddOn Catalog** menu rebuilds the catalog from the built-in AddOns, so re-add custom entries after running it.
+- To add a custom shader, give the player a catalog of your own: create one with **Assets > Create > SpriteStudio > Shader Catalog**, add an entry whose **Id Name** matches the shader id set on the part in the SpriteStudio editor, with a **Shader** that follows the AddOn contract (`SpriteStudioAddOn.hlsl`), and assign the catalog to the player's **Shader Catalog** field. The player looks an id up there first, and whatever it does not list falls through to the built-in AddOns. The default catalog belongs to the installed package, which cannot be edited.
 - It does not use `MaterialPropertyBlock`; instead it supplies materials from a material pool keyed by `(shaderId, blend)`, so it **does not obstruct the SRP Batcher**.
 
 > The AddOn path supports both URP / Built-in.

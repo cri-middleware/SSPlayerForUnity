@@ -51,7 +51,7 @@
 SpriteStudio のパーツに設定された AddOn（sepia / hsb / outline / blur / pixelate / noise / wave など）に対応します。
 
 - 組み込み AddOn は設定不要で動作します。パッケージには既定カタログ `Runtime/Resources/SpriteStudioAddOnCatalog.asset` が同梱されており、これが自動的に解決します。
-- 独自のカスタムシェーダを追加するには、この既定カタログに登録します。アセットを選択し、SpriteStudio エディタでパーツに設定したシェーダ ID と一致する **Id Name** と、AddOn 契約（`SpriteStudioAddOn.hlsl`）に従う **Shader** を持つエントリを追加してください。**Window > SpriteStudio > Create or Update Default AddOn Catalog** メニューはカタログを組み込み AddOn から再構築するため、実行後はカスタムエントリを追加し直してください。
+- 独自のカスタムシェーダを追加するには、プロジェクトにカタログを作ってプレイヤーに持たせます。**Assets > Create > SpriteStudio > Shader Catalog** でカタログを作り、SpriteStudio エディタでパーツに設定したシェーダ ID と一致する **Id Name** と、AddOn 契約（`SpriteStudioAddOn.hlsl`）に従う **Shader** を持つエントリを追加して、プレイヤーの **Shader Catalog** に割り当ててください。プレイヤーは ID をまずこのカタログで引き、載っていないものは組み込み AddOn に回します。既定カタログはインストールされたパッケージの一部なので編集できません。
 - `MaterialPropertyBlock` は使用せず、`(shaderId, blend)` ごとのマテリアルプールで供給するため、**SRP Batcher を阻害しません**。
 
 > AddOn 経路は URP / Built-in の両方に対応しています。

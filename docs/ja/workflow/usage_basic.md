@@ -122,9 +122,10 @@ public class Sample : MonoBehaviour
 |---|---|---|
 | **Flip X / Flip Y** | `false` / `false` | 描画だけを左右／上下に反転します（`SpriteRenderer.flipX` と同じ考え方で、Transform を反転しないため子オブジェクトやコライダは動きません） |
 | **Offset** | `(0, 0)` | Transform を動かさずに描画位置だけをずらします（単位はワールド単位） |
+| **Shader Catalog** | （なし） | パーツ単位のカスタムシェーダを登録した自前のカタログ。組み込み AddOn より先に引かれます（[高度な設定](./tips.md) 参照） |
 | **Part Trackers** | （空） | 指定パーツに Transform を追従させる設定（[スクリプト制御とイベント](./usage_scripting.md) 参照） |
 
-> **Pixels Per Unit** とパーツ単位の**カスタムシェーダ**は、このインスペクタ外で設定します。PPU はスクリプトの `PixelsPerUnit` プロパティで設定し、カスタムシェーダは AddOn カタログに登録します。詳細は [高度な設定](./tips.md) を参照してください。
+> **Pixels Per Unit** はこのインスペクタ外で、スクリプトの `PixelsPerUnit` プロパティから設定します。パーツ単位の**カスタムシェーダ**は、**Shader Catalog** に割り当てたカタログに登録します。詳細は [高度な設定](./tips.md) を参照してください。
 
 ### `SpriteStudioGraphic`（Canvas UI）のみ
 

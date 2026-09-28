@@ -4,7 +4,7 @@ using UnityEditor;
 using UnityEngine;
 using SpriteStudio.Runtime;
 
-namespace SpriteStudio.Editor
+namespace SpriteStudioDev
 {
     /// <summary>
     /// Editor utility that verifies SpriteStudioShaderCatalog.HashId (= the native ss_runtime_hash_string)
@@ -15,10 +15,11 @@ namespace SpriteStudio.Editor
     /// SpriteStudioShaderCatalog can resolve per-part shader ids by hashing the catalog's id names
     /// (every name_hash in the .ssab — including the shader id_hash — uses the same hash). A mismatch
     /// means we must fall back to per-asset baking from the ssab's PartAttributeShader.Id strings.
+    /// Editor-only dev tool; it lives in the example project and is never part of the package.
     /// </summary>
     public static class SpriteStudioHashVerifier
     {
-        private const string MenuPath = "Assets/SpriteStudio/Verify Hash Function (ss_runtime_hash_string)";
+        private const string MenuPath = "Assets/SpriteStudio/Dev/Verify Hash Function (ss_runtime_hash_string)";
 
         [MenuItem(MenuPath, true)]
         private static bool ValidateVerify() => Selection.activeObject is SpriteStudioAnimeAsset;
@@ -80,7 +81,7 @@ namespace SpriteStudio.Editor
             }
         }
 
-        private const string DumpMenuPath = "Assets/SpriteStudio/Dump Per-Part Shader Ids";
+        private const string DumpMenuPath = "Assets/SpriteStudio/Dev/Dump Per-Part Shader Ids";
 
         [MenuItem(DumpMenuPath, true)]
         private static bool ValidateDump() => Selection.activeObject is SpriteStudioAnimeAsset;

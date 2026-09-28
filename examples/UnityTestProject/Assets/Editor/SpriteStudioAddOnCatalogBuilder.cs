@@ -3,7 +3,7 @@ using UnityEditor;
 using UnityEngine;
 using SpriteStudio.Runtime;
 
-namespace SpriteStudio.Editor
+namespace SpriteStudioDev
 {
     /// <summary>
     /// Generates (or refreshes) the package-shipped default AddOn catalog at
@@ -14,10 +14,12 @@ namespace SpriteStudio.Editor
     ///
     /// Run this after adding a new built-in AddOn (one entry in SpriteStudioAddOnRegistry) so the asset
     /// stays in sync, then commit the regenerated asset. TestStub is excluded (dev-only).
+    /// Editor-only dev tool; it lives in the example project and is never part of the package, whose
+    /// Runtime/Resources an installed copy cannot write.
     /// </summary>
     public static class SpriteStudioAddOnCatalogBuilder
     {
-        [MenuItem("Window/SpriteStudio/Create or Update Default AddOn Catalog")]
+        [MenuItem("Window/SpriteStudio/Dev/Create or Update Default AddOn Catalog")]
         public static void Build()
         {
             // Locate the package Runtime folder via the catalog script's asset path (robust across the
