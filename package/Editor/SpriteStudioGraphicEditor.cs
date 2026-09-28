@@ -18,7 +18,6 @@ namespace SpriteStudio.Editor
         private SerializedProperty _skipFramesProp;
         private SerializedProperty _playAudioProp;
         private SerializedProperty _audioVolumeProp;
-        private SerializedProperty _audioBackendProp;
 
         private SerializedProperty _onAnimationStartedEventProp;
         private SerializedProperty _onAnimationFinishedEventProp;
@@ -44,7 +43,6 @@ namespace SpriteStudio.Editor
             _skipFramesProp = serializedObject.FindProperty("_skipFrames");
             _playAudioProp = serializedObject.FindProperty("_playAudio");
             _audioVolumeProp = serializedObject.FindProperty("_audioVolume");
-            _audioBackendProp = serializedObject.FindProperty("_audioBackend");
 
             _onAnimationStartedEventProp = serializedObject.FindProperty("OnAnimationStartedEvent");
             _onAnimationFinishedEventProp = serializedObject.FindProperty("OnAnimationFinishedEvent");
@@ -75,11 +73,10 @@ namespace SpriteStudio.Editor
 
             EditorGUILayout.Space();
             EditorGUILayout.PropertyField(_playAudioProp);   // The [Header("Audio")] on the field renders the section label.
-            // Volume / Backend only take effect while Play Audio is on (it is the master switch).
+            // Volume only takes effect while Play Audio is on (it is the master switch).
             using (new EditorGUI.DisabledScope(!_playAudioProp.boolValue))
             {
                 EditorGUILayout.PropertyField(_audioVolumeProp);
-                EditorGUILayout.PropertyField(_audioBackendProp);
             }
 
             EditorGUILayout.Space();

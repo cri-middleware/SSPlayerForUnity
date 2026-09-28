@@ -34,14 +34,11 @@ namespace SpriteStudio.Runtime
         [SerializeField] private List<SpriteStudioPartTracker> _partTrackers = new List<SpriteStudioPartTracker>();
 
         [Header("Audio")]
-        [Tooltip("Play sounds from audio events (ADIO). When ON, plays them built-in with no extra component required.")]
+        [Tooltip("Play the sounds of audio keys (ADIO) with the built-in playback. OFF: the audio events still fire, for a host that plays them itself.")]
         [SerializeField] private bool _playAudio = true;
-        [Tooltip("Volume of built-in playback (AudioClip one-shot). Ignored when an Audio Backend is used.")]
+        [Tooltip("Volume of the built-in playback.")]
         [Range(0f, 1f)]
         [SerializeField] private float _audioVolume = 1f;
-        [Tooltip("Playback override hook (optional). Assign this to route to a custom audio backend such as audio middleware. " +
-                 "When empty, resolution falls back to the global default, then built-in AudioClip playback.")]
-        [SerializeField] private SpriteStudioAudioBackend _audioBackend;
 
         private SpriteStudioAudioController _audioController;
 
@@ -411,8 +408,16 @@ namespace SpriteStudio.Runtime
         public float FrameNo
         {
             get => _core.Internal?.GetFrame() ?? 0f;
-            set => _core.Internal?.SetFrame(value);
+            set => _core.Seek(value);
         }
+
+        /// <summary>
+        /// Stops every sound this component's built-in playback has started. Nothing else stops one:
+        /// <see cref="Pause"/>, <see cref="Stop"/> and switching the animation leave a sound that has started
+        /// to play out, so call this when the host wants silence now. Disabling or destroying the component
+        /// stops them too.
+        /// </summary>
+        public void StopAllSounds() => _audioController?.StopAll();
 
         /// <summary>
         /// Frames in the range being played, both ends inclusive. This follows
@@ -713,11 +718,12 @@ namespace SpriteStudio.Runtime
         private void InvokeAudio(SpriteStudioAudio data)
         {
             OnAudioEvent?.Invoke(data);   // Notification (observation channel) always fires regardless of playback direction.
-            // Built-in/Backend playback (zero-config). Only while running and playing forward (no sound on reverse playback).
-            if (_playAudio && Application.isPlaying && (_core.Internal?.IsPlayingForward() ?? false))
+            // Built-in playback, only while running and playing forward (SpriteStudio has no reverse audio), and
+            // not for the keys a seek made while playing lands on: the playhead crossed none of them.
+            if (_playAudio && Application.isPlaying && (_core.Internal?.IsPlayingForward() ?? false) && !_core.IsSeekLanding(data.FrameNo))
             {
                 if (_audioController == null) _audioController = new SpriteStudioAudioController(gameObject);
-                _audioController.Play(in data, _animeAsset, _audioBackend, _audioVolume);
+                _audioController.Play(in data, _animeAsset, _audioVolume);
             }
         }
 
@@ -905,6 +911,7 @@ namespace SpriteStudio.Runtime
             if (_core.Internal == null) { handle = System.IntPtr.Zero; drawFrame = 0f; return; }
             // Under Timeline control, render the frame set by SetTime, so do not auto-advance (advance=false)
             _core.Internal.PrepareFrameData(deltaTime, !_timelineControlled, out handle, out drawFrame);
+            _core.EndUpdate();
         }
 
         /// <inheritdoc/>

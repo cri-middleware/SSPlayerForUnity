@@ -37,6 +37,7 @@ Your playback settings hold across the switch: `SpeedScale`, `FrameSkipEnabled`,
 | `Pause()` | Method | Hold playback on the current frame. Idempotent, and ignored while nothing is playing |
 | `Resume()` | Method | Lift a `Pause()`, carrying on from the same frame. Idempotent. `Play()` rewinds to the beginning, so it cannot be used to resume |
 | `Stop()` | Method | Stop playback. The playhead **stays where it stands** — nothing rewinds, so the frame it stopped on keeps drawing. `Play()` is what returns to the start |
+| `StopAllSounds()` | Method | Stop every sound the built-in playback has started. Nothing else stops one (see the note under Event Notifications) |
 | `IsPlaying` | `bool` (read) | Whether a playback session is active (`true` even while paused) |
 | `IsPausing` | `bool` (read) | Whether currently paused |
 | `IsFinished` | `bool` (read) | Whether every configured loop has played. A **state**, not a pulse — it latches on completion and holds until the next `Play()` / `SetAnimation()`, so `Play(); yield return new WaitUntil(() => player.IsFinished);` waits for the run you just started. Never true under an infinite `LoopCount`, and **not raised by `Stop()`** — a commanded stop is not a completion, which is what separates it from `!IsPlaying` |
@@ -212,9 +213,11 @@ struct SpriteStudioAudio
 > **Lifetime of Signal parameters**: `GetParam` / `TryGetParam` return a view into a buffer owned and recycled by the player, which is how they avoid allocating and boxing. A `SpriteStudioSignal` and the `SpriteStudioSignalParam` values read from it are only valid until the next event poll on that player — usually the next frame. If you need a value after the callback returns (storing it in a field, reading it from a coroutine, queueing it), **copy the value itself** (`p.AsInteger`, `p.AsText`, …); keeping the `SpriteStudioSignal` around will report another signal's parameters later, with no error.
 
 > [!NOTE]
-> **About Audio events**: `Play Audio` is on by default, so the component already produces the sound itself through pooled `AudioSource` voices. `OnAudio` is an **observation** channel beside that — use it to react to a sound without taking it over, or turn `Play Audio` off and play it yourself. The `AudioClip` is already resolved and held in `SpriteStudioAnimeAsset.Sounds`.
+> **About Audio events**: `Play Audio` is on by default, so the component already produces the sound itself through pooled `AudioSource` voices. `OnAudio` is an **observation** channel beside that — use it to react to a sound without taking it over, or turn `Play Audio` off and play it yourself, through audio middleware for instance. The `AudioClip` is already resolved and held in `SpriteStudioAnimeAsset.Sounds`; `SpriteStudioAnimeAsset.ResolveAudioClip(SoundListNameHash, SoundNameHash)` looks up the one an event names.
 >
-> A sound that has started **outlives the playback that triggered it**. `Pause()`, `Resume()`, `Stop()`, a `SetAnimation()` switch and the end of the animation all leave it running; only disabling or destroying the component stops it. SpriteStudio has no infinite loop — `loop_num` is a play count — so every sound ends on its own. If one outlasts its animation, that is the animation data's business, not the component's.
+> A sound that has started **outlives the playback that triggered it**. `Pause()`, `Resume()`, `Stop()`, a `SetAnimation()` switch and the end of the animation all leave it running, and a key crossed again while its sound still plays starts another voice rather than cutting the first. Only disabling or destroying the component, or `StopAllSounds()`, stops one. SpriteStudio has no infinite loop — `loop_num` is a play count — so every sound ends on its own. If one outlasts its animation, that is the animation data's business, not the component's.
+>
+> Sounds play for the keys the playhead crosses. A seek made while playing — setting `FrameNo` — does not sound the keys on the frame it lands on, though their `OnAudio` events still fire; the start frame's keys do sound after `Play()`.
 
 ### Implementation Example: Continuous Animation Playback
 
