@@ -53,6 +53,10 @@ namespace SpriteStudio.Editor
             session._progressId = Progress.Start("SpriteStudio Scan", "Scanning for .sspj ...");
             Progress.RegisterCancelCallback(session._progressId, session.OnCancel);
             EditorApplication.update += session.Poll;
+            // A domain reload mid-scan would drop the session, and onComplete with it: the scan never
+            // converts what it found. Script reloads wait until it ends.
+            EditorApplication.LockReloadAssemblies();
+            session._reloadLocked = true;
             session.PumpNextDir();
         }
 
@@ -215,9 +219,16 @@ namespace SpriteStudio.Editor
             }
         }
 
+        private bool _reloadLocked;
+
         private void Finish()
         {
             EditorApplication.update -= Poll;
+            if (_reloadLocked)
+            {
+                _reloadLocked = false;
+                EditorApplication.UnlockReloadAssemblies();
+            }
             if (_progressId != -1)
             {
                 Progress.Remove(_progressId);
