@@ -16,8 +16,6 @@ namespace SpriteStudio.Editor
         private SerializedProperty _speedScaleProp;
         private SerializedProperty _subFrameEnabledProp;
         private SerializedProperty _skipFramesProp;
-        private SerializedProperty _sortingLayerNameProp;
-        private SerializedProperty _sortingOrderProp;
         private SerializedProperty _flipXProp;
         private SerializedProperty _flipYProp;
         private SerializedProperty _offsetProp;
@@ -47,8 +45,6 @@ namespace SpriteStudio.Editor
             _speedScaleProp = serializedObject.FindProperty("_speedScale");
             _subFrameEnabledProp = serializedObject.FindProperty("_subFrameEnabled");
             _skipFramesProp = serializedObject.FindProperty("_skipFrames");
-            _sortingLayerNameProp = serializedObject.FindProperty("_sortingLayerName");
-            _sortingOrderProp = serializedObject.FindProperty("_sortingOrder");
             _flipXProp = serializedObject.FindProperty("_flipX");
             _flipYProp = serializedObject.FindProperty("_flipY");
             _offsetProp = serializedObject.FindProperty("_offset");
@@ -81,8 +77,6 @@ namespace SpriteStudio.Editor
             EditorGUILayout.PropertyField(_subFrameEnabledProp, _subFrameInterpolationLabel);
 
             EditorGUILayout.Space();
-            EditorGUILayout.PropertyField(_sortingLayerNameProp);
-            EditorGUILayout.PropertyField(_sortingOrderProp);
             EditorGUILayout.PropertyField(_flipXProp);
             EditorGUILayout.PropertyField(_flipYProp);
             EditorGUILayout.PropertyField(_offsetProp);

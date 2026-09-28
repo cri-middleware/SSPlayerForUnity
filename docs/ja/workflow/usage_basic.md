@@ -115,9 +115,10 @@ public class Sample : MonoBehaviour
 
 ### `SpriteStudioPlayer`（ワールド）のみ
 
+描画順は、ほかのレンダラーと同じく Mesh Renderer 自身の **Sorting Layer** / **Order in Layer**（インスペクタの **Additional Settings** 内）で決まります。スクリプトの `SortingLayerName` / `SortingOrder` プロパティも同じ 2 つの値を読み書きします。
+
 | 項目 | 既定値 | 説明 |
 |---|---|---|
-| **Sorting Layer Name / Sorting Order** | `Default` / `0` | 描画順（MeshRenderer のソート設定） |
 | **Flip X / Flip Y** | `false` / `false` | 描画だけを左右／上下に反転します（`SpriteRenderer.flipX` と同じ考え方で、Transform を反転しないため子オブジェクトやコライダは動きません） |
 | **Offset** | `(0, 0)` | Transform を動かさずに描画位置だけをずらします（単位はワールド単位） |
 | **Part Trackers** | （空） | 指定パーツに Transform を追従させる設定（[スクリプト制御とイベント](./usage_scripting.md) 参照） |

@@ -67,28 +67,39 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        [Header("Sorting")]
-        [SerializeField] private string _sortingLayerName = "Default";
-        [SerializeField] private int _sortingOrder = 0;
-
+        /// <summary>
+        /// The Mesh Renderer's sorting layer -- the draw order belongs to the renderer, as it does for any
+        /// renderer, and is set in its Inspector (Additional Settings) or here.
+        /// </summary>
         public string SortingLayerName
         {
-            get => _meshRenderer != null ? _meshRenderer.sortingLayerName : _sortingLayerName;
-            set
-            {
-                _sortingLayerName = value;
-                if (_meshRenderer != null) _meshRenderer.sortingLayerName = value;
-            }
+            get => SortingRenderer.sortingLayerName;
+            set => SortingRenderer.sortingLayerName = value;
         }
 
+        /// <summary>The Mesh Renderer's order in layer. See <see cref="SortingLayerName"/>.</summary>
         public int SortingOrder
         {
-            get => _meshRenderer != null ? _meshRenderer.sortingOrder : _sortingOrder;
-            set
-            {
-                _sortingOrder = value;
-                if (_meshRenderer != null) _meshRenderer.sortingOrder = value;
-            }
+            get => SortingRenderer.sortingOrder;
+            set => SortingRenderer.sortingOrder = value;
+        }
+
+        private MeshRenderer SortingRenderer => _meshRenderer != null ? _meshRenderer : GetComponent<MeshRenderer>();
+
+        // The sorting this component used to keep as well, and copied onto the renderer on every enable. A
+        // scene or prefab saved then still carries it: hand it to the renderer once, then forget it. Empty /
+        // zero on anything created since.
+        [SerializeField, HideInInspector] private string _sortingLayerName;
+        [SerializeField, HideInInspector] private int _sortingOrder;
+
+        private void MigrateSortingToRenderer()
+        {
+            if (string.IsNullOrEmpty(_sortingLayerName) && _sortingOrder == 0) return;
+            var r = SortingRenderer;
+            if (!string.IsNullOrEmpty(_sortingLayerName)) r.sortingLayerName = _sortingLayerName;
+            r.sortingOrder = _sortingOrder;
+            _sortingLayerName = null;
+            _sortingOrder = 0;
         }
 
         [Header("Playback Settings")]
@@ -648,10 +659,7 @@ namespace SpriteStudio.Runtime
         {
             _meshFilter = GetComponent<MeshFilter>();
             _meshRenderer = GetComponent<MeshRenderer>();
-
-            // Initial apply of the draw order
-            _meshRenderer.sortingLayerName = _sortingLayerName;
-            _meshRenderer.sortingOrder = _sortingOrder;
+            MigrateSortingToRenderer();
 
             // Build the single mesh for zero-allocation rendering (do not recreate it)
             if (_sharedMesh == null)
@@ -771,12 +779,6 @@ namespace SpriteStudio.Runtime
                 // to do nothing until something else happened to reapply it.
                 ApplyPixelsPerUnit();
             }
-            if (_meshRenderer != null)
-            {
-                _meshRenderer.sortingLayerName = _sortingLayerName;
-                _meshRenderer.sortingOrder = _sortingOrder;
-            }
-
             // Fundamental settings: changing the asset or animation in the inspector must refresh the
             // runtime (the serialized fields are written directly, bypassing the property setters).
             bool assetChanged = !ReferenceEquals(_appliedAsset, _animeAsset);

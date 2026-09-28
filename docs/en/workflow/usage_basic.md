@@ -115,9 +115,10 @@ At the end of the Inspector sit the playback-event UnityEvents (**On Animation S
 
 ### `SpriteStudioPlayer` (world) only
 
+The draw order is the Mesh Renderer's own **Sorting Layer** / **Order in Layer** (under **Additional Settings** in its Inspector), as it is for any renderer; the `SortingLayerName` / `SortingOrder` script properties read and write the same two values.
+
 | Item | Default | Description |
 |---|---|---|
-| **Sorting Layer Name / Sorting Order** | `Default` / `0` | Draw order (MeshRenderer sort settings) |
 | **Flip X / Flip Y** | `false` / `false` | Mirror only what is drawn, horizontally / vertically (the same idea as `SpriteRenderer.flipX`: the Transform is not negated, so children and colliders stay put) |
 | **Offset** | `(0, 0)` | Shift the drawn animation without moving the Transform (in world units) |
 | **Part Trackers** | (empty) | Settings that make a Transform follow a specified part (see [Scripting Control and Events](./usage_scripting.md)) |

@@ -78,6 +78,39 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
+        public void RendererSorting_IsLeftAloneOnEnable()
+        {
+            var player = _go.AddComponent<SpriteStudioPlayer>();
+            var renderer = _go.GetComponent<MeshRenderer>();
+            renderer.sortingOrder = 7;
+
+            _go.SetActive(false);
+            _go.SetActive(true);
+
+            Assert.AreEqual(7, renderer.sortingOrder, "Enabling should not overwrite the renderer's own sorting");
+            Assert.AreEqual(7, player.SortingOrder);
+        }
+
+        [Test]
+        public void SortingSavedOnTheComponent_MovesToTheRendererOnce()
+        {
+            var player = _go.AddComponent<SpriteStudioPlayer>();
+            var renderer = _go.GetComponent<MeshRenderer>();
+            _go.SetActive(false);
+            // What a scene saved while the component kept its own sorting carries.
+            typeof(SpriteStudioPlayer).GetField("_sortingOrder", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .SetValue(player, 4);
+
+            _go.SetActive(true);
+            Assert.AreEqual(4, renderer.sortingOrder, "The saved value should reach the renderer");
+
+            renderer.sortingOrder = 9;
+            _go.SetActive(false);
+            _go.SetActive(true);
+            Assert.AreEqual(9, renderer.sortingOrder, "Once moved, the old value should not come back");
+        }
+
+        [Test]
         public void TimelineControl_SetsStateCorrectly()
         {
             var player = _go.AddComponent<SpriteStudioPlayer>();
