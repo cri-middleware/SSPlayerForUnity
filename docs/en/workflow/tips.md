@@ -77,5 +77,4 @@ If you want to correctly use complex blends or multiple atlases, we recommend us
 
 Supports both Universal (URP) / Built-in (BRP).
 
-- Immediately after importing on URP, material references may become inconsistent and rendering may turn pink. In most cases, restarting the editor or reimporting resolves this.
 - In edit mode, only a static preview of the start frame is shown. Perform behavior checks in Play mode.

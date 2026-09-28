@@ -634,6 +634,36 @@ namespace SpriteStudio.Runtime.Tests
             Assert.IsTrue(player.InternalPlayer.FlipX, "the player should have pushed it to the runtime");
         }
 
+        [Test]
+        public void ReloadedAsset_MaterialsAreResolvedAgain()
+        {
+            // A reimport reloads the asset in place and can destroy the material the player drew with (the
+            // provisional one the importer embeds until the shared .mat exists). The player has to resolve
+            // again rather than keep drawing with the destroyed one.
+            var player = MakePlayingPlayer();
+            var asset = player.AnimeAsset;
+            var shader = Shader.Find("SpriteStudio/Default");
+            var provisional = new Material(shader);
+            var shared = new Material(shader);
+            _assets.Add(shared);
+            asset.Materials.Add(provisional);
+            player.InternalPlayer.ScheduleMeshUpdate(0f);
+            player.ApplyAndRender();
+            var renderer = player.GetComponent<MeshRenderer>();
+            Assume.That(renderer.sharedMaterials, Has.Member(provisional));
+
+            // What the reimport does: the provisional material goes, the shared one takes its place, and the
+            // asset is loaded again.
+            Object.DestroyImmediate(provisional);
+            asset.Materials[0] = shared;
+            typeof(SpriteStudioAnimeAsset).GetMethod("OnEnable", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .Invoke(asset, null);
+            player.ApplyAndRender();
+
+            Assert.That(renderer.sharedMaterials, Has.No.Null, "no slot should keep the destroyed material");
+            Assert.That(renderer.sharedMaterials, Has.Member(shared));
+        }
+
         // ============================================================
         // Part trackers deactivate a target for an absent or hidden part, and activate again only what they
         // deactivated.

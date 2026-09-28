@@ -641,9 +641,16 @@ namespace SpriteStudio.Runtime
             // showing even after uGUI clears the CanvasRenderer's mesh).
             if (Application.isPlaying) return;
             // Self-heal if the .ssab was still importing when OnEnable ran (Editor restart race): pick the
-            // ssab up once it is available (EnsureCreated is a no-op once loaded). Without this an empty
-            // Internal created at OnEnable would never get its ssab, so SetupAnimation fails forever.
-            _core.EnsureCreated(_animeAsset, _subFrameEnabled);
+            // ssab up once it is available. Without this an empty Internal created at OnEnable would never
+            // get its ssab, so SetupAnimation fails forever. A reimported .ssab keeps this reference and
+            // brings new data, which EnsureCreated loads the same way; what came from the previous pack is
+            // rebuilt either way.
+            if (_core.EnsureCreated(_animeAsset, _subFrameEnabled))
+            {
+                _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
+                _canvasMaterialDirty = true;
+                _editPreviewNeedsSetup = true;
+            }
             if (_core.Internal == null || !_core.Internal.HasSsab) return;
             if (_editPreviewNeedsSetup)
             {
@@ -743,6 +750,7 @@ namespace SpriteStudio.Runtime
         // through CanvasRenderer.EnableRectClipping, and SpriteStudio/Canvas clips with them.
         private Material _atlasMaterial;        // the atlas material, or this graphic's texture-replacement clone of it
         private uint _lastMaterialSignature;    // resolved atlas texture hash + 1 (0 = nothing resolved)
+        private int _materialAssetRevision;     // the asset's Revision when the atlas material was resolved
         private bool _canvasMaterialDirty;
         private bool _warnedMultiTexture;
 
@@ -789,10 +797,13 @@ namespace SpriteStudio.Runtime
             uint texHash = submeshes[0].TextureHash;
 
             uint signature = texHash + 1u; // +1 so a valid hash never collides with the empty sentinel 0
-            if (signature != _lastMaterialSignature || _canvasMaterialDirty)
+            // A reimport destroys the asset's canvas materials: a new revision re-resolves the atlas material,
+            // which the layout alone would keep drawing with (the error shader) until the graphic was re-enabled.
+            if (signature != _lastMaterialSignature || _canvasMaterialDirty || _animeAsset.Revision != _materialAssetRevision)
             {
                 RebuildCanvasMaterial(texHash);
                 _lastMaterialSignature = signature;
+                _materialAssetRevision = _animeAsset.Revision;
                 _canvasMaterialDirty = false;
             }
         }

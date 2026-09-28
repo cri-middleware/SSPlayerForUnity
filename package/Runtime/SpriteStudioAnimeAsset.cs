@@ -461,11 +461,33 @@ namespace SpriteStudio.Runtime
             return GetCanvasBaseMaterial(textureHash);
         }
 
+        /// <summary>
+        /// Changes each time this asset is loaded. A reimport reloads the asset in place -- players keep the
+        /// same reference, now holding new data -- and OnDisable has destroyed the material variants they
+        /// resolved, so a player compares this to know that what it resolved is gone.
+        /// </summary>
+        [System.NonSerialized] internal int Revision;
+        private static int s_revisions;
+
+        private void OnEnable()
+        {
+            Revision = ++s_revisions;
+#if UNITY_EDITOR
+            // An edit-mode player rebuilds its preview in LateUpdate, which the editor runs only when
+            // something asks for it; a reimport should show without the user touching the scene.
+            if (!Application.isPlaying) UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
+#endif
+        }
+
         // Destroy runtime-created materials (blend / test / mask-write variants and the white base;
-        // clones only). The serialized base materials must not be touched here.
+        // clones only) and drop every table built from the serialized data, which a reimport replaces. The
+        // serialized base materials must not be touched here.
         private void OnDisable()
         {
             InvalidateCellmapTable();
+            _hashToMaterial = null;
+            _soundToClip = null;
+            _soundInfo = null;
             if (_whiteBaseMaterial != null)
             {
                 if (Application.isPlaying) Destroy(_whiteBaseMaterial); else DestroyImmediate(_whiteBaseMaterial);

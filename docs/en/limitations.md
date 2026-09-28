@@ -50,7 +50,6 @@ Part Tracking (making a `Transform` follow a part) is a `SpriteStudioPlayer` (wo
 
 > [!NOTE]
 > - **Edit mode shows a static preview of the start frame only.** Check behavior in Play mode.
-> - **On URP, material references can go inconsistent right after import** and rendering turns pink. Restarting the editor or reimporting resolves it in most cases.
 
 ## Scripting API
 

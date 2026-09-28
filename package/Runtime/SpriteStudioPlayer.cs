@@ -853,11 +853,18 @@ namespace SpriteStudio.Runtime
         private void LateUpdate()
         {
             if (Application.isPlaying) return;
+            // A reimported .ssab keeps this reference and brings new data, which EnsureCreated loads; so does
+            // the self-heal if the .ssab was still importing when OnEnable ran (Editor restart race). Either
+            // way what came from the previous pack is rebuilt, the preview included.
+            if (_core.EnsureCreated(_animeAsset, _subFrameEnabled))
+            {
+                _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
+                MarkPartTrackersDirty();
+                _editPreviewDirty = true;
+            }
             if (!_editPreviewDirty) return;
-            // Self-heal if the .ssab was still importing when OnEnable ran (Editor restart race): keep
-            // retrying while the runtime has no ssab yet, and only clear the dirty flag (build once) once
+            // Keep retrying while the runtime has no ssab yet, and only clear the dirty flag (build once) once
             // it is ready. A setup failure after that is a config error, not a race, so we do not loop.
-            _core.EnsureCreated(_animeAsset, _subFrameEnabled);
             if (_core.Internal == null || !_core.Internal.HasSsab) return;
             _editPreviewDirty = false;
             BuildEditPreview();
@@ -1145,6 +1152,9 @@ namespace SpriteStudio.Runtime
 
             // Layout signature. threshold is per-frame variable, so it is not included here and is passed via the MPB.
             uint signature = (uint)subCount;
+            // Fold in the asset's revision: a reimport destroys the material variants in the list, and the
+            // layout alone would keep drawing with them (the error shader) until the player was re-enabled.
+            signature = signature * 31u + (uint)_animeAsset.Revision;
             // Fold in the texture-replacement version so changing a replacement rebuilds the material list
             // even when the draw layout (count/hashes/blends/roles) is otherwise identical.
             signature = signature * 31u + (uint)_textureOverride.Version;

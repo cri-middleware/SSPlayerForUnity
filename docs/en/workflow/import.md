@@ -34,7 +34,6 @@ When you modify an animation on the SpriteStudio side, there are several ways to
 ## Notes
 
 - **We recommend managing `.sspj` outside the Unity project (e.g., outside the repository).** By dropping it onto the SpriteStudio Importer window, only the conversion result (`.ssab`) is generated in the output location (Output Folder) within the Unity project. This lets you operate without including source data that the game does not need in the Unity project.
-- **The display may be unstable immediately after import** (especially with URP). In most cases, restarting the editor resolves it.
 
 ---
 
