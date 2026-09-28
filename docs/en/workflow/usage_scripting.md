@@ -84,7 +84,7 @@ _player.Play();
 
 ## Playback Parameter Properties
 
-These properties correspond to the inspector items. Changing them at runtime is reflected in the runtime immediately.
+These properties correspond to the inspector items. Changing them at runtime is reflected in the runtime immediately. The inspector items can also be keyed in an AnimationClip or a Timeline Animation Track — **Flip X**, **Offset**, **Speed Scale** and so on — and the player takes each keyed value up after the evaluation, as a `SpriteRenderer` takes a keyed **Flip X**.
 
 | Property | Type | Description |
 |---|---|---|

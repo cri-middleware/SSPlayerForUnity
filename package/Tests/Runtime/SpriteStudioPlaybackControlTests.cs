@@ -562,6 +562,48 @@ namespace SpriteStudio.Runtime.Tests
             Assert.IsFalse(player.IsPlaying);
         }
 
+        // ============================================================
+        // (A'''') Keyed fields: an Animator writes the serialized fields directly, then calls
+        // OnDidApplyAnimationProperties.
+        // ============================================================
+
+        [Test]
+        public void KeyedFields_ReachTheRuntime_WithoutReArmingTheLoops()
+        {
+            var player = MakePlayingPlayer();
+            player.LoopCount = 3;
+            var ip = player.InternalPlayer;
+            ip.Tick((player.TotalFrames + 1f) / player.FrameRate, false);
+            Assume.That(ip.GetRemainLoops(), Is.EqualTo(2), "one loop should have been used");
+
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            typeof(SpriteStudioPlayer).GetField("_flipX", flags).SetValue(player, true);
+            typeof(SpriteStudioPlayer).GetField("_speedScale", flags).SetValue(player, 2f);
+            player.SendMessage("OnDidApplyAnimationProperties");
+
+            Assert.IsTrue(ip.FlipX, "a keyed Flip X should reach the runtime");
+            Assert.AreEqual(2f, ip.GetSpeed(), 1e-4f, "a keyed Speed Scale should reach the runtime");
+            Assert.AreEqual(2, ip.GetRemainLoops(), "an unchanged Loop Count must not re-arm the loops left");
+        }
+
+        [UnityTest]
+        public IEnumerator AnimationClip_KeyingFlipX_MirrorsThePlayer()
+        {
+            if (!Application.isPlaying) Assert.Ignore("An Animation component evaluates in Play mode only.");
+            var player = MakePlayingPlayer();
+            var clip = new AnimationClip { legacy = true };
+            _assets.Add(clip);
+            clip.SetCurve("", typeof(SpriteStudioPlayer), "_flipX", AnimationCurve.Constant(0f, 1f, 1f));
+            var anim = player.gameObject.AddComponent<Animation>();
+            anim.AddClip(clip, "flip");
+            anim.Play("flip");
+            yield return null;
+            yield return null;
+
+            Assert.IsTrue(player.FlipX, "the clip should have written the field");
+            Assert.IsTrue(player.InternalPlayer.FlipX, "the player should have pushed it to the runtime");
+        }
+
         // Seeks the player from a default-order Update, then records in its own LateUpdate -- which runs
         // after the runner's (-100) -- which frame the player built this frame.
         private sealed class SeekFromUpdate : MonoBehaviour

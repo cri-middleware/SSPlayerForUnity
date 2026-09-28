@@ -755,6 +755,29 @@ namespace SpriteStudio.Runtime
             }
         }
 
+        // An Animator, or a Timeline Animation Track, writes keyed fields straight into the component -- as the
+        // Inspector does, bypassing the property setters -- and calls this after each evaluation, the hook
+        // uGUI's Graphic uses for the same. Push the live-tunable ones, so a keyed Flip X, Offset or Speed
+        // Scale reaches the drawing as a keyed SpriteRenderer.flipX does.
+        private void OnDidApplyAnimationProperties()
+        {
+            var p = _core.Internal;
+            if (p != null)
+            {
+                p.SetSpeed(_speedScale);
+                p.SetSkipFrames(_skipFrames);
+                p.SubFrameEnabled = _subFrameEnabled;
+                // SetLoop re-arms the loops left, and this runs on every evaluation: write it only when the
+                // keyed count differs from the runtime's, which keeps 0 and below as -1.
+                if (p.GetLoop() != (_loopCount > 0 ? _loopCount : -1)) p.SetLoop(_loopCount);
+            }
+            ApplyPixelsPerUnit();
+#if UNITY_EDITOR
+            // The Animation window previews in edit mode, where nothing else rebuilds the static preview.
+            if (!Application.isPlaying) _editPreviewDirty = true;
+#endif
+        }
+
 #if UNITY_EDITOR
         // Baseline of the core settings (asset / animation) currently applied to the runtime, so OnValidate
         // can tell an actual asset/animation change apart from tweaking speed etc. Editor-only; rebuilt on

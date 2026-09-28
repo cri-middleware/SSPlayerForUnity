@@ -171,6 +171,29 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
+        public void FlipX_OnTheFrameAlreadyBuilt_IsBuiltAgain()
+        {
+            // A paused or stopped player keeps drawing one frame, and the frame-skip cache would keep its
+            // geometry: a flip made then has to drop that cache.
+            var ssab = RequireRingo();
+            using (var player = new SpriteStudioInternalPlayer())
+            {
+                player.LoadSsab(ssab);
+                Assert.IsTrue(player.SetupAnimation(RingoAnimation));
+                player.ScheduleMeshUpdate(0f);
+                player.CurrentUpdateJobHandle.Complete();
+                float x = player.MeshVertices[0].Position.x;
+                Assume.That(Mathf.Abs(x), Is.GreaterThan(1e-3f), "the first vertex sits on the mirror axis");
+
+                player.FlipX = true;
+                player.ScheduleMeshUpdate(0f);
+                player.CurrentUpdateJobHandle.Complete();
+
+                Assert.AreEqual(-x, player.MeshVertices[0].Position.x, 1e-4f);
+            }
+        }
+
+        [Test]
         public void Offset_TranslatesTheGeometryAndThePartMatrixTogether()
         {
             var ssab = RequireRingo();

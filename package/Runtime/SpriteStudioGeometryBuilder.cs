@@ -239,7 +239,8 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         /// frame number is unchanged. Must be called after setup_animation: that resets the native world
         /// matrices to identity, so a new animation whose start frame number matches the last built frame
         /// would otherwise be skipped, leaving matrices/geometry stale (seen as part trackers snapping to
-        /// the local origin, and a stale mesh preview).
+        /// the local origin, and a stale mesh preview). The root transform (scale, flip, offset) is folded
+        /// into the geometry, so a change to it calls this too.
         /// </summary>
         public void InvalidateFrameCache() => _lastBuiltDrawFrameNo = float.NaN;
 

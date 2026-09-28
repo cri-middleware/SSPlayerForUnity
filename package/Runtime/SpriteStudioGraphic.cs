@@ -661,6 +661,22 @@ namespace SpriteStudio.Runtime
             ApplyAndRender();
         }
 
+        // An Animator, or a Timeline Animation Track, writes keyed fields straight into the component -- as the
+        // Inspector does, bypassing the property setters -- and calls this after each evaluation. Graphic's own
+        // override marks the graphic dirty for a keyed Color; push the playback fields as well.
+        protected override void OnDidApplyAnimationProperties()
+        {
+            base.OnDidApplyAnimationProperties();
+            var p = _core.Internal;
+            if (p == null) return;
+            p.SetSpeed(_speedScale);
+            p.SetSkipFrames(_skipFrames);
+            p.SubFrameEnabled = _subFrameEnabled;
+            // SetLoop re-arms the loops left, and this runs on every evaluation: write it only when the keyed
+            // count differs from the runtime's, which keeps 0 and below as -1.
+            if (p.GetLoop() != (_loopCount > 0 ? _loopCount : -1)) p.SetLoop(_loopCount);
+        }
+
 #if UNITY_EDITOR
         // The inspector writes the serialized fields directly and does not call the property setters.
         // To reflect in-play inspector edits into the runtime (Rust), sync them here. Graphic.OnValidate is
