@@ -46,5 +46,10 @@ namespace SpriteStudio.Runtime
         internal const int ResolveDirty = -2;
         internal const int ResolveNotFound = -1;
         [System.NonSerialized] public int ResolvedIndex = ResolveDirty;
+
+        // The target this tracker deactivated itself -- for an absent part, or a hidden one under
+        // Deactivate -- or null. Only that target is activated again when the condition clears, so one the
+        // user deactivated stays inactive. Not serialized: rebuilt at runtime.
+        [System.NonSerialized] internal Transform HiddenTarget;
     }
 }

@@ -51,7 +51,7 @@
 SpriteStudio のパーツに設定された AddOn（sepia / hsb / outline / blur / pixelate / noise / wave など）に対応します。
 
 - 組み込み AddOn は設定不要で動作します。パッケージには既定カタログ `Runtime/Resources/SpriteStudioAddOnCatalog.asset` が同梱されており、これが自動的に解決します。
-- 独自のカスタムシェーダを追加するには、この既定カタログに登録します。アセットを選択し、SpriteStudio エディタでパーツに設定したシェーダ ID と一致する **Id Name** と、AddOn 契約（`SpriteStudioAddOn.hlsl`）に従う **Shader** を持つエントリを追加してください。**Window > SpriteStudio > Create or Update Default AddOn Catalog** メニューはカタログを組み込み AddOn から再構築するため、実行後はカスタムエントリを追加し直してください。
+- 独自のカスタムシェーダを追加するには、プロジェクトにカタログを作ってプレイヤーに持たせます。**Assets > Create > SpriteStudio > Shader Catalog** でカタログを作り、SpriteStudio エディタでパーツに設定したシェーダ ID と一致する **Id Name** と、AddOn 契約（`SpriteStudioAddOn.hlsl`）に従う **Shader** を持つエントリを追加して、プレイヤーの **Shader Catalog** に割り当ててください。プレイヤーは ID をまずこのカタログで引き、載っていないものは組み込み AddOn に回します。既定カタログはインストールされたパッケージの一部なので編集できません。
 - `MaterialPropertyBlock` は使用せず、`(shaderId, blend)` ごとのマテリアルプールで供給するため、**SRP Batcher を阻害しません**。
 
 > AddOn 経路は URP / Built-in の両方に対応しています。
@@ -61,7 +61,7 @@ SpriteStudio のパーツに設定された AddOn（sepia / hsb / outline / blur
 SpriteStudio のマスク / クリッピング（パーツ単位）に、ステンシルバッファを用いて対応します。
 
 - **ワールド経路（`SpriteStudioPlayer`）**: SpriteStudio 内部のマスク機構を用いてステンシルで描画します。URP では SSAO / Deferred / Decal と併用してもマスクが破綻しないよう、使用するステンシルビットを限定しています。
-- **Canvas 経路（`SpriteStudioGraphic`）**: SpriteStudio 内部のマスクは抑止し、代わりに uGUI の **Mask** / **RectMask2D** に追従します（親にマスクを置くと、このグラフィックがクリップされます）。
+- **Canvas 経路（`SpriteStudioGraphic`）**: SpriteStudio 内部のマスクは抑止し、代わりに uGUI の **Mask** / **RectMask2D** に追従します（親にマスクを置くと、このグラフィックがクリップされます。グラフィック自身に **Mask** を置くと、その子がクリップされます）。
 
 ## Canvas (uGUI) 経路の制約
 
@@ -69,13 +69,12 @@ SpriteStudio のマスク / クリッピング（パーツ単位）に、ステ�
 
 - **単一アトラス前提**: 複数アトラスを使うアニメーションでは、最初のアトラスのみが描画され、他アトラスのパーツは正しいテクスチャをサンプリングできません（警告がログに出ます）。**1 つのアトラスへまとめる**か、**ワールド経路（`SpriteStudioPlayer`）を使用**してください。
 - **パーツの描画モード**: MIX（ミックス） / ADD（加算） はシェーダ内で頂点単位に振り分けます。それ以外のブレンドは MIX に集約されます。
-- **TexCoord1 の有効化**: パーツカラー用のデータを TEXCOORD1 で渡すため、対象 Canvas の `additionalShaderChannels` に `TexCoord1` を自動付与します。
+- **TexCoord1 / TexCoord2 の有効化**: パーツカラー用のデータを TEXCOORD1 と TEXCOORD2 で渡すため、対象 Canvas の `additionalShaderChannels` に `TexCoord1` と `TexCoord2` を自動付与します。頂点カラーは uGUI に任せており、`Image` と同じくグラフィックの **Color** を運びます。
 
-複雑なブレンドや複数アトラス、拡張ブレンド全種を正しく使いたい場合は、ワールド経路（`SpriteStudioPlayer`）の利用を推奨します。
+複雑なブレンドや複数アトラスを正しく使いたい場合は、ワールド経路（`SpriteStudioPlayer`）の利用を推奨します。ワールド経路は Mul2 を Mul、Screen2 を Screen として描画し、Div2 / Overlay2 は MIX として描画します（[制限事項](../limitations.md) 参照）。
 
 ## レンダーパイプライン
 
 Universal (URP) / Built-in (BRP) の両方に対応しています。
 
-- URP でインポート直後にマテリアル参照が不整合になり、描画がピンク色になることがあります。多くはエディタの再起動や再インポートで解消します。
 - 編集モードでは開始フレームの静止プレビューのみ表示されます。動作確認は Play モードで行ってください。

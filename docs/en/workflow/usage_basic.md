@@ -36,8 +36,9 @@ When you drop it, a menu appears for choosing which component to place, so selec
 Once selected, a GameObject is created, and **the asset you just dropped is automatically assigned to Anime Asset**. After that, set the **Animation Name** to play it back.
 
 > [!TIP]
-> - If you choose **SpriteStudioGraphic (Canvas UI)** and there is no `Canvas` in the scene, a `Canvas` (and an `EventSystem`) is automatically created, and the player is placed underneath it.
-> - If you drop it onto an existing GameObject in the Hierarchy, it is placed as a child of that GameObject.
+> - If you choose **SpriteStudioGraphic (Canvas UI)** and there is no `Canvas` in the scene, a `Canvas` (and an `EventSystem`, with the input module your project's input handling uses) is automatically created as **GameObject > UI > Canvas** creates them, and the player is placed underneath it.
+> - If you drop it onto an existing GameObject in the Hierarchy, it is placed as a child of that GameObject; dropped between two rows, it is placed beside them.
+> - In Prefab Mode it is placed inside the prefab you are editing, as the GameObject menu places objects.
 > - If you drop multiple assets at once, they are all placed together.
 > - You can also place a world player from the **"Instantiate in Scene"** button in the `SpriteStudioAnimeAsset` Inspector.
 
@@ -67,7 +68,7 @@ This method uses an empty GameObject to which you add the component yourself.
 
 ## 3. Play back
 
-If **Auto Play** is enabled (the default), the animation in **Animation Name** plays back automatically when you enter Play mode.
+If **Auto Play** is enabled (the default), the animation in **Animation Name** plays back automatically when you enter Play mode, and again each time the object is enabled again: a pooled object taken back out with `SetActive(true)` starts over, as an Animator does.
 
 To play back explicitly from a script, do the following.
 
@@ -96,8 +97,8 @@ Item names are written exactly as they appear in the Inspector, in the order the
 | Item | Default | Description |
 |---|---|---|
 | **Anime Asset** | (none) | The `SpriteStudioAnimeAsset` to play back. It sits under a heading labelled **SpriteStudio Asset** |
-| **Animation Name** | `""` | The name of the animation to play. Once an asset is assigned, this becomes a dropdown |
-| **Auto Play** | `true` | Whether to play back automatically when the scene starts running |
+| **Animation Name** | `""` | The name of the animation to play. Once an asset is assigned, this becomes a dropdown, and assigning one sets it to the asset's first animation if the asset lacks the current name. A name the asset does not have shows as `(missing)` rather than being replaced |
+| **Auto Play** | `true` | Whether to play back automatically when the scene starts running, and again whenever the component is enabled again |
 | **Loop Count** | `-1` | Number of loops (`-1` = infinite / `1` = once / `n` = n times / `0` = infinite, a synonym for `-1`) |
 | **Speed Scale** | `1.0` | Playback speed multiplier (a `0`–`4` slider; `0` is a stop) |
 | **Frame Skipping** | `true` | Real-time tracking. ON = advance by the elapsed time / OFF = advance one frame per update |
@@ -115,18 +116,20 @@ At the end of the Inspector sit the playback-event UnityEvents (**On Animation S
 
 ### `SpriteStudioPlayer` (world) only
 
+The draw order is the Mesh Renderer's own **Sorting Layer** / **Order in Layer** (under **Additional Settings** in its Inspector), as it is for any renderer; the `SortingLayerName` / `SortingOrder` script properties read and write the same two values.
+
 | Item | Default | Description |
 |---|---|---|
-| **Sorting Layer Name / Sorting Order** | `Default` / `0` | Draw order (MeshRenderer sort settings) |
 | **Flip X / Flip Y** | `false` / `false` | Mirror only what is drawn, horizontally / vertically (the same idea as `SpriteRenderer.flipX`: the Transform is not negated, so children and colliders stay put) |
 | **Offset** | `(0, 0)` | Shift the drawn animation without moving the Transform (in world units) |
+| **Shader Catalog** | (none) | Your own catalog of per-part custom shaders, looked up before the built-in AddOns (see [Advanced Settings](./tips.md)) |
 | **Part Trackers** | (empty) | Settings that make a Transform follow a specified part (see [Scripting Control and Events](./usage_scripting.md)) |
 
-> **Pixels Per Unit** and per-part **custom shaders** are configured outside this Inspector: set PPU from the `PixelsPerUnit` script property, and register custom shaders in the AddOn catalog. See [Advanced Settings](./tips.md).
+> **Pixels Per Unit** is configured outside this Inspector, from the `PixelsPerUnit` script property. Per-part **custom shaders** go in a catalog you assign to **Shader Catalog**. See [Advanced Settings](./tips.md).
 
 ### `SpriteStudioGraphic` (Canvas UI) only
 
-The **Color** / **Material** / **Raycast Target** / **Raycast Padding** items inherited from uGUI's `Graphic` are shown. The clickable area is the `RectTransform`'s rectangle, which is not tied to how large the animation looks. To widen it, adjust the `RectTransform`'s size or use **Raycast Padding**.
+The **Color** / **Material** / **Raycast Target** / **Raycast Padding** / **Maskable** items inherited from uGUI's `Graphic` are shown. **Color** tints the whole animation, as it tints an `Image`, on top of the part colours; a Button's **Color Tint** transition and `CrossFadeColor` / `CrossFadeAlpha` reach it the same way. **Material** left empty draws with the atlas material; a material assigned there is used instead when its shader is built from `SpriteStudio/Canvas`, the only kind that reads the vertex layout the graphic emits. A **Mask** added to the graphic itself clips its children to the animation's shape. The clickable area is the `RectTransform`'s rectangle, which is not tied to how large the animation looks. To widen it, adjust the `RectTransform`'s size or use **Raycast Padding**.
 
 > [!TIP]
 > 

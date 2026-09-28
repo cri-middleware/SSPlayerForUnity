@@ -76,8 +76,28 @@ namespace SpriteStudio.Runtime
             return null;
         }
 
+        /// <summary>
+        /// Changes whenever the entries do, so a player that resolved its per-part materials against this
+        /// catalog knows to resolve them again.
+        /// </summary>
+        [NonSerialized] internal int Version;
+
         /// <summary>Drop the cached hash map; call after editing Entries so the next resolve rebuilds it.</summary>
-        public void Invalidate() => _byHash = null;
+        public void Invalidate()
+        {
+            _byHash = null;
+            Version++;
+        }
+
+        // An Inspector edit of the entries reaches players already drawing, not only those set up afterwards.
+        private void OnValidate()
+        {
+            Invalidate();
+#if UNITY_EDITOR
+            // Edit-mode players rebuild their preview in LateUpdate, which the editor runs only on request.
+            if (!Application.isPlaying) UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
+#endif
+        }
 
         private void EnsureMap()
         {

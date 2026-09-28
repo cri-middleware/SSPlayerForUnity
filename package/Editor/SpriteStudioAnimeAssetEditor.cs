@@ -28,7 +28,7 @@ namespace SpriteStudio.Editor
                 GUILayout.BeginHorizontal();
                 if (GUILayout.Button("Open SSPJ"))
                 {
-                    Application.OpenURL("file://" + sspjPath);
+                    EditorUtility.OpenWithDefaultApp(sspjPath);
                 }
                 
                 if (GUILayout.Button("Reconvert"))
@@ -81,24 +81,11 @@ namespace SpriteStudio.Editor
             return Selection.activeObject is SpriteStudioAnimeAsset;
         }
 
+        // The same placement a drop onto the Scene view's empty space makes: at the root of the stage being
+        // edited, selected. The player assigns its own materials when it first draws.
         private static void InstantiatePlayer(SpriteStudioAnimeAsset asset)
         {
-            var go = new GameObject(asset.name);
-            var player = go.AddComponent<SpriteStudioPlayer>();
-            player.AnimeAsset = asset;
-            if (asset.AnimationNames != null && asset.AnimationNames.Length > 0)
-            {
-                player.CurrentAnimation = asset.AnimationNames[0];
-            }
-            
-            if (asset.Materials != null && asset.Materials.Count > 0)
-            {
-                var renderer = go.GetComponent<MeshRenderer>();
-                renderer.sharedMaterials = asset.Materials.ToArray();
-            }
-
-            Undo.RegisterCreatedObjectUndo(go, "Create SpriteStudioPlayer");
-            Selection.activeGameObject = go;
+            SpriteStudioDragAndDrop.InstantiatePlayers(new System.Collections.Generic.List<SpriteStudioAnimeAsset> { asset }, null, null, false);
         }
     }
 }

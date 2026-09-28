@@ -516,8 +516,299 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         // ============================================================
+        // (A''') Enabling again: OnDisable disposes the native player, so each later enable has to set the
+        // configured animation up again and honour AutoPlay, as Start did the first time.
+        // ============================================================
+
+        [UnityTest]
+        public IEnumerator ReEnable_SetsTheAnimationUpAgain_AndAutoPlays()
+        {
+            if (!Application.isPlaying) Assert.Ignore("Start and AutoPlay run in Play mode only.");
+            var go = new GameObject("ReEnablePlayer");
+            _objects.Add(go);
+            go.SetActive(false);
+            var player = go.AddComponent<SpriteStudioPlayer>();
+            player.AnimeAsset = MakeAsset();
+            player.CurrentAnimation = "walk";
+            go.SetActive(true);
+            yield return null; // Start
+
+            Assert.IsTrue(player.IsPlaying, "AutoPlay should have started walk");
+            go.SetActive(false);
+            go.SetActive(true);
+
+            Assert.AreEqual("walk", player.InternalPlayer.CurrentAnimationName, "The re-created native player should have walk set up");
+            Assert.IsTrue(player.IsPlaying, "AutoPlay should start it again");
+        }
+
+        [UnityTest]
+        public IEnumerator ReEnable_WithoutAutoPlay_PosesTheAnimationButDoesNotPlay()
+        {
+            if (!Application.isPlaying) Assert.Ignore("Start and AutoPlay run in Play mode only.");
+            var go = new GameObject("ReEnablePlayerNoAutoPlay");
+            _objects.Add(go);
+            go.SetActive(false);
+            var player = go.AddComponent<SpriteStudioPlayer>();
+            player.AnimeAsset = MakeAsset();
+            player.CurrentAnimation = "walk";
+            player.AutoPlay = false;
+            go.SetActive(true);
+            yield return null; // Start
+
+            go.SetActive(false);
+            go.SetActive(true);
+
+            Assert.AreEqual("walk", player.InternalPlayer.CurrentAnimationName);
+            Assert.IsFalse(player.IsPlaying);
+        }
+
+        [Test]
+        public void TimelineClip_KeepsTheConfiguredLoopCount()
+        {
+            var player = MakePlayingPlayer();
+            player.LoopCount = 1;
+
+            player.EvaluateTimelineClip("run", 0.0);
+            Assert.AreEqual(1, player.InternalPlayer.GetLoop(), "the Timeline's setup should keep LoopCount");
+
+            // After the cutscene the animation is already set up, so SetAnimation changes nothing and Play
+            // runs with whatever loop count the runtime holds.
+            player.ReleaseTimelineControl();
+            player.SetAnimation("run");
+            player.Play();
+            Assert.AreEqual(1, player.InternalPlayer.GetLoop());
+        }
+
+        [Test]
+        public void ControlTrack_KeepsTheConfiguredLoopCount()
+        {
+            var player = MakePlayingPlayer();
+            player.LoopCount = 1;
+
+            player.OnControlTimeStart();
+            player.SetTime(0.1);
+
+            Assert.AreEqual(1, player.InternalPlayer.GetLoop());
+            player.OnControlTimeStop();
+        }
+
+        // ============================================================
+        // (A'''') Keyed fields: an Animator writes the serialized fields directly, then calls
+        // OnDidApplyAnimationProperties.
+        // ============================================================
+
+        [Test]
+        public void KeyedFields_ReachTheRuntime_WithoutReArmingTheLoops()
+        {
+            var player = MakePlayingPlayer();
+            player.LoopCount = 3;
+            var ip = player.InternalPlayer;
+            ip.Tick((player.TotalFrames + 1f) / player.FrameRate, false);
+            Assume.That(ip.GetRemainLoops(), Is.EqualTo(2), "one loop should have been used");
+
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            typeof(SpriteStudioPlayer).GetField("_flipX", flags).SetValue(player, true);
+            typeof(SpriteStudioPlayer).GetField("_speedScale", flags).SetValue(player, 2f);
+            player.SendMessage("OnDidApplyAnimationProperties");
+
+            Assert.IsTrue(ip.FlipX, "a keyed Flip X should reach the runtime");
+            Assert.AreEqual(2f, ip.GetSpeed(), 1e-4f, "a keyed Speed Scale should reach the runtime");
+            Assert.AreEqual(2, ip.GetRemainLoops(), "an unchanged Loop Count must not re-arm the loops left");
+        }
+
+        [UnityTest]
+        public IEnumerator AnimationClip_KeyingFlipX_MirrorsThePlayer()
+        {
+            if (!Application.isPlaying) Assert.Ignore("An Animation component evaluates in Play mode only.");
+            var player = MakePlayingPlayer();
+            var clip = new AnimationClip { legacy = true };
+            _assets.Add(clip);
+            clip.SetCurve("", typeof(SpriteStudioPlayer), "_flipX", AnimationCurve.Constant(0f, 1f, 1f));
+            var anim = player.gameObject.AddComponent<Animation>();
+            anim.AddClip(clip, "flip");
+            anim.Play("flip");
+            yield return null;
+            yield return null;
+
+            Assert.IsTrue(player.FlipX, "the clip should have written the field");
+            Assert.IsTrue(player.InternalPlayer.FlipX, "the player should have pushed it to the runtime");
+        }
+
+        [Test]
+        public void ReloadedAsset_MaterialsAreResolvedAgain()
+        {
+            // A reimport reloads the asset in place and can destroy the material the player drew with (the
+            // provisional one the importer embeds until the shared .mat exists). The player has to resolve
+            // again rather than keep drawing with the destroyed one.
+            var player = MakePlayingPlayer();
+            var asset = player.AnimeAsset;
+            var shader = Shader.Find("SpriteStudio/Default");
+            var provisional = new Material(shader);
+            var shared = new Material(shader);
+            _assets.Add(shared);
+            asset.Materials.Add(provisional);
+            player.InternalPlayer.ScheduleMeshUpdate(0f);
+            player.ApplyAndRender();
+            var renderer = player.GetComponent<MeshRenderer>();
+            Assume.That(renderer.sharedMaterials, Has.Member(provisional));
+
+            // What the reimport does: the provisional material goes, the shared one takes its place, and the
+            // asset is loaded again.
+            Object.DestroyImmediate(provisional);
+            asset.Materials[0] = shared;
+            typeof(SpriteStudioAnimeAsset).GetMethod("OnEnable", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .Invoke(asset, null);
+            player.ApplyAndRender();
+
+            Assert.That(renderer.sharedMaterials, Has.No.Null, "no slot should keep the destroyed material");
+            Assert.That(renderer.sharedMaterials, Has.Member(shared));
+        }
+
+        // ============================================================
+        // Part trackers deactivate a target for an absent or hidden part, and activate again only what they
+        // deactivated.
+        // ============================================================
+
+        private static void BuildOnce(SpriteStudioPlayer player)
+        {
+            player.InternalPlayer.ScheduleMeshUpdate(0f);
+            player.ApplyAndRender();
+        }
+
+        [Test]
+        public void PartTracker_LeavesATargetTheUserDeactivatedInactive()
+        {
+            if (!Application.isPlaying) Assert.Ignore("Trackers change the active state in Play mode only.");
+            var player = MakePlayingPlayer();
+            var weapon = new GameObject("Weapon");
+            _objects.Add(weapon);
+            player.RegisterPartTracker(player.GetPartNames()[1], weapon.transform);
+            weapon.SetActive(false); // holstered until picked up
+
+            BuildOnce(player);
+
+            Assert.IsFalse(weapon.activeSelf, "the tracker must not show a target it did not hide");
+        }
+
+        [Test]
+        public void PartTracker_ActivatesAgainWhatItDeactivated()
+        {
+            if (!Application.isPlaying) Assert.Ignore("Trackers change the active state in Play mode only.");
+            var player = MakePlayingPlayer();
+            var target = new GameObject("Follower");
+            _objects.Add(target);
+            var tracker = player.RegisterPartTracker("no such part", target.transform);
+
+            BuildOnce(player);
+            Assert.IsFalse(target.activeSelf, "an absent part deactivates the target");
+
+            tracker.partName = player.GetPartNames()[1];
+            tracker.ResolvedIndex = SpriteStudioPartTracker.ResolveDirty;
+            BuildOnce(player);
+            Assert.IsTrue(target.activeSelf, "the target comes back once its part is there");
+        }
+
+        [Test]
+        public void PartTracker_Unregistered_ActivatesWhatItDeactivated()
+        {
+            if (!Application.isPlaying) Assert.Ignore("Trackers change the active state in Play mode only.");
+            var player = MakePlayingPlayer();
+            var target = new GameObject("Follower");
+            _objects.Add(target);
+            player.RegisterPartTracker("no such part", target.transform);
+            BuildOnce(player);
+            Assume.That(target.activeSelf, Is.False);
+
+            Assert.AreEqual(1, player.UnregisterPartTracker(target.transform));
+            Assert.IsTrue(target.activeSelf, "a target the tracker hid goes back as it was found");
+        }
+
+        // Seeks the player from a default-order Update, then records in its own LateUpdate -- which runs
+        // after the runner's (-100) -- which frame the player built this frame.
+        private sealed class SeekFromUpdate : MonoBehaviour
+        {
+            public SpriteStudioPlayer Player;
+            public float Target;
+            public float BuiltThisFrame = float.NaN;
+            private bool _sought;
+
+            private void Update()
+            {
+                Player.FrameNo = Target;
+                _sought = true;
+            }
+
+            private void LateUpdate()
+            {
+                if (_sought && float.IsNaN(BuiltThisFrame))
+                    BuiltThisFrame = Player.InternalPlayer._geometryBuilder._lastBuiltDrawFrameNo;
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator SeekFromUpdate_IsBuiltInTheSameFrame()
+        {
+            if (!Application.isPlaying) Assert.Ignore("The update runner drives players in Play mode only.");
+            var player = MakePlayingPlayer();
+            player.Pause();
+            yield return null;
+            Assume.That(player.TotalFrames, Is.GreaterThan(5), "walk needs more than five frames");
+
+            var probe = player.gameObject.AddComponent<SeekFromUpdate>();
+            probe.Player = player;
+            probe.Target = 5f;
+            yield return null;
+            yield return null;
+
+            Assert.AreEqual(5f, probe.BuiltThisFrame, 0.001f, "A seek made in Update should be built before that frame's LateUpdate");
+        }
+
+        [UnityTest]
+        public IEnumerator Graphic_ReEnable_SetsTheAnimationUpAgain_AndAutoPlays()
+        {
+            if (!Application.isPlaying) Assert.Ignore("Start and AutoPlay run in Play mode only.");
+            var go = new GameObject("ReEnableGraphic");
+            _objects.Add(go);
+            go.SetActive(false);
+            go.AddComponent<Canvas>();
+            var graphic = go.AddComponent<SpriteStudioGraphic>();
+            graphic.AnimeAsset = MakeAsset();
+            graphic.CurrentAnimation = "walk";
+            go.SetActive(true);
+            yield return null; // Start
+
+            Assert.IsTrue(graphic.IsPlaying, "AutoPlay should have started walk");
+            go.SetActive(false);
+            go.SetActive(true);
+
+            Assert.AreEqual("walk", graphic.InternalPlayer.CurrentAnimationName, "The re-created native player should have walk set up");
+            Assert.IsTrue(graphic.IsPlaying, "AutoPlay should start it again");
+        }
+
+        // ============================================================
         // (B) Internal-player layer: advance behavior via manual Tick (deterministic)
         // ============================================================
+
+        [Test]
+        public void Internal_SetupAnimation_CompletesTheScheduledMeshJobFirst()
+        {
+            // Setup clears and resizes the buffers the mesh job reads through raw pointers, so a job still
+            // scheduled when a script switches animation has to finish before the runtime touches them.
+            Assert.IsNotNull(_ringo, "Ringo.ssab is required.");
+            using (var player = new SpriteStudioInternalPlayer())
+            {
+                player.LoadSsab(_ringo);
+                Assert.IsTrue(player.SetupAnimation("walk"));
+                player.ScheduleMeshUpdate(0f);
+
+                Assert.IsTrue(player.SetupAnimation("run"));
+                Assert.IsTrue(player.CurrentUpdateJobHandle.IsCompleted, "SetupAnimation should complete the job first");
+
+                player.ScheduleMeshUpdate(0f);
+                Assert.IsTrue(player.SetupAnimationByHash(SpriteStudioInternalPlayer.HashName("walk")));
+                Assert.IsTrue(player.CurrentUpdateJobHandle.IsCompleted, "SetupAnimationByHash should complete the job first");
+            }
+        }
 
         [Test]
         public void Internal_Pause_Halts_And_Resume_ContinuesFromCurrentFrame()

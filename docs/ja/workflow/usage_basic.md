@@ -36,8 +36,9 @@
 選択すると GameObject が作成され、**Anime Asset には今ドロップしたアセットが自動的に割り当てられます**。あとは **Animation Name** を設定すれば再生できます。
 
 > [!TIP]
-> - **SpriteStudioGraphic (Canvas UI)** を選んだ際にシーンへ `Canvas` が無い場合は、`Canvas`（および `EventSystem`）が自動的に作成され、その下に設置されます。
-> - Hierarchy 上で既存の GameObject の上にドロップすると、その子として設置されます。
+> - **SpriteStudioGraphic (Canvas UI)** を選んだ際にシーンへ `Canvas` が無い場合は、**GameObject > UI > Canvas** と同じように `Canvas`（およびプロジェクトの入力方式に合った入力モジュール付きの `EventSystem`）が自動的に作成され、その下に設置されます。
+> - Hierarchy 上で既存の GameObject の上にドロップすると、その子として設置されます。行と行の間にドロップした場合は、その並びに設置されます。
+> - Prefab Mode では、GameObject メニューと同じく編集中のプリファブの中に設置されます。
 > - 複数のアセットを同時にドロップした場合は、まとめて設置されます。
 > - `SpriteStudioAnimeAsset` のインスペクタにある **「Instantiate in Scene」** ボタンからもワールド用プレイヤーを設置できます。
 
@@ -67,7 +68,7 @@
 
 ## 3. 再生する
 
-**Auto Play** が有効（既定）であれば、再生（Play）モードに入ると **Animation Name** のアニメーションが自動的に再生されます。
+**Auto Play** が有効（既定）であれば、再生（Play）モードに入ると **Animation Name** のアニメーションが自動的に再生されます。オブジェクトを再び有効にしたとき（プールから `SetActive(true)` で取り出したときなど）も、Animator と同じく最初から再生し直します。
 
 スクリプトから明示的に再生する場合は次のようにします。
 
@@ -96,8 +97,8 @@ public class Sample : MonoBehaviour
 | 項目 | 既定値 | 説明 |
 |---|---|---|
 | **Anime Asset** | （なし） | 再生対象の `SpriteStudioAnimeAsset`。**SpriteStudio Asset** という見出しの下に置かれています |
-| **Animation Name** | `""` | 再生するアニメーション名。アセットを割り当てるとドロップダウンで選べます |
-| **Auto Play** | `true` | シーンの実行起動時に自動再生するか |
+| **Animation Name** | `""` | 再生するアニメーション名。アセットを割り当てるとドロップダウンで選べます。割り当てたアセットに現在の名前が無ければ、そのアセットの最初のアニメーションが入ります。アセットに無い名前は置き換えられず、`(missing)` と表示されます |
+| **Auto Play** | `true` | シーンの実行起動時と、コンポーネントを再び有効にしたときに自動再生するか |
 | **Loop Count** | `-1` | ループ回数（`-1` = 無限 / `1` = 1 回 / `n` = n 回 / `0` = 無限、`-1` の別名） |
 | **Speed Scale** | `1.0` | 再生速度の倍率（`0`〜`4` のスライダー。`0` は停止） |
 | **Frame Skipping** | `true` | 実時間追従。ON = 経過時間ぶん進める / OFF = 毎 update で 1 フレームずつ |
@@ -115,18 +116,20 @@ public class Sample : MonoBehaviour
 
 ### `SpriteStudioPlayer`（ワールド）のみ
 
+描画順は、ほかのレンダラーと同じく Mesh Renderer 自身の **Sorting Layer** / **Order in Layer**（インスペクタの **Additional Settings** 内）で決まります。スクリプトの `SortingLayerName` / `SortingOrder` プロパティも同じ 2 つの値を読み書きします。
+
 | 項目 | 既定値 | 説明 |
 |---|---|---|
-| **Sorting Layer Name / Sorting Order** | `Default` / `0` | 描画順（MeshRenderer のソート設定） |
 | **Flip X / Flip Y** | `false` / `false` | 描画だけを左右／上下に反転します（`SpriteRenderer.flipX` と同じ考え方で、Transform を反転しないため子オブジェクトやコライダは動きません） |
 | **Offset** | `(0, 0)` | Transform を動かさずに描画位置だけをずらします（単位はワールド単位） |
+| **Shader Catalog** | （なし） | パーツ単位のカスタムシェーダを登録した自前のカタログ。組み込み AddOn より先に引かれます（[高度な設定](./tips.md) 参照） |
 | **Part Trackers** | （空） | 指定パーツに Transform を追従させる設定（[スクリプト制御とイベント](./usage_scripting.md) 参照） |
 
-> **Pixels Per Unit** とパーツ単位の**カスタムシェーダ**は、このインスペクタ外で設定します。PPU はスクリプトの `PixelsPerUnit` プロパティで設定し、カスタムシェーダは AddOn カタログに登録します。詳細は [高度な設定](./tips.md) を参照してください。
+> **Pixels Per Unit** はこのインスペクタ外で、スクリプトの `PixelsPerUnit` プロパティから設定します。パーツ単位の**カスタムシェーダ**は、**Shader Catalog** に割り当てたカタログに登録します。詳細は [高度な設定](./tips.md) を参照してください。
 
 ### `SpriteStudioGraphic`（Canvas UI）のみ
 
-uGUI の `Graphic` 由来の **Color** / **Material** / **Raycast Target** / **Raycast Padding** が表示されます。クリック判定の範囲は `RectTransform` の矩形で決まり、アニメーションの見た目の大きさとは連動しません。判定範囲を広げたい場合は `RectTransform` のサイズか **Raycast Padding** で調整してください。
+uGUI の `Graphic` 由来の **Color** / **Material** / **Raycast Target** / **Raycast Padding** / **Maskable** が表示されます。**Color** は `Image` と同じくアニメーション全体をパーツカラーの上から色付けし、Button の **Color Tint** トランジションや `CrossFadeColor` / `CrossFadeAlpha` も同じように効きます。**Material** が空のときはアトラスのマテリアルで描画し、設定したマテリアルはそのシェーダが `SpriteStudio/Canvas` をもとに作られていれば代わりに使われます（グラフィックが出す頂点レイアウトを読めるのはそのシェーダだけです）。グラフィック自身に **Mask** を付けると、子をアニメーションの形でクリップできます。クリック判定の範囲は `RectTransform` の矩形で決まり、アニメーションの見た目の大きさとは連動しません。判定範囲を広げたい場合は `RectTransform` のサイズか **Raycast Padding** で調整してください。
 
 > [!TIP]
 > 

@@ -20,11 +20,18 @@ namespace SpriteStudio.Runtime
         public event System.Action<SpriteStudioSignal> OnSignal;
         public event System.Action<SpriteStudioAudio> OnAudio;
 
-        // The asset whose ssab is currently loaded into Internal. Used to detect an inspector asset swap so
-        // EnsureCreated reloads (the inspector writes the serialized field directly, bypassing the setter).
+        // The asset whose ssab is currently loaded into Internal, and the data it held then. Used to detect
+        // an inspector asset swap so EnsureCreated reloads (the inspector writes the serialized field
+        // directly, bypassing the setter), and a reimport, which keeps the asset and replaces its data.
         private SpriteStudioAnimeAsset _loadedAsset;
+        private byte[] _loadedSsab;
 
-        public void EnsureCreated(SpriteStudioAnimeAsset asset, bool subFrameEnabled)
+        /// <summary>
+        /// Creates the internal player if there is none, and loads the asset's ssab when it is not the one
+        /// loaded. Returns true when it loaded one: the animation set up before is gone, and whatever the
+        /// caller built from the previous pack has to be built again.
+        /// </summary>
+        public bool EnsureCreated(SpriteStudioAnimeAsset asset, bool subFrameEnabled)
         {
             if (Internal == null)
             {
@@ -32,16 +39,18 @@ namespace SpriteStudio.Runtime
                 HookEvents();
             }
 
-            // Load the ssab when (a) none is loaded yet, or (b) the referenced asset changed. (a) is the
-            // self-heal case: on an Editor restart the referenced .ssab can still be re-importing when
-            // OnEnable first runs (asset / SsabData momentarily null), so we retry until it is ready.
-            // (b) handles an inspector asset swap, which bypasses the C# property setter. LoadSsab is safe
-            // to call repeatedly.
+            // Load the ssab when (a) none is loaded yet, (b) the referenced asset changed, or (c) the asset's
+            // data changed. (a) is the self-heal case: on an Editor restart the referenced .ssab can still be
+            // re-importing when OnEnable first runs (asset / SsabData momentarily null), so we retry until
+            // it is ready. (b) handles an inspector asset swap, which bypasses the C# property setter. (c) is
+            // a reimport. LoadSsab is safe to call repeatedly.
             if (asset != null && asset.SsabData != null
-                && (!Internal.HasSsab || !ReferenceEquals(asset, _loadedAsset)))
+                && (!Internal.HasSsab || !ReferenceEquals(asset, _loadedAsset) || !ReferenceEquals(asset.SsabData, _loadedSsab)))
             {
                 LoadAsset(asset);
+                return true;
             }
+            return false;
         }
 
         // Relay the Internal player's events to this core's events. Named methods (not lambdas) so they can
@@ -79,6 +88,7 @@ namespace SpriteStudio.Runtime
         {
             Internal.LoadSsab(asset.SsabData, asset.ResolveExternalSsab);
             _loadedAsset = asset;
+            _loadedSsab = asset.SsabData;
             _reportedMissingAnimation = null;
         }
 
@@ -99,6 +109,7 @@ namespace SpriteStudio.Runtime
                 Internal = null;
             }
             _loadedAsset = null;
+            _loadedSsab = null;
         }
 
         /// <summary>

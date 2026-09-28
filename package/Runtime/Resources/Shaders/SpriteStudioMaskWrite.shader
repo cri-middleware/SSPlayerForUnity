@@ -22,9 +22,10 @@ Shader "SpriteStudio/MaskWrite"
     }
 
     // === URP (Universal Render Pipeline) SubShader ===
-    // Mirrors the Built-in SubShader below; only the engine API layer differs (URP include,
-    // TransformObjectToHClip, SAMPLE_TEXTURE2D, CBUFFER for SRP Batcher). The property-driven Stencil
-    // write and ColorMask 0 are identical. URP selects this via the RenderPipeline tag.
+    // Mirrors the Built-in SubShader below; it differs only in the UnityPerMaterial cbuffer the SRP
+    // Batcher needs and in its pass's LightMode. The property-driven Stencil write and ColorMask 0 are
+    // identical. URP selects this via the RenderPipeline tag. The pass is SRPDefaultUnlit for the same
+    // reason as SpriteStudio/Default's: the 2D Renderer draws no UniversalForward pass.
     SubShader
     {
         Tags
@@ -52,7 +53,7 @@ Shader "SpriteStudio/MaskWrite"
 
         Pass
         {
-            Tags { "LightMode"="UniversalForward" }
+            Tags { "LightMode"="SRPDefaultUnlit" }
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag

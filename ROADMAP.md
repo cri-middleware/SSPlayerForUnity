@@ -11,12 +11,22 @@ items marked **needs SDK** wait on a runtime capability from there.
 - [x] Playback control — play / pause / resume / stop, seek, section playback, reverse, ping-pong, speed, frame rate.
 - [x] World (MeshRenderer) and uGUI (Canvas) rendering, including mask / RectMask2D on Canvas.
 - [x] Timeline support (`ITimeControl`).
+- [ ] Events and sound while a Timeline plays. A clip seeks the player to a frame and never advances it, so under a
+  `SpriteStudioTrack` or a ControlTrack no UserData / Signal / Audio event fires and no built-in sound plays, in Play
+  mode too. Advance through the frames a Playback evaluation crosses, as an AnimationTrack fires a clip's
+  AnimationEvents, and keep scrubbing silent.
+- [ ] `SpriteStudioTrack` clips that know their animation. A clip starts at Timeline's default length rather than the
+  animation's, so Match Content has nothing to snap to; `ClipCaps.None` turns off Clip In, Speed Multiplier and
+  Looping, none of which involve blending; and Animation Name is free text, with no list to pick from.
+- [ ] Timeline scrubbing in edit mode. The edit-mode preview holds the start frame, so scrubbing the Timeline window
+  shows nothing move until Play mode.
 - [x] Events — animation finished / looped, user data, signal, audio.
 - [x] Flip / offset — mirror or shift what the player draws without moving the Transform, so children and
   colliders stay put. World renderer only so far; `SpriteStudioGraphic` (uGUI) does not expose them yet.
 - [ ] Label playback — play a named label range with a start offset. `SetAnimationSection` takes frame
   numbers only, so a label the animation already carries cannot be named from the host.
-- [ ] Player-level tint / opacity and a custom delta-time hook (per-player slow-motion / pause groups).
+- [ ] Player-level tint / opacity on `SpriteStudioPlayer` (`SpriteStudioGraphic` takes `Graphic.color`) and a custom
+  delta-time hook (per-player slow-motion / pause groups).
 - [ ] Multi-track playback — layered per-part animation with crossfade transitions. The runtime side is
   done: the SDK's track stack ships, and its FFI (`ss_runtime_crossfade` / `set_track_animation` /
   `add_track_source` / `fade_track`) is generated into `package/Runtime/Bindings/` with no C# caller. What
@@ -68,6 +78,10 @@ with the sibling Players: `fit` / `align` for placement, a part rect read-out fo
 
 Wait on a runtime capability from the SDK roadmap.
 
+- [ ] Loops, ping-pong and direction under a Timeline. Clip time becomes a frame clamped to the section, so a looping
+  animation under a ControlTrack plays once and holds its last frame, where a particle system under the same track
+  keeps looping. The runtime's `set_frame_relative` applies the section, the loops, the style and the direction to an
+  elapsed time, but the C ABI does not export it.
 - [ ] Sequence playback — play `.ssqb` playlists with step control.
 - [ ] Crowd / mesh sharing — render one shared evaluation at many transforms.
 - [ ] Runtime instance swap — change the animation mounted on an Instance part at runtime. Waits on the

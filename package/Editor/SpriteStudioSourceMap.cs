@@ -18,12 +18,20 @@ namespace SpriteStudio.Editor
         }
 
         private static Dictionary<string, string> _map;
+        // The file's write time when it was last read or written. A team commits the map, so a pull can replace
+        // it under an open Editor: reading it again then keeps the next save from writing the old copy back
+        // over the teammates' entries. Every change is saved in the call that makes it, so nothing unsaved is
+        // lost to the reread.
+        private static DateTime _mapFileTime;
+
+        private static DateTime MapFileTime() => File.Exists(MAP_FILE_PATH) ? File.GetLastWriteTimeUtc(MAP_FILE_PATH) : DateTime.MinValue;
 
         public static Dictionary<string, string> GetMap()
         {
-            if (_map != null) return _map;
+            if (_map != null && MapFileTime() == _mapFileTime) return _map;
 
             _map = new Dictionary<string, string>();
+            _mapFileTime = MapFileTime();
             if (File.Exists(MAP_FILE_PATH))
             {
                 try
@@ -73,6 +81,7 @@ namespace SpriteStudio.Editor
                 {
                     File.Move(tmp, MAP_FILE_PATH);
                 }
+                _mapFileTime = MapFileTime();
             }
             catch (Exception e)
             {

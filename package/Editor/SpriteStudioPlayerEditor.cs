@@ -16,12 +16,11 @@ namespace SpriteStudio.Editor
         private SerializedProperty _speedScaleProp;
         private SerializedProperty _subFrameEnabledProp;
         private SerializedProperty _skipFramesProp;
-        private SerializedProperty _sortingLayerNameProp;
-        private SerializedProperty _sortingOrderProp;
         private SerializedProperty _flipXProp;
         private SerializedProperty _flipYProp;
         private SerializedProperty _offsetProp;
         private SerializedProperty _partTrackersProp;
+        private SerializedProperty _shaderCatalogProp;
         private SerializedProperty _playAudioProp;
         private SerializedProperty _audioVolumeProp;
         private SerializedProperty _audioBackendProp;
@@ -47,12 +46,11 @@ namespace SpriteStudio.Editor
             _speedScaleProp = serializedObject.FindProperty("_speedScale");
             _subFrameEnabledProp = serializedObject.FindProperty("_subFrameEnabled");
             _skipFramesProp = serializedObject.FindProperty("_skipFrames");
-            _sortingLayerNameProp = serializedObject.FindProperty("_sortingLayerName");
-            _sortingOrderProp = serializedObject.FindProperty("_sortingOrder");
             _flipXProp = serializedObject.FindProperty("_flipX");
             _flipYProp = serializedObject.FindProperty("_flipY");
             _offsetProp = serializedObject.FindProperty("_offset");
             _partTrackersProp = serializedObject.FindProperty("_partTrackers");
+            _shaderCatalogProp = serializedObject.FindProperty("_shaderCatalog");
             _playAudioProp = serializedObject.FindProperty("_playAudio");
             _audioVolumeProp = serializedObject.FindProperty("_audioVolume");
             _audioBackendProp = serializedObject.FindProperty("_audioBackend");
@@ -69,9 +67,8 @@ namespace SpriteStudio.Editor
         {
             serializedObject.Update();
 
-            EditorGUILayout.PropertyField(_animeAssetProp);
-
-            DrawAnimationNameDropdown();
+            SpriteStudioAnimationNameField.DrawAsset(_animeAssetProp, _animationNameProp);
+            SpriteStudioAnimationNameField.DrawName(_animeAssetProp, _animationNameProp);
 
             EditorGUILayout.PropertyField(_autoPlayProp);
             EditorGUILayout.PropertyField(_loopProp);
@@ -81,13 +78,12 @@ namespace SpriteStudio.Editor
             EditorGUILayout.PropertyField(_subFrameEnabledProp, _subFrameInterpolationLabel);
 
             EditorGUILayout.Space();
-            EditorGUILayout.PropertyField(_sortingLayerNameProp);
-            EditorGUILayout.PropertyField(_sortingOrderProp);
             EditorGUILayout.PropertyField(_flipXProp);
             EditorGUILayout.PropertyField(_flipYProp);
             EditorGUILayout.PropertyField(_offsetProp);
 
             EditorGUILayout.Space();
+            EditorGUILayout.PropertyField(_shaderCatalogProp);
             EditorGUILayout.PropertyField(_partTrackersProp, true);
 
             EditorGUILayout.Space();
@@ -108,30 +104,6 @@ namespace SpriteStudio.Editor
             EditorGUILayout.PropertyField(_onAudioEventProp);
 
             serializedObject.ApplyModifiedProperties();
-        }
-
-        private void DrawAnimationNameDropdown()
-        {
-            var asset = _animeAssetProp.objectReferenceValue as SpriteStudioAnimeAsset;
-            if (asset == null || asset.AnimationNames == null || asset.AnimationNames.Length == 0)
-            {
-                // Fallback to normal text field
-                EditorGUILayout.PropertyField(_animationNameProp);
-                return;
-            }
-
-            string currentName = _animationNameProp.stringValue;
-            int currentIndex = Mathf.Max(0, System.Array.IndexOf(asset.AnimationNames, currentName));
-
-            int newIndex = EditorGUILayout.Popup("Animation Name", currentIndex, asset.AnimationNames);
-            // Write only when the stored value differs from what the popup shows: an unconditional write
-            // re-marks the scene modified on every repaint. An unset name still differs from the entry the
-            // popup falls back to, so a player that reaches the inspector without one is still filled in.
-            if (newIndex >= 0 && newIndex < asset.AnimationNames.Length
-                && _animationNameProp.stringValue != asset.AnimationNames[newIndex])
-            {
-                _animationNameProp.stringValue = asset.AnimationNames[newIndex];
-            }
         }
     }
 }

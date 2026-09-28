@@ -28,9 +28,12 @@ Shader "SpriteStudio/Default"
 
     // === URP (Universal Render Pipeline) SubShader ===
     // Same colour core (SpriteStudioCore.hlsl) and property-driven Blend/Stencil as the Built-in
-    // SubShader below; only the engine API layer differs (URP includes, TransformObjectToHClip,
-    // TEXTURE2D/SAMPLE_TEXTURE2D, CBUFFER for SRP Batcher). URP selects this SubShader via the
-    // RenderPipeline tag; the Built-in pipeline falls through to the second SubShader.
+    // SubShader below; it differs only in the UnityPerMaterial cbuffer the SRP Batcher needs and in its
+    // pass's LightMode. URP selects this SubShader via the RenderPipeline tag; the Built-in pipeline
+    // falls through to the second SubShader.
+    // The colour pass is SRPDefaultUnlit, as URP's own Sprite-Unlit-Default is: the Universal Renderer
+    // draws it, and so does the 2D Renderer, which draws only Universal2D and SRPDefaultUnlit. Tagged
+    // UniversalForward, a player under the 2D Renderer drew nothing.
     SubShader
     {
         Tags
@@ -59,7 +62,7 @@ Shader "SpriteStudio/Default"
 
         Pass
         {
-            Tags { "LightMode"="UniversalForward" }
+            Tags { "LightMode"="SRPDefaultUnlit" }
             HLSLPROGRAM
             #pragma vertex ss_world_vert
             #pragma fragment frag

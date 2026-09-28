@@ -16,14 +16,16 @@ Text and 9-slice parts still occupy their place in the draw order, so an animati
 
 ## Canvas (uGUI) Path
 
-`SpriteStudioGraphic` is implemented to fit the CanvasRenderer constraint of "1 renderer = 1 mesh + 1 material," which costs it three things the world path (`SpriteStudioPlayer`) does not have to give up. See [Performance Tuning and Advanced Settings](./workflow/tips.md) for the full description.
+`SpriteStudioGraphic` is implemented to fit the CanvasRenderer constraint of "1 renderer = 1 mesh + 1 material," which costs it the things below that the world path (`SpriteStudioPlayer`) does not have to give up. See [Performance Tuning and Advanced Settings](./workflow/tips.md) for the full description.
 
 > [!WARNING]
 > - **Single-atlas assumption.** For an animation that uses multiple atlases, only the first atlas is drawn, and parts from other atlases cannot sample the correct texture (a warning is logged). Consolidate into a single atlas, or use the world path.
 > - **Blend modes are limited to MIX / ADD.** They are dispatched per-vertex inside the shader; every other blend collapses to MIX.
-> - **`TexCoord1` is switched on for you.** To carry Part Color through TEXCOORD1, the target Canvas's `additionalShaderChannels` gains `TexCoord1` automatically.
+> - **`TexCoord1` and `TexCoord2` are switched on for you.** Part Color travels through TEXCOORD1 and TEXCOORD2, so the target Canvas's `additionalShaderChannels` gains both automatically.
+> - **Mesh effects and per-part shaders do not apply.** The graphic uploads its mesh itself rather than through `OnPopulateMesh`, so `Shadow`, `Outline` and other `BaseMeshEffect` components on it change nothing, and the per-part AddOn / custom shaders (sepia, outline, blur, …) are not drawn on a Canvas — every part draws with the one Canvas material.
+> - **No Timeline control.** `SpriteStudioGraphic` implements no `ITimeControl`, and the Timeline track binds `SpriteStudioPlayer` only.
 
-If you need complex blends, multiple atlases, or the full set of extended blend types, use the world path (`SpriteStudioPlayer`).
+If you need complex blends or multiple atlases, use the world path (`SpriteStudioPlayer`). It draws every blend type but two of the SS6-era "2" variants: **Mul2** draws as Mul and **Screen2** as Screen, while **Div2** and **Overlay2**, which need the colour already behind the part, draw as MIX — as they do on the other SpriteStudio players.
 
 ## Masking / Clipping
 
@@ -50,7 +52,7 @@ Part Tracking (making a `Transform` follow a part) is a `SpriteStudioPlayer` (wo
 
 > [!NOTE]
 > - **Edit mode shows a static preview of the start frame only.** Check behavior in Play mode.
-> - **On URP, material references can go inconsistent right after import** and rendering turns pink. Restarting the editor or reimporting resolves it in most cases.
+> - **The Mesh Renderer's Materials belong to the player.** It sets the list itself, one material per draw batch, whenever what it draws changes, so a material dropped into the list is replaced. To change how the animation draws, edit the shared `.mat` next to the atlas texture, or give the player a **Shader Catalog** for per-part shaders — see [Performance Tuning and Advanced Settings](./workflow/tips.md).
 
 ## Scripting API
 

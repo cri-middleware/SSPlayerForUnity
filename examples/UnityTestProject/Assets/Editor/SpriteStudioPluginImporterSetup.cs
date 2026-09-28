@@ -27,9 +27,9 @@ namespace SpriteStudioDev
     public static class SpriteStudioPluginImporterSetup
     {
         private const string PackageRoot = "Packages/jp.co.cri-mw.spritestudio.ssplayer-unity";
-        // Matches where the package already puts its editor commands (the package's own
-        // "Create or Update Default AddOn Catalog" lives under Window/SpriteStudio too).
-        // A top-level SpriteStudio root would be a third convention for no gain.
+        // Matches where the package puts its editor commands (Window/SpriteStudio), under Dev with the
+        // other maintainer tools in this folder. A top-level SpriteStudio root would be a third convention
+        // for no gain.
         private const string MenuRoot = "Window/SpriteStudio/Dev/";
 
         /// <summary>One native library and the platforms it is enabled for.</summary>

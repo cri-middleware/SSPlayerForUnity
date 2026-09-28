@@ -196,7 +196,6 @@ namespace SpriteStudio.Runtime
         /// <summary>Whether a playback session is active. True even while paused (false when stopped / not playing).</summary>
         public bool IsPlaying => _core.Internal?.IsPlaying() ?? false;
 
-        /// <summary>Whether currently paused (true only while a playback session is active and paused).</summary>
         /// <summary>
         /// Whether the last update crossed a loop boundary. A <b>pulse</b>, true only inside the tick
         /// that crossed — take <c>OnAnimationLooped</c> instead if you want it delivered rather than
@@ -209,6 +208,7 @@ namespace SpriteStudio.Runtime
             ? _animeAsset.AnimationNames
             : System.Array.Empty<string>();
 
+        /// <summary>Whether currently paused (true only while a playback session is active and paused).</summary>
         public bool IsPausing
         {
             get
@@ -442,7 +442,6 @@ namespace SpriteStudio.Runtime
         /// <summary>Clear every per-part override on this player.</summary>
         public bool ClearAllPartOverrides() => _core.Internal?.ClearAllPartOverrides() ?? false;
 
-        /// <summary>Names of the cellmaps in the loaded asset (for discovering cell-override targets).</summary>
         /// <summary>
         /// Part names in part-index order, empty before an <see cref="AnimeAsset"/> is set up.
         /// <para>
@@ -453,6 +452,7 @@ namespace SpriteStudio.Runtime
         /// </summary>
         public string[] GetPartNames() => _core.Internal?.GetPartNames() ?? System.Array.Empty<string>();
 
+        /// <summary>Names of the cellmaps in the loaded asset (for discovering cell-override targets).</summary>
         public string[] GetCellmapNames() => _core.Internal?.GetCellmapNames() ?? System.Array.Empty<string>();
 
         /// <summary>Names of the cells in the named cellmap (for discovering cell-override targets).</summary>
@@ -463,6 +463,17 @@ namespace SpriteStudio.Runtime
         protected override void Start()
         {
             base.Start();
+            _started = true;
+            StartPlayback();
+        }
+
+        // Whether Start has run. OnDisable disposes the native player, so a graphic enabled again comes back
+        // with nothing set up; from the second enable on, OnEnable repeats what Start did, as an Animator
+        // returns to its default state and a Play On Awake particle system plays again.
+        [System.NonSerialized] private bool _started;
+
+        private void StartPlayback()
+        {
             if (string.IsNullOrEmpty(_animationName)) return;
             // Always call SetAnimation so the first frame is posed even when AutoPlay is off; actually start
             // playback only when AutoPlay is on. SetAnimation pushes the serialized loop/speed/skip itself,
@@ -477,6 +488,9 @@ namespace SpriteStudio.Runtime
         // part of the package's API (ISpriteStudioRenderable.GetLiveHandle is explicit for the same
         // reason).
         internal SpriteStudioInternalPlayer InternalPlayer => _core.Internal;
+
+        // The mesh handed to the CanvasRenderer, exposed for tests that check what reached it.
+        internal Mesh CanvasMesh => _sharedMesh;
 
         public event System.Action OnAnimationStarted
         {
@@ -521,11 +535,6 @@ namespace SpriteStudio.Runtime
 
         protected override void OnEnable()
         {
-            // A Graphic drives a CanvasRenderer. RequireComponent adds one for newly created objects;
-            // also self-heal a GameObject that was created before this requirement existed so that
-            // canvasRenderer.materialCount does not throw a MissingComponentException.
-            if (GetComponent<CanvasRenderer>() == null) gameObject.AddComponent<CanvasRenderer>();
-
             base.OnEnable();
 
             if (_sharedMesh == null)
@@ -542,8 +551,8 @@ namespace SpriteStudio.Runtime
             }
 
             _core.EnsureCreated(_animeAsset, _subFrameEnabled);
-            // Canvas path: drop SpriteStudio internal masking; a parent uGUI Mask/RectMask2D clips this
-            // graphic read-only via the per-submesh stencil wrap below.
+            // Canvas path: drop SpriteStudio internal masking; a parent uGUI Mask clips this graphic
+            // read-only via the stencil wrap below, and a parent RectMask2D through the shader's clip rect.
             if (_core.Internal != null) _core.Internal.SuppressInternalMask = true;
             // Resolve the serialized cellmap texture replacements against the asset (applied on the next build).
             _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
@@ -559,6 +568,8 @@ namespace SpriteStudio.Runtime
 
             // In edit mode, build the start-frame static preview right after placement (setup consumed in LateUpdate).
             _editPreviewNeedsSetup = true;
+
+            if (_started && Application.isPlaying) StartPlayback();
         }
 
         private void InvokeAnimationStarted() => OnAnimationStartedEvent?.Invoke();
@@ -596,11 +607,10 @@ namespace SpriteStudio.Runtime
 
             _core.Dispose();
 
-            // Release the uGUI stencil wrapper (refcounted by StencilMaterial) and invalidate the
-            // material signature so OnEnable re-resolves from scratch.
-            ReleaseCanvasStencil();
+            // Release this graphic's material clone and invalidate the material signature so OnEnable
+            // re-resolves from scratch. (base.OnDisable released MaskableGraphic's stencil variant.)
+            ReleaseAtlasMaterial();
             _lastMaterialSignature = 0;
-            _lastStencilDepth = -1;
             _canvasMaterialDirty = true;
 
             if (_sharedMesh != null)
@@ -626,9 +636,16 @@ namespace SpriteStudio.Runtime
             // showing even after uGUI clears the CanvasRenderer's mesh).
             if (Application.isPlaying) return;
             // Self-heal if the .ssab was still importing when OnEnable ran (Editor restart race): pick the
-            // ssab up once it is available (EnsureCreated is a no-op once loaded). Without this an empty
-            // Internal created at OnEnable would never get its ssab, so SetupAnimation fails forever.
-            _core.EnsureCreated(_animeAsset, _subFrameEnabled);
+            // ssab up once it is available. Without this an empty Internal created at OnEnable would never
+            // get its ssab, so SetupAnimation fails forever. A reimported .ssab keeps this reference and
+            // brings new data, which EnsureCreated loads the same way; what came from the previous pack is
+            // rebuilt either way.
+            if (_core.EnsureCreated(_animeAsset, _subFrameEnabled))
+            {
+                _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
+                _canvasMaterialDirty = true;
+                _editPreviewNeedsSetup = true;
+            }
             if (_core.Internal == null || !_core.Internal.HasSsab) return;
             if (_editPreviewNeedsSetup)
             {
@@ -644,6 +661,22 @@ namespace SpriteStudio.Runtime
             }
             _core.Internal.ScheduleMeshUpdate(0f); // Static: build the start frame without advancing
             ApplyAndRender();
+        }
+
+        // An Animator, or a Timeline Animation Track, writes keyed fields straight into the component -- as the
+        // Inspector does, bypassing the property setters -- and calls this after each evaluation. Graphic's own
+        // override marks the graphic dirty for a keyed Color; push the playback fields as well.
+        protected override void OnDidApplyAnimationProperties()
+        {
+            base.OnDidApplyAnimationProperties();
+            var p = _core.Internal;
+            if (p == null) return;
+            p.SetSpeed(_speedScale);
+            p.SetSkipFrames(_skipFrames);
+            p.SubFrameEnabled = _subFrameEnabled;
+            // SetLoop re-arms the loops left, and this runs on every evaluation: write it only when the keyed
+            // count differs from the runtime's, which keeps 0 and below as -1.
+            if (p.GetLoop() != (_loopCount > 0 ? _loopCount : -1)) p.SetLoop(_loopCount);
         }
 
 #if UNITY_EDITOR
@@ -690,32 +723,42 @@ namespace SpriteStudio.Runtime
         {
             if (_core.Internal == null || _sharedMesh == null) return;
 
-            // Single-material Canvas: build the whole graphic as ONE submesh (perBatchSubmesh: false) and
-            // drive it with one material; MIX/ADD are split per-vertex in-shader. CanvasRenderer only
-            // accepts 16-bit index meshes, so upload 16-bit.
-            _core.Internal.ApplyToMesh(_sharedMesh, false, use16BitIndices: true);
+            // Single-material Canvas: build the whole graphic as ONE submesh and drive it with one
+            // material; MIX/ADD are split per-vertex in-shader. Graphic.color goes into the vertex colour,
+            // as an Image puts it there, and the CanvasRenderer's own colour is left to uGUI: the Button
+            // transitions and CrossFadeColor / CrossFadeAlpha animate it, and the canvas multiplies it in.
+            _core.Internal.ApplyToCanvasMesh(_sharedMesh, color);
             EnsureCanvasShaderChannels();
             UpdateCanvasMaterials();
-            // CanvasRenderer multiplies the mesh vertex colours by its own colour. The normal uGUI
-            // rebuild (which we suppress) is what would push the Graphic colour into it; without that
-            // the renderer colour stays at its uninitialised default (black) and zeroes the sprite RGB.
-            // Push the Graphic colour every frame (default white = identity, also honours a user tint).
-            canvasRenderer.SetColor(color);
             canvasRenderer.SetMesh(_sharedMesh);
         }
 
         // --- Single-material Canvas resolution (one atlas + one fixed PMA blend) ---
         // The whole graphic renders as ONE submesh with ONE material on the SpriteStudio/Canvas shader.
         // MIX vs ADD is handled per-vertex in-shader (a=0 trick); other blends collapse to MIX. SpriteStudio
-        // internal masking is suppressed; the only stencil is the READ-ONLY test injected when this graphic
-        // is nested under a uGUI Mask, via StencilMaterial.Add (we compute the mask depth ourselves and wrap
-        // the single material, since MaskableGraphic.GetModifiedMaterial tracks only one material anyway).
-        // RectMask2D needs nothing here — MaskableGraphic clips it through CanvasRenderer.EnableRectClipping.
-        private Material _canvasStencilWrapped; // StencilMaterial.Add result to release (null if not wrapped)
+        // internal masking is suppressed. The material reaches the CanvasRenderer the way
+        // Graphic.UpdateMaterial sends an Image's: materialForRendering, which starts from the Material field
+        // (the atlas material, as defaultMaterial, when that is empty) and runs every IMaterialModifier on
+        // this GameObject -- MaskableGraphic's stencil test for a parent Mask, a Mask's own stencil write for
+        // its children, anything else -- with mainTexture as the texture.
+        // RectMask2D needs nothing here: MaskableGraphic hands the shader _ClipRect and UNITY_UI_CLIP_RECT
+        // through CanvasRenderer.EnableRectClipping, and SpriteStudio/Canvas clips with them.
+        private Material _atlasMaterial;        // the atlas material, or this graphic's texture-replacement clone of it
         private uint _lastMaterialSignature;    // resolved atlas texture hash + 1 (0 = nothing resolved)
-        private int _lastStencilDepth = -1;
+        private int _materialAssetRevision;     // the asset's Revision when the atlas material was resolved
         private bool _canvasMaterialDirty;
         private bool _warnedMultiTexture;
+
+        /// <summary>
+        /// The material the animation draws with while <see cref="Graphic.material"/> is empty: SpriteStudio/Canvas
+        /// carrying the atlas the animation samples. A material assigned instead needs a shader built from
+        /// SpriteStudio/Canvas, the only kind that reads the vertex layout this graphic emits.
+        /// </summary>
+        public override Material defaultMaterial => _atlasMaterial != null ? _atlasMaterial : base.defaultMaterial;
+
+        /// <summary>The atlas texture, handed to whichever material draws the graphic, as an Image hands over its sprite's.</summary>
+        public override Texture mainTexture
+            => _atlasMaterial != null && _atlasMaterial.mainTexture != null ? _atlasMaterial.mainTexture : base.mainTexture;
 
         private void UpdateCanvasMaterials()
         {
@@ -726,7 +769,7 @@ namespace SpriteStudio.Runtime
             {
                 if (_lastMaterialSignature != 0)
                 {
-                    ReleaseCanvasStencil();
+                    ReleaseAtlasMaterial();
                     canvasRenderer.materialCount = 0;
                     _lastMaterialSignature = 0;
                 }
@@ -748,25 +791,21 @@ namespace SpriteStudio.Runtime
 
             uint texHash = submeshes[0].TextureHash;
 
-            // Current uGUI mask depth (0 when not nested under a Mask). Checked every frame so a reparent
-            // under/out of a Mask re-wraps the material even if the SetMaterialDirty signal is missed.
-            int stencilDepth = maskable
-                ? UnityEngine.UI.MaskUtilities.GetStencilDepth(transform, UnityEngine.UI.MaskUtilities.FindRootSortOverrideCanvas(transform))
-                : 0;
-
             uint signature = texHash + 1u; // +1 so a valid hash never collides with the empty sentinel 0
-            if (signature != _lastMaterialSignature || stencilDepth != _lastStencilDepth || _canvasMaterialDirty)
+            // A reimport destroys the asset's canvas materials: a new revision re-resolves the atlas material,
+            // which the layout alone would keep drawing with (the error shader) until the graphic was re-enabled.
+            if (signature != _lastMaterialSignature || _canvasMaterialDirty || _animeAsset.Revision != _materialAssetRevision)
             {
-                RebuildCanvasMaterial(texHash, stencilDepth);
+                RebuildCanvasMaterial(texHash);
                 _lastMaterialSignature = signature;
-                _lastStencilDepth = stencilDepth;
+                _materialAssetRevision = _animeAsset.Revision;
                 _canvasMaterialDirty = false;
             }
         }
 
-        private void RebuildCanvasMaterial(uint texHash, int stencilDepth)
+        private void RebuildCanvasMaterial(uint texHash)
         {
-            ReleaseCanvasStencil();
+            ReleaseAtlasMaterial();
 
             Material baseMat = _animeAsset.ResolveCanvasMaterial(texHash, 0);
             if (baseMat == null)
@@ -778,41 +817,30 @@ namespace SpriteStudio.Runtime
 
             // Runtime cellmap texture replacement (Player-side override): clone the asset-shared canvas
             // material and swap its texture so the replacement is per-player. Cloned (never mutated) and
-            // released with the stencil wrapper. ReleaseCanvasStencil above already freed any prior clone.
+            // released with the atlas material. ReleaseAtlasMaterial above already freed any prior clone.
             if (_textureOverride.HasAny && _textureOverride.TryGet(texHash, out var ovrTex))
             {
                 _canvasTexOverride = new Material(baseMat) { hideFlags = HideFlags.HideAndDontSave, name = baseMat.name + "_TexOverride" };
                 _canvasTexOverride.mainTexture = ovrTex;
                 baseMat = _canvasTexOverride;
             }
-
-            Material finalMat = baseMat;
-            if (stencilDepth > 0)
-            {
-                // Read-only stencil test for a parent uGUI Mask (Comp Equal, Op Keep, no write).
-                int stencilId = (1 << stencilDepth) - 1;
-                _canvasStencilWrapped = UnityEngine.UI.StencilMaterial.Add(
-                    baseMat, stencilId,
-                    UnityEngine.Rendering.StencilOp.Keep,
-                    UnityEngine.Rendering.CompareFunction.Equal,
-                    UnityEngine.Rendering.ColorWriteMask.All,
-                    stencilId, 0);
-                finalMat = _canvasStencilWrapped;
-            }
+            _atlasMaterial = baseMat;
 
             canvasRenderer.materialCount = 1;
-            canvasRenderer.SetMaterial(finalMat, 0);
+            canvasRenderer.SetMaterial(materialForRendering, 0);
+            canvasRenderer.SetTexture(mainTexture);
         }
 
-        // The mesh packs per-vertex [rate, blend_idx, isNormalized, reserved] into TEXCOORD1. A Canvas
-        // only emits the shader channels listed in additionalShaderChannels; TexCoord1 is NOT included
-        // by default, so without this the uv1 data is dropped/garbage and the part-color blend breaks
-        // (renders black). Enable it on the canvas we render to.
+        // The mesh packs per-vertex [rate, blend_idx, isNormalized, isAdditive] into TEXCOORD1 and the
+        // part colour into TEXCOORD2. A Canvas only emits the shader channels listed in
+        // additionalShaderChannels, and neither is included by default, so without this the data is
+        // dropped/garbage and the part-color blend breaks (renders black). Enable both on the canvas we
+        // render to.
         private void EnsureCanvasShaderChannels()
         {
             var c = canvas;
             if (c == null) return;
-            const AdditionalCanvasShaderChannels needed = AdditionalCanvasShaderChannels.TexCoord1;
+            const AdditionalCanvasShaderChannels needed = AdditionalCanvasShaderChannels.TexCoord1 | AdditionalCanvasShaderChannels.TexCoord2;
             if ((c.additionalShaderChannels & needed) != needed)
             {
                 c.additionalShaderChannels |= needed;
@@ -820,17 +848,15 @@ namespace SpriteStudio.Runtime
         }
 
         // Per-player canvas material clone holding a replaced texture (null when no replacement is active).
-        // Released together with the stencil wrapper, so every ReleaseCanvasStencil site (rebuild start,
-        // empty-mesh path, OnDisable) frees it too.
+        // Released with the atlas material, so every ReleaseAtlasMaterial site (rebuild start, empty-mesh
+        // path, OnDisable) frees it too.
         private Material _canvasTexOverride;
 
-        private void ReleaseCanvasStencil()
+        // The stencil variants materialForRendering produced are MaskableGraphic's and Mask's, released by
+        // them; only the texture-replacement clone is this graphic's.
+        private void ReleaseAtlasMaterial()
         {
-            if (_canvasStencilWrapped != null)
-            {
-                UnityEngine.UI.StencilMaterial.Remove(_canvasStencilWrapped);
-                _canvasStencilWrapped = null;
-            }
+            _atlasMaterial = null;
             if (_canvasTexOverride != null)
             {
                 if (Application.isPlaying) Destroy(_canvasTexOverride); else DestroyImmediate(_canvasTexOverride);
@@ -898,8 +924,9 @@ namespace SpriteStudio.Runtime
         {
             // Do NOT call base: the standard uGUI material rebuild (CanvasUpdateRegistry) would try to
             // drive our mesh/material through the normal Graphic path and fight our direct SetMesh/
-            // SetMaterial. Instead just flag a re-resolve so a mask-hierarchy change (MaskableGraphic
-            // raises SetMaterialDirty on stencil-state changes) re-wraps the per-submesh materials.
+            // SetMaterial. Instead flag a re-send, so the next ApplyAndRender hands the CanvasRenderer a
+            // fresh materialForRendering: uGUI raises this for a new Material, for a Mask added, removed or
+            // toggled, and for a reparent under or out of one (MaskableGraphic.RecalculateMasking).
             _canvasMaterialDirty = true;
         }
 

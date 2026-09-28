@@ -35,6 +35,10 @@ namespace SpriteStudio.Editor
         private static readonly List<Job> _pending = new List<Job>();
         private static readonly List<Active> _active = new List<Active>();
         private static bool _polling;
+        // A domain reload while jobs run would drop this class's state -- the queue, and the native
+        // contexts still converting -- so the batch never finishes: its .ssab are not registered in the
+        // source map and never refreshed. Script reloads wait until the batch ends, as they do for an import.
+        private static bool _reloadLocked;
 
         // Progress (a single Progress for the whole running batch; lives until the queue is empty)
         private static int _progressId = -1;
@@ -91,6 +95,11 @@ namespace SpriteStudio.Editor
             {
                 EditorApplication.update += Poll;
                 _polling = true;
+                if (!_reloadLocked)
+                {
+                    EditorApplication.LockReloadAssemblies();
+                    _reloadLocked = true;
+                }
             }
 
             Pump();
@@ -401,6 +410,11 @@ namespace SpriteStudio.Editor
         {
             EditorApplication.update -= Poll;
             _polling = false;
+            if (_reloadLocked)
+            {
+                _reloadLocked = false;
+                EditorApplication.UnlockReloadAssemblies();
+            }
 
             if (_progressId != -1)
             {

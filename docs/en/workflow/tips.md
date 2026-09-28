@@ -51,7 +51,7 @@ This plugin's Tick / mesh construction loop produces no GC allocations (it reuse
 Supports AddOns set on SpriteStudio parts (sepia / hsb / outline / blur / pixelate / noise / wave, etc.).
 
 - The built-in AddOns are pre-registered and need no setup: the package ships a default catalog at `Runtime/Resources/SpriteStudioAddOnCatalog.asset` that resolves them automatically.
-- To add a custom shader, register it in that default catalog — select the asset and add an entry whose **Id Name** matches the shader id set on the part in the SpriteStudio editor, with a **Shader** that follows the AddOn contract (`SpriteStudioAddOn.hlsl`). The **Window > SpriteStudio > Create or Update Default AddOn Catalog** menu rebuilds the catalog from the built-in AddOns, so re-add custom entries after running it.
+- To add a custom shader, give the player a catalog of your own: create one with **Assets > Create > SpriteStudio > Shader Catalog**, add an entry whose **Id Name** matches the shader id set on the part in the SpriteStudio editor, with a **Shader** that follows the AddOn contract (`SpriteStudioAddOn.hlsl`), and assign the catalog to the player's **Shader Catalog** field. The player looks an id up there first, and whatever it does not list falls through to the built-in AddOns. The default catalog belongs to the installed package, which cannot be edited.
 - It does not use `MaterialPropertyBlock`; instead it supplies materials from a material pool keyed by `(shaderId, blend)`, so it **does not obstruct the SRP Batcher**.
 
 > The AddOn path supports both URP / Built-in.
@@ -61,7 +61,7 @@ Supports AddOns set on SpriteStudio parts (sepia / hsb / outline / blur / pixela
 Supports SpriteStudio's masking / clipping (per-part) using the stencil buffer.
 
 - **World path (`SpriteStudioPlayer`)**: Draws with the stencil using SpriteStudio's internal mask mechanism. On URP, the stencil bits used are limited so that masking does not break when combined with SSAO / Deferred / Decal.
-- **Canvas path (`SpriteStudioGraphic`)**: SpriteStudio's internal mask is suppressed; instead it follows uGUI's **Mask** / **RectMask2D** (placing a mask on a parent clips this graphic).
+- **Canvas path (`SpriteStudioGraphic`)**: SpriteStudio's internal mask is suppressed; instead it follows uGUI's **Mask** / **RectMask2D** (placing a mask on a parent clips this graphic, and a **Mask** on the graphic itself clips its children).
 
 ## Canvas (uGUI) Path Constraints
 
@@ -69,13 +69,12 @@ Supports SpriteStudio's masking / clipping (per-part) using the stencil buffer.
 
 - **Single-atlas assumption**: For animations that use multiple atlases, only the first atlas is drawn, and parts from other atlases cannot sample the correct texture (a warning is logged). Either **consolidate into a single atlas** or **use the world path (`SpriteStudioPlayer`)**.
 - **Part draw modes**: MIX and ADD are dispatched per-vertex within the shader. Other blends are collapsed into MIX.
-- **Enabling TexCoord1**: To pass Part-Color data via TEXCOORD1, `TexCoord1` is automatically added to the target Canvas's `additionalShaderChannels`.
+- **Enabling TexCoord1 / TexCoord2**: Part-Color data travels in TEXCOORD1 and TEXCOORD2, so `TexCoord1` and `TexCoord2` are automatically added to the target Canvas's `additionalShaderChannels`. The vertex colour is left to uGUI: it carries the graphic's **Color**, like an `Image`'s.
 
-If you want to correctly use complex blends, multiple atlases, or all of the extended blend types, we recommend using the world path (`SpriteStudioPlayer`).
+If you want to correctly use complex blends or multiple atlases, we recommend using the world path (`SpriteStudioPlayer`). It draws Mul2 as Mul and Screen2 as Screen, and Div2 / Overlay2 as MIX (see [Limitations](../limitations.md)).
 
 ## Render Pipeline
 
 Supports both Universal (URP) / Built-in (BRP).
 
-- Immediately after importing on URP, material references may become inconsistent and rendering may turn pink. In most cases, restarting the editor or reimporting resolves this.
 - In edit mode, only a static preview of the start frame is shown. Perform behavior checks in Play mode.

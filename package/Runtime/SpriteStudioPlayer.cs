@@ -12,6 +12,9 @@ namespace SpriteStudio.Runtime
     /// batched by SpriteStudioUpdateManager as "all Schedule -> all Apply" (Job parallelization).
     /// </summary>
     [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
+    // One MeshFilter and one MeshRenderer serve one player: a second on the same GameObject would assign its
+    // own mesh and material list over the first's.
+    [DisallowMultipleComponent]
     // [ExecuteAlways]: run OnEnable/LateUpdate in edit mode too, building the "start-frame static preview"
     // exactly once when placed in the scene (does not play). The per-frame drive in Play mode is still
     // centrally managed by SpriteStudioUpdateManager as before (the manager does not run in edit mode).
@@ -67,28 +70,39 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        [Header("Sorting")]
-        [SerializeField] private string _sortingLayerName = "Default";
-        [SerializeField] private int _sortingOrder = 0;
-
+        /// <summary>
+        /// The Mesh Renderer's sorting layer -- the draw order belongs to the renderer, as it does for any
+        /// renderer, and is set in its Inspector (Additional Settings) or here.
+        /// </summary>
         public string SortingLayerName
         {
-            get => _meshRenderer != null ? _meshRenderer.sortingLayerName : _sortingLayerName;
-            set
-            {
-                _sortingLayerName = value;
-                if (_meshRenderer != null) _meshRenderer.sortingLayerName = value;
-            }
+            get => SortingRenderer.sortingLayerName;
+            set => SortingRenderer.sortingLayerName = value;
         }
 
+        /// <summary>The Mesh Renderer's order in layer. See <see cref="SortingLayerName"/>.</summary>
         public int SortingOrder
         {
-            get => _meshRenderer != null ? _meshRenderer.sortingOrder : _sortingOrder;
-            set
-            {
-                _sortingOrder = value;
-                if (_meshRenderer != null) _meshRenderer.sortingOrder = value;
-            }
+            get => SortingRenderer.sortingOrder;
+            set => SortingRenderer.sortingOrder = value;
+        }
+
+        private MeshRenderer SortingRenderer => _meshRenderer != null ? _meshRenderer : GetComponent<MeshRenderer>();
+
+        // The sorting this component used to keep as well, and copied onto the renderer on every enable. A
+        // scene or prefab saved then still carries it: hand it to the renderer once, then forget it. Empty /
+        // zero on anything created since.
+        [SerializeField, HideInInspector] private string _sortingLayerName;
+        [SerializeField, HideInInspector] private int _sortingOrder;
+
+        private void MigrateSortingToRenderer()
+        {
+            if (string.IsNullOrEmpty(_sortingLayerName) && _sortingOrder == 0) return;
+            var r = SortingRenderer;
+            if (!string.IsNullOrEmpty(_sortingLayerName)) r.sortingLayerName = _sortingLayerName;
+            r.sortingOrder = _sortingOrder;
+            _sortingLayerName = null;
+            _sortingOrder = 0;
         }
 
         [Header("Playback Settings")]
@@ -308,7 +322,6 @@ namespace SpriteStudio.Runtime
         /// <summary>Whether a playback session is active. True even while paused (false when stopped / not playing).</summary>
         public bool IsPlaying => _core.Internal?.IsPlaying() ?? false;
 
-        /// <summary>Whether currently paused (true only while a playback session is active and paused).</summary>
         /// <summary>
         /// Whether the last update crossed a loop boundary. A <b>pulse</b>, true only inside the tick
         /// that crossed — take <c>OnAnimationLooped</c> instead if you want it delivered rather than
@@ -321,6 +334,7 @@ namespace SpriteStudio.Runtime
             ? _animeAsset.AnimationNames
             : System.Array.Empty<string>();
 
+        /// <summary>Whether currently paused (true only while a playback session is active and paused).</summary>
         public bool IsPausing
         {
             get
@@ -575,6 +589,17 @@ namespace SpriteStudio.Runtime
 
         private void Start()
         {
+            _started = true;
+            StartPlayback();
+        }
+
+        // Whether Start has run. OnDisable disposes the native player, so a player enabled again comes back
+        // with nothing set up; from the second enable on, OnEnable repeats what Start did, as an Animator
+        // returns to its default state and a Play On Awake particle system plays again.
+        [System.NonSerialized] private bool _started;
+
+        private void StartPlayback()
+        {
             if (string.IsNullOrEmpty(_animationName)) return;
             // Always call SetAnimation so the first frame is posed even when AutoPlay is off; actually start
             // playback only when AutoPlay is on. SetAnimation pushes the serialized loop/speed/skip itself,
@@ -637,10 +662,7 @@ namespace SpriteStudio.Runtime
         {
             _meshFilter = GetComponent<MeshFilter>();
             _meshRenderer = GetComponent<MeshRenderer>();
-
-            // Initial apply of the draw order
-            _meshRenderer.sortingLayerName = _sortingLayerName;
-            _meshRenderer.sortingOrder = _sortingOrder;
+            MigrateSortingToRenderer();
 
             // Build the single mesh for zero-allocation rendering (do not recreate it)
             if (_sharedMesh == null)
@@ -677,6 +699,7 @@ namespace SpriteStudio.Runtime
             // In edit mode, build the start-frame static preview once right after placement (consumed in LateUpdate).
             if (!Application.isPlaying) _editPreviewDirty = true;
 #endif
+            if (_started && Application.isPlaying) StartPlayback();
         }
 
         private void InvokeAnimationStarted() => OnAnimationStartedEvent?.Invoke();
@@ -735,6 +758,29 @@ namespace SpriteStudio.Runtime
             }
         }
 
+        // An Animator, or a Timeline Animation Track, writes keyed fields straight into the component -- as the
+        // Inspector does, bypassing the property setters -- and calls this after each evaluation, the hook
+        // uGUI's Graphic uses for the same. Push the live-tunable ones, so a keyed Flip X, Offset or Speed
+        // Scale reaches the drawing as a keyed SpriteRenderer.flipX does.
+        private void OnDidApplyAnimationProperties()
+        {
+            var p = _core.Internal;
+            if (p != null)
+            {
+                p.SetSpeed(_speedScale);
+                p.SetSkipFrames(_skipFrames);
+                p.SubFrameEnabled = _subFrameEnabled;
+                // SetLoop re-arms the loops left, and this runs on every evaluation: write it only when the
+                // keyed count differs from the runtime's, which keeps 0 and below as -1.
+                if (p.GetLoop() != (_loopCount > 0 ? _loopCount : -1)) p.SetLoop(_loopCount);
+            }
+            ApplyPixelsPerUnit();
+#if UNITY_EDITOR
+            // The Animation window previews in edit mode, where nothing else rebuilds the static preview.
+            if (!Application.isPlaying) _editPreviewDirty = true;
+#endif
+        }
+
 #if UNITY_EDITOR
         // Baseline of the core settings (asset / animation) currently applied to the runtime, so OnValidate
         // can tell an actual asset/animation change apart from tweaking speed etc. Editor-only; rebuilt on
@@ -759,12 +805,6 @@ namespace SpriteStudio.Runtime
                 // to do nothing until something else happened to reapply it.
                 ApplyPixelsPerUnit();
             }
-            if (_meshRenderer != null)
-            {
-                _meshRenderer.sortingLayerName = _sortingLayerName;
-                _meshRenderer.sortingOrder = _sortingOrder;
-            }
-
             // Fundamental settings: changing the asset or animation in the inspector must refresh the
             // runtime (the serialized fields are written directly, bypassing the property setters).
             bool assetChanged = !ReferenceEquals(_appliedAsset, _animeAsset);
@@ -816,15 +856,28 @@ namespace SpriteStudio.Runtime
         private void LateUpdate()
         {
             if (Application.isPlaying) return;
+            // A reimported .ssab keeps this reference and brings new data, which EnsureCreated loads; so does
+            // the self-heal if the .ssab was still importing when OnEnable ran (Editor restart race). Either
+            // way what came from the previous pack is rebuilt, the preview included.
+            if (_core.EnsureCreated(_animeAsset, _subFrameEnabled))
+            {
+                _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
+                MarkPartTrackersDirty();
+                _editPreviewDirty = true;
+            }
+            // An edited AddOn catalog changes the per-part materials the preview drew with.
+            if (_shaderCatalog != null && _shaderCatalog.Version != _previewCatalogVersion) _editPreviewDirty = true;
             if (!_editPreviewDirty) return;
-            // Self-heal if the .ssab was still importing when OnEnable ran (Editor restart race): keep
-            // retrying while the runtime has no ssab yet, and only clear the dirty flag (build once) once
+            // Keep retrying while the runtime has no ssab yet, and only clear the dirty flag (build once) once
             // it is ready. A setup failure after that is a config error, not a race, so we do not loop.
-            _core.EnsureCreated(_animeAsset, _subFrameEnabled);
             if (_core.Internal == null || !_core.Internal.HasSsab) return;
             _editPreviewDirty = false;
+            _previewCatalogVersion = _shaderCatalog != null ? _shaderCatalog.Version : 0;
             BuildEditPreview();
         }
+
+        // The catalog version the edit preview was last built against.
+        private int _previewCatalogVersion;
 
         private void BuildEditPreview()
         {
@@ -901,7 +954,10 @@ namespace SpriteStudio.Runtime
             for (int i = 0; i < _partTrackers.Count; i++)
             {
                 var tracker = _partTrackers[i];
-                if (tracker == null || tracker.target == null) continue;
+                if (tracker == null) continue;
+                // A target swapped out while this tracker had it deactivated goes back as it was found.
+                if (tracker.HiddenTarget != null && tracker.HiddenTarget != tracker.target) ActivateHiddenTarget(tracker);
+                if (tracker.target == null) continue;
 
                 // Resolve part index (cached; rebuilt on asset reload via MarkPartTrackersDirty).
                 if (tracker.ResolvedIndex == SpriteStudioPartTracker.ResolveDirty)
@@ -911,7 +967,7 @@ namespace SpriteStudio.Runtime
                 if (partIndex < 0)
                 {
                     // Part absent from this animation: nothing to follow, so deactivate the target.
-                    if (tracker.target.gameObject.activeSelf) tracker.target.gameObject.SetActive(false);
+                    DeactivateTarget(tracker);
                     continue;
                 }
 
@@ -919,14 +975,14 @@ namespace SpriteStudio.Runtime
                 bool hasState = internalPlayer.TryGetPartState(partIndex, out bool hidden, out float lsx, out float lsy);
                 if (hidden && tracker.onHide == SpriteStudioPartTrackerHide.Deactivate)
                 {
-                    if (tracker.target.gameObject.activeSelf) tracker.target.gameObject.SetActive(false);
+                    DeactivateTarget(tracker);
                     continue;
                 }
 
                 if (!internalPlayer.TryGetPartTransform(partIndex, out Matrix4x4 partLocal)) continue;
 
-                // Re-activate if it was auto-deactivated (absent / hidden) on a previous frame.
-                if (!tracker.target.gameObject.activeSelf) tracker.target.gameObject.SetActive(true);
+                // Re-activate what this tracker deactivated (absent / hidden) on a previous frame.
+                ActivateHiddenTarget(tracker);
 
                 // Remove the part's own localScale (it scales the basis columns) so only the inherited
                 // scale drives the target. Exact; a degenerate (~0) localScale axis is left untouched.
@@ -966,6 +1022,25 @@ namespace SpriteStudio.Runtime
             }
         }
 
+        // Deactivate a tracker's target, recording that the tracker did so it can be activated again -- and
+        // only then: a target already inactive is the user's to keep so. Play mode only: the edit-mode preview
+        // would save the target inactive into the scene, and the record does not survive a domain reload to
+        // undo it.
+        private static void DeactivateTarget(SpriteStudioPartTracker tracker)
+        {
+            if (!Application.isPlaying || !tracker.target.gameObject.activeSelf) return;
+            tracker.target.gameObject.SetActive(false);
+            tracker.HiddenTarget = tracker.target;
+        }
+
+        private static void ActivateHiddenTarget(SpriteStudioPartTracker tracker)
+        {
+            var hidden = tracker.HiddenTarget;
+            if (hidden == null) return;
+            tracker.HiddenTarget = null;
+            if (!hidden.gameObject.activeSelf) hidden.gameObject.SetActive(true);
+        }
+
         // --- Part tracking public API ---
 
         /// <summary>Register a part tracker at runtime. Returns the created entry.</summary>
@@ -987,11 +1062,19 @@ namespace SpriteStudio.Runtime
             return tracker;
         }
 
-        /// <summary>Remove all trackers whose target is the given Transform. Returns the number removed.</summary>
+        /// <summary>
+        /// Remove all trackers whose target is the given Transform, activating it again if a tracker had
+        /// deactivated it. Returns the number removed.
+        /// </summary>
         public int UnregisterPartTracker(Transform target)
         {
             if (_partTrackers == null) return 0;
-            return _partTrackers.RemoveAll(t => t != null && t.target == target);
+            return _partTrackers.RemoveAll(t =>
+            {
+                if (t == null || t.target != target) return false;
+                ActivateHiddenTarget(t);
+                return true;
+            });
         }
 
         /// <summary>Is the named part hidden on the current frame? False if the part is unknown / absent.</summary>
@@ -1078,6 +1161,11 @@ namespace SpriteStudio.Runtime
 
             // Layout signature. threshold is per-frame variable, so it is not included here and is passed via the MPB.
             uint signature = (uint)subCount;
+            // Fold in the asset's revision: a reimport destroys the material variants in the list, and the
+            // layout alone would keep drawing with them (the error shader) until the player was re-enabled.
+            signature = signature * 31u + (uint)_animeAsset.Revision;
+            // And the catalog's version: an edited catalog can resolve an AddOn part to a different shader.
+            signature = signature * 31u + (uint)(_shaderCatalog != null ? _shaderCatalog.Version : 0);
             // Fold in the texture-replacement version so changing a replacement rebuilds the material list
             // even when the draw layout (count/hashes/blends/roles) is otherwise identical.
             signature = signature * 31u + (uint)_textureOverride.Version;
@@ -1322,7 +1410,7 @@ namespace SpriteStudio.Runtime
             // Set the animation up when clip control begins
             if (_core.Internal != null && !string.IsNullOrEmpty(_animationName))
             {
-                _core.Internal.SetupAnimation(_animationName);
+                SetUpForTimeline(_animationName);
             }
         }
 
@@ -1330,9 +1418,26 @@ namespace SpriteStudio.Runtime
         {
             // Seek via Timeline: convert clip-local time (seconds) to a frame number and set it
             if (_core.Internal == null) return;
+            SeekForTimeline(time);
+        }
+
+        // The Timeline sets the animation up itself rather than through SetAnimation, which would write the
+        // serialized Animation Name. The runtime resets the loop count on every setup, so put this
+        // component's playback settings back as SetAnimation does: a player that plays once after the
+        // cutscene would otherwise loop forever.
+        private bool SetUpForTimeline(string animationName)
+        {
+            if (!_core.Internal.SetupAnimation(animationName)) return false;
+            ApplyPlaybackSettings();
+            return true;
+        }
+
+        // Clip-local time counts from the animation's first frame, not from frame 0.
+        private void SeekForTimeline(double clipLocalTime)
+        {
             int fps = _core.Internal.GetFrameRate();
             if (fps <= 0) fps = 60;
-            _core.Internal.SetFrame((float)(time * fps));
+            _core.Internal.SetFrame(_core.Internal.GetAnimationSectionStart() + (float)(clipLocalTime * fps));
         }
 
         public void OnControlTimeStop()
@@ -1352,8 +1457,8 @@ namespace SpriteStudio.Runtime
         /// (only when it changes) and seeks to the frame for the clip-local time (seconds). State is computed
         /// in bulk by Rust based on the time, so no matter how far the seek bar is scrubbed back and forth it
         /// stays deterministic and does not break.
-        /// NOTE: Play-mode only (SpriteStudioPlayer is not ExecuteAlways, so in edit mode the Internal/Mesh
-        /// are not created and nothing renders). Edit-mode seek preview is future work.
+        /// NOTE: drawn in Play mode only. The UpdateManager, which renders what this seeks, runs in Play mode,
+        /// and the edit-mode preview holds the start frame.
         /// </summary>
         public void EvaluateTimelineClip(string animationName, double clipLocalTime)
         {
@@ -1362,13 +1467,11 @@ namespace SpriteStudio.Runtime
 
             if (!string.IsNullOrEmpty(animationName) && animationName != _timelineCurrentAnim)
             {
-                if (_core.Internal.SetupAnimation(animationName))
+                if (SetUpForTimeline(animationName))
                     _timelineCurrentAnim = animationName;
             }
 
-            int fps = _core.Internal.GetFrameRate();
-            if (fps <= 0) fps = 60;
-            _core.Internal.SetFrame((float)(clipLocalTime * fps));
+            SeekForTimeline(clipLocalTime);
             // Rendering is done by the UpdateManager via PrepareFrame(advance=false) -> ApplyAndRender (same path as SetTime).
         }
 

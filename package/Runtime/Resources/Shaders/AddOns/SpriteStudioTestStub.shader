@@ -50,7 +50,7 @@ Shader "SpriteStudio/AddOn/TestStub"
 
         Pass
         {
-            Tags { "LightMode"="UniversalForward" }
+            Tags { "LightMode"="SRPDefaultUnlit" }
             HLSLPROGRAM
             #pragma vertex ss_world_vert
             #pragma fragment frag

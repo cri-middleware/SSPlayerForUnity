@@ -80,7 +80,7 @@ graph LR
 - **Every reference is a hard GUID reference.** Nothing is resolved by file path at runtime, so references resolve wherever the assets live — Resources, AssetBundle or Addressables. Conversely, a bundle that contains a `.ssab` pulls in its dependencies too (`.mat` → `.png`, `AudioClip`, and the `.ssab` an Instance part references).
 - **Paths are only searched at import time**: the importer looks for textures in the same folder as the `.ssab`, and uses the `.mat` adjacent to each texture. Move the files in a folder together.
 - The **Textures** edge above covers two kinds: the cell map atlases, and the textures a **texture change (TCHG)** swaps in. The importer collects both and references them by GUID, so neither can go missing from a bundle on its own.
-- **The shader** lives under `Runtime/Resources` in the package, so it is always included in the player build. The shader used for generated materials can be changed in the import settings shown when a `.ssab` is selected (**Generate Materials** / **Override Shader**).
+- **The shader** lives under `Runtime/Resources` in the package, so it is always included in the player build. The shader a `.mat` is created with can be chosen in the import settings shown when a `.ssab` is selected (**Generate Materials** / **Override Shader**). It applies when a `.mat` is created; a `.mat` that already exists keeps its own shader, so change that on the `.mat` itself.
 
 ---
 

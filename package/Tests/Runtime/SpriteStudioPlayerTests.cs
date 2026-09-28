@@ -78,6 +78,73 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
+        public void RendererSorting_IsLeftAloneOnEnable()
+        {
+            var player = _go.AddComponent<SpriteStudioPlayer>();
+            var renderer = _go.GetComponent<MeshRenderer>();
+            renderer.sortingOrder = 7;
+
+            _go.SetActive(false);
+            _go.SetActive(true);
+
+            Assert.AreEqual(7, renderer.sortingOrder, "Enabling should not overwrite the renderer's own sorting");
+            Assert.AreEqual(7, player.SortingOrder);
+        }
+
+        [Test]
+        public void SortingSavedOnTheComponent_MovesToTheRendererOnce()
+        {
+            var player = _go.AddComponent<SpriteStudioPlayer>();
+            var renderer = _go.GetComponent<MeshRenderer>();
+            _go.SetActive(false);
+            // What a scene saved while the component kept its own sorting carries.
+            typeof(SpriteStudioPlayer).GetField("_sortingOrder", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .SetValue(player, 4);
+
+            _go.SetActive(true);
+            Assert.AreEqual(4, renderer.sortingOrder, "The saved value should reach the renderer");
+
+            renderer.sortingOrder = 9;
+            _go.SetActive(false);
+            _go.SetActive(true);
+            Assert.AreEqual(9, renderer.sortingOrder, "Once moved, the old value should not come back");
+        }
+
+        [Test]
+        public void ExtendedBlends_DrawAsTheOtherPlayersDrawThem()
+        {
+            Assert.AreEqual(SpriteStudioBlendTable.Get(1), SpriteStudioBlendTable.Get(8), "Mul2 draws as Mul");
+            Assert.AreEqual(SpriteStudioBlendTable.Get(5), SpriteStudioBlendTable.Get(10), "Screen2 draws as Screen");
+            Assert.AreEqual(SpriteStudioBlendTable.Get(0), SpriteStudioBlendTable.Get(9), "Div2 falls back to Mix");
+            Assert.AreEqual(SpriteStudioBlendTable.Get(0), SpriteStudioBlendTable.Get(11), "Overlay2 falls back to Mix");
+        }
+
+        [Test]
+        public void ShaderCatalog_AnEditedEntry_ResolvesOnceValidated()
+        {
+            var catalog = ScriptableObject.CreateInstance<SpriteStudioShaderCatalog>();
+            try
+            {
+                uint id = SpriteStudioShaderCatalog.HashId("custom-shader");
+                Assert.IsFalse(catalog.TryResolve(id, out _, out _), "an empty catalog resolves nothing");
+                int version = catalog.Version;
+
+                // What an Inspector edit does: change the entries, then OnValidate.
+                catalog.Entries.Add(new SpriteStudioShaderCatalog.Entry { IdName = "custom-shader", Shader = Shader.Find("SpriteStudio/Default") });
+                typeof(SpriteStudioShaderCatalog).GetMethod("OnValidate", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                    .Invoke(catalog, null);
+
+                Assert.IsTrue(catalog.TryResolve(id, out var shader, out _), "the new entry should resolve without a domain reload");
+                Assert.AreEqual("SpriteStudio/Default", shader.name);
+                Assert.AreNotEqual(version, catalog.Version, "players key their per-part materials on the version");
+            }
+            finally
+            {
+                Object.DestroyImmediate(catalog);
+            }
+        }
+
+        [Test]
         public void TimelineControl_SetsStateCorrectly()
         {
             var player = _go.AddComponent<SpriteStudioPlayer>();

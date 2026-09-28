@@ -46,25 +46,49 @@ namespace SpriteStudio.Runtime
         // signature cannot see on its own - it treats the child as one opaque block).
         public ulong TopologySignature => _geometryBuilder != null ? _geometryBuilder.TopologySignature : 0UL;
 
+        // The four root-transform values are folded into the geometry when it is built, so a change has to
+        // drop the frame-skip cache: on a paused or stopped player, or between two draws of one frame, the
+        // geometry would otherwise stay as it was until the frame number next changed.
+
         /// <summary>
         /// Uniform scale applied to vertex positions (= 1 / PixelsPerUnit). Default 1 (= pixel-for-pixel).
         /// Set only on the top-level player; Instance children stay at 1
         /// (children are ingested into the parent in px and scaled once by the parent; prevents double scaling).
         /// </summary>
-        public float VertexScale { get; set; } = 1f;
+        public float VertexScale
+        {
+            get => _vertexScale;
+            set { if (_vertexScale != value) { _vertexScale = value; _geometryBuilder?.InvalidateFrameCache(); } }
+        }
+        private float _vertexScale = 1f;
 
         /// <summary>Mirror the drawn animation horizontally / vertically. See <see cref="RootScale"/>.</summary>
-        public bool FlipX { get; set; }
+        public bool FlipX
+        {
+            get => _flipX;
+            set { if (_flipX != value) { _flipX = value; _geometryBuilder?.InvalidateFrameCache(); } }
+        }
+        private bool _flipX;
 
         /// <inheritdoc cref="FlipX"/>
-        public bool FlipY { get; set; }
+        public bool FlipY
+        {
+            get => _flipY;
+            set { if (_flipY != value) { _flipY = value; _geometryBuilder?.InvalidateFrameCache(); } }
+        }
+        private bool _flipY;
 
         /// <summary>
         /// Post-scale shift of the drawn animation, in Unity world units. Like <see cref="FlipX"/> this moves
         /// only what this player draws, never the GameObject, so children and colliders stay where they are.
         /// Same "top-level player only" rule as <see cref="VertexScale"/>.
         /// </summary>
-        public Vector2 VertexOffset { get; set; } = Vector2.zero;
+        public Vector2 VertexOffset
+        {
+            get => _vertexOffset;
+            set { if (_vertexOffset != value) { _vertexOffset = value; _geometryBuilder?.InvalidateFrameCache(); } }
+        }
+        private Vector2 _vertexOffset = Vector2.zero;
 
         /// <summary>
         /// <see cref="VertexScale"/> resolved per axis, negated on each flipped axis. This is the one place the
@@ -606,6 +630,9 @@ internal struct MaskPartData
         public bool SetupAnimationByHash(uint animationNameHash)
         {
             if (!_handle.IsValid) return false;
+            // Setup clears and resizes the world-matrix, UV, shape and mesh buffers the mesh job reads
+            // through raw pointers, reallocating them when the new animation has more parts.
+            _geometryBuilder?.CurrentUpdateJobHandle.Complete();
             unsafe
             {
                 bool ok = NativeMethods.ss_runtime_setup_animation_by_hash(_handle.ptr, animationNameHash);
@@ -1190,6 +1217,9 @@ internal struct MaskPartData
         public bool SetupAnimation(string animationName)
         {
             if (!_handle.IsValid || string.IsNullOrEmpty(animationName)) return false;
+            // Setup clears and resizes the world-matrix, UV, shape and mesh buffers the mesh job reads
+            // through raw pointers, reallocating them when the new animation has more parts.
+            _geometryBuilder?.CurrentUpdateJobHandle.Complete();
             unsafe
             {
                 var bytes = System.Text.Encoding.UTF8.GetBytes(animationName + "\0");
@@ -1459,6 +1489,7 @@ internal struct MaskPartData
         public void PrepareFrameData(float deltaTime, bool advance, out System.IntPtr handle, out float drawFrame) => _geometryBuilder.PrepareFrameData(deltaTime, advance, out handle, out drawFrame);
         public void ScheduleMeshUpdate(float deltaTime) => _geometryBuilder.ScheduleMeshUpdate(deltaTime);
         public void ConsumeFrameData(System.IntPtr frameDataPtrRaw, int len, float deltaTime) => _geometryBuilder.ConsumeFrameData(frameDataPtrRaw, len, deltaTime);
-        public void ApplyToMesh(UnityEngine.Mesh targetMesh, bool perBatchSubmesh = false, bool use16BitIndices = false) => _geometryBuilder.ApplyToMesh(targetMesh, perBatchSubmesh, use16BitIndices);
+        public void ApplyToMesh(UnityEngine.Mesh targetMesh, bool perBatchSubmesh = false) => _geometryBuilder.ApplyToMesh(targetMesh, perBatchSubmesh);
+        public void ApplyToCanvasMesh(UnityEngine.Mesh targetMesh, UnityEngine.Color32 tint) => _geometryBuilder.ApplyToCanvasMesh(targetMesh, tint);
     }
 }

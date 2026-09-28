@@ -292,8 +292,10 @@ namespace SpriteStudio.Editor
         {
             if (File.Exists(path))
             {
-                // This asks the OS to open the file with its default associated application (SpriteStudio)
-                Application.OpenURL("file://" + path);
+                // This asks the OS to open the file with its default associated application (SpriteStudio).
+                // A path, not a file:// URL: one built by concatenation is not escaped, and a space or a
+                // Japanese folder name in it can make the OS refuse the URL without a word.
+                EditorUtility.OpenWithDefaultApp(path);
             }
         }
 

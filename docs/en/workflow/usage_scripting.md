@@ -48,6 +48,8 @@ Your playback settings hold across the switch: `SpeedScale`, `FrameSkipEnabled`,
 | `PlaybackStyle` | `enum` | What the playhead does at the far end (`Normal` / `PingPong`) |
 | `SetAnimationSection(int start, int end)` | Method | Limit the playback range by frame (frame-based; label specification is not supported) |
 
+The players advance and build their meshes early in **LateUpdate** (`DefaultExecutionOrder(-100)`), after every `Update`, the Timeline and the Animator have run. A call made from your `Update` — `SetAnimation`, `Play`, a seek through `FrameNo` — is therefore drawn in the same frame, as a change to an Animator is; one made from your own `LateUpdate` is drawn in the next.
+
 ### Example: Pause and Resume
 
 ```csharp
@@ -82,13 +84,13 @@ _player.Play();
 
 ## Playback Parameter Properties
 
-These properties correspond to the inspector items. Changing them at runtime is reflected in the runtime immediately.
+These properties correspond to the inspector items. Changing them at runtime is reflected in the runtime immediately. The inspector items can also be keyed in an AnimationClip or a Timeline Animation Track — **Flip X**, **Offset**, **Speed Scale** and so on — and the player takes each keyed value up after the evaluation, as a `SpriteRenderer` takes a keyed **Flip X**.
 
 | Property | Type | Description |
 |---|---|---|
 | `AnimeAsset` | `SpriteStudioAnimeAsset` | Playback target asset (swappable) |
 | `CurrentAnimation` | `string` | Animation name |
-| `AutoPlay` | `bool` | Auto-play at startup |
+| `AutoPlay` | `bool` | Auto-play at startup and each time the component is enabled again |
 | `LoopCount` | `int` | Loop count (`-1` or `0` = infinite / `n` = n times) |
 | `SpeedScale` | `float` | Playback speed multiplier. Read back from the runtime, which clamps `0` and negatives to a **stop** (reverse is `PlaybackDirection`'s job), so `-1` reads back as `0` |
 | `SubFrameEnabled` | `bool` | Sub-frame interpolation |
@@ -335,13 +337,15 @@ When `Drive Scale` is ON, only the **inherited** scale is reflected; the part's 
 
 ### Notes
 
-- **The player controls the target's `SetActive`.** It is deactivated automatically in the two cases below, and reactivated automatically once the condition clears, so an active state you set yourself may be overwritten.
+- **The player deactivates the target in the two cases below**, and activates it again once the condition clears — only a target it deactivated itself. A target you deactivate yourself, such as a weapon kept out of sight until it is picked up, stays inactive. A target you deactivate while the player already has it deactivated still comes back when the condition clears: nothing on the target tells the two apart.
     - The part name does not exist in the current animation (always deactivated, regardless of the `On Hide` setting)
     - The part is hidden on this frame and `On Hide` is `Deactivate`
+
+    Replacing a tracker's `target`, or removing the tracker with `UnregisterPartTracker`, activates the target it had deactivated again.
 - Part names resolve against the parts of the animation the player itself is running. **Parts inside an Instance part (the child animation) cannot be specified** (the Instance part itself can).
 - If several parts share a name, the first one found is used.
 - Swapping `AnimeAsset` re-resolves part names automatically, so trackers do not need to be registered again.
-- In edit mode, trackers are applied once as well, when the static start-frame preview is built.
+- In edit mode, trackers are applied once as well, when the static start-frame preview is built. They move the target but never change its active state there.
 
 ## Part Overrides (Part Color / Cell / Visibility)
 
@@ -436,3 +440,5 @@ Replacements set in the inspector's **"Cellmap Texture Overrides"** (a name / te
 ## Driving from Timeline
 
 `SpriteStudioPlayer` implements `ITimeControl`, allowing playback time to be controlled from a Unity Timeline track. Timeline tracks / assets are also included.
+
+A clip's time counts from the animation's first frame. The player keeps its own **Loop Count**, **Speed Scale** and **Frame Skipping** through the clips, so a player set to play once still plays once when a script plays it after the cutscene.

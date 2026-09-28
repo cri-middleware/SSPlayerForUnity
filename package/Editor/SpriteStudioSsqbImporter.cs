@@ -77,17 +77,17 @@ namespace SpriteStudio.Editor
 
                     // Resolve the referenced anime pack (.ssab) to a project asset and hard-reference it.
                     // The resolution logic is shared with the .ssab importer (ResolveSsabPath), and so is the
-                    // artifact dependency that makes the referenced pack import first (SsabDependency).
+                    // artifact dependency that makes the referenced pack import first (ArtifactDependency).
                     if (!string.IsNullOrEmpty(it.RefAnimePack) && seenPacks.Add(it.RefAnimePack))
                     {
-                        SpriteStudioAnimeAssetBuilder.ResolveSsabPath(baseDir, it.RefAnimePack, out var animeAsset, SpriteStudioAnimeAssetBuilder.SsabDependency(ctx));
+                        SpriteStudioAnimeAssetBuilder.ResolveSsabPath(baseDir, it.RefAnimePack, out var animeAsset, SpriteStudioAnimeAssetBuilder.ArtifactDependency(ctx));
                         if (animeAsset != null)
                         {
                             if (seenAssets.Add(animeAsset)) asset.ReferencedAnimeAssets.Add(animeAsset);
                         }
                         else
                         {
-                            Debug.LogWarning($"[SpriteStudioSsqbImporter] Referenced anime pack not found: '{it.RefAnimePack}' (sequence '{seq.Name}')");
+                            ctx.LogImportWarning($"[SpriteStudioSsqbImporter] Referenced anime pack not found: '{it.RefAnimePack}' (sequence '{seq.Name}')");
                         }
                     }
                 }

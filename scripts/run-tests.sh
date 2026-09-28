@@ -15,7 +15,7 @@ Usage: run-tests.sh [--help]
   Each suite prints its counts from its NUnit result file. Skipped and
   inconclusive tests are counted there, never as passes.
 
-  Exit status: 0 every suite passed, 1 a suite failed,
+  Exit status: 0 every suite passed, 1 a suite failed or wrote no results,
                2 bad arguments or a missing prerequisite.
 EOF
 }
@@ -105,7 +105,7 @@ summarize() {
     local suite="$1" xml="$PROJECT_PATH/$1-$RESULTS_FILE" run total passed failed inconclusive skipped
     run=$(grep -o -m 1 '<test-run [^>]*>' "$xml" 2>/dev/null) || {
         echo "  $suite: no result file ($xml) -- the run did not finish; see $suite-$LOG_FILE"
-        return 0
+        return 1
     }
     attr() { echo "$run" | grep -o " $1=\"[0-9]*\"" | grep -o '[0-9][0-9]*' || echo 0; }
     total=$(attr total); passed=$(attr passed); failed=$(attr failed)
@@ -152,20 +152,22 @@ fi
 echo "Running EditMode Tests..."
 clear_results editmode
 "$UNITY_PATH" -batchmode -runTests -projectPath "$PROJECT_PATH" -testPlatform editmode -testResults "editmode-$RESULTS_FILE" -logFile "editmode-$LOG_FILE" -assemblyNames "SpriteStudio.Runtime.Tests;SpriteStudio.Runtime.EditModeTests;SpriteStudio.Editor.Tests" || {
-    summarize editmode
+    summarize editmode || true
     echo "EditMode Tests failed! See editmode-$LOG_FILE for details."
     exit 1
 }
-summarize editmode
+# Unity can also exit 0 having run nothing -- a startup dialog it cancels in batchmode ends the process
+# before the first test -- so a suite with no result file is a failure too.
+summarize editmode || { echo "EditMode Tests did not run! See editmode-$LOG_FILE for details."; exit 1; }
 
 echo "Running PlayMode Tests..."
 clear_results playmode
 "$UNITY_PATH" -batchmode -runTests -projectPath "$PROJECT_PATH" -testPlatform playmode -testResults "playmode-$RESULTS_FILE" -logFile "playmode-$LOG_FILE" -assemblyNames "SpriteStudio.Runtime.Tests;SpriteStudio.Runtime.EditModeTests;SpriteStudio.Editor.Tests" || {
-    summarize playmode
+    summarize playmode || true
     echo "PlayMode Tests failed! See playmode-$LOG_FILE for details."
     exit 1
 }
-summarize playmode
+summarize playmode || { echo "PlayMode Tests did not run! See playmode-$LOG_FILE for details."; exit 1; }
 
 echo "Running Standalone Player Tests..."
 if [ "$OS" == "mac" ]; then
@@ -176,11 +178,11 @@ fi
 clear_results player
 
 "$UNITY_PATH" -batchmode -runTests -projectPath "$PROJECT_PATH" -testPlatform playmode -buildTarget "$BUILD_TARGET" -testResults "player-$RESULTS_FILE" -logFile "player-$LOG_FILE" -assemblyNames "SpriteStudio.Runtime.Tests;SpriteStudio.Runtime.EditModeTests;SpriteStudio.Editor.Tests" || {
-    summarize player
+    summarize player || true
     echo "Standalone Player Tests failed! See player-$LOG_FILE for details."
     exit 1
 }
-summarize player
+summarize player || { echo "Standalone Player Tests did not run! See player-$LOG_FILE for details."; exit 1; }
 
 echo "All tests passed successfully!"
 if [ "$NOT_PASSED" -gt 0 ]; then
