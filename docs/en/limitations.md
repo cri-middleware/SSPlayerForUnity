@@ -21,7 +21,7 @@ Text and 9-slice parts still occupy their place in the draw order, so an animati
 > [!WARNING]
 > - **Single-atlas assumption.** For an animation that uses multiple atlases, only the first atlas is drawn, and parts from other atlases cannot sample the correct texture (a warning is logged). Consolidate into a single atlas, or use the world path.
 > - **Blend modes are limited to MIX / ADD.** They are dispatched per-vertex inside the shader; every other blend collapses to MIX.
-> - **`TexCoord1` is switched on for you.** To carry Part Color through TEXCOORD1, the target Canvas's `additionalShaderChannels` gains `TexCoord1` automatically.
+> - **`TexCoord1` and `TexCoord2` are switched on for you.** Part Color travels through TEXCOORD1 and TEXCOORD2, so the target Canvas's `additionalShaderChannels` gains both automatically.
 
 If you need complex blends, multiple atlases, or the full set of extended blend types, use the world path (`SpriteStudioPlayer`).
 

@@ -69,7 +69,7 @@ SpriteStudio のマスク / クリッピング（パーツ単位）に、ステ�
 
 - **単一アトラス前提**: 複数アトラスを使うアニメーションでは、最初のアトラスのみが描画され、他アトラスのパーツは正しいテクスチャをサンプリングできません（警告がログに出ます）。**1 つのアトラスへまとめる**か、**ワールド経路（`SpriteStudioPlayer`）を使用**してください。
 - **パーツの描画モード**: MIX（ミックス） / ADD（加算） はシェーダ内で頂点単位に振り分けます。それ以外のブレンドは MIX に集約されます。
-- **TexCoord1 の有効化**: パーツカラー用のデータを TEXCOORD1 で渡すため、対象 Canvas の `additionalShaderChannels` に `TexCoord1` を自動付与します。
+- **TexCoord1 / TexCoord2 の有効化**: パーツカラー用のデータを TEXCOORD1 と TEXCOORD2 で渡すため、対象 Canvas の `additionalShaderChannels` に `TexCoord1` と `TexCoord2` を自動付与します。頂点カラーは uGUI に任せており、`Image` と同じくグラフィックの **Color** を運びます。
 
 複雑なブレンドや複数アトラス、拡張ブレンド全種を正しく使いたい場合は、ワールド経路（`SpriteStudioPlayer`）の利用を推奨します。
 

@@ -489,6 +489,9 @@ namespace SpriteStudio.Runtime
         // reason).
         internal SpriteStudioInternalPlayer InternalPlayer => _core.Internal;
 
+        // The mesh handed to the CanvasRenderer, exposed for tests that check what reached it.
+        internal Mesh CanvasMesh => _sharedMesh;
+
         public event System.Action OnAnimationStarted
         {
             add => _core.OnAnimationStarted += value;
@@ -703,17 +706,13 @@ namespace SpriteStudio.Runtime
         {
             if (_core.Internal == null || _sharedMesh == null) return;
 
-            // Single-material Canvas: build the whole graphic as ONE submesh (perBatchSubmesh: false) and
-            // drive it with one material; MIX/ADD are split per-vertex in-shader. CanvasRenderer only
-            // accepts 16-bit index meshes, so upload 16-bit.
-            _core.Internal.ApplyToMesh(_sharedMesh, false, use16BitIndices: true);
+            // Single-material Canvas: build the whole graphic as ONE submesh and drive it with one
+            // material; MIX/ADD are split per-vertex in-shader. Graphic.color goes into the vertex colour,
+            // as an Image puts it there, and the CanvasRenderer's own colour is left to uGUI: the Button
+            // transitions and CrossFadeColor / CrossFadeAlpha animate it, and the canvas multiplies it in.
+            _core.Internal.ApplyToCanvasMesh(_sharedMesh, color);
             EnsureCanvasShaderChannels();
             UpdateCanvasMaterials();
-            // CanvasRenderer multiplies the mesh vertex colours by its own colour. The normal uGUI
-            // rebuild (which we suppress) is what would push the Graphic colour into it; without that
-            // the renderer colour stays at its uninitialised default (black) and zeroes the sprite RGB.
-            // Push the Graphic colour every frame (default white = identity, also honours a user tint).
-            canvasRenderer.SetColor(color);
             canvasRenderer.SetMesh(_sharedMesh);
         }
 
@@ -817,15 +816,16 @@ namespace SpriteStudio.Runtime
             canvasRenderer.SetMaterial(finalMat, 0);
         }
 
-        // The mesh packs per-vertex [rate, blend_idx, isNormalized, reserved] into TEXCOORD1. A Canvas
-        // only emits the shader channels listed in additionalShaderChannels; TexCoord1 is NOT included
-        // by default, so without this the uv1 data is dropped/garbage and the part-color blend breaks
-        // (renders black). Enable it on the canvas we render to.
+        // The mesh packs per-vertex [rate, blend_idx, isNormalized, isAdditive] into TEXCOORD1 and the
+        // part colour into TEXCOORD2. A Canvas only emits the shader channels listed in
+        // additionalShaderChannels, and neither is included by default, so without this the data is
+        // dropped/garbage and the part-color blend breaks (renders black). Enable both on the canvas we
+        // render to.
         private void EnsureCanvasShaderChannels()
         {
             var c = canvas;
             if (c == null) return;
-            const AdditionalCanvasShaderChannels needed = AdditionalCanvasShaderChannels.TexCoord1;
+            const AdditionalCanvasShaderChannels needed = AdditionalCanvasShaderChannels.TexCoord1 | AdditionalCanvasShaderChannels.TexCoord2;
             if ((c.additionalShaderChannels & needed) != needed)
             {
                 c.additionalShaderChannels |= needed;

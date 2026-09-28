@@ -68,8 +68,8 @@ Shader "SpriteStudio/Canvas"
                 float3 rgb = ss_canvas_default_rgb(tex, IN);
                 float alpha = tex.a * IN.color.a;
                 // -----------------------------------------------------------
-                // additive a=0 PMA trick (ADD parts -> alphaMul 0); others collapse to MIX.
-                return ss_canvas_finalize(rgb, alpha, IN.partcolorVarg.w);
+                // uGUI tint, then the additive a=0 PMA trick (ADD parts -> alphaMul 0); others collapse to MIX.
+                return ss_canvas_finalize(rgb, alpha, IN);
             }
             ENDHLSL
         }

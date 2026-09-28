@@ -69,7 +69,7 @@ Supports SpriteStudio's masking / clipping (per-part) using the stencil buffer.
 
 - **Single-atlas assumption**: For animations that use multiple atlases, only the first atlas is drawn, and parts from other atlases cannot sample the correct texture (a warning is logged). Either **consolidate into a single atlas** or **use the world path (`SpriteStudioPlayer`)**.
 - **Part draw modes**: MIX and ADD are dispatched per-vertex within the shader. Other blends are collapsed into MIX.
-- **Enabling TexCoord1**: To pass Part-Color data via TEXCOORD1, `TexCoord1` is automatically added to the target Canvas's `additionalShaderChannels`.
+- **Enabling TexCoord1 / TexCoord2**: Part-Color data travels in TEXCOORD1 and TEXCOORD2, so `TexCoord1` and `TexCoord2` are automatically added to the target Canvas's `additionalShaderChannels`. The vertex colour is left to uGUI: it carries the graphic's **Color**, like an `Image`'s.
 
 If you want to correctly use complex blends, multiple atlases, or all of the extended blend types, we recommend using the world path (`SpriteStudioPlayer`).
 

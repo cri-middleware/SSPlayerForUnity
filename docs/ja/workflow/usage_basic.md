@@ -126,7 +126,7 @@ public class Sample : MonoBehaviour
 
 ### `SpriteStudioGraphic`（Canvas UI）のみ
 
-uGUI の `Graphic` 由来の **Color** / **Material** / **Raycast Target** / **Raycast Padding** が表示されます。クリック判定の範囲は `RectTransform` の矩形で決まり、アニメーションの見た目の大きさとは連動しません。判定範囲を広げたい場合は `RectTransform` のサイズか **Raycast Padding** で調整してください。
+uGUI の `Graphic` 由来の **Color** / **Material** / **Raycast Target** / **Raycast Padding** が表示されます。**Color** は `Image` と同じくアニメーション全体をパーツカラーの上から色付けし、Button の **Color Tint** トランジションや `CrossFadeColor` / `CrossFadeAlpha` も同じように効きます。クリック判定の範囲は `RectTransform` の矩形で決まり、アニメーションの見た目の大きさとは連動しません。判定範囲を広げたい場合は `RectTransform` のサイズか **Raycast Padding** で調整してください。
 
 > [!TIP]
 > 

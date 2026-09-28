@@ -126,7 +126,7 @@ At the end of the Inspector sit the playback-event UnityEvents (**On Animation S
 
 ### `SpriteStudioGraphic` (Canvas UI) only
 
-The **Color** / **Material** / **Raycast Target** / **Raycast Padding** items inherited from uGUI's `Graphic` are shown. The clickable area is the `RectTransform`'s rectangle, which is not tied to how large the animation looks. To widen it, adjust the `RectTransform`'s size or use **Raycast Padding**.
+The **Color** / **Material** / **Raycast Target** / **Raycast Padding** items inherited from uGUI's `Graphic` are shown. **Color** tints the whole animation, as it tints an `Image`, on top of the part colours; a Button's **Color Tint** transition and `CrossFadeColor` / `CrossFadeAlpha` reach it the same way. The clickable area is the `RectTransform`'s rectangle, which is not tied to how large the animation looks. To widen it, adjust the `RectTransform`'s size or use **Raycast Padding**.
 
 > [!TIP]
 > 
