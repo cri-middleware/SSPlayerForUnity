@@ -28,7 +28,7 @@ namespace SpriteStudio.Editor
                 GUILayout.BeginHorizontal();
                 if (GUILayout.Button("Open SSPJ"))
                 {
-                    Application.OpenURL("file://" + sspjPath);
+                    EditorUtility.OpenWithDefaultApp(sspjPath);
                 }
                 
                 if (GUILayout.Button("Reconvert"))
