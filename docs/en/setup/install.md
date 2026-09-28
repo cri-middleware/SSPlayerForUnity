@@ -14,7 +14,7 @@ This page explains how to add SpriteStudio Player for Unity to your project. Cho
 
 All dependent packages are standard Unity packages, so Package Manager resolves them automatically when you add this package.
 
-The project template you start from can be **either 2D or 3D**. What this package requires is that the render pipeline is URP or Built-in, not a particular template (URP is verified with the **Universal Renderer** setup).
+The project template you start from can be **either 2D or 3D**. What this package requires is that the render pipeline is URP or Built-in, not a particular template. On URP the animation draws under the **Universal Renderer** and under the **2D Renderer** the 2D template sets up alike. It draws unlit under both: Light 2D does not light it, as it does not light a sprite that uses Sprite-Unlit-Default.
 
 > **If you are asked to restart during installation:** if the Burst version in your project changes while the editor is running, Unity shows a **Burst Package Update Detected** dialog. This is not an error specific to this package — restart the editor (**Restart Now**, or **OK** and then restart it yourself, depending on the Burst version). Burst compilation stays shut down until you do, which makes playback far slower.
 

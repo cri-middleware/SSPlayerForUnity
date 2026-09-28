@@ -54,7 +54,7 @@ Shader "SpriteStudio/AddOn/Step"
 
         Pass
         {
-            Tags { "LightMode"="UniversalForward" }
+            Tags { "LightMode"="SRPDefaultUnlit" }
             HLSLPROGRAM
             #pragma vertex ss_world_vert
             #pragma fragment frag
