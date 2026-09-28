@@ -589,6 +589,27 @@ namespace SpriteStudio.Runtime.Tests
         // ============================================================
 
         [Test]
+        public void Internal_SetupAnimation_CompletesTheScheduledMeshJobFirst()
+        {
+            // Setup clears and resizes the buffers the mesh job reads through raw pointers, so a job still
+            // scheduled when a script switches animation has to finish before the runtime touches them.
+            Assert.IsNotNull(_ringo, "Ringo.ssab is required.");
+            using (var player = new SpriteStudioInternalPlayer())
+            {
+                player.LoadSsab(_ringo);
+                Assert.IsTrue(player.SetupAnimation("walk"));
+                player.ScheduleMeshUpdate(0f);
+
+                Assert.IsTrue(player.SetupAnimation("run"));
+                Assert.IsTrue(player.CurrentUpdateJobHandle.IsCompleted, "SetupAnimation should complete the job first");
+
+                player.ScheduleMeshUpdate(0f);
+                Assert.IsTrue(player.SetupAnimationByHash(SpriteStudioInternalPlayer.HashName("walk")));
+                Assert.IsTrue(player.CurrentUpdateJobHandle.IsCompleted, "SetupAnimationByHash should complete the job first");
+            }
+        }
+
+        [Test]
         public void Internal_Pause_Halts_And_Resume_ContinuesFromCurrentFrame()
         {
             Assert.IsNotNull(_ringo, "Ringo.ssab is required.");

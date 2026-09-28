@@ -606,6 +606,9 @@ internal struct MaskPartData
         public bool SetupAnimationByHash(uint animationNameHash)
         {
             if (!_handle.IsValid) return false;
+            // Setup clears and resizes the world-matrix, UV, shape and mesh buffers the mesh job reads
+            // through raw pointers, reallocating them when the new animation has more parts.
+            _geometryBuilder?.CurrentUpdateJobHandle.Complete();
             unsafe
             {
                 bool ok = NativeMethods.ss_runtime_setup_animation_by_hash(_handle.ptr, animationNameHash);
@@ -1190,6 +1193,9 @@ internal struct MaskPartData
         public bool SetupAnimation(string animationName)
         {
             if (!_handle.IsValid || string.IsNullOrEmpty(animationName)) return false;
+            // Setup clears and resizes the world-matrix, UV, shape and mesh buffers the mesh job reads
+            // through raw pointers, reallocating them when the new animation has more parts.
+            _geometryBuilder?.CurrentUpdateJobHandle.Complete();
             unsafe
             {
                 var bytes = System.Text.Encoding.UTF8.GetBytes(animationName + "\0");
