@@ -120,6 +120,31 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
+        public void ShaderCatalog_AnEditedEntry_ResolvesOnceValidated()
+        {
+            var catalog = ScriptableObject.CreateInstance<SpriteStudioShaderCatalog>();
+            try
+            {
+                uint id = SpriteStudioShaderCatalog.HashId("custom-shader");
+                Assert.IsFalse(catalog.TryResolve(id, out _, out _), "an empty catalog resolves nothing");
+                int version = catalog.Version;
+
+                // What an Inspector edit does: change the entries, then OnValidate.
+                catalog.Entries.Add(new SpriteStudioShaderCatalog.Entry { IdName = "custom-shader", Shader = Shader.Find("SpriteStudio/Default") });
+                typeof(SpriteStudioShaderCatalog).GetMethod("OnValidate", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                    .Invoke(catalog, null);
+
+                Assert.IsTrue(catalog.TryResolve(id, out var shader, out _), "the new entry should resolve without a domain reload");
+                Assert.AreEqual("SpriteStudio/Default", shader.name);
+                Assert.AreNotEqual(version, catalog.Version, "players key their per-part materials on the version");
+            }
+            finally
+            {
+                Object.DestroyImmediate(catalog);
+            }
+        }
+
+        [Test]
         public void TimelineControl_SetsStateCorrectly()
         {
             var player = _go.AddComponent<SpriteStudioPlayer>();

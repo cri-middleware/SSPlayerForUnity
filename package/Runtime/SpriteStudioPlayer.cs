@@ -862,13 +862,19 @@ namespace SpriteStudio.Runtime
                 MarkPartTrackersDirty();
                 _editPreviewDirty = true;
             }
+            // An edited AddOn catalog changes the per-part materials the preview drew with.
+            if (_shaderCatalog != null && _shaderCatalog.Version != _previewCatalogVersion) _editPreviewDirty = true;
             if (!_editPreviewDirty) return;
             // Keep retrying while the runtime has no ssab yet, and only clear the dirty flag (build once) once
             // it is ready. A setup failure after that is a config error, not a race, so we do not loop.
             if (_core.Internal == null || !_core.Internal.HasSsab) return;
             _editPreviewDirty = false;
+            _previewCatalogVersion = _shaderCatalog != null ? _shaderCatalog.Version : 0;
             BuildEditPreview();
         }
+
+        // The catalog version the edit preview was last built against.
+        private int _previewCatalogVersion;
 
         private void BuildEditPreview()
         {
@@ -1155,6 +1161,8 @@ namespace SpriteStudio.Runtime
             // Fold in the asset's revision: a reimport destroys the material variants in the list, and the
             // layout alone would keep drawing with them (the error shader) until the player was re-enabled.
             signature = signature * 31u + (uint)_animeAsset.Revision;
+            // And the catalog's version: an edited catalog can resolve an AddOn part to a different shader.
+            signature = signature * 31u + (uint)(_shaderCatalog != null ? _shaderCatalog.Version : 0);
             // Fold in the texture-replacement version so changing a replacement rebuilds the material list
             // even when the draw layout (count/hashes/blends/roles) is otherwise identical.
             signature = signature * 31u + (uint)_textureOverride.Version;
