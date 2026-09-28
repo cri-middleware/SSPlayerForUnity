@@ -71,7 +71,7 @@ SpriteStudio のマスク / クリッピング（パーツ単位）に、ステ�
 - **パーツの描画モード**: MIX（ミックス） / ADD（加算） はシェーダ内で頂点単位に振り分けます。それ以外のブレンドは MIX に集約されます。
 - **TexCoord1 / TexCoord2 の有効化**: パーツカラー用のデータを TEXCOORD1 と TEXCOORD2 で渡すため、対象 Canvas の `additionalShaderChannels` に `TexCoord1` と `TexCoord2` を自動付与します。頂点カラーは uGUI に任せており、`Image` と同じくグラフィックの **Color** を運びます。
 
-複雑なブレンドや複数アトラス、拡張ブレンド全種を正しく使いたい場合は、ワールド経路（`SpriteStudioPlayer`）の利用を推奨します。
+複雑なブレンドや複数アトラスを正しく使いたい場合は、ワールド経路（`SpriteStudioPlayer`）の利用を推奨します。ワールド経路は Mul2 を Mul、Screen2 を Screen として描画し、Div2 / Overlay2 は MIX として描画します（[制限事項](../limitations.md) 参照）。
 
 ## レンダーパイプライン
 

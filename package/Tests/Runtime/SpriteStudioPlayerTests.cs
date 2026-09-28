@@ -111,6 +111,15 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
+        public void ExtendedBlends_DrawAsTheOtherPlayersDrawThem()
+        {
+            Assert.AreEqual(SpriteStudioBlendTable.Get(1), SpriteStudioBlendTable.Get(8), "Mul2 draws as Mul");
+            Assert.AreEqual(SpriteStudioBlendTable.Get(5), SpriteStudioBlendTable.Get(10), "Screen2 draws as Screen");
+            Assert.AreEqual(SpriteStudioBlendTable.Get(0), SpriteStudioBlendTable.Get(9), "Div2 falls back to Mix");
+            Assert.AreEqual(SpriteStudioBlendTable.Get(0), SpriteStudioBlendTable.Get(11), "Overlay2 falls back to Mix");
+        }
+
+        [Test]
         public void TimelineControl_SetsStateCorrectly()
         {
             var player = _go.AddComponent<SpriteStudioPlayer>();

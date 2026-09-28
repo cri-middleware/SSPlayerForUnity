@@ -91,7 +91,13 @@ namespace SpriteStudio.Runtime
                     return new State { Src = BlendMode.OneMinusDstColor, Dst = BlendMode.OneMinusSrcColor, Op = BlendOp.Add, InputPMA = 0, OutputPMA = 0, NotDiscard = 0 };
                 case 7: // Invert
                     return new State { Src = BlendMode.OneMinusDstColor, Dst = BlendMode.Zero, Op = BlendOp.Add, InputPMA = 0, OutputPMA = 0, NotDiscard = 0 };
-                // Mul2 / Div2 / Screen2 / Overlay2 (8..11) are framebuffer-fetch dependent = out of scope.
+                // The SS6-era "2" variants have no fixed-function equivalent. Mul2 and Screen2 draw as Mul and
+                // Screen, as SSPlayerForWeb, SSPlayerForWgpu and SSPlayerForGodot draw them; Div2 and Overlay2
+                // need the backdrop, which no blend state reaches, and fall back to Mix with anything unknown.
+                case 8: // Mul2
+                    goto case 1;
+                case 10: // Screen2
+                    goto case 5;
                 default:
                     goto case 0; // fall back to Mix
             }

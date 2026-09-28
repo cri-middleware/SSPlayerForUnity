@@ -71,7 +71,7 @@ Supports SpriteStudio's masking / clipping (per-part) using the stencil buffer.
 - **Part draw modes**: MIX and ADD are dispatched per-vertex within the shader. Other blends are collapsed into MIX.
 - **Enabling TexCoord1 / TexCoord2**: Part-Color data travels in TEXCOORD1 and TEXCOORD2, so `TexCoord1` and `TexCoord2` are automatically added to the target Canvas's `additionalShaderChannels`. The vertex colour is left to uGUI: it carries the graphic's **Color**, like an `Image`'s.
 
-If you want to correctly use complex blends, multiple atlases, or all of the extended blend types, we recommend using the world path (`SpriteStudioPlayer`).
+If you want to correctly use complex blends or multiple atlases, we recommend using the world path (`SpriteStudioPlayer`). It draws Mul2 as Mul and Screen2 as Screen, and Div2 / Overlay2 as MIX (see [Limitations](../limitations.md)).
 
 ## Render Pipeline
 

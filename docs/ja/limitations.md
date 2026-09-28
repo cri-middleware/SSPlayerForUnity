@@ -23,7 +23,7 @@
 > - **ブレンドモードは MIX / ADD のみ。** シェーダー内で頂点単位に振り分けており、それ以外のブレンドはすべて MIX に集約されます。
 > - **`TexCoord1` と `TexCoord2` が自動的に有効化されます。** パーツカラーを TEXCOORD1 と TEXCOORD2 で渡すため、対象 Canvas の `additionalShaderChannels` に両方が自動追加されます。
 
-複雑なブレンド、複数アトラス、拡張ブレンドの全種別が必要な場合は、ワールドパス（`SpriteStudioPlayer`）を使用してください。
+複雑なブレンドや複数アトラスが必要な場合は、ワールドパス（`SpriteStudioPlayer`）を使用してください。ワールドパスは SS6 由来の「2」付きの種別のうち 2 つを除くすべてのブレンドを描画します。**Mul2** は Mul、**Screen2** は Screen として描画し、パーツの背後の色を必要とする **Div2** と **Overlay2** は、ほかの SpriteStudio Player と同じく MIX として描画します。
 
 ## マスク / クリッピング
 

@@ -23,7 +23,7 @@ Text and 9-slice parts still occupy their place in the draw order, so an animati
 > - **Blend modes are limited to MIX / ADD.** They are dispatched per-vertex inside the shader; every other blend collapses to MIX.
 > - **`TexCoord1` and `TexCoord2` are switched on for you.** Part Color travels through TEXCOORD1 and TEXCOORD2, so the target Canvas's `additionalShaderChannels` gains both automatically.
 
-If you need complex blends, multiple atlases, or the full set of extended blend types, use the world path (`SpriteStudioPlayer`).
+If you need complex blends or multiple atlases, use the world path (`SpriteStudioPlayer`). It draws every blend type but two of the SS6-era "2" variants: **Mul2** draws as Mul and **Screen2** as Screen, while **Div2** and **Overlay2**, which need the colour already behind the part, draw as MIX — as they do on the other SpriteStudio players.
 
 ## Masking / Clipping
 
