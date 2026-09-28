@@ -8,7 +8,7 @@ namespace SpriteStudio.Editor
     /// Skips the conversion step and directly creates a ScriptableObject (SpriteStudioAnimeAsset).
     /// The build work is delegated to <see cref="SpriteStudioAnimeAssetBuilder"/>.
     /// </summary>
-    [ScriptedImporter(4, "ssab")]
+    [ScriptedImporter(1, "ssab")]
     [UnityEngine.Icon("Packages/jp.co.cri-mw.spritestudio.ssplayer-unity/Editor/Icons/ssab_icon.png")]
     public class SpriteStudioSsabImporter : ScriptedImporter
     {
