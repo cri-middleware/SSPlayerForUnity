@@ -44,8 +44,9 @@ namespace SpriteStudio.Runtime
     /// the Animator have run by then, so what they set -- an animation switched, a frame sought, a
     /// keyframed property -- is drawn in the same frame, as it is on an Animator-driven SpriteRenderer.
     ///
-    /// Central management runs in play mode only. In edit mode (the Graphic ExecuteAlways preview), each
-    /// component calls _core.TickAndSchedule/ApplyAndRender serially on its own (separate from the parallel path).
+    /// Central management runs in play mode only. In edit mode (the ExecuteAlways previews), each
+    /// component builds its preview serially on its own, with ScheduleMeshUpdate and ApplyAndRender (separate from
+    /// the parallel path).
     /// </summary>
     public static class SpriteStudioUpdateManager
     {

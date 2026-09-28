@@ -322,7 +322,6 @@ namespace SpriteStudio.Runtime
         /// <summary>Whether a playback session is active. True even while paused (false when stopped / not playing).</summary>
         public bool IsPlaying => _core.Internal?.IsPlaying() ?? false;
 
-        /// <summary>Whether currently paused (true only while a playback session is active and paused).</summary>
         /// <summary>
         /// Whether the last update crossed a loop boundary. A <b>pulse</b>, true only inside the tick
         /// that crossed — take <c>OnAnimationLooped</c> instead if you want it delivered rather than
@@ -335,6 +334,7 @@ namespace SpriteStudio.Runtime
             ? _animeAsset.AnimationNames
             : System.Array.Empty<string>();
 
+        /// <summary>Whether currently paused (true only while a playback session is active and paused).</summary>
         public bool IsPausing
         {
             get

@@ -196,7 +196,6 @@ namespace SpriteStudio.Runtime
         /// <summary>Whether a playback session is active. True even while paused (false when stopped / not playing).</summary>
         public bool IsPlaying => _core.Internal?.IsPlaying() ?? false;
 
-        /// <summary>Whether currently paused (true only while a playback session is active and paused).</summary>
         /// <summary>
         /// Whether the last update crossed a loop boundary. A <b>pulse</b>, true only inside the tick
         /// that crossed — take <c>OnAnimationLooped</c> instead if you want it delivered rather than
@@ -209,6 +208,7 @@ namespace SpriteStudio.Runtime
             ? _animeAsset.AnimationNames
             : System.Array.Empty<string>();
 
+        /// <summary>Whether currently paused (true only while a playback session is active and paused).</summary>
         public bool IsPausing
         {
             get
@@ -442,7 +442,6 @@ namespace SpriteStudio.Runtime
         /// <summary>Clear every per-part override on this player.</summary>
         public bool ClearAllPartOverrides() => _core.Internal?.ClearAllPartOverrides() ?? false;
 
-        /// <summary>Names of the cellmaps in the loaded asset (for discovering cell-override targets).</summary>
         /// <summary>
         /// Part names in part-index order, empty before an <see cref="AnimeAsset"/> is set up.
         /// <para>
@@ -453,6 +452,7 @@ namespace SpriteStudio.Runtime
         /// </summary>
         public string[] GetPartNames() => _core.Internal?.GetPartNames() ?? System.Array.Empty<string>();
 
+        /// <summary>Names of the cellmaps in the loaded asset (for discovering cell-override targets).</summary>
         public string[] GetCellmapNames() => _core.Internal?.GetCellmapNames() ?? System.Array.Empty<string>();
 
         /// <summary>Names of the cells in the named cellmap (for discovering cell-override targets).</summary>
@@ -535,11 +535,6 @@ namespace SpriteStudio.Runtime
 
         protected override void OnEnable()
         {
-            // A Graphic drives a CanvasRenderer. RequireComponent adds one for newly created objects;
-            // also self-heal a GameObject that was created before this requirement existed so that
-            // canvasRenderer.materialCount does not throw a MissingComponentException.
-            if (GetComponent<CanvasRenderer>() == null) gameObject.AddComponent<CanvasRenderer>();
-
             base.OnEnable();
 
             if (_sharedMesh == null)
