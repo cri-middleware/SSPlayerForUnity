@@ -612,11 +612,10 @@ namespace SpriteStudio.Runtime
 
             _core.Dispose();
 
-            // Release the uGUI stencil wrapper (refcounted by StencilMaterial) and invalidate the
-            // material signature so OnEnable re-resolves from scratch.
-            ReleaseCanvasStencil();
+            // Release this graphic's material clone and invalidate the material signature so OnEnable
+            // re-resolves from scratch. (base.OnDisable released MaskableGraphic's stencil variant.)
+            ReleaseAtlasMaterial();
             _lastMaterialSignature = 0;
-            _lastStencilDepth = -1;
             _canvasMaterialDirty = true;
 
             if (_sharedMesh != null)
@@ -719,16 +718,28 @@ namespace SpriteStudio.Runtime
         // --- Single-material Canvas resolution (one atlas + one fixed PMA blend) ---
         // The whole graphic renders as ONE submesh with ONE material on the SpriteStudio/Canvas shader.
         // MIX vs ADD is handled per-vertex in-shader (a=0 trick); other blends collapse to MIX. SpriteStudio
-        // internal masking is suppressed; the only stencil is the READ-ONLY test injected when this graphic
-        // is nested under a uGUI Mask, via StencilMaterial.Add (we compute the mask depth ourselves and wrap
-        // the single material, since MaskableGraphic.GetModifiedMaterial tracks only one material anyway).
+        // internal masking is suppressed. The material reaches the CanvasRenderer the way
+        // Graphic.UpdateMaterial sends an Image's: materialForRendering, which starts from the Material field
+        // (the atlas material, as defaultMaterial, when that is empty) and runs every IMaterialModifier on
+        // this GameObject -- MaskableGraphic's stencil test for a parent Mask, a Mask's own stencil write for
+        // its children, anything else -- with mainTexture as the texture.
         // RectMask2D needs nothing here: MaskableGraphic hands the shader _ClipRect and UNITY_UI_CLIP_RECT
         // through CanvasRenderer.EnableRectClipping, and SpriteStudio/Canvas clips with them.
-        private Material _canvasStencilWrapped; // StencilMaterial.Add result to release (null if not wrapped)
+        private Material _atlasMaterial;        // the atlas material, or this graphic's texture-replacement clone of it
         private uint _lastMaterialSignature;    // resolved atlas texture hash + 1 (0 = nothing resolved)
-        private int _lastStencilDepth = -1;
         private bool _canvasMaterialDirty;
         private bool _warnedMultiTexture;
+
+        /// <summary>
+        /// The material the animation draws with while <see cref="Graphic.material"/> is empty: SpriteStudio/Canvas
+        /// carrying the atlas the animation samples. A material assigned instead needs a shader built from
+        /// SpriteStudio/Canvas, the only kind that reads the vertex layout this graphic emits.
+        /// </summary>
+        public override Material defaultMaterial => _atlasMaterial != null ? _atlasMaterial : base.defaultMaterial;
+
+        /// <summary>The atlas texture, handed to whichever material draws the graphic, as an Image hands over its sprite's.</summary>
+        public override Texture mainTexture
+            => _atlasMaterial != null && _atlasMaterial.mainTexture != null ? _atlasMaterial.mainTexture : base.mainTexture;
 
         private void UpdateCanvasMaterials()
         {
@@ -739,7 +750,7 @@ namespace SpriteStudio.Runtime
             {
                 if (_lastMaterialSignature != 0)
                 {
-                    ReleaseCanvasStencil();
+                    ReleaseAtlasMaterial();
                     canvasRenderer.materialCount = 0;
                     _lastMaterialSignature = 0;
                 }
@@ -761,25 +772,18 @@ namespace SpriteStudio.Runtime
 
             uint texHash = submeshes[0].TextureHash;
 
-            // Current uGUI mask depth (0 when not nested under a Mask). Checked every frame so a reparent
-            // under/out of a Mask re-wraps the material even if the SetMaterialDirty signal is missed.
-            int stencilDepth = maskable
-                ? UnityEngine.UI.MaskUtilities.GetStencilDepth(transform, UnityEngine.UI.MaskUtilities.FindRootSortOverrideCanvas(transform))
-                : 0;
-
             uint signature = texHash + 1u; // +1 so a valid hash never collides with the empty sentinel 0
-            if (signature != _lastMaterialSignature || stencilDepth != _lastStencilDepth || _canvasMaterialDirty)
+            if (signature != _lastMaterialSignature || _canvasMaterialDirty)
             {
-                RebuildCanvasMaterial(texHash, stencilDepth);
+                RebuildCanvasMaterial(texHash);
                 _lastMaterialSignature = signature;
-                _lastStencilDepth = stencilDepth;
                 _canvasMaterialDirty = false;
             }
         }
 
-        private void RebuildCanvasMaterial(uint texHash, int stencilDepth)
+        private void RebuildCanvasMaterial(uint texHash)
         {
-            ReleaseCanvasStencil();
+            ReleaseAtlasMaterial();
 
             Material baseMat = _animeAsset.ResolveCanvasMaterial(texHash, 0);
             if (baseMat == null)
@@ -791,30 +795,18 @@ namespace SpriteStudio.Runtime
 
             // Runtime cellmap texture replacement (Player-side override): clone the asset-shared canvas
             // material and swap its texture so the replacement is per-player. Cloned (never mutated) and
-            // released with the stencil wrapper. ReleaseCanvasStencil above already freed any prior clone.
+            // released with the atlas material. ReleaseAtlasMaterial above already freed any prior clone.
             if (_textureOverride.HasAny && _textureOverride.TryGet(texHash, out var ovrTex))
             {
                 _canvasTexOverride = new Material(baseMat) { hideFlags = HideFlags.HideAndDontSave, name = baseMat.name + "_TexOverride" };
                 _canvasTexOverride.mainTexture = ovrTex;
                 baseMat = _canvasTexOverride;
             }
-
-            Material finalMat = baseMat;
-            if (stencilDepth > 0)
-            {
-                // Read-only stencil test for a parent uGUI Mask (Comp Equal, Op Keep, no write).
-                int stencilId = (1 << stencilDepth) - 1;
-                _canvasStencilWrapped = UnityEngine.UI.StencilMaterial.Add(
-                    baseMat, stencilId,
-                    UnityEngine.Rendering.StencilOp.Keep,
-                    UnityEngine.Rendering.CompareFunction.Equal,
-                    UnityEngine.Rendering.ColorWriteMask.All,
-                    stencilId, 0);
-                finalMat = _canvasStencilWrapped;
-            }
+            _atlasMaterial = baseMat;
 
             canvasRenderer.materialCount = 1;
-            canvasRenderer.SetMaterial(finalMat, 0);
+            canvasRenderer.SetMaterial(materialForRendering, 0);
+            canvasRenderer.SetTexture(mainTexture);
         }
 
         // The mesh packs per-vertex [rate, blend_idx, isNormalized, isAdditive] into TEXCOORD1 and the
@@ -834,17 +826,15 @@ namespace SpriteStudio.Runtime
         }
 
         // Per-player canvas material clone holding a replaced texture (null when no replacement is active).
-        // Released together with the stencil wrapper, so every ReleaseCanvasStencil site (rebuild start,
-        // empty-mesh path, OnDisable) frees it too.
+        // Released with the atlas material, so every ReleaseAtlasMaterial site (rebuild start, empty-mesh
+        // path, OnDisable) frees it too.
         private Material _canvasTexOverride;
 
-        private void ReleaseCanvasStencil()
+        // The stencil variants materialForRendering produced are MaskableGraphic's and Mask's, released by
+        // them; only the texture-replacement clone is this graphic's.
+        private void ReleaseAtlasMaterial()
         {
-            if (_canvasStencilWrapped != null)
-            {
-                UnityEngine.UI.StencilMaterial.Remove(_canvasStencilWrapped);
-                _canvasStencilWrapped = null;
-            }
+            _atlasMaterial = null;
             if (_canvasTexOverride != null)
             {
                 if (Application.isPlaying) Destroy(_canvasTexOverride); else DestroyImmediate(_canvasTexOverride);
@@ -912,8 +902,9 @@ namespace SpriteStudio.Runtime
         {
             // Do NOT call base: the standard uGUI material rebuild (CanvasUpdateRegistry) would try to
             // drive our mesh/material through the normal Graphic path and fight our direct SetMesh/
-            // SetMaterial. Instead just flag a re-resolve so a mask-hierarchy change (MaskableGraphic
-            // raises SetMaterialDirty on stencil-state changes) re-wraps the per-submesh materials.
+            // SetMaterial. Instead flag a re-send, so the next ApplyAndRender hands the CanvasRenderer a
+            // fresh materialForRendering: uGUI raises this for a new Material, for a Mask added, removed or
+            // toggled, and for a reparent under or out of one (MaskableGraphic.RecalculateMasking).
             _canvasMaterialDirty = true;
         }
 

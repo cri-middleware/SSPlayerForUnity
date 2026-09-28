@@ -61,7 +61,7 @@ SpriteStudio のパーツに設定された AddOn（sepia / hsb / outline / blur
 SpriteStudio のマスク / クリッピング（パーツ単位）に、ステンシルバッファを用いて対応します。
 
 - **ワールド経路（`SpriteStudioPlayer`）**: SpriteStudio 内部のマスク機構を用いてステンシルで描画します。URP では SSAO / Deferred / Decal と併用してもマスクが破綻しないよう、使用するステンシルビットを限定しています。
-- **Canvas 経路（`SpriteStudioGraphic`）**: SpriteStudio 内部のマスクは抑止し、代わりに uGUI の **Mask** / **RectMask2D** に追従します（親にマスクを置くと、このグラフィックがクリップされます）。
+- **Canvas 経路（`SpriteStudioGraphic`）**: SpriteStudio 内部のマスクは抑止し、代わりに uGUI の **Mask** / **RectMask2D** に追従します（親にマスクを置くと、このグラフィックがクリップされます。グラフィック自身に **Mask** を置くと、その子がクリップされます）。
 
 ## Canvas (uGUI) 経路の制約
 

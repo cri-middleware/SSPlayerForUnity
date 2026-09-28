@@ -72,6 +72,7 @@ namespace SpriteStudio.Editor
             EditorGUILayout.Space();
             AppearanceControlsGUI();
             RaycastControlsGUI();
+            MaskableControlsGUI();
 
             EditorGUILayout.Space();
             EditorGUILayout.PropertyField(_playAudioProp);   // The [Header("Audio")] on the field renders the section label.
