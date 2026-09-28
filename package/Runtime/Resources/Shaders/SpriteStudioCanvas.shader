@@ -60,6 +60,8 @@ Shader "SpriteStudio/Canvas"
             #include "Includes/SpriteStudioCanvasUI.hlsl"
             #pragma vertex ss_canvas_vert
             #pragma fragment frag
+            // A parent RectMask2D enables this keyword on the renderer (see SpriteStudioCanvasUI.hlsl).
+            #pragma multi_compile_local _ UNITY_UI_CLIP_RECT
 
             half4 frag(ss_canvas_v2f IN) : SV_Target
             {

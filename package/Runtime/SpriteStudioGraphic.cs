@@ -556,8 +556,8 @@ namespace SpriteStudio.Runtime
             }
 
             _core.EnsureCreated(_animeAsset, _subFrameEnabled);
-            // Canvas path: drop SpriteStudio internal masking; a parent uGUI Mask/RectMask2D clips this
-            // graphic read-only via the per-submesh stencil wrap below.
+            // Canvas path: drop SpriteStudio internal masking; a parent uGUI Mask clips this graphic
+            // read-only via the stencil wrap below, and a parent RectMask2D through the shader's clip rect.
             if (_core.Internal != null) _core.Internal.SuppressInternalMask = true;
             // Resolve the serialized cellmap texture replacements against the asset (applied on the next build).
             _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
@@ -722,7 +722,8 @@ namespace SpriteStudio.Runtime
         // internal masking is suppressed; the only stencil is the READ-ONLY test injected when this graphic
         // is nested under a uGUI Mask, via StencilMaterial.Add (we compute the mask depth ourselves and wrap
         // the single material, since MaskableGraphic.GetModifiedMaterial tracks only one material anyway).
-        // RectMask2D needs nothing here — MaskableGraphic clips it through CanvasRenderer.EnableRectClipping.
+        // RectMask2D needs nothing here: MaskableGraphic hands the shader _ClipRect and UNITY_UI_CLIP_RECT
+        // through CanvasRenderer.EnableRectClipping, and SpriteStudio/Canvas clips with them.
         private Material _canvasStencilWrapped; // StencilMaterial.Add result to release (null if not wrapped)
         private uint _lastMaterialSignature;    // resolved atlas texture hash + 1 (0 = nothing resolved)
         private int _lastStencilDepth = -1;
