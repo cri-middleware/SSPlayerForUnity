@@ -12,6 +12,9 @@ namespace SpriteStudio.Runtime
     /// batched by SpriteStudioUpdateManager as "all Schedule -> all Apply" (Job parallelization).
     /// </summary>
     [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
+    // One MeshFilter and one MeshRenderer serve one player: a second on the same GameObject would assign its
+    // own mesh and material list over the first's.
+    [DisallowMultipleComponent]
     // [ExecuteAlways]: run OnEnable/LateUpdate in edit mode too, building the "start-frame static preview"
     // exactly once when placed in the scene (does not play). The per-frame drive in Play mode is still
     // centrally managed by SpriteStudioUpdateManager as before (the manager does not run in edit mode).
