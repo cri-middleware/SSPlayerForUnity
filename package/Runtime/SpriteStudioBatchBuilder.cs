@@ -81,8 +81,13 @@ namespace SpriteStudio.Runtime
 				// A per-part AddOn part (shaderHash != 0) must stay its own submesh
 				//   so it carries its own material instance and params — even two adjacent
 				//   parts using the same AddOn shader can have different params, so they must not merge.
+				// The two ranges must also be contiguous: growing the last one covers every index in between.
+				//   An instance parent carries its child's clipping restores to its own end, so the child's
+				//   last colour run and whatever the parent emits next are separated by those restores'
+				//   indices - merging them drew a restore's geometry as colour.
                 if (last.Role == StencilRole.None && shaderHash == 0 && last.ShaderHash == 0
-                    && last.TextureHash == textureHash && last.BlendType == blendType)
+                    && last.TextureHash == textureHash && last.BlendType == blendType
+                    && last.IndexStart + last.IndexCount == indexStart)
                 {
                     last.IndexCount += indexCount;
                     return;
