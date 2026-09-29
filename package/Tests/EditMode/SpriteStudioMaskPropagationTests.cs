@@ -5,16 +5,17 @@ using SpriteStudio.Runtime;
 namespace SpriteStudio.Runtime.EditModeTests
 {
     /// <summary>
-    /// Regression guard for how masking composes down an instance chain.
+    /// Regression guard for how masking composes across an instance boundary.
     ///
-    /// SS7.5 composes the two masking flags as a caller/callee pair: visibleInsideMask accumulates with
-    /// OR, maskInfluence chains with AND. The builder used to do neither - it drew each instance child's
-    /// submeshes with their own stencil role and only patched the role-less ones to the calling instance
-    /// part's role, so a child part carrying a role overrode its caller while a role-less one was forced
-    /// to the caller's polarity even when its own said otherwise.
+    /// SS7.5 composes a part's maskInfluence (AND) and visibleInsideMask (OR) with the instance part
+    /// DIRECTLY above it - one level only, and whether or not the caller is masked. The builder used to
+    /// chain both down the whole instance hierarchy, and to compose only under a caller that was itself
+    /// masking, so an maskInfluence=0 instance exempted its whole subtree where SS7.5 exempts only its own
+    /// sub-animation's parts.
     ///
-    /// These tests pin the rules themselves (SpriteStudioInternalPlayer's three statics), which is where
-    /// every decision site now goes, rather than the geometry they produce.
+    /// These tests pin the rules themselves (SpriteStudioInternalPlayer's statics, and the gate that
+    /// decides whether a player tests its parts at all), which is where every decision site goes, rather
+    /// than the geometry they produce.
     /// </summary>
     public class SpriteStudioMaskPropagationTests
     {
@@ -44,62 +45,49 @@ namespace SpriteStudio.Runtime.EditModeTests
             Assert.IsFalse(SpriteStudioInternalPlayer.IsDrawnInsideMask(plain, RootVisibleInside));
         }
 
-        // ---- maskInfluence chains with AND --------------------------------------------------------
+        // ---- the instance part hands down its own flags -------------------------------------------
 
         [Test]
-        public void MaskInfluence_ChainsWithAnd_SoAnUnmaskedCallerUnmasksItsWholeSubtree()
+        public void MaskInfluence_AnUnmaskedCaller_ExemptsItsOwnSubAnimation()
         {
-            var callerNotInfluenced = Part(maskInfluence: false, visibleInsideMask: false);
-            SpriteStudioInternalPlayer.ComposeInheritedContext(callerNotInfluenced, RootInfluence, RootVisibleInside,
-                out bool masked, out bool influence, out _);
+            SpriteStudioInternalPlayer.ComposeInheritedContext(Part(maskInfluence: false, visibleInsideMask: false),
+                out bool influence, out _);
 
-            Assert.IsFalse(masked, "an instance part with maskInfluence=0 and no MaskWrite is not a mask target");
-            Assert.IsFalse(influence, "and it hands 'not masked' down");
-
-            // A callee that would be a target on its own no longer is.
-            var calleeWantsMask = Part(maskInfluence: true, visibleInsideMask: false);
-            Assert.IsFalse(SpriteStudioInternalPlayer.IsMaskTarget(calleeWantsMask, influence),
+            Assert.IsFalse(influence, "an instance part with maskInfluence=0 hands 'not masked' to its child");
+            Assert.IsFalse(SpriteStudioInternalPlayer.IsMaskTarget(Part(true, false), influence),
                 "maskInfluence composes with AND, so the callee cannot re-enable masking the caller switched off");
         }
 
         [Test]
         public void MaskInfluence_AnInfluencedCaller_LetsEachCalleeDecideForItself()
         {
-            var caller = Part(maskInfluence: true, visibleInsideMask: false);
-            SpriteStudioInternalPlayer.ComposeInheritedContext(caller, RootInfluence, RootVisibleInside,
-                out bool masked, out bool influence, out _);
+            SpriteStudioInternalPlayer.ComposeInheritedContext(Part(maskInfluence: true, visibleInsideMask: false),
+                out bool influence, out _);
 
-            Assert.IsTrue(masked);
             Assert.IsTrue(influence, "AND with true is the callee's own value");
             Assert.IsTrue(SpriteStudioInternalPlayer.IsMaskTarget(Part(true, false), influence));
             Assert.IsFalse(SpriteStudioInternalPlayer.IsMaskTarget(Part(false, false), influence));
         }
 
         [Test]
-        public void MaskInfluence_OnceFalse_StaysFalseThroughDeeperNesting()
+        public void MaskInfluence_DoesNotChain_AGrandchildIsJudgedByTheInstancePartThatDrawsIt()
         {
-            // caller (influence=0) -> middle (influence=1) -> leaf (influence=1)
-            SpriteStudioInternalPlayer.ComposeInheritedContext(Part(false, false), RootInfluence, RootVisibleInside,
-                out _, out bool afterCaller, out bool visibleAfterCaller);
-            SpriteStudioInternalPlayer.ComposeInheritedContext(Part(true, false), afterCaller, visibleAfterCaller,
-                out bool middleMasked, out bool afterMiddle, out _);
+            // caller (maskInfluence=0) -> middle instance part (maskInfluence=1) -> leaf part (maskInfluence=1).
+            // SS7.5 (Tired3_NoHole): the Source01 checker inside an MI=0 Tired3 block is still cut, because
+            // the Source01 instance part above it has MI=1.
+            SpriteStudioInternalPlayer.ComposeInheritedContext(Part(false, false), out bool afterCaller, out _);
+            Assert.IsFalse(afterCaller, "the middle animation's own parts are exempt");
 
-            Assert.IsFalse(middleMasked, "the middle instance is inside an unmasked subtree");
-            Assert.IsFalse(afterMiddle, "AND cannot climb back to true");
-            Assert.IsFalse(SpriteStudioInternalPlayer.IsMaskTarget(Part(true, false), afterMiddle));
+            SpriteStudioInternalPlayer.ComposeInheritedContext(Part(true, false), out bool afterMiddle, out _);
+            Assert.IsTrue(afterMiddle, "what the caller handed the middle animation is not passed on");
+            Assert.IsTrue(SpriteStudioInternalPlayer.IsMaskTarget(Part(true, false), afterMiddle));
         }
 
-        // ---- visibleInsideMask accumulates with OR ------------------------------------------------
-
         [Test]
-        public void VisibleInsideMask_AccumulatesWithOr_SoACallerAskingForInsideWins()
+        public void VisibleInsideMask_ComposesWithOr_SoACallerAskingForInsideWins()
         {
-            // The first row of the reported mismatch: caller visibleInsideMask=true drawing a callee part
-            // that is a mask target with visibleInsideMask=false. OR makes it draw INSIDE the mask; the old
-            // fallback kept the callee's own role and drew it outside.
-            var caller = Part(maskInfluence: true, visibleInsideMask: true);
-            SpriteStudioInternalPlayer.ComposeInheritedContext(caller, RootInfluence, RootVisibleInside,
-                out _, out bool influence, out bool visibleInside);
+            SpriteStudioInternalPlayer.ComposeInheritedContext(Part(maskInfluence: true, visibleInsideMask: true),
+                out bool influence, out bool visibleInside);
 
             var callee = Part(maskInfluence: true, visibleInsideMask: false);
             Assert.IsTrue(SpriteStudioInternalPlayer.IsMaskTarget(callee, influence));
@@ -110,50 +98,43 @@ namespace SpriteStudio.Runtime.EditModeTests
         [Test]
         public void VisibleInsideMask_ACalleeAskingForInside_IsNotOverriddenByAnOutsideCaller()
         {
-            var caller = Part(maskInfluence: true, visibleInsideMask: false);
-            SpriteStudioInternalPlayer.ComposeInheritedContext(caller, RootInfluence, RootVisibleInside,
-                out _, out _, out bool visibleInside);
+            SpriteStudioInternalPlayer.ComposeInheritedContext(Part(maskInfluence: true, visibleInsideMask: false),
+                out _, out bool visibleInside);
 
             Assert.IsTrue(SpriteStudioInternalPlayer.IsDrawnInsideMask(Part(true, true), visibleInside),
                 "OR keeps the callee's own 'inside'; the caller cannot force it outside");
         }
 
         [Test]
-        public void VisibleInsideMask_OnceTrue_StaysTrueThroughDeeperNesting()
+        public void VisibleInsideMask_DoesNotChain()
         {
-            SpriteStudioInternalPlayer.ComposeInheritedContext(Part(true, true), RootInfluence, RootVisibleInside,
-                out _, out bool afterCaller, out bool visibleAfterCaller);
-            SpriteStudioInternalPlayer.ComposeInheritedContext(Part(true, false), afterCaller, visibleAfterCaller,
-                out _, out _, out bool afterMiddle);
+            SpriteStudioInternalPlayer.ComposeInheritedContext(Part(true, true), out _, out bool afterCaller);
+            Assert.IsTrue(afterCaller);
 
-            Assert.IsTrue(afterMiddle, "OR cannot drop back to false");
-            Assert.IsTrue(SpriteStudioInternalPlayer.IsDrawnInsideMask(Part(true, false), afterMiddle));
+            SpriteStudioInternalPlayer.ComposeInheritedContext(Part(true, false), out _, out bool afterMiddle);
+            Assert.IsFalse(afterMiddle, "a grandchild takes the polarity of the instance part that draws it");
+            Assert.IsFalse(SpriteStudioInternalPlayer.IsDrawnInsideMask(Part(true, false), afterMiddle));
         }
 
         // ---- MaskWrite is outside the composition -------------------------------------------------
 
         [Test]
-        public void MaskWrite_MakesAPartATarget_WithoutBeingInherited()
+        public void MaskWrite_NeitherTargetsAPartNorReachesItsChild()
         {
-            // MaskWrite says "this part writes a mask of its own" - a local fact, not one a descendant
-            // takes on. It still opts the part itself into being tested.
-            var clippingCaller = Part(maskInfluence: false, visibleInsideMask: false, maskWrite: true);
-            SpriteStudioInternalPlayer.ComposeInheritedContext(clippingCaller, RootInfluence, RootVisibleInside,
-                out bool masked, out bool influence, out _);
+            // A clipping part draws its pixels before it writes its clip, so it is tested only by other
+            // masks, on its maskInfluence - MaskWrite itself makes nothing a target.
+            Assert.IsFalse(SpriteStudioInternalPlayer.IsMaskTarget(Part(false, false, maskWrite: true), RootInfluence));
+            Assert.IsTrue(SpriteStudioInternalPlayer.IsMaskTarget(Part(true, false, maskWrite: true), RootInfluence));
 
-            Assert.IsTrue(masked, "a clipping writer is itself a mask target");
-            Assert.IsFalse(influence, "but maskInfluence=0 still chains 'not masked' to its subtree");
-
-            Assert.IsTrue(SpriteStudioInternalPlayer.IsMaskTarget(Part(false, false, maskWrite: true), influence),
-                "a callee that writes its own mask is a target regardless of the inherited context");
+            SpriteStudioInternalPlayer.ComposeInheritedContext(Part(maskInfluence: false, visibleInsideMask: false, maskWrite: true),
+                out bool influence, out _);
+            Assert.IsFalse(influence, "an instance part's MaskWrite does not hand 'masked' to its child");
         }
 
-        // ---- writer op / plane composes with inherited maskInfluence ------------------------------
-        // A mask writer's op (and therefore its stencil bit plane) follows its EFFECTIVE maskInfluence -
-        // own AND inherited - so a mask inside a maskInfluence=0 instance moves from the parity plane
-        // (Invert, XOR) to the counter plane (Incr/Decr, union). That is what makes an instance-internal
-        // mask compose with an outer mask as a union instead of cancelling it (the reported bug: an MI=x
-        // instance's child MI=v mask XOR-cancelling against an outer Hole on the shared parity plane).
+        // ---- writer op / plane: own maskInfluence AND the instance part's above -------------------
+        // A mask writer's op (and therefore its stencil bit plane) follows its EFFECTIVE maskInfluence,
+        // so a mask directly inside a maskInfluence=0 instance moves from the parity plane (Invert, XOR) to
+        // the counter plane (Incr/Decr, union). SS7.5 (S01_Overlap / OV_Top) takes this from one level too.
 
         private static byte PlaneFor(bool influence)
             => SpriteStudioMaterial.MaskWriteMaskForOp(
@@ -180,18 +161,100 @@ namespace SpriteStudio.Runtime.EditModeTests
         {
             var writer = Part(maskInfluence: true, visibleInsideMask: false, maskWrite: true);
 
-            // Standalone / under a maskInfluence=1 instance: parity plane (its own influence stands).
             bool influenceAtRoot = SpriteStudioInternalPlayer.EffectiveMaskInfluence(writer, RootInfluence);
             Assert.AreEqual(SpriteStudioMaterial.MaskStencilMaskParity, PlaneFor(influenceAtRoot),
-                "a maskInfluence=1 writer with no MI=0 ancestor writes on the parity plane");
+                "a maskInfluence=1 writer with no MI=0 instance part above it writes on the parity plane");
 
-            // Inside a maskInfluence=0 instance: the composed influence is 0, so it moves to the counter plane.
-            bool influenceInherited0 = SpriteStudioInternalPlayer.EffectiveMaskInfluence(writer, inheritedMaskInfluence: false);
-            Assert.AreEqual(SpriteStudioMaterial.MaskStencilMaskCount, PlaneFor(influenceInherited0),
-                "inside a maskInfluence=0 instance the same writer moves to the counter plane (union, not XOR)");
+            SpriteStudioInternalPlayer.ComposeInheritedContext(Part(false, false), out bool underMi0, out _);
+            bool influenceUnderMi0 = SpriteStudioInternalPlayer.EffectiveMaskInfluence(writer, underMi0);
+            Assert.AreEqual(SpriteStudioMaterial.MaskStencilMaskCount, PlaneFor(influenceUnderMi0),
+                "directly inside a maskInfluence=0 instance the same writer moves to the counter plane (union, not XOR)");
+        }
 
-            Assert.AreNotEqual(PlaneFor(influenceAtRoot), PlaneFor(influenceInherited0),
-                "the inherited maskInfluence must actually change which plane the writer lands on");
+        [Test]
+        public void WriterTwoLevelsBelowAMaskInfluenceZeroInstance_StaysOnTheParityPlane()
+        {
+            // OV_Top: MI=0 at the top, MI=1 on the instance part that draws the writer. The overlap of two
+            // inverting clips still cancels in SS7.5, so the writer keeps inverting.
+            var writer = Part(maskInfluence: true, visibleInsideMask: false, maskWrite: true);
+            SpriteStudioInternalPlayer.ComposeInheritedContext(Part(false, false), out _, out _);
+            SpriteStudioInternalPlayer.ComposeInheritedContext(Part(true, false), out bool middleInfluence, out _);
+
+            Assert.AreEqual(SpriteStudioMaterial.MaskStencilMaskParity,
+                PlaneFor(SpriteStudioInternalPlayer.EffectiveMaskInfluence(writer, middleInfluence)));
+        }
+
+        // ---- whether a player tests its parts at all ----------------------------------------------
+
+        private static SpriteStudioInternalPlayer PlayerWith(bool influenced, bool inside)
+        {
+            var p = new SpriteStudioInternalPlayer();
+            p._maskPartData = new SpriteStudioInternalPlayer.MaskPartData[1];
+            p._hasInfluencedTargets = influenced;
+            p._hasInsideTargets = inside;
+            return p;
+        }
+
+        [Test]
+        public void AnInsideTarget_IsTestedEvenWithNoMaskAnywhere()
+        {
+            // SS7.5 (S01_NoWriters): a visibleInsideMask=1 part draws only where a mask covers it, so with
+            // no mask at all it is hidden - it has to go through the stencil test, not be drawn untested.
+            using (var p = PlayerWith(influenced: true, inside: true))
+            {
+                Assert.IsTrue(p.MaskAffectsParts);
+                Assert.IsTrue(p.MaskActive);
+            }
+        }
+
+        [Test]
+        public void OutsideTargets_AreNotTested_WithNoMaskAnywhere()
+        {
+            // Nothing can cover them, and testing would force the per-part path for nothing.
+            using (var p = PlayerWith(influenced: true, inside: false))
+                Assert.IsFalse(p.MaskAffectsParts);
+        }
+
+        [Test]
+        public void OutsideTargets_AreTested_UnderCoverageFromOutside()
+        {
+            using (var p = PlayerWith(influenced: true, inside: false))
+            {
+                p._outerMaskCoverage = true;
+                Assert.IsTrue(p.MaskAffectsParts);
+            }
+        }
+
+        [Test]
+        public void ACallerAskingForInside_MakesInfluencedPartsInsideTargets()
+        {
+            using (var p = PlayerWith(influenced: true, inside: false))
+            {
+                p._inheritedVisibleInsideMask = true;
+                Assert.IsTrue(p.MaskAffectsParts);
+            }
+        }
+
+        [Test]
+        public void AnUnmaskedCaller_LeavesNothingToTest()
+        {
+            using (var p = PlayerWith(influenced: true, inside: true))
+            {
+                p._outerMaskCoverage = true;
+                p._inheritedMaskInfluence = false;
+                Assert.IsFalse(p.MaskAffectsParts, "effective maskInfluence is 0 on every part");
+            }
+        }
+
+        [Test]
+        public void CanvasSuppression_KeepsTheGateButDropsTheStencil()
+        {
+            using (var p = PlayerWith(influenced: true, inside: true))
+            {
+                p._suppressInternalMask = true;
+                Assert.IsTrue(p.MaskAffectsParts, "the per-part path still runs to drop pure masks");
+                Assert.IsFalse(p.MaskActive);
+            }
         }
     }
 }

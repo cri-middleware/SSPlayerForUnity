@@ -60,10 +60,11 @@ namespace SpriteStudio.Runtime
 
         /// <summary>Build the current frame's mask writer list (mirrors _build_mask_writers), and record
         /// which writing parts write at all this frame for <see cref="IsWriterActive"/>.</summary>
-        /// <param name="inheritedMaskInfluence">maskInfluence composed down the instance chain (AND). A
-        /// writer's op/plane follows its EFFECTIVE maskInfluence, not just its own: an instance part with
-        /// maskInfluence=0 puts its child's writers on the counter plane (union), which is what SS7.5 does
-        /// when maskInfluence is mixed. Root players pass the AND identity (true), so this is a no-op there.</param>
+        /// <param name="inheritedMaskInfluence">maskInfluence of the instance part directly above this player
+        /// (one level, not chained). A writer's op/plane follows its EFFECTIVE maskInfluence, not just its
+        /// own: an instance part with maskInfluence=0 puts its child's writers on the counter plane (union),
+        /// which is what SS7.5 does when maskInfluence is mixed. Root players pass the AND identity (true),
+        /// so this is a no-op there.</param>
         public unsafe void BuildWriters(ss.runtime.FrameData frameData, NativeArray<ushort> drawOrder,
             bool hasMaskParts, SpriteStudioInternalPlayer.MaskPartData[] maskPartData, int drawOrderLength, int partsLength,
             bool inheritedMaskInfluence)
@@ -100,7 +101,7 @@ namespace SpriteStudio.Runtime
                 {
                     PartIndex = p_idx,
                     DrawRank = (ushort)rank,
-                    // Effective maskInfluence = own AND inherited: the op/plane follows the composed value.
+                    // Effective maskInfluence = own AND the instance part's above: the op/plane follows it.
                     OpInvert = SpriteStudioInternalPlayer.EffectiveMaskInfluence(md, inheritedMaskInfluence),
                     IsClipping = md.IsClipping,
                     Threshold = (255f - ps.Value.Mask) / 255f,

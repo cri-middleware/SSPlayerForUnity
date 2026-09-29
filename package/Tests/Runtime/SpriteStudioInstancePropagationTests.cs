@@ -16,8 +16,8 @@ namespace SpriteStudio.Runtime.Tests
     /// A clipping mask written inside an instance child must keep clipping the parent animation's parts
     /// drawn after the instance - the child's restore is carried past the instance boundary to the parent's
     /// own restore at the very end, not applied at the boundary (see SpriteStudioGeometryBuilder's deferred
-    /// closes). And a mask writer's stencil plane follows its EFFECTIVE maskInfluence (own AND the value
-    /// inherited down the instance chain): a mask inside a maskInfluence=0 instance moves to the counter
+    /// closes). And a mask writer's stencil plane follows its EFFECTIVE maskInfluence (own AND the one of
+    /// the instance part directly above it): a mask inside a maskInfluence=0 instance moves to the counter
     /// plane so it composes with an outer mask as a union instead of cancelling it on the shared parity
     /// plane (see <see cref="SpriteStudioInternalPlayer.EffectiveMaskInfluence"/>).
     ///

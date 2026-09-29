@@ -163,75 +163,113 @@ internal struct MaskPartData
         // buffer is left to uGUI's own Mask/RectMask2D. The world (MeshRenderer) path leaves it false.
         internal bool _suppressInternalMask;
 
-        // Mask context inherited from the instance part that draws this player. SS7.5 composes the two
-        // masking flags down the instance hierarchy - visibleInsideMask accumulates with OR, maskInfluence
-        // chains with AND - so the parent writes these right before it builds this child and the child
-        // bakes the composed result into its own submesh roles. The defaults are the identity elements of
-        // those operators, which is exactly what a root player (drawn by nobody) has to see. Nesting needs
-        // no extra work: every level hands on the value it already composed.
-        internal bool _inheritedMasked;                 // an ancestor instance part is a mask target
+        // Mask flags of the instance part that draws this player. SS7.5 composes a part's own
+        // maskInfluence (AND) and visibleInsideMask (OR) with the instance part DIRECTLY above it - one
+        // level only, and whether or not the caller is itself masked. Values further up do not chain: an
+        // instance part with maskInfluence=0 exempts its own sub-animation's parts, but a grandchild is
+        // judged by the instance part that draws it. So the parent writes its instance part's raw flags
+        // here right before it builds this child, and the child bakes the result into its own submesh
+        // roles. The defaults are the identity elements of AND / OR, which is what a root player (drawn
+        // by nobody) has to see.
         internal bool _inheritedMaskInfluence = true;   // AND identity
         internal bool _inheritedVisibleInsideMask;      // OR identity
 
-        // True when masking must be honoured: this asset has writers of its own, or an ancestor instance
-        // is a mask target and its coverage still reaches these parts (a child asset with no mask parts of
-        // its own is still clipped by the mask around the instance that draws it). Canvas suppresses all
-        // of it and leaves the stencil to uGUI.
-        // _maskPartData is required because both paths below read per-part flags out of it; _hasMaskParts
-        // already implies it, but _inheritedMasked alone does not (it is set by the parent, which cannot
-        // know whether this child has finished SetupSlots).
-        internal bool MaskActive => (_hasMaskParts || _inheritedMasked) && _maskPartData != null && !_suppressInternalMask;
+        // True when stencil coverage written outside this player's own asset may be live while its parts
+        // draw: a mask of an ancestor, or a clipping mask that another instance in the tree carried past
+        // its boundary. Coverage reaches any depth, so a parent hands it on to every child once it holds
+        // it, has masks of its own, or has a clipping mask anywhere below it (SubtreeHasClippingParts).
+        // Set by the parent before it builds this child; false on a root.
+        internal bool _outerMaskCoverage;
 
-        // True when parts have to be emitted one by one so each can carry its own stencil role: this asset
-        // has mask writers, or an ancestor instance's mask reaches these parts. Canvas suppression is NOT
-        // tested here - the per-part path still has to run to drop pure masks - so it checks MaskActive.
-        internal bool MaskAffectsParts => (_hasMaskParts || _inheritedMasked) && _maskPartData != null;
+        // Static per asset (SetupSlots): some colour-drawing part opts into masking (maskInfluence=1), and
+        // some of those draws inside the mask (visibleInsideMask=1).
+        internal bool _hasInfluencedTargets;
+        internal bool _hasInsideTargets;
+
+        // True when some part has to be stencil-tested this frame even though this asset has no writer of
+        // its own: a covering mask may come from outside (_outerMaskCoverage), or a part draws inside the
+        // mask - such a part draws only where a mask covers it, so with no mask at all it must be tested
+        // and fail rather than be drawn untested (SS7.5 hides it even in an animation with no masks).
+        // Effective maskInfluence=0 on every part (the instance part above said 0) needs no test.
+        private bool NeedsTargetTest
+            => _inheritedMaskInfluence
+               && (_hasInsideTargets
+                   || (_hasInfluencedTargets && (_outerMaskCoverage || _inheritedVisibleInsideMask)));
+
+        // True when masking must be honoured: this asset has writers of its own, or some part needs a
+        // stencil test (NeedsTargetTest). Canvas suppresses all of it and leaves the stencil to uGUI.
+        // _maskPartData is required because both paths below read per-part flags out of it; _hasMaskParts
+        // already implies it, but the inherited context alone does not (it is set by the parent, which
+        // cannot know whether this child has finished SetupSlots).
+        internal bool MaskActive => MaskAffectsParts && !_suppressInternalMask;
+
+        // True when parts have to be emitted one by one so each can carry its own stencil role. Canvas
+        // suppression is NOT tested here - the per-part path still has to run to drop pure masks - so it
+        // checks MaskActive.
+        internal bool MaskAffectsParts => _maskPartData != null && (_hasMaskParts || NeedsTargetTest);
+
+        // Static per asset (SetupSlots): this asset has a clipping mask (MaskWrite on a drawing part).
+        internal bool _hasClippingParts;
+
+        /// <summary>
+        /// Whether this asset or any instance below it has a clipping mask. A clipping mask keeps clipping
+        /// everything drawn after it up to the end of the whole tree - past the instance that holds it - so
+        /// its coverage can reach a sibling instance drawn later. (A pure mask cannot: it covers only its
+        /// own animation.)
+        /// </summary>
+        internal bool SubtreeHasClippingParts
+        {
+            get
+            {
+                if (_hasClippingParts) return true;
+                for (int k = 0; k < _instancePartCount; k++)
+                {
+                    var c = _instanceChildren[_instancePartIndices[k]].Player;
+                    if (c != null && c.SubtreeHasClippingParts) return true;
+                }
+                return false;
+            }
+        }
 
         // === Mask composition rules (SS7.5) ================================================
-        // Kept here, as three small statics, so the geometry builder and the tests share one definition
-        // of the rules instead of restating them at each decision site.
+        // Kept here, as small statics, so the geometry builder and the tests share one definition of the
+        // rules instead of restating them at each decision site.
 
         /// <summary>
-        /// Whether a part is clipped by the stencil, composing its own maskInfluence with the value
-        /// inherited from the instance chain (AND). MaskWrite is deliberately outside the composition:
-        /// it says the part writes a mask of its own, which is not something a descendant inherits.
+        /// Whether a part's own colour is clipped by the stencil: its own maskInfluence AND the one of the
+        /// instance part directly above it. MaskWrite is not part of it - a clipping part draws its pixels
+        /// before it writes its clip, so it is tested only by OTHER masks, on its maskInfluence.
         /// </summary>
         internal static bool IsMaskTarget(in MaskPartData md, bool inheritedMaskInfluence)
-            => (md.MaskInfluence && inheritedMaskInfluence) || md.MaskWrite;
+            => md.MaskInfluence && inheritedMaskInfluence;
 
         /// <summary>
-        /// A part's effective polarity: draw inside the mask (true) or outside it (false).
-        /// visibleInsideMask accumulates with OR down the instance chain, so once any level asks for
-        /// "inside", every part below it draws inside.
+        /// A part's effective polarity: draw inside the mask (true) or outside it (false) - its own
+        /// visibleInsideMask OR the one of the instance part directly above it.
         /// </summary>
         internal static bool IsDrawnInsideMask(in MaskPartData md, bool inheritedVisibleInsideMask)
             => md.VisibleInsideMask || inheritedVisibleInsideMask;
 
         /// <summary>
-        /// Compose the context an instance part hands to the player it draws. Each level passes on what
-        /// it has already composed, so nesting chains without any extra bookkeeping - and because
-        /// maskInfluence chains with AND, once it reaches false it can never return to true, leaving
-        /// "not masked" decided for the whole subtree.
+        /// The flags an instance part hands to the player it draws: its own, verbatim. SS7.5 composes a
+        /// part with the instance part directly above it only, so what the caller itself inherited is not
+        /// passed on, and the caller being masked or not makes no difference.
         /// </summary>
         internal static void ComposeInheritedContext(in MaskPartData instancePart,
-            bool inheritedMaskInfluence, bool inheritedVisibleInsideMask,
-            out bool childMasked, out bool childMaskInfluence, out bool childVisibleInsideMask)
+            out bool childMaskInfluence, out bool childVisibleInsideMask)
         {
-            childMaskInfluence = inheritedMaskInfluence && instancePart.MaskInfluence;
-            childVisibleInsideMask = IsDrawnInsideMask(instancePart, inheritedVisibleInsideMask);
-            childMasked = IsMaskTarget(instancePart, inheritedMaskInfluence);
+            childMaskInfluence = instancePart.MaskInfluence;
+            childVisibleInsideMask = instancePart.VisibleInsideMask;
         }
 
         /// <summary>
-        /// A mask WRITER's effective maskInfluence: its own value composed (AND) with the value inherited
-        /// down the instance chain. The writer's stencil op - and therefore its bit plane - follows this,
-        /// not the raw own flag: influence=1 -> Invert (parity plane, self-inverse), influence=0 ->
-        /// Incr/Decr (counter plane, union). So a mask inside a maskInfluence=0 instance moves to the
-        /// counter plane and composes with an outer mask as a union - which is what SS7.5 does when
-        /// maskInfluence is mixed. This is the writer-side twin of the target-side composition in
-        /// <see cref="IsMaskTarget"/>. A root player passes the AND identity (true), leaving a standalone
-        /// asset's planes unchanged; MaskWrite is deliberately outside it (a writer's op is about its own
-        /// mask, not something a descendant inherits).
+        /// A mask WRITER's effective maskInfluence: its own value AND the one of the instance part directly
+        /// above it (one level, like a target's). The writer's stencil op - and therefore its bit plane -
+        /// follows this, not the raw own flag: influence=1 -> Invert (parity plane, self-inverse),
+        /// influence=0 -> Incr/Decr (counter plane, union). So a mask directly inside a maskInfluence=0
+        /// instance moves to the counter plane and composes with an outer mask as a union - which is what
+        /// SS7.5 does when maskInfluence is mixed - while a maskInfluence=0 further up does not reach it.
+        /// A root player passes the AND identity (true), leaving a standalone asset's planes unchanged.
         /// </summary>
         internal static bool EffectiveMaskInfluence(in MaskPartData md, bool inheritedMaskInfluence)
             => md.MaskInfluence && inheritedMaskInfluence;
@@ -441,6 +479,9 @@ internal struct MaskPartData
         private bool SetupSlots(ss.format.SsAnimeBinary binary)
         {
             _hasMaskParts = false;
+            _hasClippingParts = false;
+            _hasInfluencedTargets = false;
+            _hasInsideTargets = false;
             _maskPartData = null;
             _packHash = binary.NameHash;
             _geometryBuilder._lastBuiltDrawFrameNo = float.NaN; // always rebuild on reload
@@ -528,6 +569,19 @@ internal struct MaskPartData
                             DrawKind = drawKind,
                         };
                         if (writes) _hasMaskParts = true;
+                        if (maskWrite && !pureMask) _hasClippingParts = true;
+                        // Parts that draw a colour of their own and opt into masking. A pure mask draws no
+                        // colour, and an instance part hands its flags to its child instead of drawing.
+                        bool drawsColour = !pureMask
+                            && (p.PartTypeType == ss.format.PartType.PartTypeNormal
+                                || p.PartTypeType == ss.format.PartType.PartTypeShape
+                                || p.PartTypeType == ss.format.PartType.PartTypeMesh
+                                || p.PartTypeType == ss.format.PartType.PartTypeEffect);
+                        if (drawsColour && p.MaskInfluence)
+                        {
+                            _hasInfluencedTargets = true;
+                            if (p.VisibleInsideMask) _hasInsideTargets = true;
+                        }
                     }
 
                     if (p.PartTypeType == ss.format.PartType.PartTypeEffect)

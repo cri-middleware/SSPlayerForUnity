@@ -667,6 +667,12 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             if (_player._hasInstanceParts)
                 SpriteStudioNativeBuffers.EnsureCapacity(ref _childHandles, partsLength);
 
+            // Whether a child may be drawn under coverage written outside its own asset: this player's own
+            // masks, coverage that already reaches this player, or a clipping mask in any instance here -
+            // an earlier one's clip stays open for the instances drawn after it.
+            bool outerCoverage = _player._instancePartCount > 0
+                && (_player._outerMaskCoverage || _player._hasMaskParts || _player.SubtreeHasClippingParts);
+
             for (int k = 0; k < _player._instancePartCount; k++)
             {
                 int i = _player._instancePartIndices[k];
@@ -696,7 +702,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     // The display-side frame-range clamp is unneeded here because the child's own PrepareFrameData does it before get_frame_data.
                     // Hand this instance part's mask context down before the child builds: the child bakes
                     // the composed roles into its own submeshes, so the parent never patches them afterwards.
-                    PropagateMaskContext(i, childPlayer);
+                    PropagateMaskContext(i, childPlayer, outerCoverage);
                     childPlayer.SetFrame(step.child_frame_no);
                     childPlayer.ScheduleMeshUpdate(deltaTime);
 
@@ -757,42 +763,37 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         /// </summary>
 
         /// <summary>
-        /// Hand this player's composed mask context to an instance child, before the child builds. The
-        /// rules live on the player (SpriteStudioInternalPlayer.ComposeInheritedContext); a part index
-        /// that resolves to no mask data leaves the child at the identity context (= unmasked).
+        /// Hand an instance child the mask context it is drawn in, before the child builds: the flags of
+        /// the instance part that draws it (SpriteStudioInternalPlayer.ComposeInheritedContext - one level,
+        /// always, whether or not this player is masked), and whether coverage from outside the child may
+        /// be live (<paramref name="outerCoverage"/>). A part index that resolves to no mask data leaves
+        /// the flags at the identity context.
         /// </summary>
-        private void PropagateMaskContext(int instancePartIndex, SpriteStudioInternalPlayer childPlayer)
+        private void PropagateMaskContext(int instancePartIndex, SpriteStudioInternalPlayer childPlayer, bool outerCoverage)
         {
-            bool masked = false, influence = true, visibleInside = false;
+            bool influence = true, visibleInside = false;
             var md = _player._maskPartData;
-            if (_player.MaskActive && md != null && instancePartIndex >= 0 && instancePartIndex < md.Length)
+            if (md != null && instancePartIndex >= 0 && instancePartIndex < md.Length)
             {
                 SpriteStudioInternalPlayer.ComposeInheritedContext(md[instancePartIndex],
-                    _player._inheritedMaskInfluence, _player._inheritedVisibleInsideMask,
-                    out masked, out influence, out visibleInside);
+                    out influence, out visibleInside);
             }
-            childPlayer._inheritedMasked = masked;
+            childPlayer._outerMaskCoverage = outerCoverage;
             childPlayer._inheritedMaskInfluence = influence;
             childPlayer._inheritedVisibleInsideMask = visibleInside;
         }
 
         /// <summary>
-        /// Effective mask targeting for one of this player's parts, composed against the context inherited
-        /// from the instance chain (see <see cref="PropagateMaskContext"/>). A root player's inherited
-        /// values are the identity elements, so this reduces to the part's own setting.
+        /// Effective mask targeting for one of this player's parts, composed against the flags of the
+        /// instance part that draws this player (see <see cref="PropagateMaskContext"/>). A root player's
+        /// inherited values are the identity elements, so this reduces to the part's own setting.
         /// <paramref name="comp"/> receives the stencil compare for the resulting polarity.
         /// </summary>
         private bool MaskTargetOf(in SpriteStudioInternalPlayer.MaskPartData md, out byte comp)
         {
             comp = SpriteStudioInternalPlayer.IsDrawnInsideMask(md, _player._inheritedVisibleInsideMask)
                 ? StencilCompNotEqual : StencilCompEqual;
-            // Whether this part's own COLOUR is clipped by masks. A clipping part draws its pixels, then
-            // writes its clip below ("pixels, then mask"), so its own MaskWrite must not gate its colour -
-            // it is still clipped by OTHER masks purely on its real maskInfluence. IsMaskTarget adds
-            // "|| MaskWrite" for the propagation/target sense; using it here made a clipping writer test
-            // its own colour, so a visibleInsideMask writer with no covering mask (NotEqual) vanished when
-            // it should draw (maskInfluence=0), and one with maskInfluence=1 still resolves the same way.
-            return md.MaskInfluence && _player._inheritedMaskInfluence;
+            return SpriteStudioInternalPlayer.IsMaskTarget(md, _player._inheritedMaskInfluence);
         }
 
         private unsafe void ProcessInstanceBatch(ss.runtime.DrawBatch b, int partsLength, ref int totalVertices, ref int totalIndices)
@@ -876,7 +877,9 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 StencilRole effRole = StencilRole.None;
                 byte effComp = 0;
-                if (_player.MaskActive)
+                // Same gate as the per-part path: an instance child earlier this frame may have left a
+                // clip open (_instanceCoverageOpen) even when this player has no masks of its own.
+                if ((_player.MaskActive || _instanceCoverageOpen) && !_player._suppressInternalMask && _player._maskPartData != null)
                 {
                     // Particles have no mask flags of their own, so the effect part's effective targeting
                     // (its own flags composed with the inherited instance context) applies to all of them.
@@ -912,8 +915,9 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             int vc = 0;
             int ic = 0;
 
-            // Also taken when this player has no mask parts of its own but an instance ancestor's mask
-            // reaches it (MaskAffectsParts), or a visible instance child EARLIER this frame left an open
+            // Also taken when this player has no mask parts of its own but some part still needs a stencil
+            // test (MaskAffectsParts: coverage from outside may reach it, or it draws inside the mask and
+            // must be hidden with no mask over it), or a visible instance child EARLIER this frame left an open
             // clip that carries up (_instanceCoverageOpen): those parts still need one submesh each to
             // carry their own stencil role. The instance batch is processed before this one (draw order),
             // so parts drawn before any such instance correctly see the flag still false.
@@ -939,46 +943,33 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                             StencilRole.None, 0, 0, 0f, ref totalVertices, ref totalIndices);
                         continue;
                     }
-                    // A writer's op/plane follows its EFFECTIVE maskInfluence (own AND inherited from the
-                    // instance chain), so a mask inside a maskInfluence=0 instance lands on the counter
-                    // plane (union) instead of the parity plane (XOR) - matching SS7.5's mixed-influence union.
-                    bool effInfluence = SpriteStudioInternalPlayer.EffectiveMaskInfluence(md, _player._inheritedMaskInfluence);
-                    if (md.PureMask)
+                    // A pure mask never draws a colour, and its removal (the Phase B half of the Phase A/B
+                    // pair) is emitted from its Mask batch twin at the same rank (ProcessMaskBatch), so its
+                    // colour batch contributes nothing here.
+                    if (md.PureMask) continue;
+                    if (MaskTargetOf(md, out byte comp))
                     {
-                        // The removal half of the Phase A/B pair, so it runs only for a writer Phase A
-                        // actually wrote: a switched-off or hidden pure mask writes nothing, and decrementing
-                        // (or inverting) for it would take the plane past where it started. Skipping it emits
-                        // no submesh, which is what a pure mask contributes anyway - it never draws a colour.
-                        if (_maskPlanner.IsWriterActive(p_idx))
-                        {
-                            byte rop = effInfluence ? StencilOpInvert : StencilOpDecr;
-                            float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
-                            _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
-                                StencilRole.Write, rop, 0, th, ref totalVertices, ref totalIndices);
-                        }
+                        _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                            StencilRole.Test, 0, comp, 0f, ref totalVertices, ref totalIndices);
                     }
                     else
                     {
-                        if (MaskTargetOf(md, out byte comp))
-                        {
-                            _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
-                                StencilRole.Test, 0, comp, 0f, ref totalVertices, ref totalIndices);
-                        }
-                        else
-                        {
-                            _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
-                                StencilRole.None, 0, 0, 0f, ref totalVertices, ref totalIndices);
-                        }
-                        // Its own colour is already emitted above, whatever the mask says: a clipping part
-                        // draws either way, and only the stencil write is switched off. Phase C closes this
-                        // write off the writer list, so both halves have to agree on which writers are live.
-                        if (md.IsClipping && _maskPlanner.IsWriterActive(p_idx))
-                        {
-                            byte wop = effInfluence ? StencilOpInvert : StencilOpIncr;
-                            float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
-                            _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
-                                StencilRole.Write, wop, 0, th, ref totalVertices, ref totalIndices);
-                        }
+                        _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                            StencilRole.None, 0, 0, 0f, ref totalVertices, ref totalIndices);
+                    }
+                    // Its own colour is already emitted above, whatever the mask says: a clipping part
+                    // draws either way, and only the stencil write is switched off. Phase C closes this
+                    // write off the writer list, so both halves have to agree on which writers are live.
+                    if (md.IsClipping && _maskPlanner.IsWriterActive(p_idx))
+                    {
+                        // The op/plane follows the writer's EFFECTIVE maskInfluence (own AND the instance
+                        // part's above), so a mask directly inside a maskInfluence=0 instance lands on the
+                        // counter plane (union) instead of the parity plane (XOR) - SS7.5's mixed-influence union.
+                        byte wop = SpriteStudioInternalPlayer.EffectiveMaskInfluence(md, _player._inheritedMaskInfluence)
+                            ? StencilOpInvert : StencilOpIncr;
+                        float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
+                        _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                            StencilRole.Write, wop, 0, th, ref totalVertices, ref totalIndices);
                     }
                 }
                 return;
@@ -1103,15 +1094,21 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
                 if (p_idx < 0 || p_idx >= partsLength) continue;
                 var md = _player._maskPartData[p_idx];
-                if (!md.IsMaskPart) continue;
-                // Phase B for a Mask part: the removal that pairs with Phase A's write, so a writer Phase A
-                // left out - switched off with mask == 0, or hidden - must be left out here too.
+                // Every pure mask has a Mask batch at its own rank: the only batch of a Mask part, and the
+                // twin the runtime emits ahead of a draw_as_mask part's colour batch (kept even when that
+                // part is hidden). Removing here rather than at the colour batch covers every kind alike -
+                // a Nines draw_as_mask has no colour path in this builder, so Phase A's write used to stay
+                // set past its rank.
+                if (!md.PureMask) continue;
+                // Phase B: the removal that pairs with Phase A's write, so a writer Phase A left out -
+                // switched off with mask == 0, or hidden - must be left out here too.
                 if (!_maskPlanner.IsWriterActive(p_idx)) continue;
-                if (!_maskPlanner.MaskPartVcIc(p_idx, SsDrawBatchKind.Normal, frame, _partStates, out int mvc, out int mic)) continue;
-                // Op/plane follows the effective maskInfluence (own AND inherited); see ProcessNormalShapeMeshBatch.
+                if (!_maskPlanner.MaskPartVcIc(p_idx, md.DrawKind, frame, _partStates, out int mvc, out int mic)) continue;
+                // Op/plane follows the effective maskInfluence (own AND the instance part's above).
                 byte rop = SpriteStudioInternalPlayer.EffectiveMaskInfluence(md, _player._inheritedMaskInfluence) ? StencilOpInvert : StencilOpDecr;
-                float th = (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
-                _batchBuilder.EmitMaskStep(SsDrawBatchKind.Normal, rank, mvc, mic, b.TextureHash, (byte)b.BlendType,
+                // Same geometry, texture and threshold as the Phase A write it undoes.
+                float th = md.DrawKind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
+                _batchBuilder.EmitMaskStep(md.DrawKind, rank, mvc, mic, _maskPlanner.GetPartTexHash(p_idx), _maskPlanner.GetPartBlend(p_idx),
                     StencilRole.Write, rop, 0, th, ref totalVertices, ref totalIndices);
             }
         }
