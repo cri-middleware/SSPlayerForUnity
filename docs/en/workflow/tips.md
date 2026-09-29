@@ -63,6 +63,12 @@ Supports SpriteStudio's masking / clipping (per-part) using the stencil buffer.
 - **World path (`SpriteStudioPlayer`)**: Draws with the stencil using SpriteStudio's internal mask mechanism. On URP, the stencil bits used are limited so that masking does not break when combined with SSAO / Deferred / Decal.
 - **Canvas path (`SpriteStudioGraphic`)**: SpriteStudio's internal mask is suppressed; instead it follows uGUI's **Mask** / **RectMask2D** (placing a mask on a parent clips this graphic, and a **Mask** on the graphic itself clips its children).
 
+On the world path, masks resolve as SpriteStudio 7.5 draws them:
+
+- **A part set to draw inside the mask is hidden wherever no mask covers it** — even in an animation that has no mask at all, or whose masks are all hidden or at mask value 0. It is not drawn untested just because there is nothing to mask with.
+- **An Instance part combines its mask settings with its sub-animation's parts one level deep.** A part of the sub-animation receives masks only if both it and the Instance part have mask influence on, and draws inside the mask if either of them asks for it. Only the Instance part that draws the sub-animation counts: an Instance part further up does not reach a part nested two levels down.
+- **A mask inside an Instance applies to the sub-animation's own parts, and a clipping mask there keeps going.** It also clips the parts of the calling animation drawn after the Instance, up to the end of the whole animation.
+
 ## Canvas (uGUI) Path Constraints
 
 `SpriteStudioGraphic` is implemented to fit the CanvasRenderer constraint of "1 renderer = 1 mesh + 1 material." Note the following points.

@@ -35,6 +35,8 @@ Of the stencil buffer, this plugin uses only the low 4 bits — the range URP le
 > - **Masks with "mask influence" OFF stack up to 7 deep over one pixel.** An eighth overlapping mask wraps that pixel's count around, and the mask appears to drop out there.
 > - **Masks with "mask influence" ON have no such limit**, because they are resolved by inversion (odd/even) instead of counting.
 >
+> A mask inside an Instance counts as "mask influence" OFF when either it or the Instance part that draws it has the setting off. A clipping mask inside an Instance stays in effect until the end of the whole animation, so it overlaps with the masks drawn after that Instance too.
+>
 > The ceiling is only reachable when eight or more mask-influence-off masks overlap the same pixel within the same draw scope. Ordinary animations do not reach it. If yours does, merge the masks or revisit their "mask influence" settings.
 
 ## Part Tracking
