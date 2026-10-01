@@ -26,6 +26,7 @@ For detailed instructions, see the documents in the `docs/` folder — structure
 - [**Documentation site (hosted)**](https://cri-middleware.github.io/SSPlayerForUnity/) — 🚧 live after the first release
 - [**Documentation (English)**](./docs/en/index.md)
 - [**ドキュメント (日本語)**](./docs/ja/index.md)
+- [**For AI assistants**](https://cri-middleware.github.io/SSPlayerForUnity/llms.txt) — these docs as Markdown: `llms.txt` indexes the pages and `llms-full.txt` holds all of them in one file; the installed package carries the same pages in its `Documentation~/` folder — 🚧 live after the first release
 - [**SpriteStudio Docs (portal)**](https://cri-middleware.github.io/SpriteStudio-Docs/) — the SDK and every official player in one place — 🚧 live after the first release
 
 ### Quick Links
