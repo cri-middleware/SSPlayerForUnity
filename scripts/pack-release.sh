@@ -19,12 +19,33 @@ DOCS=(
     "CHANGELOG.md:CHANGELOG.md"
 )
 
+# The documentation tree rides along: it matches the installed version, and it reads with no
+# network. Unity skips a folder whose name ends in `~`, so none of it needs a .meta. Only
+# Markdown goes in (the images are most of docs/'s weight), and the mkdocs snippet includes
+# (`--8<-- "LICENSE.md"`) are resolved while copying, because only mkdocs understands them.
+# scripts/upm-docs holds the package's own index page, named after the package as UPM expects.
+DOCS_TREE="${PACKAGE_DIR}/Documentation~"
+INCLUDE_AWK='
+/^--8<-- "[^"]+"[ \t]*$/ {
+    path = $0
+    sub(/^--8<-- "/, "", path)
+    sub(/"[ \t]*$/, "", path)
+    path = root "/" path
+    while ((status = (getline line < path)) > 0) print line
+    if (status < 0) { print "ERROR: snippet include not found: " path > "/dev/stderr"; exit 1 }
+    close(path)
+    next
+}
+{ print }
+'
+
 # Cleanup function to ensure temporary files are removed even on error
 cleanup() {
     for entry in "${DOCS[@]}"; do
         dst="${entry#*:}"
         rm -f "${PACKAGE_DIR}/${dst}" "${PACKAGE_DIR}/${dst}.meta"
     done
+    rm -rf "${DOCS_TREE}"
 }
 trap cleanup EXIT
 
@@ -38,6 +59,17 @@ for entry in "${DOCS[@]}"; do
     dst="${entry#*:}"
     cp "${ROOT}/${src}" "${PACKAGE_DIR}/${dst}"
     cp "${META_DIR}/${dst}.meta" "${PACKAGE_DIR}/${dst}.meta"
+done
+
+echo "Copying the documentation tree to package directory..."
+rm -rf "${DOCS_TREE}"
+mkdir -p "${DOCS_TREE}"
+cp "${ROOT}"/scripts/upm-docs/*.md "${DOCS_TREE}/"
+for lang in en ja; do
+    while IFS= read -r -d '' rel; do
+        mkdir -p "${DOCS_TREE}/${lang}/$(dirname "${rel}")"
+        awk -v root="${ROOT}" "${INCLUDE_AWK}" "${ROOT}/docs/${lang}/${rel}" > "${DOCS_TREE}/${lang}/${rel}"
+    done < <(cd "${ROOT}/docs/${lang}" && find . -name '*.md' -print0)
 done
 
 # Pack the package.

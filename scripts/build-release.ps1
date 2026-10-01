@@ -406,6 +406,12 @@ if ($verify -eq "yes") {
         if (-not (Test-Entry "$document.meta"))  { $failed.Add("$versioned is missing $document.meta") }
     }
 
+    # The documentation tree pack-release stages: the package's own index page and both
+    # locales' home pages. No .meta beside them -- Unity does not import a folder ending in `~`.
+    foreach ($document in @("Documentation~/$name.md", "Documentation~/en/index.md", "Documentation~/ja/index.md")) {
+        if (-not (Test-Entry $document))         { $failed.Add("$versioned is missing $document") }
+    }
+
     # The bindings, and a .meta for each.
     foreach ($binding in @("Runtime/Bindings/SSRuntimeMethods.g.cs", "Editor/Bindings/SSConverterMethods.g.cs")) {
         if (-not (Test-Entry $binding))          { $failed.Add("$versioned is missing $binding") }

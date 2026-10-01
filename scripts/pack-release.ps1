@@ -19,6 +19,14 @@ $docs = @(
     @{ Src = "CHANGELOG.md";           Dst = "CHANGELOG.md" }
 )
 
+# The documentation tree rides along: it matches the installed version, and it reads with no
+# network. Unity skips a folder whose name ends in `~`, so none of it needs a .meta. Only
+# Markdown goes in (the images are most of docs\'s weight), and the mkdocs snippet includes
+# (`--8<-- "LICENSE.md"`) are resolved while copying, because only mkdocs understands them.
+# scripts\upm-docs holds the package's own index page, named after the package as UPM expects.
+$docsTree = Join-Path $packageDir "Documentation~"
+$includePattern = '(?m)^--8<-- "([^"]+)"[ \t]*(?=\r?$)'
+
 try {
     # Copy the license / changelog documents into the package dir for UPM before packing.
     # Each one also needs its sibling .meta: a UPM package is extracted into an immutable
@@ -28,6 +36,28 @@ try {
     foreach ($doc in $docs) {
         Copy-Item (Join-Path $root $doc.Src) -Destination (Join-Path $packageDir $doc.Dst)
         Copy-Item (Join-Path $metaDir "$($doc.Dst).meta") -Destination (Join-Path $packageDir "$($doc.Dst).meta")
+    }
+
+    Write-Host "Copying the documentation tree to package directory..."
+    Remove-Item -LiteralPath $docsTree -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Path $docsTree | Out-Null
+    Copy-Item (Join-Path $root "scripts\upm-docs\*.md") -Destination $docsTree
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    foreach ($lang in @("en", "ja")) {
+        $langRoot = Join-Path $root "docs\$lang"
+        foreach ($file in Get-ChildItem -LiteralPath $langRoot -Recurse -File -Filter "*.md") {
+            $rel = $file.FullName.Substring($langRoot.Length).TrimStart('\', '/')
+            $dst = Join-Path (Join-Path $docsTree $lang) $rel
+            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dst) | Out-Null
+            $text = [System.IO.File]::ReadAllText($file.FullName)
+            $text = [regex]::Replace($text, $includePattern, {
+                param($m)
+                $include = Join-Path $root $m.Groups[1].Value
+                if (-not (Test-Path -LiteralPath $include)) { throw "snippet include not found: $include" }
+                [System.IO.File]::ReadAllText($include) -replace '\r?\n\z', ''
+            })
+            [System.IO.File]::WriteAllText($dst, $text, $utf8NoBom)
+        }
     }
 
     # Pack the package.
@@ -89,6 +119,7 @@ try {
         Remove-Item (Join-Path $packageDir $doc.Dst) -ErrorAction SilentlyContinue
         Remove-Item (Join-Path $packageDir "$($doc.Dst).meta") -ErrorAction SilentlyContinue
     }
+    Remove-Item -LiteralPath $docsTree -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host "Packing complete!"
