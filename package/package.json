@@ -32,6 +32,7 @@
     "Runtime.meta",
     "Editor",
     "Editor.meta",
+    "Documentation~",
     "package.json.meta",
     "CHANGELOG.md",
     "CHANGELOG.md.meta",

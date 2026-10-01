@@ -2,7 +2,7 @@
 
 A UPM package is extracted into an immutable folder (`Library/PackageCache/...`), and Unity
 ignores any asset there that has no `.meta`. Every file in the shipped tarball therefore needs
-one — but CI has no Unity to generate them, and some of the files that go into `package/` are
+one (the `Documentation~` folder is the exception: Unity does not import it) — but CI has no Unity to generate them, and some of the files that go into `package/` are
 produced by the release scripts rather than committed, so their `.meta` cannot sit next to them
 in the working tree.
 

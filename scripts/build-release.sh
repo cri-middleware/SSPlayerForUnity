@@ -415,6 +415,12 @@ if [ "$VERIFY" = "yes" ]; then
     has "$doc.meta"   || fail "$VERSIONED is missing $doc.meta"
   done
 
+  # The documentation tree pack-release.sh stages: the package's own index page and both
+  # locales' home pages. No .meta beside them -- Unity does not import a folder ending in `~`.
+  for doc in "Documentation~/${NAME}.md" "Documentation~/en/index.md" "Documentation~/ja/index.md"; do
+    has "$doc" || fail "$VERSIONED is missing $doc"
+  done
+
   # The bindings, and a .meta for each.
   for b in "Runtime/Bindings/SSRuntimeMethods.g.cs" "Editor/Bindings/SSConverterMethods.g.cs"; do
     has "$b"      || fail "$VERSIONED is missing $b"
