@@ -1,42 +1,17 @@
-# Settings shared by every locale. `mkdocs.yml` (English) and `mkdocs.ja.yml` both start
-# with `INHERIT: ./mkdocs.base.yml` and add only what differs between them.
-#
-# This file is never built directly -- it has no `docs_dir` and no `nav`. It is named
-# `mkdocs.base.yml` rather than `mkdocs.yml` precisely so that a bare `zensical build`
-# picks up the English locale config instead of this one.
-#
-# IMPORTANT -- the rule that shapes this split: **every YAML sequence must be defined in
-# exactly one of the three files.** Zensical's `INHERIT` *concatenates* sequences from
-# parent and child, where MkDocs replaces them. Put `nav` here as well as in a locale file
-# and the Japanese site renders the English navigation followed by the Japanese one; do the
-# same with `extra.social` and the footer grows six icons. Mappings deep-merge in both
-# tools, so scalars like `theme.language` are safe to override.
+# Zensical's INHERIT concatenates YAML sequences (nav, plugins, extra.social, ...) instead of
+# replacing them, so each sequence is defined in exactly one of mkdocs.base.yml, mkdocs.yml and
+# mkdocs.ja.yml.
 
 site_name: SpriteStudio Player for Unity
 site_author: "CRI Middleware Co., Ltd."
 repo_name: "cri-middleware/SSPlayerForUnity"
 repo_url: "https://github.com/cri-middleware/SSPlayerForUnity"
-# No `edit_uri`, so no "edit this page" button renders. It pointed at `main` while the
-# default branch is `develop` (86 commits ahead, 24 differing files under docs/), so the
-# pencil would have opened a stale copy of the page and targeted the wrong branch. Nothing
-# validates the value - strict mode does not look at it - and the footer repo link plus
-# CONTRIBUTING.md already route corrections. Deleted rather than left inert.
-# Rendered in the site footer. Deliberately year-less so it never goes stale.
 copyright: "Copyright &copy; CRI Middleware Co., Ltd."
-
-# Nothing builds the docs on a pull request - pages.yml runs on `release: published` and
-# dispatch - so the local build is the only gate, and a plain `build` should fail on a broken
-# link rather than depend on remembering `--strict`.
 strict: true
 
 theme:
   name: material
-  # Only overrides/ lives here: main.html appends the Open Graph / Twitter Card metadata the
-  # theme does not emit and repairs the page title; partials/alternate.html rebuilds the
-  # language selector so it points at the current page.
   custom_dir: overrides
-  # Matches the Unity card on the SpriteStudio-Docs landing page. A bundled icon, so it
-  # needs no image file; there is no SpriteStudio artwork to use as a favicon yet.
   icon:
     logo: material/unity
   palette:
@@ -60,34 +35,17 @@ theme:
     - navigation.expand
     - navigation.top
     - navigation.tracking
-    # Previous / next links in the footer, so the guides can be read in order.
     - navigation.footer
     - toc.follow
     - search.suggest
     - search.highlight
     - content.code.copy
-    # "Copy as Markdown" on every page. It fetches the Markdown the `llmstxt` plugin writes.
     - content.action.copy
+    - content.tabs.link
 
 plugins:
-  # Search language follows `theme.language`, which each locale config sets, so there is no
-  # per-language list to keep in sync here. Each locale gets its own index, and the Japanese
-  # one is segmented into words rather than indexed as unbroken runs of characters.
   - search
-
-  # Nothing has shipped from this site yet, so there is nothing to redirect. Add a
-  # `redirect_maps:` entry the moment a published page moves or is renamed: the stub keeps
-  # the old URL working, anchors and all. Sources are relative to `docs_dir`, and the two
-  # locales mirror each other, so a single entry covers en and ja.
   - redirects
-
-  # Writes `llms.txt` and `llms-full.txt` at each locale's root, and a Markdown copy of every
-  # page beside its HTML, for readers who hand the docs to an AI assistant. Needs `site_url`,
-  # which both locale configs set. `sections` takes globs relative to `docs_dir`, so one entry
-  # covers every page in both locales and a new page is picked up without editing it.
-  # `markdown_description` opens both files. It is English for both locales: a per-locale text
-  # would move `llmstxt` into the locale files and split `plugins` across three files, which
-  # the sequence rule at the top forbids.
   - llmstxt:
       full_output: llms-full.txt
       markdown_description: |
@@ -100,36 +58,34 @@ plugins:
         Docs:
           - "*.md"
 
-# `pymdownx.quotes` restores the one thing `mkdocs-callouts` did for these pages: rendering
-# the `> [!NOTE]` blockquote syntax as admonitions. Zensical parses it natively, so the
-# plugin is gone. Two consequences worth knowing: a list inside a callout needs a blank `>`
-# line before it, and `[!IMPORTANT]` has no built-in styling - see
-# docs/*/stylesheets/extra.css.
 markdown_extensions:
   - toc:
-      # The "¶" beside each heading, so a reader can copy a link to a section. Listing
-      # `markdown_extensions` replaces Zensical's defaults wholesale, and the default `toc`
-      # is the one that carries this.
       permalink: true
       slugify: !!python/object/apply:pymdownx.slugs.slugify
         kwds:
           case: lower
   - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.details
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
   - pymdownx.highlight:
       anchor_linenums: true
       line_spans: __span
       pygments_lang_class: true
   - pymdownx.inlinehilite
-  # `base_path` is resolved against this file's directory, which is the repository root for
-  # all three configs -- which is what lets docs/en/license.md pull in LICENSE.md,
-  # docs/ja/license.md pull in LICENSE.ja.md, and both pull THIRD_PARTY_NOTICES.md
-  # from there instead of keeping a second copy per locale.
   - pymdownx.snippets:
       base_path:
         - .
@@ -137,19 +93,7 @@ markdown_extensions:
   - pymdownx.quotes:
       callouts: true
 
-# The file itself is duplicated, as docs/en/stylesheets/extra.css and
-# docs/ja/stylesheets/extra.css -- a path here resolves inside each locale's `docs_dir`.
-extra_css:
-  - stylesheets/extra.css
-
 extra:
-  # The header language selector. `link` is each locale's subpath under the site root, NOT
-  # a full URL -- overrides/partials/alternate.html rebuilds the href from it plus the
-  # current page, so switching language keeps the reader on the same page instead of
-  # dropping them on the other locale's home page. `extra.site_root_prefix` in each locale
-  # config is the other half of that calculation.
-  #
-  # overrides/main.html builds the page head's hreflang links from the same `link`s.
   alternate:
     - name: English
       link: ""
