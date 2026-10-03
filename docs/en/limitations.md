@@ -58,7 +58,6 @@ Part Tracking (making a `Transform` follow a part) is a `SpriteStudioPlayer` (wo
 ## Scripting API
 
 > [!NOTE]
-> - **Playback ranges are frame-based.** `SetAnimationSection(int start, int end)` takes frame numbers; specifying a label range is not supported.
 > - **`Play()` rewinds.** To resume from the current frame, `Pause()` holds it and `Resume()` lifts the hold — `Play()` cannot be used to resume.
 > - **Signals materialize managed strings.** The Tick / mesh-construction loop is zero-allocation, and numeric Signal parameters are decoded into a reusable typed buffer, but part names, command ids, and string-typed parameters must still become managed strings. Animations that fire Signals in large numbers or at high frequency can therefore cause minor hitches on mobile / WebGL.
 
@@ -70,7 +69,6 @@ These come from the shared `libssruntime` and therefore apply to every render pa
 > - **`independent=true` parts (Instance / Effect) do not reverse or seek correctly.** Only forward playback (including forward frame-skips) is correct.
 > - **Seeking does not fire the events it skips over.** Only the destination frame's `UserData` / `Signal` / `Audio` events fire.
 > - **No reverse audio.** Sounds are skipped whenever the effective direction is backward (a reverse direction, or a ping-pong return leg). A negative speed is not one of those cases: speed is a multiplier, and a negative one stops the playhead rather than turning it around, as does `0`.
-> - **Animation blending is same-`.ssab` only**, and every blended animation must assign the same Cell to the same part.
 > - **WebAssembly SIMD is required for WebGL builds.** The runtime is built with WebAssembly SIMD instructions and will not run on browsers without SIMD support. Treat SIMD support as a browser requirement for a WebGL distribution.
 
 ## Platforms
