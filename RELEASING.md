@@ -6,7 +6,7 @@ Maintainers only. Contributors do not run any of this — see [CONTRIBUTING.md](
 
 Anyone with the Write role on this repository can cut a release: every step is a branch, a pull request, a tag, a workflow run or a Release, and the signing credentials are organization secrets, so nothing depends on whose machine runs it beyond the checks in step 3 that need Unity. You need `git`, `gh` (run `gh auth login` once) and Node.js, plus Unity for those checks. The commands are bash; on Windows, run them in Git Bash.
 
-A release is a tag on `main`, pushed first and built second. The version is written in one place, `version` in `package/package.json` (semver, `7.0.0-beta.1` for a prerelease): `scripts/release-version.sh` prints it, the tag is `v` followed by it, and the release build refuses a tag that disagrees, since the tarball is named after it. The SDK it ships is pinned on its own, in `scripts/SDK_VERSION.txt`. Branches follow git-flow: `develop` integrates, `release/X.Y` is cut from it and kept afterwards so that patch releases reuse it, and `main` holds released commits only.
+A release is a tag on `main`, pushed first and built second. The version is written in one place, `version` in `package/package.json` (semver, `7.0.0-beta.1` for a prerelease): `scripts/release-version.sh` prints it, the tag is `v` followed by it, and the release build refuses a tag that disagrees, since the tarball is named after it. The SDK it ships is pinned on its own, in `scripts/SDK_VERSION.txt`. Branches follow git-flow: `develop` integrates, `main` holds released commits only, and `release/X.Y` lives for one release — cut from `develop` for a new `X.Y`, or from the line's latest tag for a patch, and deleted once the release is out.
 
 ```bash
 VERSION=7.0.1                                       # what is being released
@@ -15,12 +15,12 @@ BRANCH=release/$(echo "$VERSION" | cut -d. -f1,2)   # release/7.0
 
 ### 1. Branch
 
-A new `X.Y` is cut from `develop`. A patch release checks out the existing branch and commits or cherry-picks its fixes onto it.
+A new `X.Y` is cut from `develop`. A patch release is cut from the line's latest tag, whether or not an earlier `release/X.Y` is still there, and its fixes are committed or cherry-picked onto it.
 
 ```bash
 git fetch origin
 git switch -c "$BRANCH" origin/develop           # a new X.Y
-git switch "$BRANCH" && git pull --ff-only       # a patch release
+git switch -C "$BRANCH" v7.0.0                   # a patch release: the line's latest tag
 ```
 
 ### 2. SDK, version and changelog
@@ -61,12 +61,12 @@ No CI has Unity, so two checks are yours, on the branch: the test suite (`script
 
 ### 4. Merge and tag
 
-Merge with a merge commit, never a squash or a rebase: the next patch release merges `release/X.Y` into `main` again. Tag `main` only when its tree is the one the QA build built. It differs only when `main` held commits the branch did not; merge `main` into the branch and go back to step 3.
+Merge with a merge commit, never a squash or a rebase, so that `main` keeps the commits the QA build built rather than copies of them. Tag `main` only when its tree is the one the QA build built. It differs only when `main` held commits the branch did not; merge `main` into the branch and go back to step 3.
 
 ```bash
 gh pr merge "$BRANCH" --merge
 git switch main && git pull --ff-only
-git diff --stat "origin/$BRANCH" HEAD                  # must print nothing
+git diff --stat HEAD^2 HEAD                           # must print nothing
 TAG=v$(scripts/release-version.sh) && echo "$TAG"
 git tag -a "$TAG" -m "$TAG" && git push origin "$TAG"
 ```
@@ -91,11 +91,14 @@ Merge `main` into `develop`. After a patch release this conflicts where `develop
 ```bash
 git switch develop && git pull --ff-only
 git merge --no-ff main && git push origin develop
+git push origin --delete "$BRANCH"
 ```
+
+If the button on its pull request already deleted the release branch, the last line only reports that the branch does not exist. Nothing needs it afterwards: a patch release cuts it again from the tag.
 
 ## Undoing a release
 
-Until the Release is published, it can be undone. A run that failed for a transient reason is dispatched again from the same tag once its draft is deleted. A fault that needs new commits takes the tag down too: delete the draft, run `git push origin ":refs/tags/$TAG" && git tag -d "$TAG"`, fix it on the branch and go back to step 3.
+Until the Release is published, it can be undone. A run that failed for a transient reason is dispatched again from the same tag once its draft is deleted. A fault that needs new commits takes the tag down too: delete the draft, run `git push origin ":refs/tags/$TAG" && git tag -d "$TAG"`, fix it on the branch — restore it from its pull request if it was deleted — and go back to step 3.
 
 **Once published, the tag and its assets are permanent** — users have the tarball, and the version Package Manager shows names it — so a fix is a new patch version.
 
@@ -128,7 +131,7 @@ It checks twice, for different failures. **Before packing:** every plugin direct
 
 このリポジトリの Write ロールを持つ人なら誰でもリリースできます。どの手順もブランチ・プルリクエスト・タグ・ワークフローの実行・Release のいずれかで、署名の資格情報は組織の Secret なので、Unity が要る手順 3 の確認を除けば、誰の手元で実行しても結果は変わりません。必要なのは `git`、`gh`（最初に一度 `gh auth login`）、Node.js で、その確認には Unity も要ります。コマンドは bash で書いています。Windows では Git Bash で実行してください。
 
-リリースは `main` 上のタグです。先にタグを push し、ビルドはその後です。バージョンが書かれているのは `package/package.json` の `version` の 1 か所だけで（semver。プレリリースは `7.0.0-beta.1`）、`scripts/release-version.sh` がそれを出力し、タグはその頭に `v` を付けたものです。tarball の名前がこの値で決まるため、食い違うタグはリリースビルドが拒否します。同梱する SDK のバージョンはこれとは別で、`scripts/SDK_VERSION.txt` で固定します。ブランチは git-flow です。`develop` が統合ブランチで、`release/X.Y` はそこから切り、パッチリリースで再利用するためリリース後も残します。`main` にはリリース済みのコミットだけが入ります。
+リリースは `main` 上のタグです。先にタグを push し、ビルドはその後です。バージョンが書かれているのは `package/package.json` の `version` の 1 か所だけで（semver。プレリリースは `7.0.0-beta.1`）、`scripts/release-version.sh` がそれを出力し、タグはその頭に `v` を付けたものです。tarball の名前がこの値で決まるため、食い違うタグはリリースビルドが拒否します。同梱する SDK のバージョンはこれとは別で、`scripts/SDK_VERSION.txt` で固定します。ブランチは git-flow です。`develop` が統合ブランチで、`main` にはリリース済みのコミットだけが入ります。`release/X.Y` は 1 回のリリースの間だけ使います。新しい `X.Y` なら `develop` から、パッチならその系統の最新のタグから切り、リリースが済んだら消します。
 
 ```bash
 VERSION=7.0.1                                       # リリースするバージョン
@@ -137,12 +140,12 @@ BRANCH=release/$(echo "$VERSION" | cut -d. -f1,2)   # release/7.0
 
 ### 1. ブランチ
 
-新しい `X.Y` は `develop` から切ります。パッチリリースでは既存のブランチをチェックアウトし、修正をそこへコミットするか cherry-pick します。
+新しい `X.Y` は `develop` から切ります。パッチリリースは、以前の `release/X.Y` が残っているかどうかに関係なく、その系統の最新のタグから切り、修正をそこへコミットするか cherry-pick します。
 
 ```bash
 git fetch origin
 git switch -c "$BRANCH" origin/develop           # 新しい X.Y
-git switch "$BRANCH" && git pull --ff-only       # パッチリリース
+git switch -C "$BRANCH" v7.0.0                   # パッチリリース: その系統の最新のタグ
 ```
 
 ### 2. SDK、バージョン、CHANGELOG
@@ -183,12 +186,12 @@ gh run view <run-id> --log | grep -E 'not set|Skipping' | grep -v 'echo '
 
 ### 4. マージとタグ
 
-マージはマージコミットで行い、squash や rebase は使いません。次のパッチリリースで `release/X.Y` をもう一度 `main` へマージするためです。タグは、`main` のツリーが QA ビルドしたものと同じときにだけ打ちます。違うのは `main` にブランチが持たないコミットがあった場合だけで、そのときは `main` をブランチへマージして手順 3 に戻ります。
+マージはマージコミットで行い、squash や rebase は使いません。QA ビルドしたコミットの写しではなく、そのものを `main` に残すためです。タグは、`main` のツリーが QA ビルドしたものと同じときにだけ打ちます。違うのは `main` にブランチが持たないコミットがあった場合だけで、そのときは `main` をブランチへマージして手順 3 に戻ります。
 
 ```bash
 gh pr merge "$BRANCH" --merge
 git switch main && git pull --ff-only
-git diff --stat "origin/$BRANCH" HEAD                  # 何も出力されないこと
+git diff --stat HEAD^2 HEAD                           # 何も出力されないこと
 TAG=v$(scripts/release-version.sh) && echo "$TAG"
 git tag -a "$TAG" -m "$TAG" && git push origin "$TAG"
 ```
@@ -213,11 +216,14 @@ gh run watch
 ```bash
 git switch develop && git pull --ff-only
 git merge --no-ff main && git push origin develop
+git push origin --delete "$BRANCH"
 ```
+
+プルリクエストのページのボタンでリリースブランチを消してあれば、最後の行は「ブランチが無い」と出るだけです。パッチリリースはタグから切り直すので、この後ブランチが要ることはありません。
 
 ## リリースの取り消し
 
-Release を公開するまでは取り消せます。一時的な理由で失敗した run は、下書きを消してから同じタグでもう一度実行します。新しいコミットが要る不具合ならタグも取り下げます。下書きを消し、`git push origin ":refs/tags/$TAG" && git tag -d "$TAG"` を実行し、ブランチで直して手順 3 に戻ります。
+Release を公開するまでは取り消せます。一時的な理由で失敗した run は、下書きを消してから同じタグでもう一度実行します。新しいコミットが要る不具合ならタグも取り下げます。下書きを消し、`git push origin ":refs/tags/$TAG" && git tag -d "$TAG"` を実行し、ブランチで直して（消していたらプルリクエストのページから復元して）手順 3 に戻ります。
 
 **公開した後のタグとアセットは恒久的です。** 利用者はその tarball を持っていて、Package Manager が表示するバージョンがそれを名指ししているので、修正は新しいパッチバージョンで出します。
 
