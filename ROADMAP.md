@@ -24,10 +24,9 @@ items marked **needs SDK** wait on a runtime capability from there.
 - [ ] Player-level tint / opacity on `SpriteStudioPlayer` (`SpriteStudioGraphic` takes `Graphic.color`), and a choice
   of clock for playback. The update loop advances every player by scaled `Time.deltaTime`, so `Time.timeScale = 0`
   freezes UI animation along with the world; unscaled time and a clock shared by a group of players are not available.
-- [ ] Multi-track playback — layered per-part animation with crossfade transitions. The runtime side is
-  done: the SDK's track stack ships, and its FFI (`ss_runtime_crossfade` / `set_track_animation` /
-  `add_track_source` / `fade_track`) is generated into `package/Runtime/Bindings/` with no C# caller. What
-  is left is the Player surface on top of it.
+- [ ] Multi-track playback — layered per-part animation with crossfade transitions. The SDK's track stack ships,
+  and its FFI (`ss_runtime_crossfade` / `set_track_animation` / `add_track_source` / `fade_track`) is generated
+  into `package/Runtime/Bindings/` with no C# caller. What is missing is the Player surface on top of it.
 - [ ] Per-player effect seed — an effect part is created with a seed derived from its part index and the
   effect name (in `SpriteStudioInternalPlayer`), so every player built from the same asset draws the
   identical particle pattern. Vary it per player instance, behind a serialized seed field (0 = pick one)
