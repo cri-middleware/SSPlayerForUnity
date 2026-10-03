@@ -21,7 +21,8 @@ runtime and converter work lives in the
   window shows nothing move until Play mode.
 - [ ] **Flip / offset on `SpriteStudioGraphic`** — mirror or shift what the graphic draws without moving the
   `RectTransform`, as `SpriteStudioPlayer` does with `FlipX` / `FlipY` / `Offset`; the uGUI player exposes none of them.
-- [ ] **Label playback** — play a named label range with a start offset. `SetAnimationSection` takes frame
+- [ ] **Label playback** — set the playback section by a start and an end label, each with an offset
+  (`SetAnimationSectionByLabel`, the stem the SDK's API conventions register). `SetAnimationSection` takes frame
   numbers only, so a label the animation already carries cannot be named from the host.
 - [ ] **Player-level tint / opacity, and a choice of clock** — `SpriteStudioPlayer` has no tint or opacity
   (`SpriteStudioGraphic` takes `Graphic.color`). The update loop advances every player by scaled `Time.deltaTime`, so
