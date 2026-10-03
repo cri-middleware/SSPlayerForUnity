@@ -21,8 +21,8 @@ items marked **needs SDK** wait on a runtime capability from there.
 - [ ] Timeline scrubbing in edit mode. The edit-mode preview holds the start frame, so scrubbing the Timeline window
   shows nothing move until Play mode.
 - [x] Events — animation finished / looped, user data, signal, audio.
-- [x] Flip / offset — mirror or shift what the player draws without moving the Transform, so children and
-  colliders stay put. World renderer only so far; `SpriteStudioGraphic` (uGUI) does not expose them yet.
+- [ ] Flip / offset on `SpriteStudioGraphic` — mirror or shift what the graphic draws without moving the
+  `RectTransform`, as `SpriteStudioPlayer` does with `FlipX` / `FlipY` / `Offset`; the uGUI player exposes none of them.
 - [ ] Label playback — play a named label range with a start offset. `SetAnimationSection` takes frame
   numbers only, so a label the animation already carries cannot be named from the host.
 - [ ] Player-level tint / opacity on `SpriteStudioPlayer` (`SpriteStudioGraphic` takes `Graphic.color`) and a custom
