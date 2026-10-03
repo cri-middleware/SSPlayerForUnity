@@ -49,7 +49,7 @@ to a `Mesh` with `SetVertexBufferData`. `.sspj` projects are converted to `.ssab
 |---|---|
 | What the package does, how to install and use it | [README.md](./README.md), the [docs site](./docs/en/) |
 | How to set up, build and test from a checkout | [CONTRIBUTING.md](./CONTRIBUTING.md), [Build Guide](./docs/en/setup/build.md) |
-| How the site is built and a release is cut | [RELEASING.md](./RELEASING.md), maintainers only |
+| How a release is cut | [RELEASING.md](./RELEASING.md), maintainers only |
 | What to build next, and what is out of scope | [ROADMAP.md](./ROADMAP.md) |
 | What each script does and takes | that script's `--help` |
 
