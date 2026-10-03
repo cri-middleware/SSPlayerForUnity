@@ -30,7 +30,7 @@
 ### クイックリンク
 - [インストール](./docs/ja/setup/install.md)
 - [基本的な使い方](./docs/ja/workflow/usage_basic.md)
-- [制限事項と対応範囲](./docs/ja/limitations.md)
+- [制約と適用範囲](./docs/ja/limitations.md)
 
 ## 🚀 クイックスタート
 
