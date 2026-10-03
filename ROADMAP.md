@@ -104,9 +104,10 @@ Wait on a runtime capability from the SDK roadmap.
 
 - [ ] Restore full `.ssab` structural verification. `LoadSsab` currently checks only the `"SSAB"` file identifier
   before handing the buffer to the native runtime — a format sanity check, not validation of the buffer's
-  contents. Once the FlatBuffers verifier fix ([google/flatbuffers#9179]) reaches the version
+  contents. Once the FlatBuffers verifier fix ([google/flatbuffers#8975], for [#8937]) reaches the version
   `scripts/download-flatbuffers.sh` pulls, bump that version and switch `LoadSsab` to a full
   `SsAnimeBinary.VerifySsAnimeBinary` gate, so a malformed or crafted `.ssab` is rejected with a friendly error
   instead of risking an out-of-bounds read in native code.
 
-[google/flatbuffers#9179]: https://github.com/google/flatbuffers/pull/9179
+[google/flatbuffers#8975]: https://github.com/google/flatbuffers/pull/8975
+[#8937]: https://github.com/google/flatbuffers/issues/8937
