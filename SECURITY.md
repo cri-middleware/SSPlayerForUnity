@@ -17,8 +17,9 @@ official inquiry form:
 
 👉 [**CRI Middleware Inquiry Form (English)**](https://www.webtech.co.jp/contact/en.html)
 
-The English form has no file upload. If you need to send a reproduction, use the [Japanese Help
-Center form](https://www.webtech.co.jp/help/ja/spritestudio7/inquiries/ssplayer_tool/), which takes a zip of up to 8 MB.
+The English form has no file upload. If you need to send a reproduction, use the
+[Japanese Help Center form](https://www.webtech.co.jp/help/ja/spritestudio7/inquiries/ssplayer_tool/),
+which takes a zip of up to 8 MB.
 
 Please include:
 
@@ -34,9 +35,9 @@ Please give us a chance to release that fix before disclosing publicly.
 
 ### Which repository to report to
 
-Playback is driven by a native Rust runtime shared with the other SpriteStudio players. If the same
-problem reproduces on a different SpriteStudio player, it is most likely in that shared core, which
-lives in SpriteStudio-SDK. Report it here all the same and say so; we will route it.
+Playback is driven by the runtime shared with the other SpriteStudio players, which lives in
+SpriteStudio-SDK. If the same problem reproduces on a different SpriteStudio player, it is most likely
+in that shared core. Report it here all the same and say so; we will route it.
 
 ## Scope Notes
 
@@ -85,8 +86,7 @@ SpriteStudio Player for Unity は beta 版です。修正は最新リリース�
 
 ### 報告先リポジトリの判断
 
-再生処理は、他の SpriteStudio Player と共通のネイティブ Rust ランタイムが担っています。他の
-SpriteStudio Player でも同じ問題が再現する場合、SpriteStudio-SDK にある共通コア側の問題である可能性が高いため、その旨を添えて本リポジトリへご報告ください。こちらで振り分けます。
+再生処理は、他の SpriteStudio Player と共通のランタイムが担っており、SpriteStudio-SDK で開発されています。他の SpriteStudio Player でも同じ問題が再現する場合、共通コア側の問題である可能性が高いため、その旨を添えて本リポジトリへご報告ください。こちらで振り分けます。
 
 ## 既知の注意点
 
