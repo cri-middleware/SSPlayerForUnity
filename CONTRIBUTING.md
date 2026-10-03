@@ -71,7 +71,15 @@ With the Editor open, use the Unity Test Runner instead. Windows users: every sc
 No converted asset is committed, so this is what makes either project show anything. Run it **before** the project is opened in Unity: open it first and Unity deletes the committed `.meta` that carry the scenes' references. It builds `ssconverter-cli` from the submodule, so it needs Rust; the README's Quick Start gives the route without it.
 
 ### Documentation
-Pages live as both `docs/en/<path>` and `docs/ja/<path>`, each locale with its own `assets/`; there is no fallback locale, so a page missing from one side is a nav entry pointing at nothing. Asset paths are source-relative (`../assets/…`) **including inside raw `<video>` / `<img>` HTML**, which Zensical rewrites the same way it rewrites Markdown links. If you edit a page, build both locales before you finish — see [RELEASING.md](./RELEASING.md). Nothing builds the docs on a pull request, so that local build is the only gate.
+Pages live as both `docs/en/<path>` and `docs/ja/<path>`, each locale with its own `assets/`; there is no fallback locale, so a page missing from one side is a nav entry pointing at nothing. Asset paths are source-relative (`../assets/…`) **including inside raw `<video>` / `<img>` HTML**, which Zensical rewrites the same way it rewrites Markdown links. If you edit a page, build both locales before you finish: nothing builds the docs on a pull request, so that local build is the only gate.
+
+```bash
+./scripts/prepare-docs.sh          # once: .venv + the pins in docs/requirements.txt
+./scripts/build-docs.sh            # English then Japanese, both --strict
+./scripts/build-pages.sh serve=yes # the published tree, both locales -> http://localhost:8000/
+```
+
+Both locales, English first: it clears `site/`, which contains `site/ja`, so an English-only build leaves a stale Japanese site behind and a page you just broke still looks fine. `mkdocs.base.yml` sets `strict: true`; `zensical serve` validates nothing, `--strict` or not, and serves one locale at a time, so `build-pages.sh serve=yes` is the only way to watch the language selector resolve. `pages.yml`'s build job **is** that script. `.ps1` twins on Windows, `key=value` options and `--help` on both.
 
 ## Coding Standards
 
@@ -151,7 +159,15 @@ SSPlayerForUnity への貢献にご関心をお寄せいただきありがとう
 変換済みアセットは 1 つもコミットされていないため、これを実行しないとどちらのプロジェクトも何も表示しません。**Unity でプロジェクトを開く前に**実行してください。先に開くと、シーンの参照を持つコミット済みの `.meta` を Unity が削除します。submodule から `ssconverter-cli` をビルドするため Rust が必要です。Rust を使わない手順は README のクイックスタートにあります。
 
 ### ドキュメント
-ページは `docs/en/<path>` と `docs/ja/<path>` の両方に存在し、アセットもロケールごとに `assets/` を持ちます。フォールバックロケールは無いため、片方に欠けたページは行き先の無い nav エントリになります。アセットのパスはソース相対（`../assets/…`）で、**生の `<video>` / `<img>` HTML の中でも同じ**です（Zensical は Markdown リンクと同じ規則で書き換えます）。ページを編集したら、仕上げる前に両ロケールをビルドしてください（手順は [RELEASING.md](./RELEASING.md)）。プルリクエストでは docs はビルドされないため、手元のビルドが唯一のゲートです。
+ページは `docs/en/<path>` と `docs/ja/<path>` の両方に存在し、アセットもロケールごとに `assets/` を持ちます。フォールバックロケールは無いため、片方に欠けたページは行き先の無い nav エントリになります。アセットのパスはソース相対（`../assets/…`）で、**生の `<video>` / `<img>` HTML の中でも同じ**です（Zensical は Markdown リンクと同じ規則で書き換えます）。ページを編集したら、仕上げる前に両ロケールをビルドしてください。プルリクエストでは docs はビルドされないため、手元のビルドが唯一のゲートです。
+
+```bash
+./scripts/prepare-docs.sh          # 一度だけ: .venv と docs/requirements.txt のピン
+./scripts/build-docs.sh            # 英語 → 日本語の順に、どちらも --strict
+./scripts/build-pages.sh serve=yes # 公開ツリー、両ロケール -> http://localhost:8000/
+```
+
+必ず両ロケールを、英語を先にビルドします。英語ビルドは `site/`（その中に `site/ja` がある）を消すため、英語だけビルドすると古い日本語サイトが残り、壊したページが無傷に見えます。`mkdocs.base.yml` が `strict: true` を設定します。`zensical serve` は `--strict` を付けても何も検証せず、1 ロケールずつしか配信しないため、言語セレクタの動作を見られるのは `build-pages.sh serve=yes` だけです。`pages.yml` のビルドジョブはそのスクリプトです。Windows は `.ps1` 版を使い、どちらも `key=value` と `--help` を取ります。
 
 ## コーディング規約
 
