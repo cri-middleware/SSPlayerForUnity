@@ -25,8 +25,9 @@ items marked **needs SDK** wait on a runtime capability from there.
   `RectTransform`, as `SpriteStudioPlayer` does with `FlipX` / `FlipY` / `Offset`; the uGUI player exposes none of them.
 - [ ] Label playback — play a named label range with a start offset. `SetAnimationSection` takes frame
   numbers only, so a label the animation already carries cannot be named from the host.
-- [ ] Player-level tint / opacity on `SpriteStudioPlayer` (`SpriteStudioGraphic` takes `Graphic.color`) and a custom
-  delta-time hook (per-player slow-motion / pause groups).
+- [ ] Player-level tint / opacity on `SpriteStudioPlayer` (`SpriteStudioGraphic` takes `Graphic.color`), and a choice
+  of clock for playback. The update loop advances every player by scaled `Time.deltaTime`, so `Time.timeScale = 0`
+  freezes UI animation along with the world; unscaled time and a clock shared by a group of players are not available.
 - [ ] Multi-track playback — layered per-part animation with crossfade transitions. The runtime side is
   done: the SDK's track stack ships, and its FFI (`ss_runtime_crossfade` / `set_track_animation` /
   `add_track_source` / `fade_track`) is generated into `package/Runtime/Bindings/` with no C# caller. What
