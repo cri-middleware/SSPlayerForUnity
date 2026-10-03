@@ -8,9 +8,6 @@ items marked **needs SDK** wait on a runtime capability from there.
 
 ## Playback & rendering
 
-- [x] Playback control — play / pause / resume / stop, seek, section playback, reverse, ping-pong, speed, frame rate.
-- [x] World (MeshRenderer) and uGUI (Canvas) rendering, including mask / RectMask2D on Canvas.
-- [x] Timeline support (`ITimeControl`).
 - [ ] Events and sound while a Timeline plays. A clip seeks the player to a frame and never advances it, so under a
   `SpriteStudioTrack` or a ControlTrack no UserData / Signal / Audio event fires and no built-in sound plays, in Play
   mode too. Advance through the frames a Playback evaluation crosses, as an AnimationTrack fires a clip's
@@ -20,7 +17,6 @@ items marked **needs SDK** wait on a runtime capability from there.
   Looping, none of which involve blending; and Animation Name is free text, with no list to pick from.
 - [ ] Timeline scrubbing in edit mode. The edit-mode preview holds the start frame, so scrubbing the Timeline window
   shows nothing move until Play mode.
-- [x] Events — animation finished / looped, user data, signal, audio.
 - [ ] Flip / offset on `SpriteStudioGraphic` — mirror or shift what the graphic draws without moving the
   `RectTransform`, as `SpriteStudioPlayer` does with `FlipX` / `FlipY` / `Offset`; the uGUI player exposes none of them.
 - [ ] Label playback — play a named label range with a start offset. `SetAnimationSection` takes frame
@@ -40,10 +36,6 @@ items marked **needs SDK** wait on a runtime capability from there.
 
 ## Parts & materials
 
-- [x] Per-part runtime overrides — color, cell, and visibility, by part name or index, with priority modes.
-- [x] Runtime texture replacement — `SetCellmapTexture` / `GetCellmapTexture` / `GetReplaceableTextureNames` on
-  `SpriteStudioPlayer` and `SpriteStudioGraphic`, keyed by cellmap or external-texture name; `null` restores the
-  original.
 - [ ] Runtime material override — swap the material for a texture key at runtime.
 - [ ] Per-part colliders — auto-sized 2D / 3D colliders that follow parts, with enter / stay / exit callbacks.
 
