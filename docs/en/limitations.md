@@ -10,7 +10,6 @@ Constraints and caveats to be aware of when shipping with the current SpriteStud
 > [!WARNING]
 > - **Text parts** — not drawn. The runtime reserves the part's slot in the draw plan but supplies no glyphs (glyph layout and rasterization are the player's job), and the plugin has no Unity text pass yet.
 > - **9-slice parts** — not drawn. The runtime builds the whole grid into its dedicated `Nines` buffers, but the plugin does not read them yet, so the part renders as nothing rather than as a stretched cell.
-> - **Sequence (`.ssqb`) playback** — **importing** a `.ssqb` (recognizing and referencing the data) works, but playing a sequence back is not provided yet. To chain animations in the meantime, switch on the `OnAnimationFinished` event described in [Script Control and Events](./workflow/usage_scripting.md).
 
 Text and 9-slice parts still occupy their place in the draw order, so an animation that uses them plays with those parts missing rather than failing. If you ship one, replace it with an ordinary part at authoring time.
 
