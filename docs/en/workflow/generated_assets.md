@@ -36,7 +36,7 @@ Converting one `.sspj` creates a `<sspj name>/` folder under the output folder (
 | File | Produced from | Unity representation | What it holds |
 |---|---|---|---|
 | `<anime pack>.ssab` | One file per `.ssae` | `SpriteStudioAnimeAsset` | Animations (keyframes), part structure, **the cell map (the source rectangle, pivot and original image size on the atlas)**, effect definitions, user data / signals, **the referenced texture names (both the cell map atlases and the replacement textures for texture change)**, sound references |
-| `<sequence pack>.ssqb` | One file per `.ssqe` | `SpriteStudioSequenceAsset` | The animation playback order (sequence). Playback is not yet supported ([Limitations and Scope](../limitations.md)) |
+| `<sequence pack>.ssqb` | One file per `.ssqe` | `SpriteStudioSequenceAsset` | The animation playback order (sequence). Playback is not yet supported ([Choosing Between SSAB and SSQB](./tips.md)) |
 | `<texture>.png` and so on | The images referenced by the `.sspj` | `Texture2D` | The artwork itself (the atlas image) |
 | `<texture>.mat` | Generated automatically on import | `Material` | The shared material used for rendering (shader and texture reference) |
 | `*.meta` | Unity | — | GUID, texture import settings, AssetBundle name |
