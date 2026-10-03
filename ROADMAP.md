@@ -33,7 +33,7 @@ items marked **needs SDK** wait on a runtime capability from there.
   `add_track_source` / `fade_track`) is generated into `package/Runtime/Bindings/` with no C# caller. What
   is left is the Player surface on top of it.
 - [ ] Per-player effect seed — an effect part is created with a seed derived from its part index and the
-  effect name (`SpriteStudioInternalPlayer.cs:513`), so every player built from the same asset draws the
+  effect name (in `SpriteStudioInternalPlayer`), so every player built from the same asset draws the
   identical particle pattern. Vary it per player instance, behind a serialized seed field (0 = pick one)
   so a run stays reproducible. The seed is already an `ss_effect_slot_create` argument and the runtime
   honours an authored `is_lock_rand_seed` ahead of it, so the work is Player-side only.
@@ -65,7 +65,7 @@ with the sibling Players: `fit` / `align` for placement, a part rect read-out fo
 - [ ] UI state binding — a component that drives the player from `Selectable` state (normal / highlighted /
   pressed / selected / disabled), each mapped to an animation or a label. Without it every project rewrites
   the same `IPointerEnterHandler` glue.
-- [ ] The two part kinds authored for UI, neither of which draws today — `SpriteStudioGeometryBuilder.cs:474`
+- [ ] The two part kinds authored for UI, neither of which draws today — `SpriteStudioGeometryBuilder`
   takes Normal / Shape / Mesh and drops `Nines` and `Text` on the floor. **Nines** is the cheap one: the
   runtime hands over finished vertices, so it is a geometry path and nothing more. **Text** arrives as a
   batch with no geometry plus the authored string — map it onto TextMeshPro rather than growing a glyph
