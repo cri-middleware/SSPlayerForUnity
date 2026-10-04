@@ -651,58 +651,28 @@ static public class U8ColorVerify
       && verifier.VerifyTableEnd(tablePos);
   }
 }
-public struct SsCurve : IFlatbufferObject
+public struct KeyCurve : IFlatbufferObject
 {
-  private Table __p;
+  private Struct __p;
   public ByteBuffer ByteBuffer { get { return __p.bb; } }
-  public static void ValidateVersion() { FlatBufferConstants.FLATBUFFERS_25_12_19(); }
-  public static SsCurve GetRootAsSsCurve(ByteBuffer _bb) { return GetRootAsSsCurve(_bb, new SsCurve()); }
-  public static SsCurve GetRootAsSsCurve(ByteBuffer _bb, SsCurve obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
-  public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
-  public SsCurve __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
+  public void __init(int _i, ByteBuffer _bb) { __p = new Struct(_i, _bb); }
+  public KeyCurve __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
 
-  public float StartTime { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
-  public float StartValue { get { int o = __p.__offset(6); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
-  public float EndTime { get { int o = __p.__offset(8); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
-  public float EndValue { get { int o = __p.__offset(10); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
+  public float StartTime { get { return __p.bb.GetFloat(__p.bb_pos + 0); } }
+  public float StartValue { get { return __p.bb.GetFloat(__p.bb_pos + 4); } }
+  public float EndTime { get { return __p.bb.GetFloat(__p.bb_pos + 8); } }
+  public float EndValue { get { return __p.bb.GetFloat(__p.bb_pos + 12); } }
 
-  public static Offset<ss.format.SsCurve> CreateSsCurve(FlatBufferBuilder builder,
-      float start_time = 0.0f,
-      float start_value = 0.0f,
-      float end_time = 0.0f,
-      float end_value = 0.0f) {
-    builder.StartTable(4);
-    SsCurve.AddEndValue(builder, end_value);
-    SsCurve.AddEndTime(builder, end_time);
-    SsCurve.AddStartValue(builder, start_value);
-    SsCurve.AddStartTime(builder, start_time);
-    return SsCurve.EndSsCurve(builder);
-  }
-
-  public static void StartSsCurve(FlatBufferBuilder builder) { builder.StartTable(4); }
-  public static void AddStartTime(FlatBufferBuilder builder, float startTime) { builder.AddFloat(0, startTime, 0.0f); }
-  public static void AddStartValue(FlatBufferBuilder builder, float startValue) { builder.AddFloat(1, startValue, 0.0f); }
-  public static void AddEndTime(FlatBufferBuilder builder, float endTime) { builder.AddFloat(2, endTime, 0.0f); }
-  public static void AddEndValue(FlatBufferBuilder builder, float endValue) { builder.AddFloat(3, endValue, 0.0f); }
-  public static Offset<ss.format.SsCurve> EndSsCurve(FlatBufferBuilder builder) {
-    int o = builder.EndTable();
-    return new Offset<ss.format.SsCurve>(o);
+  public static Offset<ss.format.KeyCurve> CreateKeyCurve(FlatBufferBuilder builder, float StartTime, float StartValue, float EndTime, float EndValue) {
+    builder.Prep(4, 16);
+    builder.PutFloat(EndValue);
+    builder.PutFloat(EndTime);
+    builder.PutFloat(StartValue);
+    builder.PutFloat(StartTime);
+    return new Offset<ss.format.KeyCurve>(builder.Offset);
   }
 }
 
-
-static public class SsCurveVerify
-{
-  static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
-  {
-    return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyField(tablePos, 4 /*StartTime*/, 4 /*float*/, 4, false)
-      && verifier.VerifyField(tablePos, 6 /*StartValue*/, 4 /*float*/, 4, false)
-      && verifier.VerifyField(tablePos, 8 /*EndTime*/, 4 /*float*/, 4, false)
-      && verifier.VerifyField(tablePos, 10 /*EndValue*/, 4 /*float*/, 4, false)
-      && verifier.VerifyTableEnd(tablePos);
-  }
-}
 public struct NoneValueEntry : IFlatbufferObject
 {
   private Table __p;
@@ -4424,658 +4394,6 @@ static public class LabelVerify
       && verifier.VerifyTableEnd(tablePos);
   }
 }
-public struct PartAnimationDataCellValue : IFlatbufferObject
-{
-  private Table __p;
-  public ByteBuffer ByteBuffer { get { return __p.bb; } }
-  public static void ValidateVersion() { FlatBufferConstants.FLATBUFFERS_25_12_19(); }
-  public static PartAnimationDataCellValue GetRootAsPartAnimationDataCellValue(ByteBuffer _bb) { return GetRootAsPartAnimationDataCellValue(_bb, new PartAnimationDataCellValue()); }
-  public static PartAnimationDataCellValue GetRootAsPartAnimationDataCellValue(ByteBuffer _bb, PartAnimationDataCellValue obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
-  public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
-  public PartAnimationDataCellValue __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
-
-  public ushort Index { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetUshort(o + __p.bb_pos) : (ushort)0; } }
-  public ss.format.PartAttributeCell? Value { get { int o = __p.__offset(6); return o != 0 ? (ss.format.PartAttributeCell?)(new ss.format.PartAttributeCell()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
-
-  public static Offset<ss.format.PartAnimationDataCellValue> CreatePartAnimationDataCellValue(FlatBufferBuilder builder,
-      ushort index = 0,
-      Offset<ss.format.PartAttributeCell> valueOffset = default(Offset<ss.format.PartAttributeCell>)) {
-    builder.StartTable(2);
-    PartAnimationDataCellValue.AddValue(builder, valueOffset);
-    PartAnimationDataCellValue.AddIndex(builder, index);
-    return PartAnimationDataCellValue.EndPartAnimationDataCellValue(builder);
-  }
-
-  public static void StartPartAnimationDataCellValue(FlatBufferBuilder builder) { builder.StartTable(2); }
-  public static void AddIndex(FlatBufferBuilder builder, ushort index) { builder.AddUshort(0, index, 0); }
-  public static void AddValue(FlatBufferBuilder builder, Offset<ss.format.PartAttributeCell> valueOffset) { builder.AddOffset(1, valueOffset.Value, 0); }
-  public static Offset<ss.format.PartAnimationDataCellValue> EndPartAnimationDataCellValue(FlatBufferBuilder builder) {
-    int o = builder.EndTable();
-    builder.Required(o, 6);  // value
-    return new Offset<ss.format.PartAnimationDataCellValue>(o);
-  }
-
-  public static VectorOffset CreateSortedVectorOfPartAnimationDataCellValue(FlatBufferBuilder builder, Offset<PartAnimationDataCellValue>[] offsets) {
-    Array.Sort(offsets,
-      (Offset<PartAnimationDataCellValue> o1, Offset<PartAnimationDataCellValue> o2) =>
-        new PartAnimationDataCellValue().__assign(builder.DataBuffer.Length - o1.Value, builder.DataBuffer).Index.CompareTo(new PartAnimationDataCellValue().__assign(builder.DataBuffer.Length - o2.Value, builder.DataBuffer).Index));
-    return builder.CreateVectorOfTables(offsets);
-  }
-
-  public static PartAnimationDataCellValue? __lookup_by_key(int vectorLocation, ushort key, ByteBuffer bb) {
-    PartAnimationDataCellValue obj_ = new PartAnimationDataCellValue();
-    int span = bb.GetInt(vectorLocation - 4);
-    int start = 0;
-    while (span != 0) {
-      int middle = span / 2;
-      int tableOffset = Table.__indirect(vectorLocation + 4 * (start + middle), bb);
-      obj_.__assign(tableOffset, bb);
-      int comp = obj_.Index.CompareTo(key);
-      if (comp > 0) {
-        span = middle;
-      } else if (comp < 0) {
-        middle++;
-        start += middle;
-        span -= middle;
-      } else {
-        return obj_;
-      }
-    }
-    return null;
-  }
-}
-
-
-static public class PartAnimationDataCellValueVerify
-{
-  static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
-  {
-    return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyField(tablePos, 4 /*Index*/, 2 /*ushort*/, 2, false)
-      && verifier.VerifyTable(tablePos, 6 /*Value*/, ss.format.PartAttributeCellVerify.Verify, true)
-      && verifier.VerifyTableEnd(tablePos);
-  }
-}
-public struct PartAnimationDataFloatValue : IFlatbufferObject
-{
-  private Table __p;
-  public ByteBuffer ByteBuffer { get { return __p.bb; } }
-  public static void ValidateVersion() { FlatBufferConstants.FLATBUFFERS_25_12_19(); }
-  public static PartAnimationDataFloatValue GetRootAsPartAnimationDataFloatValue(ByteBuffer _bb) { return GetRootAsPartAnimationDataFloatValue(_bb, new PartAnimationDataFloatValue()); }
-  public static PartAnimationDataFloatValue GetRootAsPartAnimationDataFloatValue(ByteBuffer _bb, PartAnimationDataFloatValue obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
-  public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
-  public PartAnimationDataFloatValue __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
-
-  public ushort Index { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetUshort(o + __p.bb_pos) : (ushort)0; } }
-  public ss.format.InterpolationType Interpolation { get { int o = __p.__offset(6); return o != 0 ? (ss.format.InterpolationType)__p.bb.Get(o + __p.bb_pos) : ss.format.InterpolationType.None; } }
-  public float Value { get { int o = __p.__offset(8); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
-  public ss.format.SsCurve? Curve { get { int o = __p.__offset(10); return o != 0 ? (ss.format.SsCurve?)(new ss.format.SsCurve()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
-  public float EasingRate { get { int o = __p.__offset(12); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
-
-  public static Offset<ss.format.PartAnimationDataFloatValue> CreatePartAnimationDataFloatValue(FlatBufferBuilder builder,
-      ushort index = 0,
-      ss.format.InterpolationType interpolation = ss.format.InterpolationType.None,
-      float value = 0.0f,
-      Offset<ss.format.SsCurve> curveOffset = default(Offset<ss.format.SsCurve>),
-      float easing_rate = 0.0f) {
-    builder.StartTable(5);
-    PartAnimationDataFloatValue.AddEasingRate(builder, easing_rate);
-    PartAnimationDataFloatValue.AddCurve(builder, curveOffset);
-    PartAnimationDataFloatValue.AddValue(builder, value);
-    PartAnimationDataFloatValue.AddIndex(builder, index);
-    PartAnimationDataFloatValue.AddInterpolation(builder, interpolation);
-    return PartAnimationDataFloatValue.EndPartAnimationDataFloatValue(builder);
-  }
-
-  public static void StartPartAnimationDataFloatValue(FlatBufferBuilder builder) { builder.StartTable(5); }
-  public static void AddIndex(FlatBufferBuilder builder, ushort index) { builder.AddUshort(0, index, 0); }
-  public static void AddInterpolation(FlatBufferBuilder builder, ss.format.InterpolationType interpolation) { builder.AddByte(1, (byte)interpolation, 0); }
-  public static void AddValue(FlatBufferBuilder builder, float value) { builder.AddFloat(2, value, 0.0f); }
-  public static void AddCurve(FlatBufferBuilder builder, Offset<ss.format.SsCurve> curveOffset) { builder.AddOffset(3, curveOffset.Value, 0); }
-  public static void AddEasingRate(FlatBufferBuilder builder, float easingRate) { builder.AddFloat(4, easingRate, 0.0f); }
-  public static Offset<ss.format.PartAnimationDataFloatValue> EndPartAnimationDataFloatValue(FlatBufferBuilder builder) {
-    int o = builder.EndTable();
-    return new Offset<ss.format.PartAnimationDataFloatValue>(o);
-  }
-
-  public static VectorOffset CreateSortedVectorOfPartAnimationDataFloatValue(FlatBufferBuilder builder, Offset<PartAnimationDataFloatValue>[] offsets) {
-    Array.Sort(offsets,
-      (Offset<PartAnimationDataFloatValue> o1, Offset<PartAnimationDataFloatValue> o2) =>
-        new PartAnimationDataFloatValue().__assign(builder.DataBuffer.Length - o1.Value, builder.DataBuffer).Index.CompareTo(new PartAnimationDataFloatValue().__assign(builder.DataBuffer.Length - o2.Value, builder.DataBuffer).Index));
-    return builder.CreateVectorOfTables(offsets);
-  }
-
-  public static PartAnimationDataFloatValue? __lookup_by_key(int vectorLocation, ushort key, ByteBuffer bb) {
-    PartAnimationDataFloatValue obj_ = new PartAnimationDataFloatValue();
-    int span = bb.GetInt(vectorLocation - 4);
-    int start = 0;
-    while (span != 0) {
-      int middle = span / 2;
-      int tableOffset = Table.__indirect(vectorLocation + 4 * (start + middle), bb);
-      obj_.__assign(tableOffset, bb);
-      int comp = obj_.Index.CompareTo(key);
-      if (comp > 0) {
-        span = middle;
-      } else if (comp < 0) {
-        middle++;
-        start += middle;
-        span -= middle;
-      } else {
-        return obj_;
-      }
-    }
-    return null;
-  }
-}
-
-
-static public class PartAnimationDataFloatValueVerify
-{
-  static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
-  {
-    return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyField(tablePos, 4 /*Index*/, 2 /*ushort*/, 2, false)
-      && verifier.VerifyField(tablePos, 6 /*Interpolation*/, 1 /*ss.format.InterpolationType*/, 1, false)
-      && verifier.VerifyField(tablePos, 8 /*Value*/, 4 /*float*/, 4, false)
-      && verifier.VerifyTable(tablePos, 10 /*Curve*/, ss.format.SsCurveVerify.Verify, false)
-      && verifier.VerifyField(tablePos, 12 /*EasingRate*/, 4 /*float*/, 4, false)
-      && verifier.VerifyTableEnd(tablePos);
-  }
-}
-public struct PartAnimationDataIntValue : IFlatbufferObject
-{
-  private Table __p;
-  public ByteBuffer ByteBuffer { get { return __p.bb; } }
-  public static void ValidateVersion() { FlatBufferConstants.FLATBUFFERS_25_12_19(); }
-  public static PartAnimationDataIntValue GetRootAsPartAnimationDataIntValue(ByteBuffer _bb) { return GetRootAsPartAnimationDataIntValue(_bb, new PartAnimationDataIntValue()); }
-  public static PartAnimationDataIntValue GetRootAsPartAnimationDataIntValue(ByteBuffer _bb, PartAnimationDataIntValue obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
-  public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
-  public PartAnimationDataIntValue __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
-
-  public ushort Index { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetUshort(o + __p.bb_pos) : (ushort)0; } }
-  public ss.format.InterpolationType Interpolation { get { int o = __p.__offset(6); return o != 0 ? (ss.format.InterpolationType)__p.bb.Get(o + __p.bb_pos) : ss.format.InterpolationType.None; } }
-  public int Value { get { int o = __p.__offset(8); return o != 0 ? __p.bb.GetInt(o + __p.bb_pos) : (int)0; } }
-  public ss.format.SsCurve? Curve { get { int o = __p.__offset(10); return o != 0 ? (ss.format.SsCurve?)(new ss.format.SsCurve()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
-  public float EasingRate { get { int o = __p.__offset(12); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
-
-  public static Offset<ss.format.PartAnimationDataIntValue> CreatePartAnimationDataIntValue(FlatBufferBuilder builder,
-      ushort index = 0,
-      ss.format.InterpolationType interpolation = ss.format.InterpolationType.None,
-      int value = 0,
-      Offset<ss.format.SsCurve> curveOffset = default(Offset<ss.format.SsCurve>),
-      float easing_rate = 0.0f) {
-    builder.StartTable(5);
-    PartAnimationDataIntValue.AddEasingRate(builder, easing_rate);
-    PartAnimationDataIntValue.AddCurve(builder, curveOffset);
-    PartAnimationDataIntValue.AddValue(builder, value);
-    PartAnimationDataIntValue.AddIndex(builder, index);
-    PartAnimationDataIntValue.AddInterpolation(builder, interpolation);
-    return PartAnimationDataIntValue.EndPartAnimationDataIntValue(builder);
-  }
-
-  public static void StartPartAnimationDataIntValue(FlatBufferBuilder builder) { builder.StartTable(5); }
-  public static void AddIndex(FlatBufferBuilder builder, ushort index) { builder.AddUshort(0, index, 0); }
-  public static void AddInterpolation(FlatBufferBuilder builder, ss.format.InterpolationType interpolation) { builder.AddByte(1, (byte)interpolation, 0); }
-  public static void AddValue(FlatBufferBuilder builder, int value) { builder.AddInt(2, value, 0); }
-  public static void AddCurve(FlatBufferBuilder builder, Offset<ss.format.SsCurve> curveOffset) { builder.AddOffset(3, curveOffset.Value, 0); }
-  public static void AddEasingRate(FlatBufferBuilder builder, float easingRate) { builder.AddFloat(4, easingRate, 0.0f); }
-  public static Offset<ss.format.PartAnimationDataIntValue> EndPartAnimationDataIntValue(FlatBufferBuilder builder) {
-    int o = builder.EndTable();
-    return new Offset<ss.format.PartAnimationDataIntValue>(o);
-  }
-
-  public static VectorOffset CreateSortedVectorOfPartAnimationDataIntValue(FlatBufferBuilder builder, Offset<PartAnimationDataIntValue>[] offsets) {
-    Array.Sort(offsets,
-      (Offset<PartAnimationDataIntValue> o1, Offset<PartAnimationDataIntValue> o2) =>
-        new PartAnimationDataIntValue().__assign(builder.DataBuffer.Length - o1.Value, builder.DataBuffer).Index.CompareTo(new PartAnimationDataIntValue().__assign(builder.DataBuffer.Length - o2.Value, builder.DataBuffer).Index));
-    return builder.CreateVectorOfTables(offsets);
-  }
-
-  public static PartAnimationDataIntValue? __lookup_by_key(int vectorLocation, ushort key, ByteBuffer bb) {
-    PartAnimationDataIntValue obj_ = new PartAnimationDataIntValue();
-    int span = bb.GetInt(vectorLocation - 4);
-    int start = 0;
-    while (span != 0) {
-      int middle = span / 2;
-      int tableOffset = Table.__indirect(vectorLocation + 4 * (start + middle), bb);
-      obj_.__assign(tableOffset, bb);
-      int comp = obj_.Index.CompareTo(key);
-      if (comp > 0) {
-        span = middle;
-      } else if (comp < 0) {
-        middle++;
-        start += middle;
-        span -= middle;
-      } else {
-        return obj_;
-      }
-    }
-    return null;
-  }
-}
-
-
-static public class PartAnimationDataIntValueVerify
-{
-  static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
-  {
-    return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyField(tablePos, 4 /*Index*/, 2 /*ushort*/, 2, false)
-      && verifier.VerifyField(tablePos, 6 /*Interpolation*/, 1 /*ss.format.InterpolationType*/, 1, false)
-      && verifier.VerifyField(tablePos, 8 /*Value*/, 4 /*int*/, 4, false)
-      && verifier.VerifyTable(tablePos, 10 /*Curve*/, ss.format.SsCurveVerify.Verify, false)
-      && verifier.VerifyField(tablePos, 12 /*EasingRate*/, 4 /*float*/, 4, false)
-      && verifier.VerifyTableEnd(tablePos);
-  }
-}
-public struct PartAnimationDataUIntValue : IFlatbufferObject
-{
-  private Table __p;
-  public ByteBuffer ByteBuffer { get { return __p.bb; } }
-  public static void ValidateVersion() { FlatBufferConstants.FLATBUFFERS_25_12_19(); }
-  public static PartAnimationDataUIntValue GetRootAsPartAnimationDataUIntValue(ByteBuffer _bb) { return GetRootAsPartAnimationDataUIntValue(_bb, new PartAnimationDataUIntValue()); }
-  public static PartAnimationDataUIntValue GetRootAsPartAnimationDataUIntValue(ByteBuffer _bb, PartAnimationDataUIntValue obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
-  public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
-  public PartAnimationDataUIntValue __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
-
-  public ushort Index { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetUshort(o + __p.bb_pos) : (ushort)0; } }
-  public ss.format.InterpolationType Interpolation { get { int o = __p.__offset(6); return o != 0 ? (ss.format.InterpolationType)__p.bb.Get(o + __p.bb_pos) : ss.format.InterpolationType.None; } }
-  public uint Value { get { int o = __p.__offset(8); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)0; } }
-
-  public static Offset<ss.format.PartAnimationDataUIntValue> CreatePartAnimationDataUIntValue(FlatBufferBuilder builder,
-      ushort index = 0,
-      ss.format.InterpolationType interpolation = ss.format.InterpolationType.None,
-      uint value = 0) {
-    builder.StartTable(3);
-    PartAnimationDataUIntValue.AddValue(builder, value);
-    PartAnimationDataUIntValue.AddIndex(builder, index);
-    PartAnimationDataUIntValue.AddInterpolation(builder, interpolation);
-    return PartAnimationDataUIntValue.EndPartAnimationDataUIntValue(builder);
-  }
-
-  public static void StartPartAnimationDataUIntValue(FlatBufferBuilder builder) { builder.StartTable(3); }
-  public static void AddIndex(FlatBufferBuilder builder, ushort index) { builder.AddUshort(0, index, 0); }
-  public static void AddInterpolation(FlatBufferBuilder builder, ss.format.InterpolationType interpolation) { builder.AddByte(1, (byte)interpolation, 0); }
-  public static void AddValue(FlatBufferBuilder builder, uint value) { builder.AddUint(2, value, 0); }
-  public static Offset<ss.format.PartAnimationDataUIntValue> EndPartAnimationDataUIntValue(FlatBufferBuilder builder) {
-    int o = builder.EndTable();
-    return new Offset<ss.format.PartAnimationDataUIntValue>(o);
-  }
-
-  public static VectorOffset CreateSortedVectorOfPartAnimationDataUIntValue(FlatBufferBuilder builder, Offset<PartAnimationDataUIntValue>[] offsets) {
-    Array.Sort(offsets,
-      (Offset<PartAnimationDataUIntValue> o1, Offset<PartAnimationDataUIntValue> o2) =>
-        new PartAnimationDataUIntValue().__assign(builder.DataBuffer.Length - o1.Value, builder.DataBuffer).Index.CompareTo(new PartAnimationDataUIntValue().__assign(builder.DataBuffer.Length - o2.Value, builder.DataBuffer).Index));
-    return builder.CreateVectorOfTables(offsets);
-  }
-
-  public static PartAnimationDataUIntValue? __lookup_by_key(int vectorLocation, ushort key, ByteBuffer bb) {
-    PartAnimationDataUIntValue obj_ = new PartAnimationDataUIntValue();
-    int span = bb.GetInt(vectorLocation - 4);
-    int start = 0;
-    while (span != 0) {
-      int middle = span / 2;
-      int tableOffset = Table.__indirect(vectorLocation + 4 * (start + middle), bb);
-      obj_.__assign(tableOffset, bb);
-      int comp = obj_.Index.CompareTo(key);
-      if (comp > 0) {
-        span = middle;
-      } else if (comp < 0) {
-        middle++;
-        start += middle;
-        span -= middle;
-      } else {
-        return obj_;
-      }
-    }
-    return null;
-  }
-}
-
-
-static public class PartAnimationDataUIntValueVerify
-{
-  static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
-  {
-    return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyField(tablePos, 4 /*Index*/, 2 /*ushort*/, 2, false)
-      && verifier.VerifyField(tablePos, 6 /*Interpolation*/, 1 /*ss.format.InterpolationType*/, 1, false)
-      && verifier.VerifyField(tablePos, 8 /*Value*/, 4 /*uint*/, 4, false)
-      && verifier.VerifyTableEnd(tablePos);
-  }
-}
-public struct PartAnimationDataBoolValue : IFlatbufferObject
-{
-  private Table __p;
-  public ByteBuffer ByteBuffer { get { return __p.bb; } }
-  public static void ValidateVersion() { FlatBufferConstants.FLATBUFFERS_25_12_19(); }
-  public static PartAnimationDataBoolValue GetRootAsPartAnimationDataBoolValue(ByteBuffer _bb) { return GetRootAsPartAnimationDataBoolValue(_bb, new PartAnimationDataBoolValue()); }
-  public static PartAnimationDataBoolValue GetRootAsPartAnimationDataBoolValue(ByteBuffer _bb, PartAnimationDataBoolValue obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
-  public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
-  public PartAnimationDataBoolValue __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
-
-  public ushort Index { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetUshort(o + __p.bb_pos) : (ushort)0; } }
-  public bool Value { get { int o = __p.__offset(6); return o != 0 ? 0!=__p.bb.Get(o + __p.bb_pos) : (bool)false; } }
-
-  public static Offset<ss.format.PartAnimationDataBoolValue> CreatePartAnimationDataBoolValue(FlatBufferBuilder builder,
-      ushort index = 0,
-      bool value = false) {
-    builder.StartTable(2);
-    PartAnimationDataBoolValue.AddIndex(builder, index);
-    PartAnimationDataBoolValue.AddValue(builder, value);
-    return PartAnimationDataBoolValue.EndPartAnimationDataBoolValue(builder);
-  }
-
-  public static void StartPartAnimationDataBoolValue(FlatBufferBuilder builder) { builder.StartTable(2); }
-  public static void AddIndex(FlatBufferBuilder builder, ushort index) { builder.AddUshort(0, index, 0); }
-  public static void AddValue(FlatBufferBuilder builder, bool value) { builder.AddBool(1, value, false); }
-  public static Offset<ss.format.PartAnimationDataBoolValue> EndPartAnimationDataBoolValue(FlatBufferBuilder builder) {
-    int o = builder.EndTable();
-    return new Offset<ss.format.PartAnimationDataBoolValue>(o);
-  }
-
-  public static VectorOffset CreateSortedVectorOfPartAnimationDataBoolValue(FlatBufferBuilder builder, Offset<PartAnimationDataBoolValue>[] offsets) {
-    Array.Sort(offsets,
-      (Offset<PartAnimationDataBoolValue> o1, Offset<PartAnimationDataBoolValue> o2) =>
-        new PartAnimationDataBoolValue().__assign(builder.DataBuffer.Length - o1.Value, builder.DataBuffer).Index.CompareTo(new PartAnimationDataBoolValue().__assign(builder.DataBuffer.Length - o2.Value, builder.DataBuffer).Index));
-    return builder.CreateVectorOfTables(offsets);
-  }
-
-  public static PartAnimationDataBoolValue? __lookup_by_key(int vectorLocation, ushort key, ByteBuffer bb) {
-    PartAnimationDataBoolValue obj_ = new PartAnimationDataBoolValue();
-    int span = bb.GetInt(vectorLocation - 4);
-    int start = 0;
-    while (span != 0) {
-      int middle = span / 2;
-      int tableOffset = Table.__indirect(vectorLocation + 4 * (start + middle), bb);
-      obj_.__assign(tableOffset, bb);
-      int comp = obj_.Index.CompareTo(key);
-      if (comp > 0) {
-        span = middle;
-      } else if (comp < 0) {
-        middle++;
-        start += middle;
-        span -= middle;
-      } else {
-        return obj_;
-      }
-    }
-    return null;
-  }
-}
-
-
-static public class PartAnimationDataBoolValueVerify
-{
-  static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
-  {
-    return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyField(tablePos, 4 /*Index*/, 2 /*ushort*/, 2, false)
-      && verifier.VerifyField(tablePos, 6 /*Value*/, 1 /*bool*/, 1, false)
-      && verifier.VerifyTableEnd(tablePos);
-  }
-}
-public struct PartAnimationDataPartColor : IFlatbufferObject
-{
-  private Table __p;
-  public ByteBuffer ByteBuffer { get { return __p.bb; } }
-  public static void ValidateVersion() { FlatBufferConstants.FLATBUFFERS_25_12_19(); }
-  public static PartAnimationDataPartColor GetRootAsPartAnimationDataPartColor(ByteBuffer _bb) { return GetRootAsPartAnimationDataPartColor(_bb, new PartAnimationDataPartColor()); }
-  public static PartAnimationDataPartColor GetRootAsPartAnimationDataPartColor(ByteBuffer _bb, PartAnimationDataPartColor obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
-  public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
-  public PartAnimationDataPartColor __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
-
-  public ushort Index { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetUshort(o + __p.bb_pos) : (ushort)0; } }
-  public ss.format.InterpolationType Interpolation { get { int o = __p.__offset(6); return o != 0 ? (ss.format.InterpolationType)__p.bb.Get(o + __p.bb_pos) : ss.format.InterpolationType.None; } }
-  public ss.format.PartAttributePartColor? Value { get { int o = __p.__offset(8); return o != 0 ? (ss.format.PartAttributePartColor?)(new ss.format.PartAttributePartColor()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
-  public ss.format.SsCurve? Curve { get { int o = __p.__offset(10); return o != 0 ? (ss.format.SsCurve?)(new ss.format.SsCurve()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
-  public float EasingRate { get { int o = __p.__offset(12); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
-
-  public static Offset<ss.format.PartAnimationDataPartColor> CreatePartAnimationDataPartColor(FlatBufferBuilder builder,
-      ushort index = 0,
-      ss.format.InterpolationType interpolation = ss.format.InterpolationType.None,
-      Offset<ss.format.PartAttributePartColor> valueOffset = default(Offset<ss.format.PartAttributePartColor>),
-      Offset<ss.format.SsCurve> curveOffset = default(Offset<ss.format.SsCurve>),
-      float easing_rate = 0.0f) {
-    builder.StartTable(5);
-    PartAnimationDataPartColor.AddEasingRate(builder, easing_rate);
-    PartAnimationDataPartColor.AddCurve(builder, curveOffset);
-    PartAnimationDataPartColor.AddValue(builder, valueOffset);
-    PartAnimationDataPartColor.AddIndex(builder, index);
-    PartAnimationDataPartColor.AddInterpolation(builder, interpolation);
-    return PartAnimationDataPartColor.EndPartAnimationDataPartColor(builder);
-  }
-
-  public static void StartPartAnimationDataPartColor(FlatBufferBuilder builder) { builder.StartTable(5); }
-  public static void AddIndex(FlatBufferBuilder builder, ushort index) { builder.AddUshort(0, index, 0); }
-  public static void AddInterpolation(FlatBufferBuilder builder, ss.format.InterpolationType interpolation) { builder.AddByte(1, (byte)interpolation, 0); }
-  public static void AddValue(FlatBufferBuilder builder, Offset<ss.format.PartAttributePartColor> valueOffset) { builder.AddOffset(2, valueOffset.Value, 0); }
-  public static void AddCurve(FlatBufferBuilder builder, Offset<ss.format.SsCurve> curveOffset) { builder.AddOffset(3, curveOffset.Value, 0); }
-  public static void AddEasingRate(FlatBufferBuilder builder, float easingRate) { builder.AddFloat(4, easingRate, 0.0f); }
-  public static Offset<ss.format.PartAnimationDataPartColor> EndPartAnimationDataPartColor(FlatBufferBuilder builder) {
-    int o = builder.EndTable();
-    builder.Required(o, 8);  // value
-    return new Offset<ss.format.PartAnimationDataPartColor>(o);
-  }
-
-  public static VectorOffset CreateSortedVectorOfPartAnimationDataPartColor(FlatBufferBuilder builder, Offset<PartAnimationDataPartColor>[] offsets) {
-    Array.Sort(offsets,
-      (Offset<PartAnimationDataPartColor> o1, Offset<PartAnimationDataPartColor> o2) =>
-        new PartAnimationDataPartColor().__assign(builder.DataBuffer.Length - o1.Value, builder.DataBuffer).Index.CompareTo(new PartAnimationDataPartColor().__assign(builder.DataBuffer.Length - o2.Value, builder.DataBuffer).Index));
-    return builder.CreateVectorOfTables(offsets);
-  }
-
-  public static PartAnimationDataPartColor? __lookup_by_key(int vectorLocation, ushort key, ByteBuffer bb) {
-    PartAnimationDataPartColor obj_ = new PartAnimationDataPartColor();
-    int span = bb.GetInt(vectorLocation - 4);
-    int start = 0;
-    while (span != 0) {
-      int middle = span / 2;
-      int tableOffset = Table.__indirect(vectorLocation + 4 * (start + middle), bb);
-      obj_.__assign(tableOffset, bb);
-      int comp = obj_.Index.CompareTo(key);
-      if (comp > 0) {
-        span = middle;
-      } else if (comp < 0) {
-        middle++;
-        start += middle;
-        span -= middle;
-      } else {
-        return obj_;
-      }
-    }
-    return null;
-  }
-}
-
-
-static public class PartAnimationDataPartColorVerify
-{
-  static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
-  {
-    return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyField(tablePos, 4 /*Index*/, 2 /*ushort*/, 2, false)
-      && verifier.VerifyField(tablePos, 6 /*Interpolation*/, 1 /*ss.format.InterpolationType*/, 1, false)
-      && verifier.VerifyTable(tablePos, 8 /*Value*/, ss.format.PartAttributePartColorVerify.Verify, true)
-      && verifier.VerifyTable(tablePos, 10 /*Curve*/, ss.format.SsCurveVerify.Verify, false)
-      && verifier.VerifyField(tablePos, 12 /*EasingRate*/, 4 /*float*/, 4, false)
-      && verifier.VerifyTableEnd(tablePos);
-  }
-}
-public struct PartAnimationDataShader : IFlatbufferObject
-{
-  private Table __p;
-  public ByteBuffer ByteBuffer { get { return __p.bb; } }
-  public static void ValidateVersion() { FlatBufferConstants.FLATBUFFERS_25_12_19(); }
-  public static PartAnimationDataShader GetRootAsPartAnimationDataShader(ByteBuffer _bb) { return GetRootAsPartAnimationDataShader(_bb, new PartAnimationDataShader()); }
-  public static PartAnimationDataShader GetRootAsPartAnimationDataShader(ByteBuffer _bb, PartAnimationDataShader obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
-  public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
-  public PartAnimationDataShader __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
-
-  public ushort Index { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetUshort(o + __p.bb_pos) : (ushort)0; } }
-  public ss.format.InterpolationType Interpolation { get { int o = __p.__offset(6); return o != 0 ? (ss.format.InterpolationType)__p.bb.Get(o + __p.bb_pos) : ss.format.InterpolationType.None; } }
-  public ss.format.PartAttributeShader? Value { get { int o = __p.__offset(8); return o != 0 ? (ss.format.PartAttributeShader?)(new ss.format.PartAttributeShader()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
-  public ss.format.SsCurve? Curve { get { int o = __p.__offset(10); return o != 0 ? (ss.format.SsCurve?)(new ss.format.SsCurve()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
-  public float EasingRate { get { int o = __p.__offset(12); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
-
-  public static Offset<ss.format.PartAnimationDataShader> CreatePartAnimationDataShader(FlatBufferBuilder builder,
-      ushort index = 0,
-      ss.format.InterpolationType interpolation = ss.format.InterpolationType.None,
-      Offset<ss.format.PartAttributeShader> valueOffset = default(Offset<ss.format.PartAttributeShader>),
-      Offset<ss.format.SsCurve> curveOffset = default(Offset<ss.format.SsCurve>),
-      float easing_rate = 0.0f) {
-    builder.StartTable(5);
-    PartAnimationDataShader.AddEasingRate(builder, easing_rate);
-    PartAnimationDataShader.AddCurve(builder, curveOffset);
-    PartAnimationDataShader.AddValue(builder, valueOffset);
-    PartAnimationDataShader.AddIndex(builder, index);
-    PartAnimationDataShader.AddInterpolation(builder, interpolation);
-    return PartAnimationDataShader.EndPartAnimationDataShader(builder);
-  }
-
-  public static void StartPartAnimationDataShader(FlatBufferBuilder builder) { builder.StartTable(5); }
-  public static void AddIndex(FlatBufferBuilder builder, ushort index) { builder.AddUshort(0, index, 0); }
-  public static void AddInterpolation(FlatBufferBuilder builder, ss.format.InterpolationType interpolation) { builder.AddByte(1, (byte)interpolation, 0); }
-  public static void AddValue(FlatBufferBuilder builder, Offset<ss.format.PartAttributeShader> valueOffset) { builder.AddOffset(2, valueOffset.Value, 0); }
-  public static void AddCurve(FlatBufferBuilder builder, Offset<ss.format.SsCurve> curveOffset) { builder.AddOffset(3, curveOffset.Value, 0); }
-  public static void AddEasingRate(FlatBufferBuilder builder, float easingRate) { builder.AddFloat(4, easingRate, 0.0f); }
-  public static Offset<ss.format.PartAnimationDataShader> EndPartAnimationDataShader(FlatBufferBuilder builder) {
-    int o = builder.EndTable();
-    builder.Required(o, 8);  // value
-    return new Offset<ss.format.PartAnimationDataShader>(o);
-  }
-
-  public static VectorOffset CreateSortedVectorOfPartAnimationDataShader(FlatBufferBuilder builder, Offset<PartAnimationDataShader>[] offsets) {
-    Array.Sort(offsets,
-      (Offset<PartAnimationDataShader> o1, Offset<PartAnimationDataShader> o2) =>
-        new PartAnimationDataShader().__assign(builder.DataBuffer.Length - o1.Value, builder.DataBuffer).Index.CompareTo(new PartAnimationDataShader().__assign(builder.DataBuffer.Length - o2.Value, builder.DataBuffer).Index));
-    return builder.CreateVectorOfTables(offsets);
-  }
-
-  public static PartAnimationDataShader? __lookup_by_key(int vectorLocation, ushort key, ByteBuffer bb) {
-    PartAnimationDataShader obj_ = new PartAnimationDataShader();
-    int span = bb.GetInt(vectorLocation - 4);
-    int start = 0;
-    while (span != 0) {
-      int middle = span / 2;
-      int tableOffset = Table.__indirect(vectorLocation + 4 * (start + middle), bb);
-      obj_.__assign(tableOffset, bb);
-      int comp = obj_.Index.CompareTo(key);
-      if (comp > 0) {
-        span = middle;
-      } else if (comp < 0) {
-        middle++;
-        start += middle;
-        span -= middle;
-      } else {
-        return obj_;
-      }
-    }
-    return null;
-  }
-}
-
-
-static public class PartAnimationDataShaderVerify
-{
-  static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
-  {
-    return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyField(tablePos, 4 /*Index*/, 2 /*ushort*/, 2, false)
-      && verifier.VerifyField(tablePos, 6 /*Interpolation*/, 1 /*ss.format.InterpolationType*/, 1, false)
-      && verifier.VerifyTable(tablePos, 8 /*Value*/, ss.format.PartAttributeShaderVerify.Verify, true)
-      && verifier.VerifyTable(tablePos, 10 /*Curve*/, ss.format.SsCurveVerify.Verify, false)
-      && verifier.VerifyField(tablePos, 12 /*EasingRate*/, 4 /*float*/, 4, false)
-      && verifier.VerifyTableEnd(tablePos);
-  }
-}
-public struct PartAnimationDataVertex : IFlatbufferObject
-{
-  private Table __p;
-  public ByteBuffer ByteBuffer { get { return __p.bb; } }
-  public static void ValidateVersion() { FlatBufferConstants.FLATBUFFERS_25_12_19(); }
-  public static PartAnimationDataVertex GetRootAsPartAnimationDataVertex(ByteBuffer _bb) { return GetRootAsPartAnimationDataVertex(_bb, new PartAnimationDataVertex()); }
-  public static PartAnimationDataVertex GetRootAsPartAnimationDataVertex(ByteBuffer _bb, PartAnimationDataVertex obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
-  public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
-  public PartAnimationDataVertex __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
-
-  public ushort Index { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetUshort(o + __p.bb_pos) : (ushort)0; } }
-  public ss.format.InterpolationType Interpolation { get { int o = __p.__offset(6); return o != 0 ? (ss.format.InterpolationType)__p.bb.Get(o + __p.bb_pos) : ss.format.InterpolationType.None; } }
-  public ss.format.PartAttributeVertex? Value { get { int o = __p.__offset(8); return o != 0 ? (ss.format.PartAttributeVertex?)(new ss.format.PartAttributeVertex()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
-  public ss.format.SsCurve? Curve { get { int o = __p.__offset(10); return o != 0 ? (ss.format.SsCurve?)(new ss.format.SsCurve()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
-  public float EasingRate { get { int o = __p.__offset(12); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
-
-  public static Offset<ss.format.PartAnimationDataVertex> CreatePartAnimationDataVertex(FlatBufferBuilder builder,
-      ushort index = 0,
-      ss.format.InterpolationType interpolation = ss.format.InterpolationType.None,
-      Offset<ss.format.PartAttributeVertex> valueOffset = default(Offset<ss.format.PartAttributeVertex>),
-      Offset<ss.format.SsCurve> curveOffset = default(Offset<ss.format.SsCurve>),
-      float easing_rate = 0.0f) {
-    builder.StartTable(5);
-    PartAnimationDataVertex.AddEasingRate(builder, easing_rate);
-    PartAnimationDataVertex.AddCurve(builder, curveOffset);
-    PartAnimationDataVertex.AddValue(builder, valueOffset);
-    PartAnimationDataVertex.AddIndex(builder, index);
-    PartAnimationDataVertex.AddInterpolation(builder, interpolation);
-    return PartAnimationDataVertex.EndPartAnimationDataVertex(builder);
-  }
-
-  public static void StartPartAnimationDataVertex(FlatBufferBuilder builder) { builder.StartTable(5); }
-  public static void AddIndex(FlatBufferBuilder builder, ushort index) { builder.AddUshort(0, index, 0); }
-  public static void AddInterpolation(FlatBufferBuilder builder, ss.format.InterpolationType interpolation) { builder.AddByte(1, (byte)interpolation, 0); }
-  public static void AddValue(FlatBufferBuilder builder, Offset<ss.format.PartAttributeVertex> valueOffset) { builder.AddOffset(2, valueOffset.Value, 0); }
-  public static void AddCurve(FlatBufferBuilder builder, Offset<ss.format.SsCurve> curveOffset) { builder.AddOffset(3, curveOffset.Value, 0); }
-  public static void AddEasingRate(FlatBufferBuilder builder, float easingRate) { builder.AddFloat(4, easingRate, 0.0f); }
-  public static Offset<ss.format.PartAnimationDataVertex> EndPartAnimationDataVertex(FlatBufferBuilder builder) {
-    int o = builder.EndTable();
-    builder.Required(o, 8);  // value
-    return new Offset<ss.format.PartAnimationDataVertex>(o);
-  }
-
-  public static VectorOffset CreateSortedVectorOfPartAnimationDataVertex(FlatBufferBuilder builder, Offset<PartAnimationDataVertex>[] offsets) {
-    Array.Sort(offsets,
-      (Offset<PartAnimationDataVertex> o1, Offset<PartAnimationDataVertex> o2) =>
-        new PartAnimationDataVertex().__assign(builder.DataBuffer.Length - o1.Value, builder.DataBuffer).Index.CompareTo(new PartAnimationDataVertex().__assign(builder.DataBuffer.Length - o2.Value, builder.DataBuffer).Index));
-    return builder.CreateVectorOfTables(offsets);
-  }
-
-  public static PartAnimationDataVertex? __lookup_by_key(int vectorLocation, ushort key, ByteBuffer bb) {
-    PartAnimationDataVertex obj_ = new PartAnimationDataVertex();
-    int span = bb.GetInt(vectorLocation - 4);
-    int start = 0;
-    while (span != 0) {
-      int middle = span / 2;
-      int tableOffset = Table.__indirect(vectorLocation + 4 * (start + middle), bb);
-      obj_.__assign(tableOffset, bb);
-      int comp = obj_.Index.CompareTo(key);
-      if (comp > 0) {
-        span = middle;
-      } else if (comp < 0) {
-        middle++;
-        start += middle;
-        span -= middle;
-      } else {
-        return obj_;
-      }
-    }
-    return null;
-  }
-}
-
-
-static public class PartAnimationDataVertexVerify
-{
-  static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
-  {
-    return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyField(tablePos, 4 /*Index*/, 2 /*ushort*/, 2, false)
-      && verifier.VerifyField(tablePos, 6 /*Interpolation*/, 1 /*ss.format.InterpolationType*/, 1, false)
-      && verifier.VerifyTable(tablePos, 8 /*Value*/, ss.format.PartAttributeVertexVerify.Verify, true)
-      && verifier.VerifyTable(tablePos, 10 /*Curve*/, ss.format.SsCurveVerify.Verify, false)
-      && verifier.VerifyField(tablePos, 12 /*EasingRate*/, 4 /*float*/, 4, false)
-      && verifier.VerifyTableEnd(tablePos);
-  }
-}
 public struct PartAnimationDataInstance : IFlatbufferObject
 {
   private Table __p;
@@ -5220,180 +4538,6 @@ static public class PartAnimationDataEffectVerify
       && verifier.VerifyTableEnd(tablePos);
   }
 }
-public struct PartAnimationDataVec2 : IFlatbufferObject
-{
-  private Table __p;
-  public ByteBuffer ByteBuffer { get { return __p.bb; } }
-  public static void ValidateVersion() { FlatBufferConstants.FLATBUFFERS_25_12_19(); }
-  public static PartAnimationDataVec2 GetRootAsPartAnimationDataVec2(ByteBuffer _bb) { return GetRootAsPartAnimationDataVec2(_bb, new PartAnimationDataVec2()); }
-  public static PartAnimationDataVec2 GetRootAsPartAnimationDataVec2(ByteBuffer _bb, PartAnimationDataVec2 obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
-  public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
-  public PartAnimationDataVec2 __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
-
-  public ushort Index { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetUshort(o + __p.bb_pos) : (ushort)0; } }
-  public ss.format.InterpolationType Interpolation { get { int o = __p.__offset(6); return o != 0 ? (ss.format.InterpolationType)__p.bb.Get(o + __p.bb_pos) : ss.format.InterpolationType.None; } }
-  public ss.format.Vec2? Value { get { int o = __p.__offset(8); return o != 0 ? (ss.format.Vec2?)(new ss.format.Vec2()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
-  public ss.format.SsCurve? Curve { get { int o = __p.__offset(10); return o != 0 ? (ss.format.SsCurve?)(new ss.format.SsCurve()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
-  public float EasingRate { get { int o = __p.__offset(12); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
-
-  public static Offset<ss.format.PartAnimationDataVec2> CreatePartAnimationDataVec2(FlatBufferBuilder builder,
-      ushort index = 0,
-      ss.format.InterpolationType interpolation = ss.format.InterpolationType.None,
-      Offset<ss.format.Vec2> valueOffset = default(Offset<ss.format.Vec2>),
-      Offset<ss.format.SsCurve> curveOffset = default(Offset<ss.format.SsCurve>),
-      float easing_rate = 0.0f) {
-    builder.StartTable(5);
-    PartAnimationDataVec2.AddEasingRate(builder, easing_rate);
-    PartAnimationDataVec2.AddCurve(builder, curveOffset);
-    PartAnimationDataVec2.AddValue(builder, valueOffset);
-    PartAnimationDataVec2.AddIndex(builder, index);
-    PartAnimationDataVec2.AddInterpolation(builder, interpolation);
-    return PartAnimationDataVec2.EndPartAnimationDataVec2(builder);
-  }
-
-  public static void StartPartAnimationDataVec2(FlatBufferBuilder builder) { builder.StartTable(5); }
-  public static void AddIndex(FlatBufferBuilder builder, ushort index) { builder.AddUshort(0, index, 0); }
-  public static void AddInterpolation(FlatBufferBuilder builder, ss.format.InterpolationType interpolation) { builder.AddByte(1, (byte)interpolation, 0); }
-  public static void AddValue(FlatBufferBuilder builder, Offset<ss.format.Vec2> valueOffset) { builder.AddOffset(2, valueOffset.Value, 0); }
-  public static void AddCurve(FlatBufferBuilder builder, Offset<ss.format.SsCurve> curveOffset) { builder.AddOffset(3, curveOffset.Value, 0); }
-  public static void AddEasingRate(FlatBufferBuilder builder, float easingRate) { builder.AddFloat(4, easingRate, 0.0f); }
-  public static Offset<ss.format.PartAnimationDataVec2> EndPartAnimationDataVec2(FlatBufferBuilder builder) {
-    int o = builder.EndTable();
-    builder.Required(o, 8);  // value
-    return new Offset<ss.format.PartAnimationDataVec2>(o);
-  }
-
-  public static VectorOffset CreateSortedVectorOfPartAnimationDataVec2(FlatBufferBuilder builder, Offset<PartAnimationDataVec2>[] offsets) {
-    Array.Sort(offsets,
-      (Offset<PartAnimationDataVec2> o1, Offset<PartAnimationDataVec2> o2) =>
-        new PartAnimationDataVec2().__assign(builder.DataBuffer.Length - o1.Value, builder.DataBuffer).Index.CompareTo(new PartAnimationDataVec2().__assign(builder.DataBuffer.Length - o2.Value, builder.DataBuffer).Index));
-    return builder.CreateVectorOfTables(offsets);
-  }
-
-  public static PartAnimationDataVec2? __lookup_by_key(int vectorLocation, ushort key, ByteBuffer bb) {
-    PartAnimationDataVec2 obj_ = new PartAnimationDataVec2();
-    int span = bb.GetInt(vectorLocation - 4);
-    int start = 0;
-    while (span != 0) {
-      int middle = span / 2;
-      int tableOffset = Table.__indirect(vectorLocation + 4 * (start + middle), bb);
-      obj_.__assign(tableOffset, bb);
-      int comp = obj_.Index.CompareTo(key);
-      if (comp > 0) {
-        span = middle;
-      } else if (comp < 0) {
-        middle++;
-        start += middle;
-        span -= middle;
-      } else {
-        return obj_;
-      }
-    }
-    return null;
-  }
-}
-
-
-static public class PartAnimationDataVec2Verify
-{
-  static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
-  {
-    return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyField(tablePos, 4 /*Index*/, 2 /*ushort*/, 2, false)
-      && verifier.VerifyField(tablePos, 6 /*Interpolation*/, 1 /*ss.format.InterpolationType*/, 1, false)
-      && verifier.VerifyTable(tablePos, 8 /*Value*/, ss.format.Vec2Verify.Verify, true)
-      && verifier.VerifyTable(tablePos, 10 /*Curve*/, ss.format.SsCurveVerify.Verify, false)
-      && verifier.VerifyField(tablePos, 12 /*EasingRate*/, 4 /*float*/, 4, false)
-      && verifier.VerifyTableEnd(tablePos);
-  }
-}
-public struct PartAnimationDataDeform : IFlatbufferObject
-{
-  private Table __p;
-  public ByteBuffer ByteBuffer { get { return __p.bb; } }
-  public static void ValidateVersion() { FlatBufferConstants.FLATBUFFERS_25_12_19(); }
-  public static PartAnimationDataDeform GetRootAsPartAnimationDataDeform(ByteBuffer _bb) { return GetRootAsPartAnimationDataDeform(_bb, new PartAnimationDataDeform()); }
-  public static PartAnimationDataDeform GetRootAsPartAnimationDataDeform(ByteBuffer _bb, PartAnimationDataDeform obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
-  public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
-  public PartAnimationDataDeform __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
-
-  public ushort Index { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetUshort(o + __p.bb_pos) : (ushort)0; } }
-  public ss.format.InterpolationType Interpolation { get { int o = __p.__offset(6); return o != 0 ? (ss.format.InterpolationType)__p.bb.Get(o + __p.bb_pos) : ss.format.InterpolationType.None; } }
-  public ss.format.PartAttributeDeform? Value { get { int o = __p.__offset(8); return o != 0 ? (ss.format.PartAttributeDeform?)(new ss.format.PartAttributeDeform()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
-  public ss.format.SsCurve? Curve { get { int o = __p.__offset(10); return o != 0 ? (ss.format.SsCurve?)(new ss.format.SsCurve()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
-  public float EasingRate { get { int o = __p.__offset(12); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
-
-  public static Offset<ss.format.PartAnimationDataDeform> CreatePartAnimationDataDeform(FlatBufferBuilder builder,
-      ushort index = 0,
-      ss.format.InterpolationType interpolation = ss.format.InterpolationType.None,
-      Offset<ss.format.PartAttributeDeform> valueOffset = default(Offset<ss.format.PartAttributeDeform>),
-      Offset<ss.format.SsCurve> curveOffset = default(Offset<ss.format.SsCurve>),
-      float easing_rate = 0.0f) {
-    builder.StartTable(5);
-    PartAnimationDataDeform.AddEasingRate(builder, easing_rate);
-    PartAnimationDataDeform.AddCurve(builder, curveOffset);
-    PartAnimationDataDeform.AddValue(builder, valueOffset);
-    PartAnimationDataDeform.AddIndex(builder, index);
-    PartAnimationDataDeform.AddInterpolation(builder, interpolation);
-    return PartAnimationDataDeform.EndPartAnimationDataDeform(builder);
-  }
-
-  public static void StartPartAnimationDataDeform(FlatBufferBuilder builder) { builder.StartTable(5); }
-  public static void AddIndex(FlatBufferBuilder builder, ushort index) { builder.AddUshort(0, index, 0); }
-  public static void AddInterpolation(FlatBufferBuilder builder, ss.format.InterpolationType interpolation) { builder.AddByte(1, (byte)interpolation, 0); }
-  public static void AddValue(FlatBufferBuilder builder, Offset<ss.format.PartAttributeDeform> valueOffset) { builder.AddOffset(2, valueOffset.Value, 0); }
-  public static void AddCurve(FlatBufferBuilder builder, Offset<ss.format.SsCurve> curveOffset) { builder.AddOffset(3, curveOffset.Value, 0); }
-  public static void AddEasingRate(FlatBufferBuilder builder, float easingRate) { builder.AddFloat(4, easingRate, 0.0f); }
-  public static Offset<ss.format.PartAnimationDataDeform> EndPartAnimationDataDeform(FlatBufferBuilder builder) {
-    int o = builder.EndTable();
-    builder.Required(o, 8);  // value
-    return new Offset<ss.format.PartAnimationDataDeform>(o);
-  }
-
-  public static VectorOffset CreateSortedVectorOfPartAnimationDataDeform(FlatBufferBuilder builder, Offset<PartAnimationDataDeform>[] offsets) {
-    Array.Sort(offsets,
-      (Offset<PartAnimationDataDeform> o1, Offset<PartAnimationDataDeform> o2) =>
-        new PartAnimationDataDeform().__assign(builder.DataBuffer.Length - o1.Value, builder.DataBuffer).Index.CompareTo(new PartAnimationDataDeform().__assign(builder.DataBuffer.Length - o2.Value, builder.DataBuffer).Index));
-    return builder.CreateVectorOfTables(offsets);
-  }
-
-  public static PartAnimationDataDeform? __lookup_by_key(int vectorLocation, ushort key, ByteBuffer bb) {
-    PartAnimationDataDeform obj_ = new PartAnimationDataDeform();
-    int span = bb.GetInt(vectorLocation - 4);
-    int start = 0;
-    while (span != 0) {
-      int middle = span / 2;
-      int tableOffset = Table.__indirect(vectorLocation + 4 * (start + middle), bb);
-      obj_.__assign(tableOffset, bb);
-      int comp = obj_.Index.CompareTo(key);
-      if (comp > 0) {
-        span = middle;
-      } else if (comp < 0) {
-        middle++;
-        start += middle;
-        span -= middle;
-      } else {
-        return obj_;
-      }
-    }
-    return null;
-  }
-}
-
-
-static public class PartAnimationDataDeformVerify
-{
-  static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
-  {
-    return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyField(tablePos, 4 /*Index*/, 2 /*ushort*/, 2, false)
-      && verifier.VerifyField(tablePos, 6 /*Interpolation*/, 1 /*ss.format.InterpolationType*/, 1, false)
-      && verifier.VerifyTable(tablePos, 8 /*Value*/, ss.format.PartAttributeDeformVerify.Verify, true)
-      && verifier.VerifyTable(tablePos, 10 /*Curve*/, ss.format.SsCurveVerify.Verify, false)
-      && verifier.VerifyField(tablePos, 12 /*EasingRate*/, 4 /*float*/, 4, false)
-      && verifier.VerifyTableEnd(tablePos);
-  }
-}
 public struct PartAnimationData : IFlatbufferObject
 {
   private Table __p;
@@ -5404,431 +4548,165 @@ public struct PartAnimationData : IFlatbufferObject
   public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
   public PartAnimationData __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
 
-  public ss.format.PartAnimationDataCellValue? CellArray(int j) { int o = __p.__offset(4); return o != 0 ? (ss.format.PartAnimationDataCellValue?)(new ss.format.PartAnimationDataCellValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int CellArrayLength { get { int o = __p.__offset(4); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataCellValue? CellArrayByKey(ushort key) { int o = __p.__offset(4); return o != 0 ? ss.format.PartAnimationDataCellValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? PositionXArray(int j) { int o = __p.__offset(6); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int PositionXArrayLength { get { int o = __p.__offset(6); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? PositionXArrayByKey(ushort key) { int o = __p.__offset(6); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? PositionYArray(int j) { int o = __p.__offset(8); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int PositionYArrayLength { get { int o = __p.__offset(8); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? PositionYArrayByKey(ushort key) { int o = __p.__offset(8); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? PositionZArray(int j) { int o = __p.__offset(10); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int PositionZArrayLength { get { int o = __p.__offset(10); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? PositionZArrayByKey(ushort key) { int o = __p.__offset(10); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? RotationXArray(int j) { int o = __p.__offset(12); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int RotationXArrayLength { get { int o = __p.__offset(12); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? RotationXArrayByKey(ushort key) { int o = __p.__offset(12); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? RotationYArray(int j) { int o = __p.__offset(14); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int RotationYArrayLength { get { int o = __p.__offset(14); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? RotationYArrayByKey(ushort key) { int o = __p.__offset(14); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? RotationZArray(int j) { int o = __p.__offset(16); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int RotationZArrayLength { get { int o = __p.__offset(16); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? RotationZArrayByKey(ushort key) { int o = __p.__offset(16); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? ScaleXArray(int j) { int o = __p.__offset(18); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int ScaleXArrayLength { get { int o = __p.__offset(18); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? ScaleXArrayByKey(ushort key) { int o = __p.__offset(18); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? ScaleYArray(int j) { int o = __p.__offset(20); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int ScaleYArrayLength { get { int o = __p.__offset(20); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? ScaleYArrayByKey(ushort key) { int o = __p.__offset(20); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? LocalScaleXArray(int j) { int o = __p.__offset(22); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int LocalScaleXArrayLength { get { int o = __p.__offset(22); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? LocalScaleXArrayByKey(ushort key) { int o = __p.__offset(22); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? LocalScaleYArray(int j) { int o = __p.__offset(24); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int LocalScaleYArrayLength { get { int o = __p.__offset(24); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? LocalScaleYArrayByKey(ushort key) { int o = __p.__offset(24); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? AlphaArray(int j) { int o = __p.__offset(26); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int AlphaArrayLength { get { int o = __p.__offset(26); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? AlphaArrayByKey(ushort key) { int o = __p.__offset(26); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? LocalAlphaArray(int j) { int o = __p.__offset(28); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int LocalAlphaArrayLength { get { int o = __p.__offset(28); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? LocalAlphaArrayByKey(ushort key) { int o = __p.__offset(28); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataIntValue? PriorityArray(int j) { int o = __p.__offset(30); return o != 0 ? (ss.format.PartAnimationDataIntValue?)(new ss.format.PartAnimationDataIntValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int PriorityArrayLength { get { int o = __p.__offset(30); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataIntValue? PriorityArrayByKey(ushort key) { int o = __p.__offset(30); return o != 0 ? ss.format.PartAnimationDataIntValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataBoolValue? FlipHArray(int j) { int o = __p.__offset(32); return o != 0 ? (ss.format.PartAnimationDataBoolValue?)(new ss.format.PartAnimationDataBoolValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int FlipHArrayLength { get { int o = __p.__offset(32); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataBoolValue? FlipHArrayByKey(ushort key) { int o = __p.__offset(32); return o != 0 ? ss.format.PartAnimationDataBoolValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataBoolValue? FlipVArray(int j) { int o = __p.__offset(34); return o != 0 ? (ss.format.PartAnimationDataBoolValue?)(new ss.format.PartAnimationDataBoolValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int FlipVArrayLength { get { int o = __p.__offset(34); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataBoolValue? FlipVArrayByKey(ushort key) { int o = __p.__offset(34); return o != 0 ? ss.format.PartAnimationDataBoolValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataBoolValue? HideArray(int j) { int o = __p.__offset(36); return o != 0 ? (ss.format.PartAnimationDataBoolValue?)(new ss.format.PartAnimationDataBoolValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int HideArrayLength { get { int o = __p.__offset(36); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataBoolValue? HideArrayByKey(ushort key) { int o = __p.__offset(36); return o != 0 ? ss.format.PartAnimationDataBoolValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataPartColor? PartColorArray(int j) { int o = __p.__offset(38); return o != 0 ? (ss.format.PartAnimationDataPartColor?)(new ss.format.PartAnimationDataPartColor()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int PartColorArrayLength { get { int o = __p.__offset(38); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataPartColor? PartColorArrayByKey(ushort key) { int o = __p.__offset(38); return o != 0 ? ss.format.PartAnimationDataPartColor.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataShader? ShaderArray(int j) { int o = __p.__offset(40); return o != 0 ? (ss.format.PartAnimationDataShader?)(new ss.format.PartAnimationDataShader()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int ShaderArrayLength { get { int o = __p.__offset(40); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataShader? ShaderArrayByKey(ushort key) { int o = __p.__offset(40); return o != 0 ? ss.format.PartAnimationDataShader.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataVertex? VertexArray(int j) { int o = __p.__offset(42); return o != 0 ? (ss.format.PartAnimationDataVertex?)(new ss.format.PartAnimationDataVertex()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int VertexArrayLength { get { int o = __p.__offset(42); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataVertex? VertexArrayByKey(ushort key) { int o = __p.__offset(42); return o != 0 ? ss.format.PartAnimationDataVertex.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? PivotXArray(int j) { int o = __p.__offset(44); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int PivotXArrayLength { get { int o = __p.__offset(44); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? PivotXArrayByKey(ushort key) { int o = __p.__offset(44); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? PivotYArray(int j) { int o = __p.__offset(46); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int PivotYArrayLength { get { int o = __p.__offset(46); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? PivotYArrayByKey(ushort key) { int o = __p.__offset(46); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? AnchorXArray(int j) { int o = __p.__offset(48); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int AnchorXArrayLength { get { int o = __p.__offset(48); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? AnchorXArrayByKey(ushort key) { int o = __p.__offset(48); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? AnchorYArray(int j) { int o = __p.__offset(50); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int AnchorYArrayLength { get { int o = __p.__offset(50); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? AnchorYArrayByKey(ushort key) { int o = __p.__offset(50); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? SizeXArray(int j) { int o = __p.__offset(52); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int SizeXArrayLength { get { int o = __p.__offset(52); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? SizeXArrayByKey(ushort key) { int o = __p.__offset(52); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? SizeYArray(int j) { int o = __p.__offset(54); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int SizeYArrayLength { get { int o = __p.__offset(54); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? SizeYArrayByKey(ushort key) { int o = __p.__offset(54); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataBoolValue? ImgFlipHArray(int j) { int o = __p.__offset(56); return o != 0 ? (ss.format.PartAnimationDataBoolValue?)(new ss.format.PartAnimationDataBoolValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int ImgFlipHArrayLength { get { int o = __p.__offset(56); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataBoolValue? ImgFlipHArrayByKey(ushort key) { int o = __p.__offset(56); return o != 0 ? ss.format.PartAnimationDataBoolValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataBoolValue? ImgFlipVArray(int j) { int o = __p.__offset(58); return o != 0 ? (ss.format.PartAnimationDataBoolValue?)(new ss.format.PartAnimationDataBoolValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int ImgFlipVArrayLength { get { int o = __p.__offset(58); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataBoolValue? ImgFlipVArrayByKey(ushort key) { int o = __p.__offset(58); return o != 0 ? ss.format.PartAnimationDataBoolValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? UvTranslationXArray(int j) { int o = __p.__offset(60); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int UvTranslationXArrayLength { get { int o = __p.__offset(60); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? UvTranslationXArrayByKey(ushort key) { int o = __p.__offset(60); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? UvTranslationYArray(int j) { int o = __p.__offset(62); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int UvTranslationYArrayLength { get { int o = __p.__offset(62); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? UvTranslationYArrayByKey(ushort key) { int o = __p.__offset(62); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? UvRotationZArray(int j) { int o = __p.__offset(64); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int UvRotationZArrayLength { get { int o = __p.__offset(64); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? UvRotationZArrayByKey(ushort key) { int o = __p.__offset(64); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? UvScaleXArray(int j) { int o = __p.__offset(66); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int UvScaleXArrayLength { get { int o = __p.__offset(66); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? UvScaleXArrayByKey(ushort key) { int o = __p.__offset(66); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? UvScaleYArray(int j) { int o = __p.__offset(68); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int UvScaleYArrayLength { get { int o = __p.__offset(68); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? UvScaleYArrayByKey(ushort key) { int o = __p.__offset(68); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? BoundingRadiusArray(int j) { int o = __p.__offset(70); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int BoundingRadiusArrayLength { get { int o = __p.__offset(70); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? BoundingRadiusArrayByKey(ushort key) { int o = __p.__offset(70); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataFloatValue? MaskArray(int j) { int o = __p.__offset(72); return o != 0 ? (ss.format.PartAnimationDataFloatValue?)(new ss.format.PartAnimationDataFloatValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int MaskArrayLength { get { int o = __p.__offset(72); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataFloatValue? MaskArrayByKey(ushort key) { int o = __p.__offset(72); return o != 0 ? ss.format.PartAnimationDataFloatValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataVec2? SkewArray(int j) { int o = __p.__offset(74); return o != 0 ? (ss.format.PartAnimationDataVec2?)(new ss.format.PartAnimationDataVec2()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int SkewArrayLength { get { int o = __p.__offset(74); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataVec2? SkewArrayByKey(ushort key) { int o = __p.__offset(74); return o != 0 ? ss.format.PartAnimationDataVec2.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataDeform? DeformArray(int j) { int o = __p.__offset(76); return o != 0 ? (ss.format.PartAnimationDataDeform?)(new ss.format.PartAnimationDataDeform()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int DeformArrayLength { get { int o = __p.__offset(76); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataDeform? DeformArrayByKey(ushort key) { int o = __p.__offset(76); return o != 0 ? ss.format.PartAnimationDataDeform.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
-  public ss.format.PartAnimationDataUIntValue? TextureArray(int j) { int o = __p.__offset(78); return o != 0 ? (ss.format.PartAnimationDataUIntValue?)(new ss.format.PartAnimationDataUIntValue()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
-  public int TextureArrayLength { get { int o = __p.__offset(78); return o != 0 ? __p.__vector_len(o) : 0; } }
-  public ss.format.PartAnimationDataUIntValue? TextureArrayByKey(ushort key) { int o = __p.__offset(78); return o != 0 ? ss.format.PartAnimationDataUIntValue.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
+  public uint CellKeys { get { int o = __p.__offset(4); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint PositionXKeys { get { int o = __p.__offset(6); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint PositionYKeys { get { int o = __p.__offset(8); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint PositionZKeys { get { int o = __p.__offset(10); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint RotationXKeys { get { int o = __p.__offset(12); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint RotationYKeys { get { int o = __p.__offset(14); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint RotationZKeys { get { int o = __p.__offset(16); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint ScaleXKeys { get { int o = __p.__offset(18); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint ScaleYKeys { get { int o = __p.__offset(20); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint LocalScaleXKeys { get { int o = __p.__offset(22); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint LocalScaleYKeys { get { int o = __p.__offset(24); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint AlphaKeys { get { int o = __p.__offset(26); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint LocalAlphaKeys { get { int o = __p.__offset(28); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint PriorityKeys { get { int o = __p.__offset(30); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint FlipHKeys { get { int o = __p.__offset(32); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint FlipVKeys { get { int o = __p.__offset(34); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint HideKeys { get { int o = __p.__offset(36); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint PartColorKeys { get { int o = __p.__offset(38); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint ShaderKeys { get { int o = __p.__offset(40); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint VertexKeys { get { int o = __p.__offset(42); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint PivotXKeys { get { int o = __p.__offset(44); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint PivotYKeys { get { int o = __p.__offset(46); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint AnchorXKeys { get { int o = __p.__offset(48); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint AnchorYKeys { get { int o = __p.__offset(50); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint SizeXKeys { get { int o = __p.__offset(52); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint SizeYKeys { get { int o = __p.__offset(54); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint ImgFlipHKeys { get { int o = __p.__offset(56); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint ImgFlipVKeys { get { int o = __p.__offset(58); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint UvTranslationXKeys { get { int o = __p.__offset(60); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint UvTranslationYKeys { get { int o = __p.__offset(62); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint UvRotationZKeys { get { int o = __p.__offset(64); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint UvScaleXKeys { get { int o = __p.__offset(66); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint UvScaleYKeys { get { int o = __p.__offset(68); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint BoundingRadiusKeys { get { int o = __p.__offset(70); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint MaskKeys { get { int o = __p.__offset(72); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint SkewKeys { get { int o = __p.__offset(74); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint DeformKeys { get { int o = __p.__offset(76); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
+  public uint TextureKeys { get { int o = __p.__offset(78); return o != 0 ? __p.bb.GetUint(o + __p.bb_pos) : (uint)4294967295; } }
 
   public static Offset<ss.format.PartAnimationData> CreatePartAnimationData(FlatBufferBuilder builder,
-      VectorOffset cell_arrayOffset = default(VectorOffset),
-      VectorOffset position_x_arrayOffset = default(VectorOffset),
-      VectorOffset position_y_arrayOffset = default(VectorOffset),
-      VectorOffset position_z_arrayOffset = default(VectorOffset),
-      VectorOffset rotation_x_arrayOffset = default(VectorOffset),
-      VectorOffset rotation_y_arrayOffset = default(VectorOffset),
-      VectorOffset rotation_z_arrayOffset = default(VectorOffset),
-      VectorOffset scale_x_arrayOffset = default(VectorOffset),
-      VectorOffset scale_y_arrayOffset = default(VectorOffset),
-      VectorOffset local_scale_x_arrayOffset = default(VectorOffset),
-      VectorOffset local_scale_y_arrayOffset = default(VectorOffset),
-      VectorOffset alpha_arrayOffset = default(VectorOffset),
-      VectorOffset local_alpha_arrayOffset = default(VectorOffset),
-      VectorOffset priority_arrayOffset = default(VectorOffset),
-      VectorOffset flip_h_arrayOffset = default(VectorOffset),
-      VectorOffset flip_v_arrayOffset = default(VectorOffset),
-      VectorOffset hide_arrayOffset = default(VectorOffset),
-      VectorOffset part_color_arrayOffset = default(VectorOffset),
-      VectorOffset shader_arrayOffset = default(VectorOffset),
-      VectorOffset vertex_arrayOffset = default(VectorOffset),
-      VectorOffset pivot_x_arrayOffset = default(VectorOffset),
-      VectorOffset pivot_y_arrayOffset = default(VectorOffset),
-      VectorOffset anchor_x_arrayOffset = default(VectorOffset),
-      VectorOffset anchor_y_arrayOffset = default(VectorOffset),
-      VectorOffset size_x_arrayOffset = default(VectorOffset),
-      VectorOffset size_y_arrayOffset = default(VectorOffset),
-      VectorOffset img_flip_h_arrayOffset = default(VectorOffset),
-      VectorOffset img_flip_v_arrayOffset = default(VectorOffset),
-      VectorOffset uv_translation_x_arrayOffset = default(VectorOffset),
-      VectorOffset uv_translation_y_arrayOffset = default(VectorOffset),
-      VectorOffset uv_rotation_z_arrayOffset = default(VectorOffset),
-      VectorOffset uv_scale_x_arrayOffset = default(VectorOffset),
-      VectorOffset uv_scale_y_arrayOffset = default(VectorOffset),
-      VectorOffset bounding_radius_arrayOffset = default(VectorOffset),
-      VectorOffset mask_arrayOffset = default(VectorOffset),
-      VectorOffset skew_arrayOffset = default(VectorOffset),
-      VectorOffset deform_arrayOffset = default(VectorOffset),
-      VectorOffset texture_arrayOffset = default(VectorOffset)) {
+      uint cell_keys = 4294967295,
+      uint position_x_keys = 4294967295,
+      uint position_y_keys = 4294967295,
+      uint position_z_keys = 4294967295,
+      uint rotation_x_keys = 4294967295,
+      uint rotation_y_keys = 4294967295,
+      uint rotation_z_keys = 4294967295,
+      uint scale_x_keys = 4294967295,
+      uint scale_y_keys = 4294967295,
+      uint local_scale_x_keys = 4294967295,
+      uint local_scale_y_keys = 4294967295,
+      uint alpha_keys = 4294967295,
+      uint local_alpha_keys = 4294967295,
+      uint priority_keys = 4294967295,
+      uint flip_h_keys = 4294967295,
+      uint flip_v_keys = 4294967295,
+      uint hide_keys = 4294967295,
+      uint part_color_keys = 4294967295,
+      uint shader_keys = 4294967295,
+      uint vertex_keys = 4294967295,
+      uint pivot_x_keys = 4294967295,
+      uint pivot_y_keys = 4294967295,
+      uint anchor_x_keys = 4294967295,
+      uint anchor_y_keys = 4294967295,
+      uint size_x_keys = 4294967295,
+      uint size_y_keys = 4294967295,
+      uint img_flip_h_keys = 4294967295,
+      uint img_flip_v_keys = 4294967295,
+      uint uv_translation_x_keys = 4294967295,
+      uint uv_translation_y_keys = 4294967295,
+      uint uv_rotation_z_keys = 4294967295,
+      uint uv_scale_x_keys = 4294967295,
+      uint uv_scale_y_keys = 4294967295,
+      uint bounding_radius_keys = 4294967295,
+      uint mask_keys = 4294967295,
+      uint skew_keys = 4294967295,
+      uint deform_keys = 4294967295,
+      uint texture_keys = 4294967295) {
     builder.StartTable(38);
-    PartAnimationData.AddTextureArray(builder, texture_arrayOffset);
-    PartAnimationData.AddDeformArray(builder, deform_arrayOffset);
-    PartAnimationData.AddSkewArray(builder, skew_arrayOffset);
-    PartAnimationData.AddMaskArray(builder, mask_arrayOffset);
-    PartAnimationData.AddBoundingRadiusArray(builder, bounding_radius_arrayOffset);
-    PartAnimationData.AddUvScaleYArray(builder, uv_scale_y_arrayOffset);
-    PartAnimationData.AddUvScaleXArray(builder, uv_scale_x_arrayOffset);
-    PartAnimationData.AddUvRotationZArray(builder, uv_rotation_z_arrayOffset);
-    PartAnimationData.AddUvTranslationYArray(builder, uv_translation_y_arrayOffset);
-    PartAnimationData.AddUvTranslationXArray(builder, uv_translation_x_arrayOffset);
-    PartAnimationData.AddImgFlipVArray(builder, img_flip_v_arrayOffset);
-    PartAnimationData.AddImgFlipHArray(builder, img_flip_h_arrayOffset);
-    PartAnimationData.AddSizeYArray(builder, size_y_arrayOffset);
-    PartAnimationData.AddSizeXArray(builder, size_x_arrayOffset);
-    PartAnimationData.AddAnchorYArray(builder, anchor_y_arrayOffset);
-    PartAnimationData.AddAnchorXArray(builder, anchor_x_arrayOffset);
-    PartAnimationData.AddPivotYArray(builder, pivot_y_arrayOffset);
-    PartAnimationData.AddPivotXArray(builder, pivot_x_arrayOffset);
-    PartAnimationData.AddVertexArray(builder, vertex_arrayOffset);
-    PartAnimationData.AddShaderArray(builder, shader_arrayOffset);
-    PartAnimationData.AddPartColorArray(builder, part_color_arrayOffset);
-    PartAnimationData.AddHideArray(builder, hide_arrayOffset);
-    PartAnimationData.AddFlipVArray(builder, flip_v_arrayOffset);
-    PartAnimationData.AddFlipHArray(builder, flip_h_arrayOffset);
-    PartAnimationData.AddPriorityArray(builder, priority_arrayOffset);
-    PartAnimationData.AddLocalAlphaArray(builder, local_alpha_arrayOffset);
-    PartAnimationData.AddAlphaArray(builder, alpha_arrayOffset);
-    PartAnimationData.AddLocalScaleYArray(builder, local_scale_y_arrayOffset);
-    PartAnimationData.AddLocalScaleXArray(builder, local_scale_x_arrayOffset);
-    PartAnimationData.AddScaleYArray(builder, scale_y_arrayOffset);
-    PartAnimationData.AddScaleXArray(builder, scale_x_arrayOffset);
-    PartAnimationData.AddRotationZArray(builder, rotation_z_arrayOffset);
-    PartAnimationData.AddRotationYArray(builder, rotation_y_arrayOffset);
-    PartAnimationData.AddRotationXArray(builder, rotation_x_arrayOffset);
-    PartAnimationData.AddPositionZArray(builder, position_z_arrayOffset);
-    PartAnimationData.AddPositionYArray(builder, position_y_arrayOffset);
-    PartAnimationData.AddPositionXArray(builder, position_x_arrayOffset);
-    PartAnimationData.AddCellArray(builder, cell_arrayOffset);
+    PartAnimationData.AddTextureKeys(builder, texture_keys);
+    PartAnimationData.AddDeformKeys(builder, deform_keys);
+    PartAnimationData.AddSkewKeys(builder, skew_keys);
+    PartAnimationData.AddMaskKeys(builder, mask_keys);
+    PartAnimationData.AddBoundingRadiusKeys(builder, bounding_radius_keys);
+    PartAnimationData.AddUvScaleYKeys(builder, uv_scale_y_keys);
+    PartAnimationData.AddUvScaleXKeys(builder, uv_scale_x_keys);
+    PartAnimationData.AddUvRotationZKeys(builder, uv_rotation_z_keys);
+    PartAnimationData.AddUvTranslationYKeys(builder, uv_translation_y_keys);
+    PartAnimationData.AddUvTranslationXKeys(builder, uv_translation_x_keys);
+    PartAnimationData.AddImgFlipVKeys(builder, img_flip_v_keys);
+    PartAnimationData.AddImgFlipHKeys(builder, img_flip_h_keys);
+    PartAnimationData.AddSizeYKeys(builder, size_y_keys);
+    PartAnimationData.AddSizeXKeys(builder, size_x_keys);
+    PartAnimationData.AddAnchorYKeys(builder, anchor_y_keys);
+    PartAnimationData.AddAnchorXKeys(builder, anchor_x_keys);
+    PartAnimationData.AddPivotYKeys(builder, pivot_y_keys);
+    PartAnimationData.AddPivotXKeys(builder, pivot_x_keys);
+    PartAnimationData.AddVertexKeys(builder, vertex_keys);
+    PartAnimationData.AddShaderKeys(builder, shader_keys);
+    PartAnimationData.AddPartColorKeys(builder, part_color_keys);
+    PartAnimationData.AddHideKeys(builder, hide_keys);
+    PartAnimationData.AddFlipVKeys(builder, flip_v_keys);
+    PartAnimationData.AddFlipHKeys(builder, flip_h_keys);
+    PartAnimationData.AddPriorityKeys(builder, priority_keys);
+    PartAnimationData.AddLocalAlphaKeys(builder, local_alpha_keys);
+    PartAnimationData.AddAlphaKeys(builder, alpha_keys);
+    PartAnimationData.AddLocalScaleYKeys(builder, local_scale_y_keys);
+    PartAnimationData.AddLocalScaleXKeys(builder, local_scale_x_keys);
+    PartAnimationData.AddScaleYKeys(builder, scale_y_keys);
+    PartAnimationData.AddScaleXKeys(builder, scale_x_keys);
+    PartAnimationData.AddRotationZKeys(builder, rotation_z_keys);
+    PartAnimationData.AddRotationYKeys(builder, rotation_y_keys);
+    PartAnimationData.AddRotationXKeys(builder, rotation_x_keys);
+    PartAnimationData.AddPositionZKeys(builder, position_z_keys);
+    PartAnimationData.AddPositionYKeys(builder, position_y_keys);
+    PartAnimationData.AddPositionXKeys(builder, position_x_keys);
+    PartAnimationData.AddCellKeys(builder, cell_keys);
     return PartAnimationData.EndPartAnimationData(builder);
   }
 
   public static void StartPartAnimationData(FlatBufferBuilder builder) { builder.StartTable(38); }
-  public static void AddCellArray(FlatBufferBuilder builder, VectorOffset cellArrayOffset) { builder.AddOffset(0, cellArrayOffset.Value, 0); }
-  public static VectorOffset CreateCellArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataCellValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateCellArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataCellValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateCellArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataCellValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateCellArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataCellValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartCellArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddPositionXArray(FlatBufferBuilder builder, VectorOffset positionXArrayOffset) { builder.AddOffset(1, positionXArrayOffset.Value, 0); }
-  public static VectorOffset CreatePositionXArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreatePositionXArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreatePositionXArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreatePositionXArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartPositionXArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddPositionYArray(FlatBufferBuilder builder, VectorOffset positionYArrayOffset) { builder.AddOffset(2, positionYArrayOffset.Value, 0); }
-  public static VectorOffset CreatePositionYArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreatePositionYArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreatePositionYArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreatePositionYArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartPositionYArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddPositionZArray(FlatBufferBuilder builder, VectorOffset positionZArrayOffset) { builder.AddOffset(3, positionZArrayOffset.Value, 0); }
-  public static VectorOffset CreatePositionZArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreatePositionZArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreatePositionZArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreatePositionZArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartPositionZArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddRotationXArray(FlatBufferBuilder builder, VectorOffset rotationXArrayOffset) { builder.AddOffset(4, rotationXArrayOffset.Value, 0); }
-  public static VectorOffset CreateRotationXArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateRotationXArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateRotationXArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateRotationXArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartRotationXArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddRotationYArray(FlatBufferBuilder builder, VectorOffset rotationYArrayOffset) { builder.AddOffset(5, rotationYArrayOffset.Value, 0); }
-  public static VectorOffset CreateRotationYArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateRotationYArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateRotationYArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateRotationYArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartRotationYArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddRotationZArray(FlatBufferBuilder builder, VectorOffset rotationZArrayOffset) { builder.AddOffset(6, rotationZArrayOffset.Value, 0); }
-  public static VectorOffset CreateRotationZArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateRotationZArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateRotationZArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateRotationZArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartRotationZArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddScaleXArray(FlatBufferBuilder builder, VectorOffset scaleXArrayOffset) { builder.AddOffset(7, scaleXArrayOffset.Value, 0); }
-  public static VectorOffset CreateScaleXArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateScaleXArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateScaleXArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateScaleXArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartScaleXArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddScaleYArray(FlatBufferBuilder builder, VectorOffset scaleYArrayOffset) { builder.AddOffset(8, scaleYArrayOffset.Value, 0); }
-  public static VectorOffset CreateScaleYArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateScaleYArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateScaleYArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateScaleYArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartScaleYArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddLocalScaleXArray(FlatBufferBuilder builder, VectorOffset localScaleXArrayOffset) { builder.AddOffset(9, localScaleXArrayOffset.Value, 0); }
-  public static VectorOffset CreateLocalScaleXArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateLocalScaleXArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateLocalScaleXArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateLocalScaleXArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartLocalScaleXArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddLocalScaleYArray(FlatBufferBuilder builder, VectorOffset localScaleYArrayOffset) { builder.AddOffset(10, localScaleYArrayOffset.Value, 0); }
-  public static VectorOffset CreateLocalScaleYArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateLocalScaleYArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateLocalScaleYArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateLocalScaleYArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartLocalScaleYArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddAlphaArray(FlatBufferBuilder builder, VectorOffset alphaArrayOffset) { builder.AddOffset(11, alphaArrayOffset.Value, 0); }
-  public static VectorOffset CreateAlphaArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateAlphaArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateAlphaArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateAlphaArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartAlphaArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddLocalAlphaArray(FlatBufferBuilder builder, VectorOffset localAlphaArrayOffset) { builder.AddOffset(12, localAlphaArrayOffset.Value, 0); }
-  public static VectorOffset CreateLocalAlphaArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateLocalAlphaArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateLocalAlphaArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateLocalAlphaArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartLocalAlphaArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddPriorityArray(FlatBufferBuilder builder, VectorOffset priorityArrayOffset) { builder.AddOffset(13, priorityArrayOffset.Value, 0); }
-  public static VectorOffset CreatePriorityArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataIntValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreatePriorityArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataIntValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreatePriorityArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataIntValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreatePriorityArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataIntValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartPriorityArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddFlipHArray(FlatBufferBuilder builder, VectorOffset flipHArrayOffset) { builder.AddOffset(14, flipHArrayOffset.Value, 0); }
-  public static VectorOffset CreateFlipHArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataBoolValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateFlipHArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataBoolValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateFlipHArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataBoolValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateFlipHArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataBoolValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartFlipHArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddFlipVArray(FlatBufferBuilder builder, VectorOffset flipVArrayOffset) { builder.AddOffset(15, flipVArrayOffset.Value, 0); }
-  public static VectorOffset CreateFlipVArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataBoolValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateFlipVArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataBoolValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateFlipVArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataBoolValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateFlipVArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataBoolValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartFlipVArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddHideArray(FlatBufferBuilder builder, VectorOffset hideArrayOffset) { builder.AddOffset(16, hideArrayOffset.Value, 0); }
-  public static VectorOffset CreateHideArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataBoolValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateHideArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataBoolValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateHideArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataBoolValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateHideArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataBoolValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartHideArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddPartColorArray(FlatBufferBuilder builder, VectorOffset partColorArrayOffset) { builder.AddOffset(17, partColorArrayOffset.Value, 0); }
-  public static VectorOffset CreatePartColorArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataPartColor>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreatePartColorArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataPartColor>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreatePartColorArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataPartColor>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreatePartColorArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataPartColor>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartPartColorArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddShaderArray(FlatBufferBuilder builder, VectorOffset shaderArrayOffset) { builder.AddOffset(18, shaderArrayOffset.Value, 0); }
-  public static VectorOffset CreateShaderArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataShader>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateShaderArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataShader>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateShaderArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataShader>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateShaderArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataShader>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartShaderArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddVertexArray(FlatBufferBuilder builder, VectorOffset vertexArrayOffset) { builder.AddOffset(19, vertexArrayOffset.Value, 0); }
-  public static VectorOffset CreateVertexArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataVertex>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateVertexArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataVertex>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateVertexArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataVertex>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateVertexArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataVertex>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartVertexArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddPivotXArray(FlatBufferBuilder builder, VectorOffset pivotXArrayOffset) { builder.AddOffset(20, pivotXArrayOffset.Value, 0); }
-  public static VectorOffset CreatePivotXArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreatePivotXArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreatePivotXArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreatePivotXArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartPivotXArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddPivotYArray(FlatBufferBuilder builder, VectorOffset pivotYArrayOffset) { builder.AddOffset(21, pivotYArrayOffset.Value, 0); }
-  public static VectorOffset CreatePivotYArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreatePivotYArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreatePivotYArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreatePivotYArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartPivotYArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddAnchorXArray(FlatBufferBuilder builder, VectorOffset anchorXArrayOffset) { builder.AddOffset(22, anchorXArrayOffset.Value, 0); }
-  public static VectorOffset CreateAnchorXArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateAnchorXArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateAnchorXArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateAnchorXArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartAnchorXArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddAnchorYArray(FlatBufferBuilder builder, VectorOffset anchorYArrayOffset) { builder.AddOffset(23, anchorYArrayOffset.Value, 0); }
-  public static VectorOffset CreateAnchorYArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateAnchorYArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateAnchorYArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateAnchorYArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartAnchorYArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddSizeXArray(FlatBufferBuilder builder, VectorOffset sizeXArrayOffset) { builder.AddOffset(24, sizeXArrayOffset.Value, 0); }
-  public static VectorOffset CreateSizeXArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateSizeXArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateSizeXArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateSizeXArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartSizeXArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddSizeYArray(FlatBufferBuilder builder, VectorOffset sizeYArrayOffset) { builder.AddOffset(25, sizeYArrayOffset.Value, 0); }
-  public static VectorOffset CreateSizeYArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateSizeYArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateSizeYArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateSizeYArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartSizeYArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddImgFlipHArray(FlatBufferBuilder builder, VectorOffset imgFlipHArrayOffset) { builder.AddOffset(26, imgFlipHArrayOffset.Value, 0); }
-  public static VectorOffset CreateImgFlipHArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataBoolValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateImgFlipHArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataBoolValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateImgFlipHArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataBoolValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateImgFlipHArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataBoolValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartImgFlipHArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddImgFlipVArray(FlatBufferBuilder builder, VectorOffset imgFlipVArrayOffset) { builder.AddOffset(27, imgFlipVArrayOffset.Value, 0); }
-  public static VectorOffset CreateImgFlipVArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataBoolValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateImgFlipVArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataBoolValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateImgFlipVArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataBoolValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateImgFlipVArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataBoolValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartImgFlipVArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddUvTranslationXArray(FlatBufferBuilder builder, VectorOffset uvTranslationXArrayOffset) { builder.AddOffset(28, uvTranslationXArrayOffset.Value, 0); }
-  public static VectorOffset CreateUvTranslationXArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateUvTranslationXArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateUvTranslationXArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateUvTranslationXArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartUvTranslationXArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddUvTranslationYArray(FlatBufferBuilder builder, VectorOffset uvTranslationYArrayOffset) { builder.AddOffset(29, uvTranslationYArrayOffset.Value, 0); }
-  public static VectorOffset CreateUvTranslationYArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateUvTranslationYArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateUvTranslationYArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateUvTranslationYArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartUvTranslationYArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddUvRotationZArray(FlatBufferBuilder builder, VectorOffset uvRotationZArrayOffset) { builder.AddOffset(30, uvRotationZArrayOffset.Value, 0); }
-  public static VectorOffset CreateUvRotationZArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateUvRotationZArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateUvRotationZArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateUvRotationZArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartUvRotationZArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddUvScaleXArray(FlatBufferBuilder builder, VectorOffset uvScaleXArrayOffset) { builder.AddOffset(31, uvScaleXArrayOffset.Value, 0); }
-  public static VectorOffset CreateUvScaleXArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateUvScaleXArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateUvScaleXArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateUvScaleXArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartUvScaleXArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddUvScaleYArray(FlatBufferBuilder builder, VectorOffset uvScaleYArrayOffset) { builder.AddOffset(32, uvScaleYArrayOffset.Value, 0); }
-  public static VectorOffset CreateUvScaleYArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateUvScaleYArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateUvScaleYArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateUvScaleYArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartUvScaleYArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddBoundingRadiusArray(FlatBufferBuilder builder, VectorOffset boundingRadiusArrayOffset) { builder.AddOffset(33, boundingRadiusArrayOffset.Value, 0); }
-  public static VectorOffset CreateBoundingRadiusArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateBoundingRadiusArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateBoundingRadiusArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateBoundingRadiusArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartBoundingRadiusArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddMaskArray(FlatBufferBuilder builder, VectorOffset maskArrayOffset) { builder.AddOffset(34, maskArrayOffset.Value, 0); }
-  public static VectorOffset CreateMaskArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateMaskArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataFloatValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateMaskArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataFloatValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateMaskArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataFloatValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartMaskArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddSkewArray(FlatBufferBuilder builder, VectorOffset skewArrayOffset) { builder.AddOffset(35, skewArrayOffset.Value, 0); }
-  public static VectorOffset CreateSkewArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataVec2>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateSkewArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataVec2>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateSkewArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataVec2>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateSkewArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataVec2>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartSkewArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddDeformArray(FlatBufferBuilder builder, VectorOffset deformArrayOffset) { builder.AddOffset(36, deformArrayOffset.Value, 0); }
-  public static VectorOffset CreateDeformArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataDeform>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateDeformArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataDeform>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateDeformArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataDeform>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateDeformArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataDeform>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartDeformArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
-  public static void AddTextureArray(FlatBufferBuilder builder, VectorOffset textureArrayOffset) { builder.AddOffset(37, textureArrayOffset.Value, 0); }
-  public static VectorOffset CreateTextureArrayVector(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataUIntValue>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
-  public static VectorOffset CreateTextureArrayVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAnimationDataUIntValue>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateTextureArrayVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAnimationDataUIntValue>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
-  public static VectorOffset CreateTextureArrayVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAnimationDataUIntValue>>(dataPtr, sizeInBytes); return builder.EndVector(); }
-  public static void StartTextureArrayVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
+  public static void AddCellKeys(FlatBufferBuilder builder, uint cellKeys) { builder.AddUint(0, cellKeys, 4294967295); }
+  public static void AddPositionXKeys(FlatBufferBuilder builder, uint positionXKeys) { builder.AddUint(1, positionXKeys, 4294967295); }
+  public static void AddPositionYKeys(FlatBufferBuilder builder, uint positionYKeys) { builder.AddUint(2, positionYKeys, 4294967295); }
+  public static void AddPositionZKeys(FlatBufferBuilder builder, uint positionZKeys) { builder.AddUint(3, positionZKeys, 4294967295); }
+  public static void AddRotationXKeys(FlatBufferBuilder builder, uint rotationXKeys) { builder.AddUint(4, rotationXKeys, 4294967295); }
+  public static void AddRotationYKeys(FlatBufferBuilder builder, uint rotationYKeys) { builder.AddUint(5, rotationYKeys, 4294967295); }
+  public static void AddRotationZKeys(FlatBufferBuilder builder, uint rotationZKeys) { builder.AddUint(6, rotationZKeys, 4294967295); }
+  public static void AddScaleXKeys(FlatBufferBuilder builder, uint scaleXKeys) { builder.AddUint(7, scaleXKeys, 4294967295); }
+  public static void AddScaleYKeys(FlatBufferBuilder builder, uint scaleYKeys) { builder.AddUint(8, scaleYKeys, 4294967295); }
+  public static void AddLocalScaleXKeys(FlatBufferBuilder builder, uint localScaleXKeys) { builder.AddUint(9, localScaleXKeys, 4294967295); }
+  public static void AddLocalScaleYKeys(FlatBufferBuilder builder, uint localScaleYKeys) { builder.AddUint(10, localScaleYKeys, 4294967295); }
+  public static void AddAlphaKeys(FlatBufferBuilder builder, uint alphaKeys) { builder.AddUint(11, alphaKeys, 4294967295); }
+  public static void AddLocalAlphaKeys(FlatBufferBuilder builder, uint localAlphaKeys) { builder.AddUint(12, localAlphaKeys, 4294967295); }
+  public static void AddPriorityKeys(FlatBufferBuilder builder, uint priorityKeys) { builder.AddUint(13, priorityKeys, 4294967295); }
+  public static void AddFlipHKeys(FlatBufferBuilder builder, uint flipHKeys) { builder.AddUint(14, flipHKeys, 4294967295); }
+  public static void AddFlipVKeys(FlatBufferBuilder builder, uint flipVKeys) { builder.AddUint(15, flipVKeys, 4294967295); }
+  public static void AddHideKeys(FlatBufferBuilder builder, uint hideKeys) { builder.AddUint(16, hideKeys, 4294967295); }
+  public static void AddPartColorKeys(FlatBufferBuilder builder, uint partColorKeys) { builder.AddUint(17, partColorKeys, 4294967295); }
+  public static void AddShaderKeys(FlatBufferBuilder builder, uint shaderKeys) { builder.AddUint(18, shaderKeys, 4294967295); }
+  public static void AddVertexKeys(FlatBufferBuilder builder, uint vertexKeys) { builder.AddUint(19, vertexKeys, 4294967295); }
+  public static void AddPivotXKeys(FlatBufferBuilder builder, uint pivotXKeys) { builder.AddUint(20, pivotXKeys, 4294967295); }
+  public static void AddPivotYKeys(FlatBufferBuilder builder, uint pivotYKeys) { builder.AddUint(21, pivotYKeys, 4294967295); }
+  public static void AddAnchorXKeys(FlatBufferBuilder builder, uint anchorXKeys) { builder.AddUint(22, anchorXKeys, 4294967295); }
+  public static void AddAnchorYKeys(FlatBufferBuilder builder, uint anchorYKeys) { builder.AddUint(23, anchorYKeys, 4294967295); }
+  public static void AddSizeXKeys(FlatBufferBuilder builder, uint sizeXKeys) { builder.AddUint(24, sizeXKeys, 4294967295); }
+  public static void AddSizeYKeys(FlatBufferBuilder builder, uint sizeYKeys) { builder.AddUint(25, sizeYKeys, 4294967295); }
+  public static void AddImgFlipHKeys(FlatBufferBuilder builder, uint imgFlipHKeys) { builder.AddUint(26, imgFlipHKeys, 4294967295); }
+  public static void AddImgFlipVKeys(FlatBufferBuilder builder, uint imgFlipVKeys) { builder.AddUint(27, imgFlipVKeys, 4294967295); }
+  public static void AddUvTranslationXKeys(FlatBufferBuilder builder, uint uvTranslationXKeys) { builder.AddUint(28, uvTranslationXKeys, 4294967295); }
+  public static void AddUvTranslationYKeys(FlatBufferBuilder builder, uint uvTranslationYKeys) { builder.AddUint(29, uvTranslationYKeys, 4294967295); }
+  public static void AddUvRotationZKeys(FlatBufferBuilder builder, uint uvRotationZKeys) { builder.AddUint(30, uvRotationZKeys, 4294967295); }
+  public static void AddUvScaleXKeys(FlatBufferBuilder builder, uint uvScaleXKeys) { builder.AddUint(31, uvScaleXKeys, 4294967295); }
+  public static void AddUvScaleYKeys(FlatBufferBuilder builder, uint uvScaleYKeys) { builder.AddUint(32, uvScaleYKeys, 4294967295); }
+  public static void AddBoundingRadiusKeys(FlatBufferBuilder builder, uint boundingRadiusKeys) { builder.AddUint(33, boundingRadiusKeys, 4294967295); }
+  public static void AddMaskKeys(FlatBufferBuilder builder, uint maskKeys) { builder.AddUint(34, maskKeys, 4294967295); }
+  public static void AddSkewKeys(FlatBufferBuilder builder, uint skewKeys) { builder.AddUint(35, skewKeys, 4294967295); }
+  public static void AddDeformKeys(FlatBufferBuilder builder, uint deformKeys) { builder.AddUint(36, deformKeys, 4294967295); }
+  public static void AddTextureKeys(FlatBufferBuilder builder, uint textureKeys) { builder.AddUint(37, textureKeys, 4294967295); }
   public static Offset<ss.format.PartAnimationData> EndPartAnimationData(FlatBufferBuilder builder) {
     int o = builder.EndTable();
     return new Offset<ss.format.PartAnimationData>(o);
@@ -5841,44 +4719,264 @@ static public class PartAnimationDataVerify
   static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
   {
     return verifier.VerifyTableStart(tablePos)
-      && verifier.VerifyVectorOfTables(tablePos, 4 /*CellArray*/, ss.format.PartAnimationDataCellValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 6 /*PositionXArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 8 /*PositionYArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 10 /*PositionZArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 12 /*RotationXArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 14 /*RotationYArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 16 /*RotationZArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 18 /*ScaleXArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 20 /*ScaleYArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 22 /*LocalScaleXArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 24 /*LocalScaleYArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 26 /*AlphaArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 28 /*LocalAlphaArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 30 /*PriorityArray*/, ss.format.PartAnimationDataIntValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 32 /*FlipHArray*/, ss.format.PartAnimationDataBoolValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 34 /*FlipVArray*/, ss.format.PartAnimationDataBoolValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 36 /*HideArray*/, ss.format.PartAnimationDataBoolValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 38 /*PartColorArray*/, ss.format.PartAnimationDataPartColorVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 40 /*ShaderArray*/, ss.format.PartAnimationDataShaderVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 42 /*VertexArray*/, ss.format.PartAnimationDataVertexVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 44 /*PivotXArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 46 /*PivotYArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 48 /*AnchorXArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 50 /*AnchorYArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 52 /*SizeXArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 54 /*SizeYArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 56 /*ImgFlipHArray*/, ss.format.PartAnimationDataBoolValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 58 /*ImgFlipVArray*/, ss.format.PartAnimationDataBoolValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 60 /*UvTranslationXArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 62 /*UvTranslationYArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 64 /*UvRotationZArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 66 /*UvScaleXArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 68 /*UvScaleYArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 70 /*BoundingRadiusArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 72 /*MaskArray*/, ss.format.PartAnimationDataFloatValueVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 74 /*SkewArray*/, ss.format.PartAnimationDataVec2Verify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 76 /*DeformArray*/, ss.format.PartAnimationDataDeformVerify.Verify, false)
-      && verifier.VerifyVectorOfTables(tablePos, 78 /*TextureArray*/, ss.format.PartAnimationDataUIntValueVerify.Verify, false)
+      && verifier.VerifyField(tablePos, 4 /*CellKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 6 /*PositionXKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 8 /*PositionYKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 10 /*PositionZKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 12 /*RotationXKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 14 /*RotationYKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 16 /*RotationZKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 18 /*ScaleXKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 20 /*ScaleYKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 22 /*LocalScaleXKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 24 /*LocalScaleYKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 26 /*AlphaKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 28 /*LocalAlphaKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 30 /*PriorityKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 32 /*FlipHKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 34 /*FlipVKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 36 /*HideKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 38 /*PartColorKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 40 /*ShaderKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 42 /*VertexKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 44 /*PivotXKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 46 /*PivotYKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 48 /*AnchorXKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 50 /*AnchorYKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 52 /*SizeXKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 54 /*SizeYKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 56 /*ImgFlipHKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 58 /*ImgFlipVKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 60 /*UvTranslationXKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 62 /*UvTranslationYKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 64 /*UvRotationZKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 66 /*UvScaleXKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 68 /*UvScaleYKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 70 /*BoundingRadiusKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 72 /*MaskKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 74 /*SkewKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 76 /*DeformKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyField(tablePos, 78 /*TextureKeys*/, 4 /*uint*/, 4, false)
+      && verifier.VerifyTableEnd(tablePos);
+  }
+}
+public struct Keyframes : IFlatbufferObject
+{
+  private Table __p;
+  public ByteBuffer ByteBuffer { get { return __p.bb; } }
+  public static void ValidateVersion() { FlatBufferConstants.FLATBUFFERS_25_12_19(); }
+  public static Keyframes GetRootAsKeyframes(ByteBuffer _bb) { return GetRootAsKeyframes(_bb, new Keyframes()); }
+  public static Keyframes GetRootAsKeyframes(ByteBuffer _bb, Keyframes obj) { return (obj.__assign(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
+  public void __init(int _i, ByteBuffer _bb) { __p = new Table(_i, _bb); }
+  public Keyframes __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
+
+  public uint Runs(int j) { int o = __p.__offset(4); return o != 0 ? __p.bb.GetUint(__p.__vector(o) + j * 4) : (uint)0; }
+  public int RunsLength { get { int o = __p.__offset(4); return o != 0 ? __p.__vector_len(o) : 0; } }
+#if ENABLE_SPAN_T
+  public Span<uint> GetRunsBytes() { return __p.__vector_as_span<uint>(4, 4); }
+#else
+  public ArraySegment<byte>? GetRunsBytes() { return __p.__vector_as_arraysegment(4); }
+#endif
+  public uint[] GetRunsArray() { return __p.__vector_as_array<uint>(4); }
+  public ushort Frame(int j) { int o = __p.__offset(6); return o != 0 ? __p.bb.GetUshort(__p.__vector(o) + j * 2) : (ushort)0; }
+  public int FrameLength { get { int o = __p.__offset(6); return o != 0 ? __p.__vector_len(o) : 0; } }
+#if ENABLE_SPAN_T
+  public Span<ushort> GetFrameBytes() { return __p.__vector_as_span<ushort>(6, 2); }
+#else
+  public ArraySegment<byte>? GetFrameBytes() { return __p.__vector_as_arraysegment(6); }
+#endif
+  public ushort[] GetFrameArray() { return __p.__vector_as_array<ushort>(6); }
+  public ss.format.InterpolationType Interpolation(int j) { int o = __p.__offset(8); return o != 0 ? (ss.format.InterpolationType)__p.bb.Get(__p.__vector(o) + j * 1) : (ss.format.InterpolationType)0; }
+  public int InterpolationLength { get { int o = __p.__offset(8); return o != 0 ? __p.__vector_len(o) : 0; } }
+#if ENABLE_SPAN_T
+  public Span<ss.format.InterpolationType> GetInterpolationBytes() { return __p.__vector_as_span<ss.format.InterpolationType>(8, 1); }
+#else
+  public ArraySegment<byte>? GetInterpolationBytes() { return __p.__vector_as_arraysegment(8); }
+#endif
+  public ss.format.InterpolationType[] GetInterpolationArray() { int o = __p.__offset(8); if (o == 0) return null; int p = __p.__vector(o); int l = __p.__vector_len(o); ss.format.InterpolationType[] a = new ss.format.InterpolationType[l]; for (int i = 0; i < l; i++) { a[i] = (ss.format.InterpolationType)__p.bb.Get(p + i * 1); } return a; }
+  public ushort Curve(int j) { int o = __p.__offset(10); return o != 0 ? __p.bb.GetUshort(__p.__vector(o) + j * 2) : (ushort)0; }
+  public int CurveLength { get { int o = __p.__offset(10); return o != 0 ? __p.__vector_len(o) : 0; } }
+#if ENABLE_SPAN_T
+  public Span<ushort> GetCurveBytes() { return __p.__vector_as_span<ushort>(10, 2); }
+#else
+  public ArraySegment<byte>? GetCurveBytes() { return __p.__vector_as_arraysegment(10); }
+#endif
+  public ushort[] GetCurveArray() { return __p.__vector_as_array<ushort>(10); }
+  public uint Value(int j) { int o = __p.__offset(12); return o != 0 ? __p.bb.GetUint(__p.__vector(o) + j * 4) : (uint)0; }
+  public int ValueLength { get { int o = __p.__offset(12); return o != 0 ? __p.__vector_len(o) : 0; } }
+#if ENABLE_SPAN_T
+  public Span<uint> GetValueBytes() { return __p.__vector_as_span<uint>(12, 4); }
+#else
+  public ArraySegment<byte>? GetValueBytes() { return __p.__vector_as_arraysegment(12); }
+#endif
+  public uint[] GetValueArray() { return __p.__vector_as_array<uint>(12); }
+  public ss.format.KeyCurve? Curves(int j) { int o = __p.__offset(14); return o != 0 ? (ss.format.KeyCurve?)(new ss.format.KeyCurve()).__assign(__p.__vector(o) + j * 16, __p.bb) : null; }
+  public int CurvesLength { get { int o = __p.__offset(14); return o != 0 ? __p.__vector_len(o) : 0; } }
+  public float EasingRates(int j) { int o = __p.__offset(16); return o != 0 ? __p.bb.GetFloat(__p.__vector(o) + j * 4) : (float)0; }
+  public int EasingRatesLength { get { int o = __p.__offset(16); return o != 0 ? __p.__vector_len(o) : 0; } }
+#if ENABLE_SPAN_T
+  public Span<float> GetEasingRatesBytes() { return __p.__vector_as_span<float>(16, 4); }
+#else
+  public ArraySegment<byte>? GetEasingRatesBytes() { return __p.__vector_as_arraysegment(16); }
+#endif
+  public float[] GetEasingRatesArray() { return __p.__vector_as_array<float>(16); }
+  public ss.format.PartAttributeCell? Cells(int j) { int o = __p.__offset(18); return o != 0 ? (ss.format.PartAttributeCell?)(new ss.format.PartAttributeCell()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
+  public int CellsLength { get { int o = __p.__offset(18); return o != 0 ? __p.__vector_len(o) : 0; } }
+  public ss.format.PartAttributePartColor? PartColors(int j) { int o = __p.__offset(20); return o != 0 ? (ss.format.PartAttributePartColor?)(new ss.format.PartAttributePartColor()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
+  public int PartColorsLength { get { int o = __p.__offset(20); return o != 0 ? __p.__vector_len(o) : 0; } }
+  public ss.format.PartAttributeShader? Shaders(int j) { int o = __p.__offset(22); return o != 0 ? (ss.format.PartAttributeShader?)(new ss.format.PartAttributeShader()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
+  public int ShadersLength { get { int o = __p.__offset(22); return o != 0 ? __p.__vector_len(o) : 0; } }
+  public ss.format.PartAttributeVertex? Vertices(int j) { int o = __p.__offset(24); return o != 0 ? (ss.format.PartAttributeVertex?)(new ss.format.PartAttributeVertex()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
+  public int VerticesLength { get { int o = __p.__offset(24); return o != 0 ? __p.__vector_len(o) : 0; } }
+  public ss.format.Vec2? Skews(int j) { int o = __p.__offset(26); return o != 0 ? (ss.format.Vec2?)(new ss.format.Vec2()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
+  public int SkewsLength { get { int o = __p.__offset(26); return o != 0 ? __p.__vector_len(o) : 0; } }
+  public ss.format.PartAttributeDeform? Deforms(int j) { int o = __p.__offset(28); return o != 0 ? (ss.format.PartAttributeDeform?)(new ss.format.PartAttributeDeform()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
+  public int DeformsLength { get { int o = __p.__offset(28); return o != 0 ? __p.__vector_len(o) : 0; } }
+
+  public static Offset<ss.format.Keyframes> CreateKeyframes(FlatBufferBuilder builder,
+      VectorOffset runsOffset = default(VectorOffset),
+      VectorOffset frameOffset = default(VectorOffset),
+      VectorOffset interpolationOffset = default(VectorOffset),
+      VectorOffset curveOffset = default(VectorOffset),
+      VectorOffset valueOffset = default(VectorOffset),
+      VectorOffset curvesOffset = default(VectorOffset),
+      VectorOffset easing_ratesOffset = default(VectorOffset),
+      VectorOffset cellsOffset = default(VectorOffset),
+      VectorOffset part_colorsOffset = default(VectorOffset),
+      VectorOffset shadersOffset = default(VectorOffset),
+      VectorOffset verticesOffset = default(VectorOffset),
+      VectorOffset skewsOffset = default(VectorOffset),
+      VectorOffset deformsOffset = default(VectorOffset)) {
+    builder.StartTable(13);
+    Keyframes.AddDeforms(builder, deformsOffset);
+    Keyframes.AddSkews(builder, skewsOffset);
+    Keyframes.AddVertices(builder, verticesOffset);
+    Keyframes.AddShaders(builder, shadersOffset);
+    Keyframes.AddPartColors(builder, part_colorsOffset);
+    Keyframes.AddCells(builder, cellsOffset);
+    Keyframes.AddEasingRates(builder, easing_ratesOffset);
+    Keyframes.AddCurves(builder, curvesOffset);
+    Keyframes.AddValue(builder, valueOffset);
+    Keyframes.AddCurve(builder, curveOffset);
+    Keyframes.AddInterpolation(builder, interpolationOffset);
+    Keyframes.AddFrame(builder, frameOffset);
+    Keyframes.AddRuns(builder, runsOffset);
+    return Keyframes.EndKeyframes(builder);
+  }
+
+  public static void StartKeyframes(FlatBufferBuilder builder) { builder.StartTable(13); }
+  public static void AddRuns(FlatBufferBuilder builder, VectorOffset runsOffset) { builder.AddOffset(0, runsOffset.Value, 0); }
+  public static VectorOffset CreateRunsVector(FlatBufferBuilder builder, uint[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddUint(data[i]); return builder.EndVector(); }
+  public static VectorOffset CreateRunsVectorBlock(FlatBufferBuilder builder, uint[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateRunsVectorBlock(FlatBufferBuilder builder, ArraySegment<uint> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateRunsVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<uint>(dataPtr, sizeInBytes); return builder.EndVector(); }
+  public static void StartRunsVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
+  public static void AddFrame(FlatBufferBuilder builder, VectorOffset frameOffset) { builder.AddOffset(1, frameOffset.Value, 0); }
+  public static VectorOffset CreateFrameVector(FlatBufferBuilder builder, ushort[] data) { builder.StartVector(2, data.Length, 2); for (int i = data.Length - 1; i >= 0; i--) builder.AddUshort(data[i]); return builder.EndVector(); }
+  public static VectorOffset CreateFrameVectorBlock(FlatBufferBuilder builder, ushort[] data) { builder.StartVector(2, data.Length, 2); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateFrameVectorBlock(FlatBufferBuilder builder, ArraySegment<ushort> data) { builder.StartVector(2, data.Count, 2); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateFrameVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<ushort>(dataPtr, sizeInBytes); return builder.EndVector(); }
+  public static void StartFrameVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(2, numElems, 2); }
+  public static void AddInterpolation(FlatBufferBuilder builder, VectorOffset interpolationOffset) { builder.AddOffset(2, interpolationOffset.Value, 0); }
+  public static VectorOffset CreateInterpolationVector(FlatBufferBuilder builder, ss.format.InterpolationType[] data) { builder.StartVector(1, data.Length, 1); for (int i = data.Length - 1; i >= 0; i--) builder.AddByte((byte)data[i]); return builder.EndVector(); }
+  public static VectorOffset CreateInterpolationVectorBlock(FlatBufferBuilder builder, ss.format.InterpolationType[] data) { builder.StartVector(1, data.Length, 1); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateInterpolationVectorBlock(FlatBufferBuilder builder, ArraySegment<ss.format.InterpolationType> data) { builder.StartVector(1, data.Count, 1); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateInterpolationVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<ss.format.InterpolationType>(dataPtr, sizeInBytes); return builder.EndVector(); }
+  public static void StartInterpolationVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(1, numElems, 1); }
+  public static void AddCurve(FlatBufferBuilder builder, VectorOffset curveOffset) { builder.AddOffset(3, curveOffset.Value, 0); }
+  public static VectorOffset CreateCurveVector(FlatBufferBuilder builder, ushort[] data) { builder.StartVector(2, data.Length, 2); for (int i = data.Length - 1; i >= 0; i--) builder.AddUshort(data[i]); return builder.EndVector(); }
+  public static VectorOffset CreateCurveVectorBlock(FlatBufferBuilder builder, ushort[] data) { builder.StartVector(2, data.Length, 2); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateCurveVectorBlock(FlatBufferBuilder builder, ArraySegment<ushort> data) { builder.StartVector(2, data.Count, 2); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateCurveVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<ushort>(dataPtr, sizeInBytes); return builder.EndVector(); }
+  public static void StartCurveVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(2, numElems, 2); }
+  public static void AddValue(FlatBufferBuilder builder, VectorOffset valueOffset) { builder.AddOffset(4, valueOffset.Value, 0); }
+  public static VectorOffset CreateValueVector(FlatBufferBuilder builder, uint[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddUint(data[i]); return builder.EndVector(); }
+  public static VectorOffset CreateValueVectorBlock(FlatBufferBuilder builder, uint[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateValueVectorBlock(FlatBufferBuilder builder, ArraySegment<uint> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateValueVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<uint>(dataPtr, sizeInBytes); return builder.EndVector(); }
+  public static void StartValueVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
+  public static void AddCurves(FlatBufferBuilder builder, VectorOffset curvesOffset) { builder.AddOffset(5, curvesOffset.Value, 0); }
+  public static void StartCurvesVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(16, numElems, 4); }
+  public static void AddEasingRates(FlatBufferBuilder builder, VectorOffset easingRatesOffset) { builder.AddOffset(6, easingRatesOffset.Value, 0); }
+  public static VectorOffset CreateEasingRatesVector(FlatBufferBuilder builder, float[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddFloat(data[i]); return builder.EndVector(); }
+  public static VectorOffset CreateEasingRatesVectorBlock(FlatBufferBuilder builder, float[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateEasingRatesVectorBlock(FlatBufferBuilder builder, ArraySegment<float> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateEasingRatesVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<float>(dataPtr, sizeInBytes); return builder.EndVector(); }
+  public static void StartEasingRatesVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
+  public static void AddCells(FlatBufferBuilder builder, VectorOffset cellsOffset) { builder.AddOffset(7, cellsOffset.Value, 0); }
+  public static VectorOffset CreateCellsVector(FlatBufferBuilder builder, Offset<ss.format.PartAttributeCell>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
+  public static VectorOffset CreateCellsVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAttributeCell>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateCellsVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAttributeCell>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateCellsVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAttributeCell>>(dataPtr, sizeInBytes); return builder.EndVector(); }
+  public static void StartCellsVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
+  public static void AddPartColors(FlatBufferBuilder builder, VectorOffset partColorsOffset) { builder.AddOffset(8, partColorsOffset.Value, 0); }
+  public static VectorOffset CreatePartColorsVector(FlatBufferBuilder builder, Offset<ss.format.PartAttributePartColor>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
+  public static VectorOffset CreatePartColorsVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAttributePartColor>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreatePartColorsVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAttributePartColor>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreatePartColorsVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAttributePartColor>>(dataPtr, sizeInBytes); return builder.EndVector(); }
+  public static void StartPartColorsVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
+  public static void AddShaders(FlatBufferBuilder builder, VectorOffset shadersOffset) { builder.AddOffset(9, shadersOffset.Value, 0); }
+  public static VectorOffset CreateShadersVector(FlatBufferBuilder builder, Offset<ss.format.PartAttributeShader>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
+  public static VectorOffset CreateShadersVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAttributeShader>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateShadersVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAttributeShader>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateShadersVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAttributeShader>>(dataPtr, sizeInBytes); return builder.EndVector(); }
+  public static void StartShadersVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
+  public static void AddVertices(FlatBufferBuilder builder, VectorOffset verticesOffset) { builder.AddOffset(10, verticesOffset.Value, 0); }
+  public static VectorOffset CreateVerticesVector(FlatBufferBuilder builder, Offset<ss.format.PartAttributeVertex>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
+  public static VectorOffset CreateVerticesVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAttributeVertex>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateVerticesVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAttributeVertex>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateVerticesVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAttributeVertex>>(dataPtr, sizeInBytes); return builder.EndVector(); }
+  public static void StartVerticesVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
+  public static void AddSkews(FlatBufferBuilder builder, VectorOffset skewsOffset) { builder.AddOffset(11, skewsOffset.Value, 0); }
+  public static VectorOffset CreateSkewsVector(FlatBufferBuilder builder, Offset<ss.format.Vec2>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
+  public static VectorOffset CreateSkewsVectorBlock(FlatBufferBuilder builder, Offset<ss.format.Vec2>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateSkewsVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.Vec2>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateSkewsVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.Vec2>>(dataPtr, sizeInBytes); return builder.EndVector(); }
+  public static void StartSkewsVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
+  public static void AddDeforms(FlatBufferBuilder builder, VectorOffset deformsOffset) { builder.AddOffset(12, deformsOffset.Value, 0); }
+  public static VectorOffset CreateDeformsVector(FlatBufferBuilder builder, Offset<ss.format.PartAttributeDeform>[] data) { builder.StartVector(4, data.Length, 4); for (int i = data.Length - 1; i >= 0; i--) builder.AddOffset(data[i].Value); return builder.EndVector(); }
+  public static VectorOffset CreateDeformsVectorBlock(FlatBufferBuilder builder, Offset<ss.format.PartAttributeDeform>[] data) { builder.StartVector(4, data.Length, 4); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateDeformsVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.PartAttributeDeform>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
+  public static VectorOffset CreateDeformsVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.PartAttributeDeform>>(dataPtr, sizeInBytes); return builder.EndVector(); }
+  public static void StartDeformsVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
+  public static Offset<ss.format.Keyframes> EndKeyframes(FlatBufferBuilder builder) {
+    int o = builder.EndTable();
+    builder.Required(o, 4);  // runs
+    builder.Required(o, 6);  // frame
+    builder.Required(o, 8);  // interpolation
+    builder.Required(o, 10);  // curve
+    builder.Required(o, 12);  // value
+    builder.Required(o, 14);  // curves
+    builder.Required(o, 16);  // easing_rates
+    builder.Required(o, 18);  // cells
+    builder.Required(o, 20);  // part_colors
+    builder.Required(o, 22);  // shaders
+    builder.Required(o, 24);  // vertices
+    builder.Required(o, 26);  // skews
+    builder.Required(o, 28);  // deforms
+    return new Offset<ss.format.Keyframes>(o);
+  }
+}
+
+
+static public class KeyframesVerify
+{
+  static public bool Verify(Google.FlatBuffers.Verifier verifier, uint tablePos)
+  {
+    return verifier.VerifyTableStart(tablePos)
+      && verifier.VerifyVectorOfData(tablePos, 4 /*Runs*/, 4 /*uint*/, true)
+      && verifier.VerifyVectorOfData(tablePos, 6 /*Frame*/, 2 /*ushort*/, true)
+      && verifier.VerifyVectorOfData(tablePos, 8 /*Interpolation*/, 1 /*ss.format.InterpolationType*/, true)
+      && verifier.VerifyVectorOfData(tablePos, 10 /*Curve*/, 2 /*ushort*/, true)
+      && verifier.VerifyVectorOfData(tablePos, 12 /*Value*/, 4 /*uint*/, true)
+      && verifier.VerifyVectorOfData(tablePos, 14 /*Curves*/, 16 /*ss.format.KeyCurve*/, true)
+      && verifier.VerifyVectorOfData(tablePos, 16 /*EasingRates*/, 4 /*float*/, true)
+      && verifier.VerifyVectorOfTables(tablePos, 18 /*Cells*/, ss.format.PartAttributeCellVerify.Verify, true)
+      && verifier.VerifyVectorOfTables(tablePos, 20 /*PartColors*/, ss.format.PartAttributePartColorVerify.Verify, true)
+      && verifier.VerifyVectorOfTables(tablePos, 22 /*Shaders*/, ss.format.PartAttributeShaderVerify.Verify, true)
+      && verifier.VerifyVectorOfTables(tablePos, 24 /*Vertices*/, ss.format.PartAttributeVertexVerify.Verify, true)
+      && verifier.VerifyVectorOfTables(tablePos, 26 /*Skews*/, ss.format.Vec2Verify.Verify, true)
+      && verifier.VerifyVectorOfTables(tablePos, 28 /*Deforms*/, ss.format.PartAttributeDeformVerify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
@@ -6302,6 +5400,7 @@ public struct SsAnimeBinary : IFlatbufferObject
   public ss.format.EmbeddedAsset? EmbeddedAssets(int j) { int o = __p.__offset(26); return o != 0 ? (ss.format.EmbeddedAsset?)(new ss.format.EmbeddedAsset()).__assign(__p.__indirect(__p.__vector(o) + j * 4), __p.bb) : null; }
   public int EmbeddedAssetsLength { get { int o = __p.__offset(26); return o != 0 ? __p.__vector_len(o) : 0; } }
   public ss.format.EmbeddedAsset? EmbeddedAssetsByKey(uint key) { int o = __p.__offset(26); return o != 0 ? ss.format.EmbeddedAsset.__lookup_by_key(__p.__vector(o), key, __p.bb) : null; }
+  public ss.format.Keyframes? Keyframes { get { int o = __p.__offset(28); return o != 0 ? (ss.format.Keyframes?)(new ss.format.Keyframes()).__assign(__p.__indirect(o + __p.bb_pos), __p.bb) : null; } }
 
   public static Offset<ss.format.SsAnimeBinary> CreateSsAnimeBinary(FlatBufferBuilder builder,
       uint version = 0,
@@ -6315,8 +5414,10 @@ public struct SsAnimeBinary : IFlatbufferObject
       VectorOffset font_bitmapsOffset = default(VectorOffset),
       VectorOffset external_texturesOffset = default(VectorOffset),
       VectorOffset external_instancesOffset = default(VectorOffset),
-      VectorOffset embedded_assetsOffset = default(VectorOffset)) {
-    builder.StartTable(12);
+      VectorOffset embedded_assetsOffset = default(VectorOffset),
+      Offset<ss.format.Keyframes> keyframesOffset = default(Offset<ss.format.Keyframes>)) {
+    builder.StartTable(13);
+    SsAnimeBinary.AddKeyframes(builder, keyframesOffset);
     SsAnimeBinary.AddEmbeddedAssets(builder, embedded_assetsOffset);
     SsAnimeBinary.AddExternalInstances(builder, external_instancesOffset);
     SsAnimeBinary.AddExternalTextures(builder, external_texturesOffset);
@@ -6332,7 +5433,7 @@ public struct SsAnimeBinary : IFlatbufferObject
     return SsAnimeBinary.EndSsAnimeBinary(builder);
   }
 
-  public static void StartSsAnimeBinary(FlatBufferBuilder builder) { builder.StartTable(12); }
+  public static void StartSsAnimeBinary(FlatBufferBuilder builder) { builder.StartTable(13); }
   public static void AddVersion(FlatBufferBuilder builder, uint version) { builder.AddUint(0, version, 0); }
   public static void AddName(FlatBufferBuilder builder, StringOffset nameOffset) { builder.AddOffset(1, nameOffset.Value, 0); }
   public static void AddNameHash(FlatBufferBuilder builder, uint nameHash) { builder.AddUint(2, nameHash, 0); }
@@ -6390,11 +5491,13 @@ public struct SsAnimeBinary : IFlatbufferObject
   public static VectorOffset CreateEmbeddedAssetsVectorBlock(FlatBufferBuilder builder, ArraySegment<Offset<ss.format.EmbeddedAsset>> data) { builder.StartVector(4, data.Count, 4); builder.Add(data); return builder.EndVector(); }
   public static VectorOffset CreateEmbeddedAssetsVectorBlock(FlatBufferBuilder builder, IntPtr dataPtr, int sizeInBytes) { builder.StartVector(1, sizeInBytes, 1); builder.Add<Offset<ss.format.EmbeddedAsset>>(dataPtr, sizeInBytes); return builder.EndVector(); }
   public static void StartEmbeddedAssetsVector(FlatBufferBuilder builder, int numElems) { builder.StartVector(4, numElems, 4); }
+  public static void AddKeyframes(FlatBufferBuilder builder, Offset<ss.format.Keyframes> keyframesOffset) { builder.AddOffset(12, keyframesOffset.Value, 0); }
   public static Offset<ss.format.SsAnimeBinary> EndSsAnimeBinary(FlatBufferBuilder builder) {
     int o = builder.EndTable();
     builder.Required(o, 6);  // name
     builder.Required(o, 10);  // parts
     builder.Required(o, 12);  // animations
+    builder.Required(o, 28);  // keyframes
     return new Offset<ss.format.SsAnimeBinary>(o);
   }
   public static void FinishSsAnimeBinaryBuffer(FlatBufferBuilder builder, Offset<ss.format.SsAnimeBinary> offset) { builder.Finish(offset.Value, "SSAB"); }
@@ -6419,6 +5522,7 @@ static public class SsAnimeBinaryVerify
       && verifier.VerifyVectorOfTables(tablePos, 22 /*ExternalTextures*/, ss.format.ExternalTextureVerify.Verify, false)
       && verifier.VerifyVectorOfTables(tablePos, 24 /*ExternalInstances*/, ss.format.ExternalInstanceVerify.Verify, false)
       && verifier.VerifyVectorOfTables(tablePos, 26 /*EmbeddedAssets*/, ss.format.EmbeddedAssetVerify.Verify, false)
+      && verifier.VerifyTable(tablePos, 28 /*Keyframes*/, ss.format.KeyframesVerify.Verify, true)
       && verifier.VerifyTableEnd(tablePos);
   }
 }
