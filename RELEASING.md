@@ -82,7 +82,11 @@ gh run watch
 
 ### 6. Publish
 
-Open the draft on the [Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) page and check the attachments: `jp.co.cri-mw.spritestudio.ssplayer-unity-X.Y.Z.tgz`, its alias `jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`, and `SHA256SUMS`. Edit the notes and choose **Set as the latest release** — **a beta too, never Set as a pre-release**: the README and the docs hand out `releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`, which resolves only to a release that is not a pre-release. Then **Publish release**. Publishing also deploys the documentation site.
+Open the draft on the [Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) page and check the attachments: `jp.co.cri-mw.spritestudio.ssplayer-unity-X.Y.Z.tgz`, its alias `jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`, and `SHA256SUMS`. Edit the notes and choose **Set as the latest release** — **a beta too, never Set as a pre-release**: the README and the docs hand out `releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`, which resolves only to a release that is not a pre-release. Then **Publish release**. Publishing also starts `pages.yml`, which deploys the [documentation site](https://cri-middleware.github.io/SSPlayerForUnity/). Watch the run through, then open the site: a failed run leaves the Release published and the site as it was. Once the cause is fixed, re-run it; a re-run builds the same tag.
+
+```bash
+gh run watch                                      # pages.yml; the run takes a few seconds to appear
+```
 
 ### 7. Merge back
 
@@ -207,7 +211,11 @@ gh run watch
 
 ### 6. 公開
 
-[Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) ページで下書きを開き、添付を確かめます。`jp.co.cri-mw.spritestudio.ssplayer-unity-X.Y.Z.tgz` とそのエイリアス `jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`、`SHA256SUMS` の 3 つです。リリースノートを編集し、**Set as the latest release** を選びます。**ベータでも Set as a pre-release にはしません。** README と docs が案内する `releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz` は、pre-release ではない Release にしか解決されないためです。最後に **Publish release** を押します。公開するとドキュメントサイトもデプロイされます。
+[Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) ページで下書きを開き、添付を確かめます。`jp.co.cri-mw.spritestudio.ssplayer-unity-X.Y.Z.tgz` とそのエイリアス `jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`、`SHA256SUMS` の 3 つです。リリースノートを編集し、**Set as the latest release** を選びます。**ベータでも Set as a pre-release にはしません。** README と docs が案内する `releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz` は、pre-release ではない Release にしか解決されないためです。最後に **Publish release** を押します。公開すると `pages.yml` が動き、[ドキュメントサイト](https://cri-middleware.github.io/SSPlayerForUnity/) をデプロイします。run を最後まで見届けてから、サイトを開いて確かめます。run が失敗しても Release は公開されたままで、サイトは元のまま残ります。原因を直したら run を再実行します。再実行は同じタグをビルドします。
+
+```bash
+gh run watch                                      # pages.yml。run が一覧に出るまで数秒かかる
+```
 
 ### 7. develop へ戻す
 
