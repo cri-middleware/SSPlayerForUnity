@@ -79,7 +79,7 @@ Pages live as both `docs/en/<path>` and `docs/ja/<path>`, each locale with its o
 ./scripts/build-pages.sh serve=yes # the published tree, both locales -> http://localhost:8000/
 ```
 
-Both locales, English first: it clears `site/`, which contains `site/ja`, so an English-only build leaves a stale Japanese site behind and a page you just broke still looks fine. `mkdocs.base.yml` sets `strict: true`; `zensical serve` validates nothing, `--strict` or not, and serves one locale at a time, so `build-pages.sh serve=yes` is the only way to watch the language selector resolve. `pages.yml`'s build job **is** that script. `.ps1` twins on Windows, `key=value` options and `--help` on both.
+Both locales, English first: it clears `site/`, which contains `site/ja`, so an English-only build leaves no Japanese site at all. `mkdocs.base.yml` sets `strict: true`; `zensical serve` validates nothing, `--strict` or not, and serves one locale at a time, so `build-pages.sh serve=yes` is the only way to watch the language selector resolve. `pages.yml`'s build job **is** that script. `.ps1` twins on Windows, `key=value` options and `--help` on both.
 
 ## Coding Standards
 
@@ -167,7 +167,7 @@ SSPlayerForUnity への貢献にご関心をお寄せいただきありがとう
 ./scripts/build-pages.sh serve=yes # 公開ツリー、両ロケール -> http://localhost:8000/
 ```
 
-必ず両ロケールを、英語を先にビルドします。英語ビルドは `site/`（その中に `site/ja` がある）を消すため、英語だけビルドすると古い日本語サイトが残り、壊したページが無傷に見えます。`mkdocs.base.yml` が `strict: true` を設定します。`zensical serve` は `--strict` を付けても何も検証せず、1 ロケールずつしか配信しないため、言語セレクタの動作を見られるのは `build-pages.sh serve=yes` だけです。`pages.yml` のビルドジョブはそのスクリプトです。Windows は `.ps1` 版を使い、どちらも `key=value` と `--help` を取ります。
+必ず両ロケールを、英語を先にビルドします。英語ビルドは `site/`（その中に `site/ja` がある）を消すため、英語だけビルドすると日本語サイトは残らず消えます。`mkdocs.base.yml` が `strict: true` を設定します。`zensical serve` は `--strict` を付けても何も検証せず、1 ロケールずつしか配信しないため、言語セレクタの動作を見られるのは `build-pages.sh serve=yes` だけです。`pages.yml` のビルドジョブはそのスクリプトです。Windows は `.ps1` 版を使い、どちらも `key=value` と `--help` を取ります。
 
 ## コーディング規約
 
