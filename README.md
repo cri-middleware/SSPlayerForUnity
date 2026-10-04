@@ -8,16 +8,11 @@ A high-performance plugin for playing back animations (`.ssab`) created with **[
 
 ## ✨ Why use SpriteStudio with Unity?
 
-- **A purpose-built 2D animation editor, beyond Unity's built-in tools**
-  SpriteStudio is a dedicated editor for skeletal- and mesh-based 2D animation — bone rigging, mesh deformation, and particle effects made for animators. It unlocks expression that's tedious or impractical to build with Unity's native animation tools, and since the motion is authored outside Unity and exported as a `.ssab`, artists can iterate in their own tool without touching the engine.
-- **Characters, effects, and whole scenes — all in one editor**
-  Particle effects are a first-class part type, authored on the same timeline as your characters — there's no separate effect system to bolt on. And you're not limited to a single rigged character: combine characters, backgrounds, effects, and UI into an entire cutscene or full-screen sequence, and play it back in Unity as one animation.
-- **Renders in both world space and on a uGUI Canvas**
-  `SpriteStudioPlayer` draws in world space (MeshRenderer) and `SpriteStudioGraphic` draws on a uGUI Canvas (CanvasRenderer) — the same animation drops into either context like any other component and is driven from C#; `SpriteStudioPlayer` can also be sequenced on Timeline. On a Canvas it automatically follows uGUI **Mask** / **RectMask2D**. CanvasRenderer's "one mesh, one material" rule does narrow that path: it assumes a **single atlas**, and collapses every blend but **MIX / ADD** to MIX — the world path has neither limit. See [Limitations](./docs/en/limitations.md).
-- **A seamless SpriteStudio ⇄ Unity asset pipeline**
-  Drop a `.sspj` into Unity and it's automatically converted to an optimized `.ssab` and a ready-to-use `SpriteStudioAnimeAsset`; re-edit in SpriteStudio and your Unity assets update instantly. Because the animation lives in assets separate from the scene, you avoid the Git conflicts that come with scene-embedded animation.
-- **A low-memory, high-performance native runtime**
-  Assets are stored as FlatBuffers, so there's zero parsing at runtime and instant playback straight from memory. A Rust core with SIMD, combined with Unity's Job System (Burst) and zero-allocation mesh updates, keeps CPU and memory overhead low — staying smooth even on mobile or when rendering large numbers of characters. Sub-frame interpolation keeps playback fluid even on high-refresh-rate displays.
+- **Bring your characters to life.** Breathing and blinking, swaying hair and clothes, flashy slash and magic effects — the motion is built visually in a dedicated editor (SpriteStudio) with bone rigs, mesh deformation and particles. Artists work in their own tool, and Unity just plays the result.
+- **Not just characters — effects, UI and whole scenes.** Particle effects sit on the same timeline as the character, so there is no separate effect system to set up. Combine characters, backgrounds, effects and UI into a cutscene or a full-screen sequence, and play it in Unity as a single animation.
+- **In your scene or on your UI.** `SpriteStudioPlayer` draws in the world and `SpriteStudioGraphic` on a uGUI Canvas, where it follows **Mask** / **RectMask2D**. Both are controlled from C#, and `SpriteStudioPlayer` can be sequenced on Timeline.
+- **A seamless SpriteStudio ⇄ Unity round trip.** Drag a `.sspj` into Unity and it becomes a ready-to-use asset. To tweak it, click **Open SSPJ** in the Inspector, save in SpriteStudio, then click **Reconvert** — no manual export step. The animation lives in its own asset rather than the scene, so teammates don't collide over scene merges in Git.
+- **Zero-parse loading, SIMD and Burst playback.** `.ssab` is a FlatBuffers binary read in place, so loading involves no parsing. Each frame, a SIMD-optimised Rust core and Burst jobs build the meshes zero-copy, with no per-frame GC allocations — light enough for mobile and for scenes with many characters. Turn on **sub-frame interpolation** and motion follows high-refresh-rate displays.
 
 ## 📚 Documentation
 
