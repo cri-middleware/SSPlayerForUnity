@@ -116,21 +116,15 @@ namespace SpriteStudioDev
                     var sh = ipa.Value.Shader;
                     if (sh.HasValue && !string.IsNullOrEmpty(sh.Value.Id)) seen[sh.Value.IdHash] = sh.Value.Id;
                 }
+            }
 
-                int padLen = anim.PartsAnimationDataLength;
-                for (int j = 0; j < padLen; j++)
-                {
-                    var pad = anim.PartsAnimationData(j);
-                    if (!pad.HasValue) continue;
-                    int saLen = pad.Value.ShaderArrayLength;
-                    for (int k = 0; k < saLen; k++)
-                    {
-                        var sds = pad.Value.ShaderArray(k);
-                        if (!sds.HasValue) continue;
-                        var sh = sds.Value.Value; // PartAnimationDataShader.Value -> PartAttributeShader
-                        if (sh.HasValue && !string.IsNullOrEmpty(sh.Value.Id)) seen[sh.Value.IdHash] = sh.Value.Id;
-                    }
-                }
+            // Every keyframed shader value of the pack, each stored once.
+            var keyframes = ssab.Keyframes;
+            int shLen = keyframes.HasValue ? keyframes.Value.ShadersLength : 0;
+            for (int k = 0; k < shLen; k++)
+            {
+                var sh = keyframes.Value.Shaders(k);
+                if (sh.HasValue && !string.IsNullOrEmpty(sh.Value.Id)) seen[sh.Value.IdHash] = sh.Value.Id;
             }
 
             if (seen.Count == 0)
