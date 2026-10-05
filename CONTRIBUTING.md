@@ -1,5 +1,8 @@
 # Contributing to SSPlayerForUnity
 
+> [!IMPORTANT]
+> We are not accepting pull requests until a Contributor License Agreement (CLA) is in place. Issues remain open for bug reports and requests.
+
 Thank you for your interest in contributing to SSPlayerForUnity! We welcome all kinds of contributions, including bug reports, feature requests, documentation improvements, and code contributions.
 
 ## Table of Contents
@@ -93,6 +96,9 @@ Contributions to this project are considered to be made under the terms of the p
 ---
 
 # SSPlayerForUnity への貢献
+
+> [!IMPORTANT]
+> コントリビューターライセンス契約（CLA）の準備が整うまで、プルリクエストは受け付けていません。バグ報告や要望は引き続き Issue で受け付けています。
 
 SSPlayerForUnity への貢献にご関心をお寄せいただきありがとうございます。不具合報告、機能要望、ドキュメントの改善、コードの貢献など、あらゆる形の貢献を歓迎します。
 
