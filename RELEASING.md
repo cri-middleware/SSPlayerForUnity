@@ -4,7 +4,7 @@ Maintainers only. Contributors do not run any of this — see [CONTRIBUTING.md](
 
 ## Cutting a release
 
-Anyone with the Write role on this repository can cut a release: every step is a branch, a pull request, a tag, a workflow run or a Release, and the signing credentials are organization secrets, so nothing depends on whose machine runs it beyond the checks in step 3 that need Unity. You need `git`, `gh` (run `gh auth login` once) and Node.js, plus Unity for those checks. The commands are bash; on Windows, run them in Git Bash.
+Anyone with the Write role on this repository can cut a release: every step is a branch, a pull request, a tag, a workflow run or a Release, and the signing credentials are organization secrets, so nothing depends on whose machine runs it beyond the checks in step 3 that need Unity. You need `git`, `gh` 2.87 or later (run `gh auth login` once) and Node.js, plus Unity for those checks. The commands are bash; on Windows, run them in Git Bash.
 
 A release is a tag on `main`, pushed first and built second. The version is written in one place, `version` in `package/package.json` (semver, `7.0.0-beta.1` for a prerelease): `scripts/release-version.sh` prints it, the tag is `v` followed by it, and the release build refuses a tag that disagrees, since the tarball is named after it. The SDK it ships is pinned on its own, in `scripts/SDK_VERSION.txt`. Branches follow git-flow: `develop` integrates, `main` holds released commits only, and `release/X.Y` lives for one release — cut from `develop` for a new `X.Y`, or from the line's latest tag for a patch, and deleted once the release is out.
 
@@ -46,15 +46,15 @@ Open the pull request into `main`; its CI checks, among other things, that every
 ```bash
 git push -u origin "$BRANCH"
 gh pr create -B main --title "Release v$VERSION" --body ""
-gh workflow run release.yml --ref "$BRANCH"
-gh run watch                                      # the run takes a few seconds to appear
-gh run download <run-id> -n ssplayer-unity-release-dist -D qa   # <run-id>: the one gh run watch shows
+RUN=$(gh workflow run release.yml --ref "$BRANCH" | sed 's|.*/||')
+gh run watch "${RUN:?}" --exit-status
+gh run download "${RUN:?}" -n ssplayer-unity-release-dist -D qa
 ```
 
 A missing signing secret does not fail the run: it packs the tarball unsigned, says so in the log, and passes, and Unity 6.3 then warns whoever installs it. In this run and in step 5, this must print nothing:
 
 ```bash
-gh run view <run-id> --log | grep -E 'not set|Skipping' | grep -v 'echo '
+gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '
 ```
 
 No CI has Unity, so two checks are yours, on the branch: the test suite (`scripts/run-tests.sh`, as [CONTRIBUTING.md](./CONTRIBUTING.md) describes), and installing the QA tarball into a project through **Window > Package Manager > + > Install package from tarball...**.
@@ -76,8 +76,8 @@ git tag -a "$TAG" -m "$TAG" && git push origin "$TAG"
 Dispatch from the tag. The run builds again and creates a **draft** Release named `SpriteStudio Player for Unity <tag>`, carrying the tarballs, `SHA256SUMS` and generated notes; nothing is public yet. `upload_release=true` from anything but a `v*` tag fails the run rather than skipping the Release quietly. Check the signing as in step 3.
 
 ```bash
-gh workflow run release.yml --ref "$TAG" -f upload_release=true
-gh run watch
+RUN=$(gh workflow run release.yml --ref "${TAG:?}" -f upload_release=true | sed 's|.*/||')
+gh run watch "${RUN:?}" --exit-status
 ```
 
 ### 6. Publish
@@ -85,7 +85,8 @@ gh run watch
 Open the draft on the [Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) page and check the attachments: `jp.co.cri-mw.spritestudio.ssplayer-unity-X.Y.Z.tgz`, its alias `jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`, and `SHA256SUMS`. Edit the notes and choose **Set as the latest release** — **a beta too, never Set as a pre-release**: the README and the docs hand out `releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`, which resolves only to a release that is not a pre-release. Then **Publish release**. Publishing also starts `pages.yml`, which deploys the [documentation site](https://cri-middleware.github.io/SSPlayerForUnity/). Watch the run through, then open the site: a failed run leaves the Release published and the site as it was. Once the cause is fixed, re-run it; a re-run builds the same tag.
 
 ```bash
-gh run watch                                      # pages.yml; the run takes a few seconds to appear
+RUN=$(gh run list -w pages.yml -b "${TAG:?}" -L 1 --json databaseId -q '.[0].databaseId')
+gh run watch "${RUN:?}" --exit-status             # RUN is empty for the few seconds before the run appears
 ```
 
 ### 7. Merge back
@@ -133,7 +134,7 @@ It checks twice, for different failures. **Before packing:** every plugin direct
 
 ## リリースの手順
 
-このリポジトリの Write ロールを持つ人なら誰でもリリースできます。どの手順もブランチ・プルリクエスト・タグ・ワークフローの実行・Release のいずれかで、署名の資格情報は組織の Secret なので、Unity が要る手順 3 の確認を除けば、誰の手元で実行しても結果は変わりません。必要なのは `git`、`gh`（最初に一度 `gh auth login`）、Node.js で、その確認には Unity も要ります。コマンドは bash で書いています。Windows では Git Bash で実行してください。
+このリポジトリの Write ロールを持つ人なら誰でもリリースできます。どの手順もブランチ・プルリクエスト・タグ・ワークフローの実行・Release のいずれかで、署名の資格情報は組織の Secret なので、Unity が要る手順 3 の確認を除けば、誰の手元で実行しても結果は変わりません。必要なのは `git`、`gh` 2.87 以降（最初に一度 `gh auth login`）、Node.js で、その確認には Unity も要ります。コマンドは bash で書いています。Windows では Git Bash で実行してください。
 
 リリースは `main` 上のタグです。先にタグを push し、ビルドはその後です。バージョンが書かれているのは `package/package.json` の `version` の 1 か所だけで（semver。プレリリースは `7.0.0-beta.1`）、`scripts/release-version.sh` がそれを出力し、タグはその頭に `v` を付けたものです。tarball の名前がこの値で決まるため、食い違うタグはリリースビルドが拒否します。同梱する SDK のバージョンはこれとは別で、`scripts/SDK_VERSION.txt` で固定します。ブランチは git-flow です。`develop` が統合ブランチで、`main` にはリリース済みのコミットだけが入ります。`release/X.Y` は 1 回のリリースの間だけ使います。新しい `X.Y` なら `develop` から、パッチならその系統の最新のタグから切り、リリースが済んだら消します。
 
@@ -175,15 +176,15 @@ git commit -m "chore(release): v$VERSION"
 ```bash
 git push -u origin "$BRANCH"
 gh pr create -B main --title "Release v$VERSION" --body ""
-gh workflow run release.yml --ref "$BRANCH"
-gh run watch                                      # run が一覧に出るまで数秒かかる
-gh run download <run-id> -n ssplayer-unity-release-dist -D qa   # <run-id> は gh run watch が表示するもの
+RUN=$(gh workflow run release.yml --ref "$BRANCH" | sed 's|.*/||')
+gh run watch "${RUN:?}" --exit-status
+gh run download "${RUN:?}" -n ssplayer-unity-release-dist -D qa
 ```
 
 署名の Secret が欠けていても、この run は失敗しません。tarball を署名なしで作り、その旨をログに出して成功します。署名の無い tarball は、Unity 6.3 がインストールする人に警告します。この run と手順 5 の run で、次のコマンドが何も出力しないことを確認してください。
 
 ```bash
-gh run view <run-id> --log | grep -E 'not set|Skipping' | grep -v 'echo '
+gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '
 ```
 
 どの CI にも Unity が無いので、2 つの確認はブランチ上で自分で行います。テストスイート（[CONTRIBUTING.md](./CONTRIBUTING.md) にある `scripts/run-tests.sh`）と、QA の tarball を **Window > Package Manager > + > Install package from tarball...** からプロジェクトに入れることです。
@@ -205,8 +206,8 @@ git tag -a "$TAG" -m "$TAG" && git push origin "$TAG"
 タグからワークフローを実行します。もう一度ビルドし、`SpriteStudio Player for Unity <タグ>` という名前の**下書き**の Release を、tarball と `SHA256SUMS`、自動生成のリリースノート付きで作ります。まだ何も公開されていません。`v*` タグ以外からの `upload_release=true` は、Release を黙って飛ばさずに実行を失敗させます。署名は手順 3 と同じように確認します。
 
 ```bash
-gh workflow run release.yml --ref "$TAG" -f upload_release=true
-gh run watch
+RUN=$(gh workflow run release.yml --ref "${TAG:?}" -f upload_release=true | sed 's|.*/||')
+gh run watch "${RUN:?}" --exit-status
 ```
 
 ### 6. 公開
@@ -214,7 +215,8 @@ gh run watch
 [Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) ページで下書きを開き、添付を確かめます。`jp.co.cri-mw.spritestudio.ssplayer-unity-X.Y.Z.tgz` とそのエイリアス `jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`、`SHA256SUMS` の 3 つです。リリースノートを編集し、**Set as the latest release** を選びます。**ベータでも Set as a pre-release にはしません。** README と docs が案内する `releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz` は、pre-release ではない Release にしか解決されないためです。最後に **Publish release** を押します。公開すると `pages.yml` が動き、[ドキュメントサイト](https://cri-middleware.github.io/SSPlayerForUnity/) をデプロイします。run を最後まで見届けてから、サイトを開いて確かめます。run が失敗しても Release は公開されたままで、サイトは元のまま残ります。原因を直したら run を再実行します。再実行は同じタグをビルドします。
 
 ```bash
-gh run watch                                      # pages.yml。run が一覧に出るまで数秒かかる
+RUN=$(gh run list -w pages.yml -b "${TAG:?}" -L 1 --json databaseId -q '.[0].databaseId')
+gh run watch "${RUN:?}" --exit-status             # run が一覧に出るまでの数秒間は RUN が空になる
 ```
 
 ### 7. develop へ戻す
