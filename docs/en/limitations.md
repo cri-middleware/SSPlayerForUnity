@@ -48,7 +48,7 @@ Part Tracking (making a `Transform` follow a part) is a `SpriteStudioPlayer` (wo
 ## Editor & Import
 
 > [!WARNING]
-> - **Install from the tarball, not a git URL.** Package Manager's *Add package from URL…* cannot install this package: the native plugin binaries ship only inside the release tarball. Always use *Add package from tarball…* with the downloaded `.tgz` — see [Installation](./setup/install.md).
+> - **Install from npm or the tarball, not a git URL.** Package Manager's *Add package from URL…* cannot install this package: the native plugin binaries ship only inside the released package. Install it from npm, or with *Add package from tarball…* from the downloaded `.tgz` — see [Installation](./setup/install.md).
 > - **`Open SSPJ` needs SpriteStudio on the machine.** The button launches the editor through the OS file association, so [SpriteStudio](https://www.webtech.co.jp/spritestudio/) must be installed on the PC you are working on. The `.ssab` ↔ `.sspj` binding itself travels with the project as a relative path in `ProjectSettings/SpriteStudioSourceMap.json` — see [Asset Import and Editor Integration](./workflow/usage_asset_pipeline.md).
 
 > [!NOTE]
