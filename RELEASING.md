@@ -4,13 +4,15 @@ Maintainers only. Contributors do not run any of this — see [CONTRIBUTING.md](
 
 ## Cutting a release
 
-Anyone with the Write role on this repository can cut a release: every step is a branch, a pull request, a tag, a workflow run or a Release, and the signing credentials are organization secrets, so nothing depends on whose machine runs it beyond the checks in step 3 that need Unity. You need `git`, `gh` 2.87 or later (run `gh auth login` once) and Node.js, plus Unity for those checks. The repository needs GitHub Pages enabled with GitHub Actions as its source, and a `v*` tag rule on its `github-pages` environment, or publishing a Release deploys nothing; both are settings a repository admin makes. The commands are bash: in zsh, run `setopt interactive_comments` first, so that the `#` comments are not taken as arguments; on Windows, use Git Bash. Steps 1, 4 and 7 switch branches, so run them in a checkout of their own — a clone, or one made with `git worktree add` — not in one where other work is going on.
+Anyone with the Write role on this repository can cut a release: every step is a branch, a pull request, a tag, a workflow run or a Release, and the signing credentials are GitHub Actions secrets, so nothing depends on whose machine runs it beyond the checks in step 3 that need Unity. You need `git`, `gh` 2.87 or later (run `gh auth login` once) and Node.js, plus Unity for those checks and, for step 6, an npm account with 2FA that can publish the package. The repository needs GitHub Pages enabled with GitHub Actions as its source, and a `v*` tag rule on its `github-pages` environment, or publishing a Release deploys nothing; both are settings a repository admin makes. The commands are bash: in zsh, run `setopt interactive_comments` first, so that the `#` comments are not taken as arguments; on Windows, use Git Bash. Steps 1, 4 and 8 switch branches, so run them in a checkout of their own — a clone, or one made with `git worktree add` — not in one where other work is going on.
 
 A release is a tag on `main`, pushed first and built second. The version is written in one place, `version` in `package/package.json` (semver, `7.0.0-beta.1` for a prerelease): `scripts/release-version.sh` prints it, the tag is `v` followed by it, and the release build refuses a tag that disagrees, since the tarball is named after it. The SDK it ships is pinned on its own, in `scripts/SDK_VERSION.txt`. Branches follow git-flow: `develop` integrates, `main` holds released commits only, and `release/X.Y` lives for one release — cut from `develop` when the release ships `develop`'s work, or from the line's latest tag when it ships only fixes on top of it, and deleted once the release is out.
 
+Unity 6.3's Package Manager checks every package for a signature, so a release's tarball is signed, and only `release.yml` can sign it: the credentials, `UNITY_ORGANIZATION_ID` and the UPM service account's key, exist only as this repository's GitHub Actions secrets. A release is therefore made on GitHub Actions and on no one's machine. A local build is unsigned, and serves to debug the release build — see the last section.
+
 Every block runs as written in a new shell: it works out what it needs from the checkout, git and GitHub. Two values are set by hand: the version being released, written `<version>` in steps 1 and 2 — fill it in, as in `7.0.1` — and the SpriteStudio-SDK release it ships, written `<sdk-tag>` in step 2, as in `v7.0.0`. Left as they are, the line stops with a syntax error. A value that would not stop a command by itself when empty is read as `${VAR:?}`: an empty `RUN` would let the signing check in step 3 print nothing and pass.
 
-An agent can run every block, but three things are a person's: the checks in Unity in step 3, which no CI can run; the merge in step 4, which puts the release on `main`; and step 6, which publishes it for good.
+An agent can run every block, but four things are a person's: the checks in Unity in step 3, which no CI can run; the merge in step 4, which puts the release on `main`; step 6, which puts the version on npm for good; and step 7, which publishes the Release for good.
 
 ### 1. Branch
 
@@ -45,7 +47,7 @@ SDK_TAG=<sdk-tag>
 OLD_SDK=$(cat scripts/SDK_VERSION.txt)
 git submodule update --init SpriteStudio-SDK
 git -C SpriteStudio-SDK fetch --tags origin && git -C SpriteStudio-SDK checkout "${SDK_TAG:?}"
-printf '%s\n' "${SDK_TAG:?}" > scripts/SDK_VERSION.txt
+printf '%s\n' "${SDK_TAG:?}" >| scripts/SDK_VERSION.txt
 (cd package && npm version "${VERSION:?}" --no-git-tag-version --allow-same-version)
 scripts/release-version.sh                       # must print the version
 git -C SpriteStudio-SDK diff --stat "${OLD_SDK:?}" "$SDK_TAG" -- libs/ssruntime/fbs libs/ssab/fbs   # any output: run scripts/generate-fbs-code.sh
@@ -123,7 +125,24 @@ gh run watch "${RUN:?}" --exit-status
 gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # must print nothing
 ```
 
-### 6. Publish
+### 6. Publish to npm
+
+**A person runs this step**: `npm login` and the publish ask for a 2FA code, and a version on npm is permanent — npm never lets its number be used again. The package goes to npm as the very tarball on the draft, which `release.yml` packed and signed: the block prints the signature's path inside it, and publishes nothing when there is none, as in a tarball packed anywhere else. It goes before the Release is published, so that by the time the Release announces the version, a project can install it. Its name has no scope, since a Unity package name cannot carry one; a project reaches it through a scoped registry for `jp.co.cri-mw` at `https://registry.npmjs.org`. The dist-tag comes from the version: the prerelease's word (`beta`), or `latest` for a full release. `release.yml` publishes nothing to npm.
+
+```bash
+npm login                                         # once
+git fetch origin --tags
+TAG=$(git describe --exact-match --tags --match 'v[0-9]*' origin/main)
+VERSION=${TAG#v}
+case "$VERSION" in *-*) DIST=${VERSION#*-}; DIST=${DIST%%.*} ;; *) DIST=latest ;; esac
+F="$(mktemp -d)/jp.co.cri-mw.spritestudio.ssplayer-unity-$VERSION.tgz"
+gh release download "${TAG:?}" -p "${F##*/}" -D "${F%/*}" &&
+  tar -tzf "$F" | grep '\.attestation\.p7m$' &&     # the signature: nothing printed, nothing published
+  npm publish "$F" --tag "$DIST"
+npm view jp.co.cri-mw.spritestudio.ssplayer-unity dist-tags
+```
+
+### 7. Publish the Release
 
 **A person runs this step**: the notes are a judgment, and a published Release is permanent. Open the draft on the [Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) page and check the attachments: `jp.co.cri-mw.spritestudio.ssplayer-unity-X.Y.Z.tgz`, its alias `jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`, and `SHA256SUMS`. Edit the notes and choose **Set as the latest release** — **a beta too, never Set as a pre-release**: the README and the docs hand out `releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`, which resolves only to a release that is not a pre-release. Then **Publish release**.
 
@@ -136,7 +155,7 @@ RUN=$(gh run list -w pages.yml -b "${TAG:?}" -L 1 --json databaseId -q '.[0].dat
 gh run watch "${RUN:?}" --exit-status             # RUN is empty until the run appears: repeat the last two lines
 ```
 
-### 7. Merge back
+### 8. Merge back
 
 Merge `main` into `develop`. After a patch release this conflicts where `develop` has moved on: keep `develop`'s version and its `Unreleased` heading, with the patch's section below it. When the next version is decided, set it in `package/package.json` on `develop` and open a `## [X.Y.Z] - Unreleased` heading for it.
 
@@ -152,7 +171,7 @@ If the button on its pull request already deleted the release branch, the last l
 
 ## Undoing a release
 
-Until the Release is published, it can be undone. The draft goes first, if the run made one:
+Until step 6 puts the version on npm, a release can be undone. The draft goes first, if the run made one:
 
 ```bash
 git fetch origin --tags
@@ -168,15 +187,15 @@ TAG=$(git describe --exact-match --tags --match 'v[0-9]*' origin/main)
 git push origin ":refs/tags/${TAG:?}" && git tag -d "${TAG:?}"
 ```
 
-**Once published, the tag and its assets are permanent** — users have the tarball, and the version Package Manager shows names it — so a fix is a new patch version.
+**Once on npm, a version is permanent**, and so are a published Release's tag and assets — users have the tarball, and the version Package Manager shows names it — so a fix is a new patch version.
 
 ## When the SDK's platforms change
 
 A UPM package is extracted into an immutable folder, where Unity ignores any asset without a `.meta`, and no CI has Unity to generate one — so every native plugin's `.meta` is committed, and a native library added, removed or moved by an SDK release needs its `.meta` made by hand before that SDK can ship. The pull request's CI and `build-release.sh` both fail on a plugin path with no committed `.meta`. `scripts/scaffold-plugin-placeholders.sh` makes them, and its header gives the four steps, including the order that keeps Unity from deleting them again.
 
-## Building the package locally
+## Debugging the release build locally
 
-`release.yml`'s job **is** `scripts/build-release.sh`, and unlike the SDK's script of the same name this one really does produce the whole package on one machine: it is C# plus prebuilt native libraries. The way to review a release is to build it and install it.
+`release.yml`'s job **is** `scripts/build-release.sh`, and unlike the SDK's script of the same name this one builds the whole package on one machine: it is C# plus prebuilt native libraries. **A local build is for debugging the release build, never for shipping**: without the signing credentials, which only GitHub Actions has, it packs the tarball unsigned, and Unity 6.3 warns whoever installs it. It shows what a release will hold and runs the same checks; what ships, on the Release and on npm, is only the tarball `release.yml` signed.
 
 ```bash
 ./scripts/build-release.sh
@@ -197,13 +216,15 @@ It checks twice, for different failures. **Before packing:** every plugin direct
 
 ## リリースの手順
 
-このリポジトリの Write ロールを持つ人なら誰でもリリースできます。どの手順もブランチ・プルリクエスト・タグ・ワークフローの実行・Release のいずれかで、署名の資格情報は組織の Secret なので、Unity が要る手順 3 の確認を除けば、誰の手元で実行しても結果は変わりません。必要なのは `git`、`gh` 2.87 以降（最初に一度 `gh auth login`）、Node.js で、その確認には Unity も要ります。リポジトリ側では、GitHub Pages を有効にしてソースを GitHub Actions にし、`github-pages` environment に `v*` のタグのルールを足しておく必要があります。どちらかが欠けると、Release を公開しても何もデプロイされません。どちらもリポジトリの admin が行う設定です。コマンドは bash です。zsh では、`#` のコメントが引数として渡されないよう、先に `setopt interactive_comments` を実行します。Windows では Git Bash を使います。手順 1・4・7 はブランチを切り替えるので、ほかの作業をしていない専用のチェックアウト（クローンか、`git worktree add` で作ったもの）で実行してください。
+このリポジトリの Write ロールを持つ人なら誰でもリリースできます。どの手順もブランチ・プルリクエスト・タグ・ワークフローの実行・Release のいずれかで、署名の資格情報は GitHub Actions の Secret なので、Unity が要る手順 3 の確認を除けば、誰の手元で実行しても結果は変わりません。必要なのは `git`、`gh` 2.87 以降（最初に一度 `gh auth login`）、Node.js で、その確認には Unity が、手順 6 にはパッケージを publish できる 2FA 付きの npm アカウントが要ります。リポジトリ側では、GitHub Pages を有効にしてソースを GitHub Actions にし、`github-pages` environment に `v*` のタグのルールを足しておく必要があります。どちらかが欠けると、Release を公開しても何もデプロイされません。どちらもリポジトリの admin が行う設定です。コマンドは bash です。zsh では、`#` のコメントが引数として渡されないよう、先に `setopt interactive_comments` を実行します。Windows では Git Bash を使います。手順 1・4・8 はブランチを切り替えるので、ほかの作業をしていない専用のチェックアウト（クローンか、`git worktree add` で作ったもの）で実行してください。
 
 リリースは `main` 上のタグです。先にタグを push し、ビルドはその後です。バージョンが書かれているのは `package/package.json` の `version` の 1 か所だけで（semver。プレリリースは `7.0.0-beta.1`）、`scripts/release-version.sh` がそれを出力し、タグはその頭に `v` を付けたものです。tarball の名前がこの値で決まるため、食い違うタグはリリースビルドが拒否します。同梱する SDK のバージョンはこれとは別で、`scripts/SDK_VERSION.txt` で固定します。ブランチは git-flow です。`develop` が統合ブランチで、`main` にはリリース済みのコミットだけが入ります。`release/X.Y` は 1 回のリリースの間だけ使います。`develop` の作業を出すリリースなら `develop` から、タグの上に修正だけを載せるリリースならその系統の最新のタグから切り、リリースが済んだら消します。
 
+Unity 6.3 の Package Manager はすべてのパッケージの署名を確かめるので、リリースの tarball は署名します。署名できるのは `release.yml` だけです。資格情報（`UNITY_ORGANIZATION_ID` と UPM のサービスアカウントのキー）は、このリポジトリの GitHub Actions の Secret にしか無いためです。したがってリリースは GitHub Actions で行い、誰の手元でも行いません。ローカルのビルドは署名なしで、リリースビルドのデバッグに使います（最後の節を参照）。
+
 どのブロックも、新しいシェルで書かれたとおりに実行できます。必要なものはチェックアウト・git・GitHub から求めます。手で設定する値は 2 つで、リリースするバージョンが手順 1 と 2 の `<version>`（`7.0.1` のように埋めます）、同梱する SpriteStudio-SDK のリリースが手順 2 の `<sdk-tag>`（`v7.0.0` のように埋めます）です。埋めずに実行すると、その行は構文エラーで止まります。空でもそれだけでは止まらない値は `${VAR:?}` で読みます。`RUN` が空だと、手順 3 の署名の確認が何も出力せずに通ってしまうためです。
 
-どのブロックもエージェントに実行させられますが、3 つのことは人が行います。どの CI でも実行できない手順 3 の Unity での確認、リリースを `main` に入れる手順 4 のマージ、取り消せない公開を行う手順 6 です。
+どのブロックもエージェントに実行させられますが、4 つのことは人が行います。どの CI でも実行できない手順 3 の Unity での確認、リリースを `main` に入れる手順 4 のマージ、取り消せない npm への公開を行う手順 6、同じく取り消せない Release の公開を行う手順 7 です。
 
 ### 1. ブランチ
 
@@ -238,7 +259,7 @@ SDK_TAG=<sdk-tag>
 OLD_SDK=$(cat scripts/SDK_VERSION.txt)
 git submodule update --init SpriteStudio-SDK
 git -C SpriteStudio-SDK fetch --tags origin && git -C SpriteStudio-SDK checkout "${SDK_TAG:?}"
-printf '%s\n' "${SDK_TAG:?}" > scripts/SDK_VERSION.txt
+printf '%s\n' "${SDK_TAG:?}" >| scripts/SDK_VERSION.txt
 (cd package && npm version "${VERSION:?}" --no-git-tag-version --allow-same-version)
 scripts/release-version.sh                       # バージョンが出力されること
 git -C SpriteStudio-SDK diff --stat "${OLD_SDK:?}" "$SDK_TAG" -- libs/ssruntime/fbs libs/ssab/fbs   # 何か出力されたら scripts/generate-fbs-code.sh を実行する
@@ -316,7 +337,24 @@ gh run watch "${RUN:?}" --exit-status
 gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # 何も出力されないこと
 ```
 
-### 6. 公開
+### 6. npm への公開
+
+**この手順は人が行います。** `npm login` と publish のたびに 2FA のコードを求められ、npm に出したバージョンは取り消せないためです（同じ番号は二度と使えません）。npm には、`release.yml` が作って署名した、下書きに添付されている tarball そのものを出します。ブロックは tarball の中の署名のパスを出力し、署名が無ければ何も publish しません。ほかの場所で作った tarball には署名がありません。Release を公開するより先に行い、Release がバージョンを告知する時点でプロジェクトからインストールできるようにします。パッケージ名に scope はありません（Unity のパッケージ名は scope を持てません）。プロジェクトは `https://registry.npmjs.org` を `jp.co.cri-mw` の scoped registry として登録して使います。dist-tag はバージョンから決めます。プレリリースならその語（`beta`）、正式版なら `latest` です。`release.yml` は npm に何も出しません。
+
+```bash
+npm login                                         # 最初に一度
+git fetch origin --tags
+TAG=$(git describe --exact-match --tags --match 'v[0-9]*' origin/main)
+VERSION=${TAG#v}
+case "$VERSION" in *-*) DIST=${VERSION#*-}; DIST=${DIST%%.*} ;; *) DIST=latest ;; esac
+F="$(mktemp -d)/jp.co.cri-mw.spritestudio.ssplayer-unity-$VERSION.tgz"
+gh release download "${TAG:?}" -p "${F##*/}" -D "${F%/*}" &&
+  tar -tzf "$F" | grep '\.attestation\.p7m$' &&     # 署名。何も出力されなければ publish しない
+  npm publish "$F" --tag "$DIST"
+npm view jp.co.cri-mw.spritestudio.ssplayer-unity dist-tags
+```
+
+### 7. Release の公開
 
 **この手順は人が行います。** リリースノートの中身は判断が要り、公開した Release は取り消せないためです。[Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) ページで下書きを開き、添付を確かめます。`jp.co.cri-mw.spritestudio.ssplayer-unity-X.Y.Z.tgz` とそのエイリアス `jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`、`SHA256SUMS` の 3 つです。リリースノートを編集し、**Set as the latest release** を選びます。**ベータでも Set as a pre-release にはしません。** README と docs が案内する `releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz` は、pre-release ではない Release にしか解決されないためです。最後に **Publish release** を押します。
 
@@ -329,7 +367,7 @@ RUN=$(gh run list -w pages.yml -b "${TAG:?}" -L 1 --json databaseId -q '.[0].dat
 gh run watch "${RUN:?}" --exit-status             # run が出るまで RUN は空。最後の 2 行を繰り返す
 ```
 
-### 7. develop へ戻す
+### 8. develop へ戻す
 
 `main` を `develop` へマージします。パッチリリースの後は、`develop` が先へ進んだ箇所で衝突します。`develop` のバージョンと `Unreleased` の見出しを残し、パッチの節をその下に置いてください。次のバージョンが決まったら、`develop` の `package/package.json` を設定し、`## [X.Y.Z] - Unreleased` の見出しを立てます。
 
@@ -345,7 +383,7 @@ git push origin --delete "release/$(echo "${TAG:?}" | sed 's/^v//' | cut -d. -f1
 
 ## リリースの取り消し
 
-Release を公開するまでは取り消せます。run が下書きを作っていれば、先にそれを消します。
+手順 6 でバージョンを npm に出すまでは取り消せます。run が下書きを作っていれば、先にそれを消します。
 
 ```bash
 git fetch origin --tags
@@ -361,15 +399,15 @@ TAG=$(git describe --exact-match --tags --match 'v[0-9]*' origin/main)
 git push origin ":refs/tags/${TAG:?}" && git tag -d "${TAG:?}"
 ```
 
-**公開した後のタグとアセットは恒久的です。** 利用者はその tarball を持っていて、Package Manager が表示するバージョンがそれを名指ししているので、修正は新しいパッチバージョンで出します。
+**npm に出したバージョンは恒久的です。** 公開した Release のタグとアセットも同じです。利用者はその tarball を持っていて、Package Manager が表示するバージョンがそれを名指ししているので、修正は新しいパッチバージョンで出します。
 
 ## SDK のプラットフォーム構成が変わったとき
 
 UPM パッケージは変更不可のフォルダに展開され、Unity は `.meta` の無いアセットを無視します。`.meta` を生成できる Unity はどの CI にも無いので、ネイティブプラグインの `.meta` はすべてコミットしてあり、SDK のリリースでネイティブライブラリが増えたり、消えたり、場所が変わったりしたら、その SDK を出す前に `.meta` を手で作る必要があります。コミット済みの `.meta` が無いプラグインのパスがあると、プルリクエストの CI と `build-release.sh` の両方が失敗します。`.meta` を作るのは `scripts/scaffold-plugin-placeholders.sh` で、その冒頭のコメントに、Unity にまた消されないための順序も含めた 4 つの手順があります。
 
-## パッケージのローカルビルド
+## リリースビルドのローカルでのデバッグ
 
-`release.yml` のジョブは `scripts/build-release.sh` です。同名の SDK のスクリプトとは違い、こちらは 1 台で製品そのものを作れます（中身は C# とビルド済みネイティブライブラリだけだからです）。リリースを確認する方法は、実際に作って tarball からインストールすることです。
+`release.yml` のジョブは `scripts/build-release.sh` です。同名の SDK のスクリプトとは違い、こちらは 1 台でパッケージ全体を作れます（中身は C# とビルド済みネイティブライブラリだけだからです）。**ローカルのビルドはリリースビルドのデバッグ用で、出荷には使えません。** 署名の資格情報は GitHub Actions にしか無いので、tarball は署名なしで作られ、インストールすると Unity 6.3 が警告します。リリースが何を持つかを見て、同じ検査を回すためのものです。Release にも npm にも出すのは、`release.yml` が署名した tarball だけです。
 
 ```bash
 ./scripts/build-release.sh
