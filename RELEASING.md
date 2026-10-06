@@ -72,8 +72,8 @@ Then dispatch the release workflow from the branch. With `upload_release` left f
 
 ```bash
 BRANCH=$(git branch --show-current | grep '^release/')
-git push origin "${BRANCH:?}"
-RUN=$(gh workflow run release.yml --ref "${BRANCH:?}" | sed 's|.*/||')
+git push origin "${BRANCH:?}" &&
+  RUN=$(gh workflow run release.yml --ref "${BRANCH:?}" | sed 's|.*/||')
 gh run watch "${RUN:?}" --exit-status
 gh run download "${RUN:?}" -n ssplayer-unity-release-dist -D "qa/$RUN"
 gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # must print nothing
@@ -265,8 +265,8 @@ gh pr create -B main -H "${BRANCH:?}" --title "Release v$(scripts/release-versio
 
 ```bash
 BRANCH=$(git branch --show-current | grep '^release/')
-git push origin "${BRANCH:?}"
-RUN=$(gh workflow run release.yml --ref "${BRANCH:?}" | sed 's|.*/||')
+git push origin "${BRANCH:?}" &&
+  RUN=$(gh workflow run release.yml --ref "${BRANCH:?}" | sed 's|.*/||')
 gh run watch "${RUN:?}" --exit-status
 gh run download "${RUN:?}" -n ssplayer-unity-release-dist -D "qa/$RUN"
 gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # 何も出力されないこと
