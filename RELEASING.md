@@ -70,7 +70,7 @@ git push -u origin "${BRANCH:?}"
 gh pr create -B main -H "${BRANCH:?}" --title "Release v$(scripts/release-version.sh)" --body ""
 ```
 
-Then dispatch the release workflow from the branch. With `upload_release` left false it fetches the pinned SDK, packs and signs the tarball and checks it, keeps the result on the run (`ssplayer-unity-release-dist`), and creates no Release; the block downloads it into `qa/<run-id>/`. Fix anything on the branch and run this block again, until the run, the pull request's CI and the checks in Unity below all pass.
+Then dispatch the release workflow from the branch. A run from a branch fetches the pinned SDK, packs and signs the tarball and checks it, keeps the result on the run (`ssplayer-unity-release-dist`), and creates no Release; the block downloads it into `qa/<run-id>/`. Fix anything on the branch and run this block again, until the run, the pull request's CI and the checks in Unity below all pass.
 
 ```bash
 BRANCH=$(git branch --show-current | grep '^release/')
@@ -115,7 +115,7 @@ git switch main && git pull --ff-only &&
 
 ### 5. Build the Release
 
-Dispatch from the tag on `main`. The run builds again and creates a **draft** Release named `SpriteStudio Player for Unity <tag>`, carrying the tarballs, `SHA256SUMS` and generated notes; nothing is public yet. `upload_release=true` from anything but a `v*` tag fails the run rather than skipping the Release quietly. The block's last command checks the signing as in step 3.
+Dispatch from the tag on `main`. The run builds again and creates a **draft** Release named `SpriteStudio Player for Unity <tag>`, carrying the tarballs, `SHA256SUMS` and generated notes; nothing is public yet. A tag that already has a Release, draft or published, keeps it as it is: the run builds, says so in a notice and creates nothing, so delete a draft before dispatching again ([Undoing a release](#undoing-a-release)). With `-f upload_release=false` a run from the tag only builds, its files kept on the run. The block's last command checks the signing as in step 3.
 
 ```bash
 git fetch origin --tags
@@ -282,7 +282,7 @@ git push -u origin "${BRANCH:?}"
 gh pr create -B main -H "${BRANCH:?}" --title "Release v$(scripts/release-version.sh)" --body ""
 ```
 
-続けて、ブランチからリリースワークフローを実行します。`upload_release` を false のままにすると、固定した SDK を取得し、tarball を作って署名・検査し、結果を run に残し（`ssplayer-unity-release-dist`）、Release は作りません。ブロックはそれを `qa/<run-id>/` にダウンロードします。問題があればブランチで直し、このブロックをもう一度実行します。run、プルリクエストの CI、下の Unity での確認がすべて通るまで繰り返します。
+続けて、ブランチからリリースワークフローを実行します。ブランチからの実行では、固定した SDK を取得し、tarball を作って署名・検査し、結果を run に残し（`ssplayer-unity-release-dist`）、Release は作りません。ブロックはそれを `qa/<run-id>/` にダウンロードします。問題があればブランチで直し、このブロックをもう一度実行します。run、プルリクエストの CI、下の Unity での確認がすべて通るまで繰り返します。
 
 ```bash
 BRANCH=$(git branch --show-current | grep '^release/')
@@ -327,7 +327,7 @@ git switch main && git pull --ff-only &&
 
 ### 5. Release のビルド
 
-`main` 上のタグからワークフローを実行します。もう一度ビルドし、`SpriteStudio Player for Unity <タグ>` という名前の**下書き**の Release を、tarball と `SHA256SUMS`、自動生成のリリースノート付きで作ります。まだ何も公開されていません。`v*` タグ以外からの `upload_release=true` は、Release を黙って飛ばさずに実行を失敗させます。ブロックの最後のコマンドで、手順 3 と同じように署名を確認します。
+`main` 上のタグからワークフローを実行します。もう一度ビルドし、`SpriteStudio Player for Unity <タグ>` という名前の**下書き**の Release を、tarball と `SHA256SUMS`、自動生成のリリースノート付きで作ります。まだ何も公開されていません。Release がすでにあるタグでは、下書きでも公開済みでも、その Release に触れません。run はビルドして notice を出すだけなので、もう一度実行するときは先に下書きを消します（[リリースの取り消し](#リリースの取り消し)）。`-f upload_release=false` を付けると、タグからの実行でもビルドだけを行い、成果物を run に残します。ブロックの最後のコマンドで、手順 3 と同じように署名を確認します。
 
 ```bash
 git fetch origin --tags
