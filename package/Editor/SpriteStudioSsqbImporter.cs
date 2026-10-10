@@ -87,7 +87,8 @@ namespace SpriteStudio.Editor
                         }
                         else
                         {
-                            ctx.LogImportWarning($"[SpriteStudioSsqbImporter] Referenced anime pack not found: '{it.RefAnimePack}' (sequence '{seq.Name}')");
+                            // Not reported: a pack the conversion has not written or imported yet lands here too.
+                            // ctx.LogImportWarning($"[SpriteStudioSsqbImporter] Referenced anime pack not found: '{it.RefAnimePack}' (sequence '{seq.Name}')");
                         }
                     }
                 }
