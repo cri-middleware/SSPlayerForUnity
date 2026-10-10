@@ -460,7 +460,9 @@ namespace SpriteStudio.Editor
                 string extPath = ResolveSsabPath(baseDir, packName, out var extAsset, ArtifactDependency(ctx));
                 if (extAsset == null)
                 {
-                    ctx.LogImportWarning($"[SpriteStudioSsabImporter] Instance target '{packName}' not found (tried '{extPath}'). The Instance parts that play it are skipped.");
+                    // Not reported: a pack the conversion has not written or imported yet lands here too. A target
+                    // still missing when the Instance plays is reported by SpriteStudioAnimeAsset.ResolveExternalSsab.
+                    // ctx.LogImportWarning($"[SpriteStudioSsabImporter] Instance target '{packName}' not found (tried '{extPath}'). The Instance parts that play it are skipped.");
                     continue;
                 }
                 if (!seenAssets.Add(extAsset)) continue;
