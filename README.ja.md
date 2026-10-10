@@ -18,11 +18,11 @@
 
 詳細な使い方は `docs/` フォルダ内のドキュメントにあります。目的に合わせて段階的に整理してあり、データフロー図・主な機能・対応環境もそちらです。
 
-- [**ドキュメントサイト (ホスト版)**](https://cri-middleware.github.io/SSPlayerForUnity/ja/) — 🚧 初回リリース後に公開
+- [**ドキュメントサイト (ホスト版)**](https://cri-middleware.github.io/SSPlayerForUnity/ja/)
 - [**ドキュメント (日本語)**](./docs/ja/index.md)
 - [**Documentation (English)**](./docs/en/index.md)
-- [**AI アシスタント向け**](https://cri-middleware.github.io/SSPlayerForUnity/ja/llms.txt) — このドキュメントを Markdown で提供します。`llms.txt` はページの目次、`llms-full.txt` は全ページを 1 ファイルにまとめたものです。インストールしたパッケージにも、同じページが `Documentation~/` フォルダーで入っています — 🚧 初回リリース後に公開
-- [**SpriteStudio Docs（ポータル）**](https://cri-middleware.github.io/SpriteStudio-Docs/ja/) — SDK と全公式 Player の入口 — 🚧 初回リリース後に公開
+- [**AI アシスタント向け**](https://cri-middleware.github.io/SSPlayerForUnity/ja/llms.txt) — このドキュメントを Markdown で提供します。`llms.txt` はページの目次、`llms-full.txt` は全ページを 1 ファイルにまとめたものです。インストールしたパッケージにも、同じページが `Documentation~/` フォルダーで入っています
+- [**SpriteStudio Docs（ポータル）**](https://cri-middleware.github.io/SpriteStudio-Docs/ja/) — SDK と全公式 Player の入口
 
 ### クイックリンク
 - [インストール](./docs/ja/setup/install.md)
@@ -35,8 +35,6 @@
 **Player 自体や、その下の Rust ランタイムを変更する場合**は [CONTRIBUTING.md](./CONTRIBUTING.md) と[ビルドガイド](./docs/ja/setup/build.md)へ。
 
 本プレイヤーは Unity 6.3 LTS 以降に対応しており、URP と BRP のいずれでも動作します。対応するのは **SpriteStudio 7.5 以上**で作成されたプロジェクトです。
-
-> 🚧 **未リリースです。** 以下の tarball リンクは初回リリースの公開後に有効になります。それまでは [インストールガイド](./docs/ja/setup/install.md) の「ローカルソースからのインストール」でチェックアウトから導入してください（Rust は要りません）。
 
 1. **インストール**: GitHub Releases からパッケージの tarball（恒久リンク・常に最新リリース）— [`jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz) — をダウンロードし、Unity の Package Manager で **Add package from tarball...** を選んで指定します。*(「Add package from URL...」/ git URL では導入できません。ネイティブバイナリは tarball のみに同梱されるためです。)*
 2. **インポート**: Unity メニューから **Window > SpriteStudio > Importer** を開き、`.sspj` をドラッグ＆ドロップして自動変換します。
