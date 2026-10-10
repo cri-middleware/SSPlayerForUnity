@@ -83,9 +83,6 @@ jobs:
       # because a default did, and so this is the command a human runs locally
       # to produce the same three files.
       #
-      # NOTE: the SpriteStudio-SDK release is still private, so sdk=download cannot
-      # succeed yet. It goes green once that repo/release is public (planned),
-      # at which point download-sdk.sh's plain curl works with no extra auth.
       # Unity 6.3's Package Manager checks every tarball for a signature and tells
       # whoever installs an unsigned one so. `upm pack` -- the standalone UPM CLI,
       # no Editor needed -- packs and signs in one step, and pack-release.sh uses
