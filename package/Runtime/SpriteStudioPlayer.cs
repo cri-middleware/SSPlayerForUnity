@@ -922,9 +922,15 @@ namespace SpriteStudio.Runtime
         public void ConsumeFrame(System.IntPtr frameDataPtr, int len, float deltaTime)
         {
             if (_core.Internal == null) return;
-            // Under Timeline control, do not advance effects/instances by wall-clock dt (dt=0 to keep deterministic seeking)
-            _core.Internal.ConsumeFrameData(frameDataPtr, len, _timelineControlled ? 0f : deltaTime);
+            _core.Internal.ConsumeFrameData(frameDataPtr, len, ConsumeDeltaTime(deltaTime));
         }
+
+        SpriteStudioInternalPlayer ISpriteStudioRenderable.InternalPlayer => _core.Internal;
+
+        float ISpriteStudioRenderable.ConsumeDeltaTime(float deltaTime) => ConsumeDeltaTime(deltaTime);
+
+        // Under Timeline control, do not advance effects/instances by wall-clock dt (dt=0 to keep deterministic seeking)
+        private float ConsumeDeltaTime(float deltaTime) => _timelineControlled ? 0f : deltaTime;
 
         public void ApplyAndRender()
         {

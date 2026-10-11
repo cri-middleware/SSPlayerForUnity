@@ -269,6 +269,10 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         public void ConsumeFrameData(System.IntPtr frameDataPtrRaw, int len, float deltaTime)
         {
             _hasFrameData = false;
+            // Effect steps the parallel pass took are for this call only, whether or not it gets as far as
+            // drawing them.
+            int steppedEffects = _steppedEffectsStart;
+            _steppedEffectsStart = -1;
             if (!_player._handle.IsValid) return;
 
             unsafe
@@ -345,8 +349,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 SpriteStudioNativeBuffers.EnsureCapacity(ref _instanceMeshes, partsLength);
 
                 bool parentLooped = NativeMethods.ss_runtime_just_looped(_player._handle.ptr);
-                float fps = _player.GetFrameRate();
-                if (fps <= 0f) fps = 60f;
+                float fps = EffectFps();
 
                 // Allocate the effect plan table, clear it to default, and reset the merged buffer's count, all together.
                 _effectBuffer.BeginFrame(partsLength);
@@ -363,7 +366,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 }
 
                 // Step the active effect/instance slots and fill the merged buffer / child mesh pointers.
-                StepEffects(drawFrameNo, deltaTime, fps, parentLooped);
+                StepEffects(drawFrameNo, deltaTime, fps, parentLooped, steppedEffects);
                 int childHandleCount = StepInstances(drawFrameNo, deltaTime, parentLooped, partsLength);
 
                 // maxBatches also aggregates only active effect/instance parts (inactive contribute default=0, so unneeded).
@@ -644,14 +647,85 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             _frameSkipped, _vertexCount, _indexCount, _meshVertices, _meshIndices,
             _batchBuilder.Submeshes, _batchBuilder.SubmeshCount, _topologySignature, _meshBounds);
 
-        /// <summary>Step the active effect slots and append the visible ones' draw_plan into the merged buffer.</summary>
-        private unsafe void StepEffects(float drawFrameNo, float deltaTime, float fps, bool parentLooped)
+        /// <summary>One effect slot to step, as the update manager's parallel pass hands it to its job.</summary>
+        internal struct EffectStep
+        {
+            public System.IntPtr Slot;
+            public uint PartIndex;
+            public float DeltaSeconds;
+            public float Fps;
+        }
+
+        // Effect steps the update manager's parallel pass took on a worker, for the next ConsumeFrameData:
+        // this player's first result in _steppedEffects, or -1 to step the slots there.
+        private NativeArray<ss_effect_step_result> _steppedEffects;
+        private int _steppedEffectsStart = -1;
+
+        /// <summary>
+        /// Write this player's effect slots (<c>_effectPartCount</c> of them) at <paramref name="start"/>, as
+        /// ConsumeFrameData would step them with <paramref name="deltaTime"/>.
+        /// </summary>
+        internal void WriteEffectSteps(float deltaTime, NativeArray<EffectStep> into, int start)
+        {
+            float fps = EffectFps();
+            for (int k = 0; k < _player._effectPartCount; k++)
+            {
+                int i = _player._effectPartIndices[k];
+                into[start + k] = new EffectStep
+                {
+                    Slot = _player._effectSlots[i].EffectSlot,
+                    PartIndex = (uint)i,
+                    DeltaSeconds = deltaTime,
+                    Fps = fps,
+                };
+            }
+        }
+
+        /// <summary>
+        /// Hand over what the parallel pass got stepping <see cref="WriteEffectSteps"/>'s slots, starting at
+        /// <paramref name="start"/>; the next ConsumeFrameData draws these instead of stepping the slots.
+        /// </summary>
+        internal void UseSteppedEffects(NativeArray<ss_effect_step_result> results, int start)
+        {
+            _steppedEffects = results;
+            _steppedEffectsStart = start;
+        }
+
+        /// <summary>
+        /// Step one effect slot of the player whose runtime is <paramref name="context"/>. Both StepEffects and
+        /// the parallel pass's worker make this call, so the two cannot step a slot differently.
+        /// </summary>
+        internal static unsafe ss_effect_step_result StepEffectSlot(void* context, in EffectStep step, float drawFrameNo, bool parentLooped)
+        {
+            var ev = NativeMethods.ss_runtime_get_active_effect_event(context, step.PartIndex);
+            return NativeMethods.ss_effect_slot_step((void*)step.Slot, ev, drawFrameNo, step.DeltaSeconds, step.Fps, parentLooped, false, 3);
+        }
+
+        // The frame rate effects step at: the animation's, or 60 when it reports none.
+        private float EffectFps()
+        {
+            float fps = _player.GetFrameRate();
+            return fps > 0f ? fps : 60f;
+        }
+
+        /// <summary>
+        /// Step the active effect slots -- or take the steps the parallel pass took, from
+        /// <paramref name="steppedEffects"/> on -- and append the visible ones' draw_plan into the merged buffer.
+        /// </summary>
+        private unsafe void StepEffects(float drawFrameNo, float deltaTime, float fps, bool parentLooped, int steppedEffects)
         {
             for (int k = 0; k < _player._effectPartCount; k++)
             {
                 int i = _player._effectPartIndices[k];
-                var ev = NativeMethods.ss_runtime_get_active_effect_event(_player._handle.ptr, (uint)i);
-                var step = NativeMethods.ss_effect_slot_step((void*)_player._effectSlots[i].EffectSlot, ev, drawFrameNo, deltaTime, fps, parentLooped, false, 3);
+                var step = steppedEffects >= 0
+                    ? _steppedEffects[steppedEffects + k]
+                    : StepEffectSlot(_player._handle.ptr, new EffectStep
+                    {
+                        Slot = _player._effectSlots[i].EffectSlot,
+                        PartIndex = (uint)i,
+                        DeltaSeconds = deltaTime,
+                        Fps = fps,
+                    }, drawFrameNo, parentLooped);
                 if (step.visible && step.draw_plan_len > 0)
                     _effectBuffer.SetPlan(i, _effectBuffer.Append(step.draw_plan_buf, (int)step.draw_plan_len));
                 // Non-visible stays at the MemClear'd default

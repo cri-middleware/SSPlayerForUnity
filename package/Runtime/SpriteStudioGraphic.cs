@@ -726,6 +726,10 @@ namespace SpriteStudio.Runtime
             _core.Internal.ConsumeFrameData(frameDataPtr, len, deltaTime);
         }
 
+        SpriteStudioInternalPlayer ISpriteStudioRenderable.InternalPlayer => _core.Internal;
+
+        float ISpriteStudioRenderable.ConsumeDeltaTime(float deltaTime) => deltaTime;
+
         public void ApplyAndRender()
         {
             if (_core.Internal == null || _sharedMesh == null) return;
