@@ -8,7 +8,8 @@ namespace SpriteStudio.Runtime.EditModeTests
     /// <summary>
     /// Guard for the Canvas upload (<see cref="SpriteStudioMeshUploader.ApplyCanvas"/>), which leaves the mesh's
     /// indices in place while the topology is unchanged. A frame that only moved the vertices must still get
-    /// its new vertex streams, and a frame with a new topology must replace the indices.
+    /// its new vertex streams, and a frame with a new topology must replace the indices, with fewer vertices than
+    /// the frame before as with more.
     /// </summary>
     public class SpriteStudioCanvasUploadTests
     {
@@ -62,10 +63,10 @@ namespace SpriteStudio.Runtime.EditModeTests
             _bounds[1] = new Vector3(x + 1f, 1f, 0f);
         }
 
-        private void Upload(ulong topology, Color32 tint, bool frameSkipped = false)
+        private void Upload(ulong topology, Color32 tint, bool frameSkipped = false, int vertexCount = 4, int indexCount = 6)
         {
             _uploader.ApplyCanvas(_mesh, tint, new SpriteStudioMeshUploader.UploadData(
-                frameSkipped, 4, 6, _vertices, _indices, _submeshes, 0, topology, _bounds));
+                frameSkipped, vertexCount, indexCount, _vertices, _indices, _submeshes, 0, topology, _bounds));
         }
 
         [Test]
@@ -117,6 +118,27 @@ namespace SpriteStudio.Runtime.EditModeTests
             Upload(2, White);
 
             CollectionAssert.AreEqual(reordered, _mesh.GetIndices(0));
+        }
+
+        [Test]
+        public void NewTopology_WithFewerVertices_ReplacesTheIndices()
+        {
+            SetQuad(0f, White, Quad);
+            Upload(1, White);
+
+            // The quad's first triangle alone: the quad's indices reference a vertex this frame no longer has.
+            var triangle = new[] { 0, 1, 2 };
+            for (int i = 0; i < triangle.Length; i++) _indices[i] = (uint)triangle[i];
+            Upload(2, White, vertexCount: 3, indexCount: 3);
+
+            Assert.AreEqual(3, _mesh.vertexCount);
+            CollectionAssert.AreEqual(triangle, _mesh.GetIndices(0));
+
+            SetQuad(0f, White, Quad);
+            Upload(3, White);
+
+            Assert.AreEqual(4, _mesh.vertexCount);
+            CollectionAssert.AreEqual(Quad, _mesh.GetIndices(0));
         }
 
         [Test]

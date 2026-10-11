@@ -245,16 +245,21 @@ namespace SpriteStudio.Runtime
             }.Run();
 
             // High-level upload (per channel). SetVertices first so the colour/uv channels size to it. The
-            // bounds come from the mesh job (below), so the streams skip Unity's own pass over the positions,
-            // and they are not checked against indices that are about to be replaced.
+            // bounds come from the mesh job (below), so the streams skip Unity's own pass over the positions.
+            // SetVertices refuses fewer vertices than the mesh's indices reference, whatever the flags say, and
+            // SetIndices refuses indices past its vertices: a frame with fewer vertices than the mesh holds
+            // hands over its new indices first, any other frame last.
             const MeshUpdateFlags streamFlags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices;
+            bool indicesFirst = !indicesUnchanged && data.VertexCount < targetMesh.vertexCount;
             if (!indicesUnchanged) targetMesh.indexFormat = IndexFormat.UInt16;
+            if (indicesFirst)
+                targetMesh.SetIndices(_meshIndices16, 0, data.IndexCount, MeshTopology.Triangles, 0, false);
             targetMesh.SetVertices(_canvasPositions, 0, data.VertexCount, streamFlags);
             targetMesh.SetColors(_canvasColors, 0, data.VertexCount, streamFlags);
             targetMesh.SetUVs(0, _canvasUv0, 0, data.VertexCount, streamFlags);
             targetMesh.SetUVs(1, _canvasUv1, 0, data.VertexCount, streamFlags);
             targetMesh.SetUVs(2, _canvasUv2, 0, data.VertexCount, streamFlags);
-            if (!indicesUnchanged)
+            if (!indicesUnchanged && !indicesFirst)
                 targetMesh.SetIndices(_meshIndices16, 0, data.IndexCount, MeshTopology.Triangles, 0, false);
             ApplyJobComputedBounds(targetMesh, data.Bounds);
 
