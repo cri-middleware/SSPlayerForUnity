@@ -81,18 +81,20 @@ fi
 
 # Opening the project deletes the tracked .meta of every plugin absent on this machine -- the other
 # platforms' binaries, never built here -- and a commit of that deletion ships a package that installs
-# them as nothing. Put back what this run changed; a .meta that was already dirty is left alone.
-META_BEFORE=$(git status --porcelain -- '*.meta' 2>/dev/null || true)
-restore_meta() {
+# them as nothing. The player build also switches Unity Connect off in the project's settings. Put back
+# what this run changed; a file that was already dirty is left alone.
+TRACKED_PATHS=("*.meta" "$PROJECT_PATH/ProjectSettings")
+TRACKED_BEFORE=$(git status --porcelain -- "${TRACKED_PATHS[@]}" 2>/dev/null || true)
+restore_tracked() {
     local f restored=""
     while IFS= read -r f; do
         [ -n "$f" ] || continue
-        printf '%s\n' "$META_BEFORE" | grep -qxF -- "$f" && continue
+        printf '%s\n' "$TRACKED_BEFORE" | grep -qxF -- "$f" && continue
         git checkout -q -- "${f:3}" && restored="$restored ${f:3}"
-    done <<<"$(git status --porcelain -- '*.meta' 2>/dev/null | grep -E '^ [MD] ' || true)"
-    [ -z "$restored" ] || echo "Restored the tracked .meta this run changed:$restored"
+    done <<<"$(git status --porcelain -- "${TRACKED_PATHS[@]}" 2>/dev/null | grep -E '^ [MD] ' || true)"
+    [ -z "$restored" ] || echo "Restored the tracked files this run changed:$restored"
 }
-trap restore_meta EXIT
+trap restore_tracked EXIT
 
 echo "Running Unity Tests (batchmode) for project: $PROJECT_PATH"
 echo "Unity Version: $UNITY_VERSION"
@@ -177,7 +179,9 @@ else
 fi
 clear_results player
 
-"$UNITY_PATH" -batchmode -runTests -projectPath "$PROJECT_PATH" -testPlatform playmode -buildTarget "$BUILD_TARGET" -testResults "player-$RESULTS_FILE" -logFile "player-$LOG_FILE" -assemblyNames "SpriteStudio.Runtime.Tests;SpriteStudio.Runtime.EditModeTests;SpriteStudio.Editor.Tests" || {
+# A build target as -testPlatform is what builds and launches a player. "-testPlatform playmode
+# -buildTarget X" only makes X the Editor's active platform and runs PlayMode in the Editor again.
+"$UNITY_PATH" -batchmode -runTests -projectPath "$PROJECT_PATH" -testPlatform "$BUILD_TARGET" -testResults "player-$RESULTS_FILE" -logFile "player-$LOG_FILE" -assemblyNames "SpriteStudio.Runtime.Tests;SpriteStudio.Runtime.EditModeTests;SpriteStudio.Editor.Tests" || {
     summarize player || true
     echo "Standalone Player Tests failed! See player-$LOG_FILE for details."
     exit 1

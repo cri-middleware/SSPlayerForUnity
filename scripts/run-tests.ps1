@@ -84,17 +84,19 @@ if ($MissingPrereqs.Count -gt 0) {
 
 # Opening the project deletes the tracked .meta of every plugin absent on this machine -- the other
 # platforms' binaries, never built here -- and a commit of that deletion ships a package that installs
-# them as nothing. Put back what this run changed; a .meta that was already dirty is left alone.
-$MetaBefore = @(git status --porcelain -- '*.meta' 2>$null)
-function Restore-Meta {
+# them as nothing. The player build also switches Unity Connect off in the project's settings. Put back
+# what this run changed; a file that was already dirty is left alone.
+$TrackedPaths = @('*.meta', "$ProjectPath/ProjectSettings")
+$TrackedBefore = @(git status --porcelain -- $TrackedPaths 2>$null)
+function Restore-Tracked {
     $restored = @()
-    foreach ($line in @(git status --porcelain -- '*.meta' 2>$null)) {
-        if ($line -notmatch '^ [MD] ' -or $MetaBefore -contains $line) { continue }
+    foreach ($line in @(git status --porcelain -- $TrackedPaths 2>$null)) {
+        if ($line -notmatch '^ [MD] ' -or $TrackedBefore -contains $line) { continue }
         $path = $line.Substring(3)
         git checkout -q -- $path
         if ($LASTEXITCODE -eq 0) { $restored += $path }
     }
-    if ($restored.Count -gt 0) { Write-Host "Restored the tracked .meta this run changed: $($restored -join ' ')" }
+    if ($restored.Count -gt 0) { Write-Host "Restored the tracked files this run changed: $($restored -join ' ')" }
 }
 
 try {
@@ -194,7 +196,9 @@ try {
     }
 
     Clear-Results "player"
-    $processPlayer = Start-Process -FilePath $UnityPath -ArgumentList "-batchmode", "-runTests", "-projectPath", $ProjectPath, "-testPlatform", "playmode", "-buildTarget", $BuildTarget, "-testResults", "player-$ResultsFile", "-logFile", "player-$LogFile", "-assemblyNames", "SpriteStudio.Runtime.Tests;SpriteStudio.Runtime.EditModeTests;SpriteStudio.Editor.Tests" -Wait -PassThru -NoNewWindow
+    # A build target as -testPlatform is what builds and launches a player. "-testPlatform playmode
+    # -buildTarget X" only makes X the Editor's active platform and runs PlayMode in the Editor again.
+    $processPlayer = Start-Process -FilePath $UnityPath -ArgumentList "-batchmode", "-runTests", "-projectPath", $ProjectPath, "-testPlatform", $BuildTarget, "-testResults", "player-$ResultsFile", "-logFile", "player-$LogFile", "-assemblyNames", "SpriteStudio.Runtime.Tests;SpriteStudio.Runtime.EditModeTests;SpriteStudio.Editor.Tests" -Wait -PassThru -NoNewWindow
     $ranPlayer = Show-Summary "player"
 
     if ($processPlayer.ExitCode -ne 0) {
@@ -212,5 +216,5 @@ try {
     }
     Write-Host "Results saved to $ProjectPath/{editmode,playmode,player}-$ResultsFile"
 } finally {
-    Restore-Meta
+    Restore-Tracked
 }
