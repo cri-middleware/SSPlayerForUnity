@@ -105,6 +105,44 @@ namespace SpriteStudio.Runtime
         public Vector4 TexCoord1; // [rate, blend_idx, pma_flag, reserved]
     }
 
+    /// <summary>
+    /// The Canvas upload's conversion (SpriteStudioMeshUploader.ApplyCanvas): the packed vertex stream split
+    /// into the per-channel arrays the high-level Mesh API takes, and the indices narrowed to 16 bits. The
+    /// vertex colour becomes the tint times the part's alpha, and the part colour moves to TEXCOORD2.
+    /// IndexCount 0 leaves the narrowed indices as they were.
+    /// </summary>
+    [BurstCompile(CompileSynchronously = false)]
+    internal struct CanvasStreamsJob : IJob
+    {
+        [ReadOnly] public NativeArray<SsVertex> Vertices;
+        [ReadOnly] public NativeArray<uint> Indices;
+        public Color32 Tint;
+        public int VertexCount;
+        public int IndexCount;
+
+        [WriteOnly] public NativeArray<Vector3> Positions;
+        [WriteOnly] public NativeArray<Color32> Colors;
+        [WriteOnly] public NativeArray<Vector2> Uv0;
+        [WriteOnly] public NativeArray<Vector4> Uv1;
+        [WriteOnly] public NativeArray<Vector3> Uv2;
+        [WriteOnly] public NativeArray<ushort> Indices16;
+
+        public void Execute()
+        {
+            const float inv255 = 1f / 255f;
+            for (int i = 0; i < VertexCount; i++)
+            {
+                var v = Vertices[i];
+                Positions[i] = v.Position;
+                Colors[i] = new Color32(Tint.r, Tint.g, Tint.b, (byte)((Tint.a * v.Color.a) / 255));
+                Uv0[i] = v.TexCoord0;
+                Uv1[i] = v.TexCoord1;
+                Uv2[i] = new Vector3(v.Color.r * inv255, v.Color.g * inv255, v.Color.b * inv255);
+            }
+            for (int i = 0; i < IndexCount; i++) Indices16[i] = (ushort)Indices[i];
+        }
+    }
+
     [BurstCompile(CompileSynchronously = false)]
     public unsafe struct UpdateMeshJob : IJob
     {
