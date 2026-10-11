@@ -8,9 +8,12 @@ namespace SpriteStudio.Runtime
 {
     /// <summary>
     /// A collaborator of <see cref="SpriteStudioGeometryBuilder"/> whose responsibility is to
-    /// read the effect draw_plan (native FlatBuffer) in the same manner as frame-data and pack every effect
-    /// part's geometry (verts/uvs/colors/indices) into concatenated buffers. The Burst Job reads the
+    /// read the effect draw_plan (native FlatBuffer) straight from its bytes and pack every effect part's
+    /// geometry (verts/uvs/colors/indices) into concatenated buffers. The Burst Job reads the
     /// concatenated buffers.
+    ///
+    /// The update manager's parallel pass copies the plans on the worker that steps them, into the buffers as
+    /// they stand (<see cref="WorkerTarget"/>); the main thread appends, growing them, what does not fit.
     ///
     /// For zero-allocation the buffers are persistently allocated and reused grow-only. Logical counts are
     /// held in the *_Count fields.
@@ -20,13 +23,6 @@ namespace SpriteStudio.Runtime
         // draw_plan result indexed by part index (CommandStart/Count/QuadBase). MemClear'd default = not visible.
         private NativeArray<EffectDrawPlanData> _effectPlans;
 
-        private Google.FlatBuffers.ByteBuffer _planByteBuffer;
-#if ENABLE_SPAN_T && UNSAFE_BYTEBUFFER
-        // Zero-copy: a read-only allocator that places the native draw_plan pointer directly into a ByteBuffer.
-        private NativeByteBufferAllocator _planAllocator;
-#else
-        private byte[] _planBytes;
-#endif
         private NativeArray<EffectDrawCommandData> _effectCommands;
         private NativeArray<float> _effectVerts;
         private NativeArray<float> _effectUvs;
@@ -50,6 +46,60 @@ namespace SpriteStudio.Runtime
         public void SetPlan(int partIndex, EffectDrawPlanData plan) => _effectPlans[partIndex] = plan;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public EffectDrawCommandData GetCommand(int index) => _effectCommands[index];
+
+        /// <summary>
+        /// One slot's draw_plan, read straight from its bytes as the generated accessor reads it, so a worker
+        /// can read it without a managed ByteBuffer. The table's fields in .fbs order: commands (a vector of
+        /// <see cref="CommandSize"/>-byte EffectDrawCommand structs), vert_stride, verts, uvs, colors, indices.
+        /// </summary>
+        internal readonly unsafe struct PlanView
+        {
+            internal const int CommandsVtoff = 4;
+            internal const int VertsVtoff = 8;
+            internal const int UvsVtoff = 10;
+            internal const int ColorsVtoff = 12;
+            internal const int IndicesVtoff = 14;
+            // EffectDrawCommand: cellmap_hash u32 @0, quad_count u32 @4, particle_offset u32 @8, blend u8 @12.
+            internal const int CommandSize = 16;
+
+            public readonly byte* Commands;
+            public readonly int CommandCount;
+            public readonly float* Verts;
+            public readonly int VertCount;
+            public readonly float* Uvs;
+            public readonly int UvCount;
+            public readonly float* Colors;
+            public readonly int ColorCount;
+            public readonly int* Indices;
+            public readonly int IndexCount;
+
+            public PlanView(byte* fb)
+            {
+                Commands = SpriteStudioNativeBuffers.RootVector(fb, CommandsVtoff, out CommandCount);
+                Verts = (float*)SpriteStudioNativeBuffers.RootVector(fb, VertsVtoff, out VertCount);
+                Uvs = (float*)SpriteStudioNativeBuffers.RootVector(fb, UvsVtoff, out UvCount);
+                Colors = (float*)SpriteStudioNativeBuffers.RootVector(fb, ColorsVtoff, out ColorCount);
+                Indices = (int*)SpriteStudioNativeBuffers.RootVector(fb, IndicesVtoff, out IndexCount);
+            }
+        }
+
+        /// <summary>
+        /// The merged buffers as raw pointers, how much each holds and how much of it is filled: what
+        /// <see cref="CopyPlan"/> copies a plan into. It fills the buffers but cannot grow them.
+        /// </summary>
+        internal unsafe struct CopyTarget
+        {
+            public float* Verts;
+            public float* Uvs;
+            public float* Colors;
+            public int* Indices;
+            public EffectDrawCommandData* Commands;
+            public int VertCapacity, UvCapacity, ColorCapacity, IndexCapacity, CommandCapacity;
+            public int VertCount, UvCount, ColorCount, IndexCount, CommandCount;
+            /// <summary>False once a plan did not fit: what was copied does not count, and the main thread
+            /// appends every plan of the frame instead.</summary>
+            public bool Fits;
+        }
 
         /// <summary>
         /// At the start of a frame, allocate the plan table for partsLength entries, MemClear all plans to
@@ -91,85 +141,114 @@ namespace SpriteStudio.Runtime
         {
             if (fb == null || len <= 0) return default;
 
-#if ENABLE_SPAN_T && UNSAFE_BYTEBUFFER
-            // Zero-copy: place the native pointer directly into the ByteBuffer (allocator/ByteBuffer are reused).
-            // The draw_plan's lifetime is self-contained and safe because this method copies all of its
-            // geometry into the concatenated NativeArrays within the call.
-            if (_planAllocator == null)
-            {
-                _planAllocator = new NativeByteBufferAllocator();
-                _planByteBuffer = new Google.FlatBuffers.ByteBuffer(_planAllocator, 0);
-            }
-            _planAllocator.Reset(fb, len);
-            _planByteBuffer.Position = 0;
-#else
-            // Copy native -> a reused byte[] and wrap it in a ByteBuffer (fallback).
-            if (_planBytes == null || _planBytes.Length < len)
-            {
-                _planBytes = new byte[UnityEngine.Mathf.Max(len, 4096)];
-                _planByteBuffer = new Google.FlatBuffers.ByteBuffer(_planBytes);
-            }
-            System.Runtime.InteropServices.Marshal.Copy((System.IntPtr)fb, _planBytes, 0, len);
-            _planByteBuffer.Position = 0;
-#endif
+            var plan = new PlanView(fb);
+            SpriteStudioNativeBuffers.EnsureCapacityPreserve(ref _effectVerts, _effectVertFloatCount + plan.VertCount);
+            SpriteStudioNativeBuffers.EnsureCapacityPreserve(ref _effectUvs, _effectUvFloatCount + plan.UvCount);
+            SpriteStudioNativeBuffers.EnsureCapacityPreserve(ref _effectColors, _effectColorFloatCount + plan.ColorCount);
+            SpriteStudioNativeBuffers.EnsureCapacityPreserve(ref _effectIndices, _effectIndexCount + plan.IndexCount);
+            SpriteStudioNativeBuffers.EnsureCapacityPreserve(ref _effectCommands, _effectCommandCount + plan.CommandCount);
 
-            var plan = ss.runtime.EffectDrawPlan.GetRootAsEffectDrawPlan(_planByteBuffer);
+            var target = Target();
+            var data = CopyPlan(plan, ref target);
+            TakeCopied(target);
+            return data;
+        }
 
-            int vLen = plan.VertsLength;
-            int uLen = plan.UvsLength;
-            int cLen = plan.ColorsLength;
-            int iLen = plan.IndicesLength;
-            int cmdLen = plan.CommandsLength;
+        /// <summary>
+        /// The buffers as they stand, empty, for a worker to copy this frame's plans into before BeginFrame;
+        /// <see cref="TakeCopied"/> then counts in what it copied.
+        /// </summary>
+        public CopyTarget WorkerTarget()
+        {
+            var target = Target();
+            target.VertCount = target.UvCount = target.ColorCount = target.IndexCount = target.CommandCount = 0;
+            return target;
+        }
+
+        /// <summary>Make what was copied into <paramref name="target"/> this frame's geometry.</summary>
+        public void TakeCopied(in CopyTarget target)
+        {
+            _effectVertFloatCount = target.VertCount;
+            _effectUvFloatCount = target.UvCount;
+            _effectColorFloatCount = target.ColorCount;
+            _effectIndexCount = target.IndexCount;
+            _effectCommandCount = target.CommandCount;
+        }
+
+        // The buffers as they stand, filled up to this frame's counts.
+        private unsafe CopyTarget Target() => new CopyTarget
+        {
+            Verts = Pointer(_effectVerts),
+            Uvs = Pointer(_effectUvs),
+            Colors = Pointer(_effectColors),
+            Indices = Pointer(_effectIndices),
+            Commands = Pointer(_effectCommands),
+            VertCapacity = Capacity(_effectVerts),
+            UvCapacity = Capacity(_effectUvs),
+            ColorCapacity = Capacity(_effectColors),
+            IndexCapacity = Capacity(_effectIndices),
+            CommandCapacity = Capacity(_effectCommands),
+            VertCount = _effectVertFloatCount,
+            UvCount = _effectUvFloatCount,
+            ColorCount = _effectColorFloatCount,
+            IndexCount = _effectIndexCount,
+            CommandCount = _effectCommandCount,
+            Fits = true,
+        };
+
+        private static unsafe T* Pointer<T>(NativeArray<T> array) where T : unmanaged
+            => array.IsCreated ? (T*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(array) : null;
+
+        private static int Capacity<T>(NativeArray<T> array) where T : struct => array.IsCreated ? array.Length : 0;
+
+        /// <summary>
+        /// Copy one slot's draw_plan after what <paramref name="target"/> holds and return the slot's plan
+        /// metadata (CommandStart/Count/QuadBase); or, when it does not fit, clear <see cref="CopyTarget.Fits"/>
+        /// and return default. Touches nothing but the target's memory, so a worker can call it.
+        /// </summary>
+        internal static unsafe EffectDrawPlanData CopyPlan(in PlanView plan, ref CopyTarget target)
+        {
+            if (target.VertCount + plan.VertCount > target.VertCapacity
+                || target.UvCount + plan.UvCount > target.UvCapacity
+                || target.ColorCount + plan.ColorCount > target.ColorCapacity
+                || target.IndexCount + plan.IndexCount > target.IndexCapacity
+                || target.CommandCount + plan.CommandCount > target.CommandCapacity)
+            {
+                target.Fits = false;
+                return default;
+            }
 
             // This slot's global quad base (= number of quads packed so far = indices/6).
-            int quadBase = _effectIndexCount / 6;
+            int quadBase = target.IndexCount / 6;
 
-            // The geometry is a contiguous scalar vector in fbs. Bulk-memcpy from the raw pointer fb into
-            // the concatenated buffers. vtable offset = 4 + field_index*2; fbs declaration order:
-            // commands(0)/vert_stride(1)/verts(2)/uvs(3)/colors(4)/indices(5).
-            var t = new Google.FlatBuffers.Table(
-                _planByteBuffer.GetInt(_planByteBuffer.Position) + _planByteBuffer.Position, _planByteBuffer);
+            if (plan.VertCount > 0) UnsafeUtility.MemCpy(target.Verts + target.VertCount, plan.Verts, (long)plan.VertCount * sizeof(float));
+            target.VertCount += plan.VertCount;
+            if (plan.UvCount > 0) UnsafeUtility.MemCpy(target.Uvs + target.UvCount, plan.Uvs, (long)plan.UvCount * sizeof(float));
+            target.UvCount += plan.UvCount;
+            if (plan.ColorCount > 0) UnsafeUtility.MemCpy(target.Colors + target.ColorCount, plan.Colors, (long)plan.ColorCount * sizeof(float));
+            target.ColorCount += plan.ColorCount;
+            if (plan.IndexCount > 0) UnsafeUtility.MemCpy(target.Indices + target.IndexCount, plan.Indices, (long)plan.IndexCount * sizeof(int));
+            target.IndexCount += plan.IndexCount;
 
-            SpriteStudioNativeBuffers.EnsureCapacityPreserve(ref _effectVerts, _effectVertFloatCount + vLen);
-            SpriteStudioNativeBuffers.CopyFbVector(t, 8, fb, _effectVerts, _effectVertFloatCount, vLen);
-            _effectVertFloatCount += vLen;
-
-            SpriteStudioNativeBuffers.EnsureCapacityPreserve(ref _effectUvs, _effectUvFloatCount + uLen);
-            SpriteStudioNativeBuffers.CopyFbVector(t, 10, fb, _effectUvs, _effectUvFloatCount, uLen);
-            _effectUvFloatCount += uLen;
-
-            SpriteStudioNativeBuffers.EnsureCapacityPreserve(ref _effectColors, _effectColorFloatCount + cLen);
-            SpriteStudioNativeBuffers.CopyFbVector(t, 12, fb, _effectColors, _effectColorFloatCount, cLen);
-            _effectColorFloatCount += cLen;
-
-            SpriteStudioNativeBuffers.EnsureCapacityPreserve(ref _effectIndices, _effectIndexCount + iLen);
-            SpriteStudioNativeBuffers.CopyFbVector(t, 14, fb, _effectIndices, _effectIndexCount, iLen);
-            _effectIndexCount += iLen;
-
-            // Extract commands (the draw-order loop references texture/blend/range from them).
-            SpriteStudioNativeBuffers.EnsureCapacityPreserve(ref _effectCommands, _effectCommandCount + cmdLen);
-            int cmdStart = _effectCommandCount;
-            for (int c = 0; c < cmdLen; c++)
+            // The commands the draw-order loop references texture/blend/range from.
+            int commandStart = target.CommandCount;
+            for (int c = 0; c < plan.CommandCount; c++)
             {
-                var cc = plan.Commands(c);
-                // Fill missing commands with default (QuadCount=0). Skipping via continue would leave the
-                // previous frame's value and read a wrong quad range, so always fill.
-                if (!cc.HasValue) { _effectCommands[cmdStart + c] = default; continue; }
-                var cmd = cc.Value;
-                _effectCommands[cmdStart + c] = new EffectDrawCommandData
+                byte* command = plan.Commands + c * PlanView.CommandSize;
+                target.Commands[commandStart + c] = new EffectDrawCommandData
                 {
-                    CellmapHash = cmd.CellmapHash,
-                    QuadCount = cmd.QuadCount,
-                    ParticleOffset = cmd.ParticleOffset,
-                    Blend = cmd.Blend
+                    CellmapHash = *(uint*)command,
+                    QuadCount = *(uint*)(command + 4),
+                    ParticleOffset = *(uint*)(command + 8),
+                    Blend = command[12],
                 };
             }
-            _effectCommandCount += cmdLen;
+            target.CommandCount += plan.CommandCount;
 
             return new EffectDrawPlanData
             {
-                CommandStart = cmdStart,
-                CommandCount = cmdLen,
+                CommandStart = commandStart,
+                CommandCount = plan.CommandCount,
                 QuadBase = quadBase
             };
         }
