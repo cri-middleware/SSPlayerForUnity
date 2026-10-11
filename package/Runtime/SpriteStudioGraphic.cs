@@ -724,6 +724,9 @@ namespace SpriteStudio.Runtime
         {
             if (_core.Internal == null) return;
             _core.Internal.ConsumeFrameData(frameDataPtr, len, deltaTime);
+            // The upload's conversion runs on a worker while the other players are consumed. ApplyAndRender
+            // converts again only if Graphic.color has changed by then.
+            if (_sharedMesh != null) _core.Internal.ScheduleCanvasConversion(_sharedMesh, color);
         }
 
         SpriteStudioInternalPlayer ISpriteStudioRenderable.InternalPlayer => _core.Internal;

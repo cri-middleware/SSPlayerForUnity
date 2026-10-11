@@ -86,6 +86,13 @@ namespace SpriteStudio.Runtime
         private ulong _canvasTopologySignature;
         private int _canvasVertexCount;
         private int _canvasIndexCount;
+        // What the conversion ScheduleCanvas started was given, for the next ApplyCanvas to tell whether its
+        // output is that upload's.
+        private bool _canvasScheduled;
+        private Color32 _scheduledTint;
+        private int _scheduledMeshId;
+        private int _scheduledVertexCount;
+        private int _scheduledIndexCount;
 
         /// <summary>
         /// Apply the built geometry to <paramref name="targetMesh"/>. Assumes the caller (the builder) has
@@ -181,8 +188,9 @@ namespace SpriteStudio.Runtime
         /// Canvas (uGUI) upload via the high-level Mesh API. Caution: CanvasRenderer rejects a low-level
         /// SetVertexBufferData mesh on Windows/D3D12 (invalid GPU draw -> device removed). De-interleaves
         /// the packed SsVertex stream into per-channel scratch and narrows indices to 16-bit, in a Burst job
-        /// (<see cref="CanvasStreamsJob"/>). The vertex streams go up on every call; the indices only when
-        /// the topology changed since the last upload.
+        /// (<see cref="CanvasStreamsJob"/>) that <see cref="ScheduleCanvas"/> may already have run on a worker.
+        /// The vertex streams go up on every call; the indices only when the topology changed since the last
+        /// upload.
         /// <para>
         /// The vertex colour becomes <paramref name="tint"/> (Graphic.color) times the part's own alpha, and
         /// the part colour moves to TEXCOORD2: the colour channel is uGUI's, which multiplies the
@@ -193,12 +201,13 @@ namespace SpriteStudio.Runtime
         /// </summary>
         public void ApplyCanvas(Mesh targetMesh, Color32 tint, in UploadData data)
         {
-            bool tintChanged = !_canvasUploaded || tint.r != _uploadedCanvasTint.r || tint.g != _uploadedCanvasTint.g
-                || tint.b != _uploadedCanvasTint.b || tint.a != _uploadedCanvasTint.a;
+            bool scheduled = _canvasScheduled;
+            _canvasScheduled = false;
+            bool tintChanged = !_canvasUploaded || !SameColour(tint, _uploadedCanvasTint);
             // A skipped frame left the vertices as they were; only a new tint needs them uploaded again.
             if (data.FrameSkipped && !tintChanged) return;
 
-            if (data.VertexCount == 0 || data.IndexCount == 0 || !data.Vertices.IsCreated || !data.Indices.IsCreated)
+            if (!HasGeometry(data))
             {
                 targetMesh.Clear();
                 _canvasUploaded = false;
@@ -212,49 +221,31 @@ namespace SpriteStudio.Runtime
                 _warned16BitOverflow = true;
             }
 
-            SpriteStudioNativeBuffers.EnsureCapacity(ref _canvasPositions, data.VertexCount);
-            SpriteStudioNativeBuffers.EnsureCapacity(ref _canvasColors, data.VertexCount);
-            SpriteStudioNativeBuffers.EnsureCapacity(ref _canvasUv0, data.VertexCount);
-            SpriteStudioNativeBuffers.EnsureCapacity(ref _canvasUv1, data.VertexCount);
-            SpriteStudioNativeBuffers.EnsureCapacity(ref _canvasUv2, data.VertexCount);
-            SpriteStudioNativeBuffers.EnsureCapacity(ref _meshIndices16, data.IndexCount);
-
-            // Narrowing the indices and handing them to the mesh costs more than the vertex streams do (a
-            // pentagon carries 12 indices for its 5 vertices), so a frame whose topology matches the last
-            // upload leaves them as they are.
             int meshId = targetMesh.GetInstanceID();
-            bool indicesUnchanged = _canvasUploaded
-                && meshId == _canvasMeshId
-                && data.TopologySignature == _canvasTopologySignature
-                && data.VertexCount == _canvasVertexCount
-                && data.IndexCount == _canvasIndexCount;
-
-            new CanvasStreamsJob
-            {
-                Vertices = data.Vertices,
-                Indices = data.Indices,
-                Tint = tint,
-                VertexCount = data.VertexCount,
-                IndexCount = indicesUnchanged ? 0 : data.IndexCount,
-                Positions = _canvasPositions,
-                Colors = _canvasColors,
-                Uv0 = _canvasUv0,
-                Uv1 = _canvasUv1,
-                Uv2 = _canvasUv2,
-                Indices16 = _meshIndices16,
-            }.Run();
+            bool indicesUnchanged = IndicesUnchanged(meshId, data);
+            int indexCount = indicesUnchanged ? 0 : data.IndexCount;
+            // The streams ScheduleCanvas converted are this upload's unless what it was given has changed
+            // since: Graphic.color, set between the two, is the one way that happens.
+            bool converted = scheduled && SameColour(tint, _scheduledTint) && meshId == _scheduledMeshId
+                && data.VertexCount == _scheduledVertexCount && indexCount == _scheduledIndexCount;
+            if (!converted) CanvasStreams(tint, data, indexCount).Run();
 
             // High-level upload (per channel). SetVertices first so the colour/uv channels size to it. The
-            // bounds come from the mesh job (below), so the streams skip Unity's own pass over the positions,
-            // and they are not checked against indices that are about to be replaced.
+            // bounds come from the mesh job (below), so the streams skip Unity's own pass over the positions.
+            // SetVertices refuses fewer vertices than the mesh's indices reference, whatever the flags say, and
+            // SetIndices refuses indices past its vertices: a frame with fewer vertices than the mesh holds
+            // hands over its new indices first, any other frame last.
             const MeshUpdateFlags streamFlags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices;
+            bool indicesFirst = !indicesUnchanged && data.VertexCount < targetMesh.vertexCount;
             if (!indicesUnchanged) targetMesh.indexFormat = IndexFormat.UInt16;
+            if (indicesFirst)
+                targetMesh.SetIndices(_meshIndices16, 0, data.IndexCount, MeshTopology.Triangles, 0, false);
             targetMesh.SetVertices(_canvasPositions, 0, data.VertexCount, streamFlags);
             targetMesh.SetColors(_canvasColors, 0, data.VertexCount, streamFlags);
             targetMesh.SetUVs(0, _canvasUv0, 0, data.VertexCount, streamFlags);
             targetMesh.SetUVs(1, _canvasUv1, 0, data.VertexCount, streamFlags);
             targetMesh.SetUVs(2, _canvasUv2, 0, data.VertexCount, streamFlags);
-            if (!indicesUnchanged)
+            if (!indicesUnchanged && !indicesFirst)
                 targetMesh.SetIndices(_meshIndices16, 0, data.IndexCount, MeshTopology.Triangles, 0, false);
             ApplyJobComputedBounds(targetMesh, data.Bounds);
 
@@ -266,6 +257,68 @@ namespace SpriteStudio.Runtime
             _canvasVertexCount = data.VertexCount;
             _canvasIndexCount = data.IndexCount;
         }
+
+        /// <summary>
+        /// Start <see cref="ApplyCanvas"/>'s conversion on a worker, behind <paramref name="dependsOn"/> (the
+        /// job that builds <paramref name="data"/>), and return its handle, which the caller completes before
+        /// ApplyCanvas. Given the same tint, mesh and geometry, ApplyCanvas then uploads the converted streams
+        /// instead of converting them on the main thread.
+        /// </summary>
+        public JobHandle ScheduleCanvas(Mesh targetMesh, Color32 tint, in UploadData data, JobHandle dependsOn)
+        {
+            _canvasScheduled = false;
+            if (data.FrameSkipped || !HasGeometry(data)) return dependsOn;
+
+            int meshId = targetMesh.GetInstanceID();
+            int indexCount = IndicesUnchanged(meshId, data) ? 0 : data.IndexCount;
+            var handle = CanvasStreams(tint, data, indexCount).Schedule(dependsOn);
+            _canvasScheduled = true;
+            _scheduledTint = tint;
+            _scheduledMeshId = meshId;
+            _scheduledVertexCount = data.VertexCount;
+            _scheduledIndexCount = indexCount;
+            return handle;
+        }
+
+        // The conversion of one upload into the scratch streams, grown to fit it. indexCount 0 leaves the
+        // narrowed indices as they were.
+        private CanvasStreamsJob CanvasStreams(Color32 tint, in UploadData data, int indexCount)
+        {
+            SpriteStudioNativeBuffers.EnsureCapacity(ref _canvasPositions, data.VertexCount);
+            SpriteStudioNativeBuffers.EnsureCapacity(ref _canvasColors, data.VertexCount);
+            SpriteStudioNativeBuffers.EnsureCapacity(ref _canvasUv0, data.VertexCount);
+            SpriteStudioNativeBuffers.EnsureCapacity(ref _canvasUv1, data.VertexCount);
+            SpriteStudioNativeBuffers.EnsureCapacity(ref _canvasUv2, data.VertexCount);
+            SpriteStudioNativeBuffers.EnsureCapacity(ref _meshIndices16, data.IndexCount);
+            return new CanvasStreamsJob
+            {
+                Vertices = data.Vertices,
+                Indices = data.Indices,
+                Tint = tint,
+                VertexCount = data.VertexCount,
+                IndexCount = indexCount,
+                Positions = _canvasPositions,
+                Colors = _canvasColors,
+                Uv0 = _canvasUv0,
+                Uv1 = _canvasUv1,
+                Uv2 = _canvasUv2,
+                Indices16 = _meshIndices16,
+            };
+        }
+
+        // Narrowing the indices and handing them to the mesh costs more than the vertex streams do (a pentagon
+        // carries 12 indices for its 5 vertices), so a frame whose topology matches the last upload leaves
+        // them as they are.
+        private bool IndicesUnchanged(int meshId, in UploadData data) => _canvasUploaded
+            && meshId == _canvasMeshId
+            && data.TopologySignature == _canvasTopologySignature
+            && data.VertexCount == _canvasVertexCount
+            && data.IndexCount == _canvasIndexCount;
+
+        private static bool HasGeometry(in UploadData data)
+            => data.VertexCount > 0 && data.IndexCount > 0 && data.Vertices.IsCreated && data.Indices.IsCreated;
+
+        private static bool SameColour(Color32 a, Color32 b) => a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
 
         private void EnsureDescriptors(int needed)
         {
@@ -286,6 +339,7 @@ namespace SpriteStudio.Runtime
             if (_meshIndices16.IsCreated) _meshIndices16.Dispose();
             _meshUploaded = false;
             _canvasUploaded = false;
+            _canvasScheduled = false;
         }
     }
 }
