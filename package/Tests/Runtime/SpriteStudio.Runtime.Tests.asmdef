@@ -5,6 +5,7 @@
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "SpriteStudio.Runtime",
+        "SpriteStudio.Runtime.Bindings",
         "Unity.Collections",
         "Unity.Burst",
         "Unity.Mathematics"
