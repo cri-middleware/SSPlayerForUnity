@@ -2,6 +2,7 @@ using System;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Unity.Jobs;
 using SpriteStudio.SsRuntime;
 
 namespace SpriteStudio.Runtime
@@ -79,6 +80,12 @@ namespace SpriteStudio.Runtime
         // when only Graphic.color changed.
         private Color32 _uploadedCanvasTint;
         private bool _canvasUploaded;
+        // What the canvas mesh's indices were built from. They change only with the topology, so a frame
+        // whose topology matches leaves them on the mesh, as Apply's index cache does.
+        private int _canvasMeshId;
+        private ulong _canvasTopologySignature;
+        private int _canvasVertexCount;
+        private int _canvasIndexCount;
 
         /// <summary>
         /// Apply the built geometry to <paramref name="targetMesh"/>. Assumes the caller (the builder) has
@@ -173,8 +180,9 @@ namespace SpriteStudio.Runtime
         /// <summary>
         /// Canvas (uGUI) upload via the high-level Mesh API. Caution: CanvasRenderer rejects a low-level
         /// SetVertexBufferData mesh on Windows/D3D12 (invalid GPU draw -> device removed). De-interleaves
-        /// the packed SsVertex stream into per-channel scratch and narrows indices to 16-bit. Full rebuild
-        /// each call (UI animates per frame); the low-level topology cache is bypassed.
+        /// the packed SsVertex stream into per-channel scratch and narrows indices to 16-bit, in a Burst job
+        /// (<see cref="CanvasStreamsJob"/>). The vertex streams go up on every call; the indices only when
+        /// the topology changed since the last upload.
         /// <para>
         /// The vertex colour becomes <paramref name="tint"/> (Graphic.color) times the part's own alpha, and
         /// the part colour moves to TEXCOORD2: the colour channel is uGUI's, which multiplies the
@@ -183,7 +191,7 @@ namespace SpriteStudio.Runtime
         /// which a part colour must go through.
         /// </para>
         /// </summary>
-        public unsafe void ApplyCanvas(Mesh targetMesh, Color32 tint, in UploadData data)
+        public void ApplyCanvas(Mesh targetMesh, Color32 tint, in UploadData data)
         {
             bool tintChanged = !_canvasUploaded || tint.r != _uploadedCanvasTint.r || tint.g != _uploadedCanvasTint.g
                 || tint.b != _uploadedCanvasTint.b || tint.a != _uploadedCanvasTint.a;
@@ -211,39 +219,52 @@ namespace SpriteStudio.Runtime
             SpriteStudioNativeBuffers.EnsureCapacity(ref _canvasUv2, data.VertexCount);
             SpriteStudioNativeBuffers.EnsureCapacity(ref _meshIndices16, data.IndexCount);
 
-            var src = (SsVertex*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(data.Vertices);
-            var pos = (Vector3*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_canvasPositions);
-            var col = (Color32*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_canvasColors);
-            var uv0 = (Vector2*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_canvasUv0);
-            var uv1 = (Vector4*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_canvasUv1);
-            var uv2 = (Vector3*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_canvasUv2);
-            const float inv255 = 1f / 255f;
-            for (int i = 0; i < data.VertexCount; i++)
-            {
-                var v = src[i];
-                pos[i] = v.Position;
-                col[i] = new Color32(tint.r, tint.g, tint.b, (byte)((tint.a * v.Color.a) / 255));
-                uv0[i] = v.TexCoord0;
-                uv1[i] = v.TexCoord1;
-                uv2[i] = new Vector3(v.Color.r * inv255, v.Color.g * inv255, v.Color.b * inv255);
-            }
-            var si = (uint*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(data.Indices);
-            var di = (ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_meshIndices16);
-            for (int i = 0; i < data.IndexCount; i++) di[i] = (ushort)si[i];
+            // Narrowing the indices and handing them to the mesh costs more than the vertex streams do (a
+            // pentagon carries 12 indices for its 5 vertices), so a frame whose topology matches the last
+            // upload leaves them as they are.
+            int meshId = targetMesh.GetInstanceID();
+            bool indicesUnchanged = _canvasUploaded
+                && meshId == _canvasMeshId
+                && data.TopologySignature == _canvasTopologySignature
+                && data.VertexCount == _canvasVertexCount
+                && data.IndexCount == _canvasIndexCount;
 
-            // High-level upload (per channel). SetVertices first so the colour/uv channels size to it.
-            targetMesh.indexFormat = IndexFormat.UInt16;
-            targetMesh.SetVertices(_canvasPositions, 0, data.VertexCount);
-            targetMesh.SetColors(_canvasColors, 0, data.VertexCount);
-            targetMesh.SetUVs(0, _canvasUv0, 0, data.VertexCount);
-            targetMesh.SetUVs(1, _canvasUv1, 0, data.VertexCount);
-            targetMesh.SetUVs(2, _canvasUv2, 0, data.VertexCount);
-            targetMesh.SetIndices(_meshIndices16, 0, data.IndexCount, MeshTopology.Triangles, 0, false);
+            new CanvasStreamsJob
+            {
+                Vertices = data.Vertices,
+                Indices = data.Indices,
+                Tint = tint,
+                VertexCount = data.VertexCount,
+                IndexCount = indicesUnchanged ? 0 : data.IndexCount,
+                Positions = _canvasPositions,
+                Colors = _canvasColors,
+                Uv0 = _canvasUv0,
+                Uv1 = _canvasUv1,
+                Uv2 = _canvasUv2,
+                Indices16 = _meshIndices16,
+            }.Run();
+
+            // High-level upload (per channel). SetVertices first so the colour/uv channels size to it. The
+            // bounds come from the mesh job (below), so the streams skip Unity's own pass over the positions,
+            // and they are not checked against indices that are about to be replaced.
+            const MeshUpdateFlags streamFlags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices;
+            if (!indicesUnchanged) targetMesh.indexFormat = IndexFormat.UInt16;
+            targetMesh.SetVertices(_canvasPositions, 0, data.VertexCount, streamFlags);
+            targetMesh.SetColors(_canvasColors, 0, data.VertexCount, streamFlags);
+            targetMesh.SetUVs(0, _canvasUv0, 0, data.VertexCount, streamFlags);
+            targetMesh.SetUVs(1, _canvasUv1, 0, data.VertexCount, streamFlags);
+            targetMesh.SetUVs(2, _canvasUv2, 0, data.VertexCount, streamFlags);
+            if (!indicesUnchanged)
+                targetMesh.SetIndices(_meshIndices16, 0, data.IndexCount, MeshTopology.Triangles, 0, false);
             ApplyJobComputedBounds(targetMesh, data.Bounds);
 
             _meshUploaded = false; // Canvas path bypasses the low-level topology cache.
             _uploadedCanvasTint = tint;
             _canvasUploaded = true;
+            _canvasMeshId = meshId;
+            _canvasTopologySignature = data.TopologySignature;
+            _canvasVertexCount = data.VertexCount;
+            _canvasIndexCount = data.IndexCount;
         }
 
         private void EnsureDescriptors(int needed)
