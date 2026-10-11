@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using SpriteStudio.SsRuntime;
 using UnityEngine;
@@ -12,9 +13,27 @@ namespace SpriteStudio.Runtime
     public class SpriteStudioNativeContext : IDisposable
     {
         private SsPlayerHandle _handle;
-        private GCHandle _ssabPin;
         private unsafe void* _resourceHandle;
+        // The buffer this context's resource was parsed from: its key in s_resources, or null when nothing
+        // is loaded.
+        private byte[] _ssabData;
         private bool _isDisposed = false;
+
+        // One parsed resource per .ssab buffer, shared by every context loaded from that same array. The parse
+        // is where every animation's caches are built, and a context only reads its resource, so N players of
+        // one asset hold one copy instead of N -- and so do the Instance children that resolve back to their
+        // own pack. Keyed by the array itself, not its contents: a reimport hands over a new array and parses
+        // afresh. Touched from the main thread only, as LoadSsab and Dispose are.
+        private sealed class SharedResource
+        {
+            public GCHandle Pin;
+            public IntPtr Handle;
+            public int Users;
+        }
+        private static readonly Dictionary<byte[], SharedResource> s_resources = new Dictionary<byte[], SharedResource>();
+
+        /// <summary>How many parsed resources are alive; each is shared by every context loaded from its buffer.</summary>
+        internal static int SharedResourceCount => s_resources.Count;
 
         public SsPlayerHandle Handle => _handle;
         public unsafe void* ResourceHandle => _resourceHandle;
@@ -36,18 +55,12 @@ namespace SpriteStudio.Runtime
 
         ~SpriteStudioNativeContext()
         {
-            if (!_isDisposed && (_handle.IsValid || _ssabPin.IsAllocated))
+            if (!_isDisposed && (_handle.IsValid || _ssabData != null))
             {
+                // Nothing is freed from the finalizer thread: not the native handles (it can crash on the
+                // wrong thread + with an unsynchronized Job), and not the pinned buffer either, which other
+                // contexts may still be reading. The buffer stays pinned for as long as the process runs.
                 Debug.LogError("[SpriteStudioNativeContext] Memory leak detected! Dispose() was not called before the object was garbage collected.");
-
-                // Do not free native handles (ss_runtime_destroy, etc.) from the finalizer thread (it can
-                // crash on the wrong thread + with an unsynchronized Job). Only the pinned GCHandle can be
-                // safely Freed from the finalizer, and leaving it would keep the managed byte[] pinned
-                // forever, a certain managed leak, so always release it here.
-                if (_ssabPin.IsAllocated)
-                {
-                    _ssabPin.Free();
-                }
             }
         }
 
@@ -57,38 +70,67 @@ namespace SpriteStudio.Runtime
 
             unsafe
             {
-                // Release order matters: the old _resourceHandle and runtime borrow "the old pin's
-                // address". Freeing the old pin first would leave the borrow dangling, so always do it
-                // in the order:
-                //   destroy old resource -> Free old pin -> Alloc new pin -> create new resource -> bind it.
-                // This path is also called on a reload (runtime asset swap), so it assumes the caller
-                // (SpriteStudioInternalPlayer.LoadSsab) has already Complete()d in-flight Jobs
-                // (no Job reading the old buffer is still running).
-                if (_resourceHandle != null)
+                // Take the new buffer's resource before letting go of the old one: the runtime borrows the
+                // old pin until binding replaces its reference, so the old resource's last user may free the
+                // pin only after that. This path is also called on a reload (runtime asset swap), so it
+                // assumes the caller (SpriteStudioInternalPlayer.LoadSsab) has already Complete()d in-flight
+                // Jobs and destroyed the effect slots made from the old resource.
+                var resource = Acquire(ssabData);
+                if (resource == IntPtr.Zero)
                 {
-                    NativeMethods.ss_resource_destroy(_resourceHandle);
+                    // The pack's schema version is not one this runtime reads. Nothing is bound, so the
+                    // runtime keeps the previous resource, which stays held (and pinned) until the next load
+                    // or Dispose; SetupSlots sees the null handle and reports the failed load.
                     _resourceHandle = null;
+                    return;
                 }
-
-                if (_ssabPin.IsAllocated)
+                if (!NativeMethods.ss_runtime_bind_resource(_handle.ptr, (void*)resource))
                 {
-                    _ssabPin.Free();
+                    // The runtime still holds the previous resource, so that one stays held too.
+                    Release(ssabData);
+                    _resourceHandle = null;
+                    return;
                 }
-
-                // Pin the byte array's memory and let the Rust side borrow it (zero-copy).
-                _ssabPin = GCHandle.Alloc(ssabData, GCHandleType.Pinned);
-
-                byte* ptr = (byte*)_ssabPin.AddrOfPinnedObject();
-                // Parse once, then bind that same resource. `ss_runtime_load_ssab_borrow` would parse the
-                // buffer a SECOND time -- it creates a resource of its own, binds it and drops its handle --
-                // and the parse is where every animation's metadata is built, so on a large pack it is not
-                // cheap. We need the handle anyway: `ss_effect_slot_create` takes it, and Dispose releases
-                // it. Binding clones the reference into the context, so both stay alive until each is
-                // released. A null resource (the pack's schema version is not one this runtime reads) binds
-                // nothing and returns false; SetupSlots sees the null handle and reports the failed load.
-                _resourceHandle = NativeMethods.ss_resource_create_borrow(ptr, (nuint)ssabData.Length);
-                NativeMethods.ss_runtime_bind_resource(_handle.ptr, _resourceHandle);
+                Release(_ssabData);
+                _ssabData = ssabData;
+                _resourceHandle = (void*)resource;
             }
+        }
+
+        // The resource parsed from ssabData, parsing it on first use; one more user either way. Zero when the
+        // runtime cannot read the pack, with nothing registered.
+        private static unsafe IntPtr Acquire(byte[] ssabData)
+        {
+            if (s_resources.TryGetValue(ssabData, out var shared))
+            {
+                shared.Users++;
+                return shared.Handle;
+            }
+
+            // Pin the byte array's memory and let the Rust side borrow it (zero-copy). Parse with
+            // `ss_resource_create_borrow` and bind that, rather than `ss_runtime_load_ssab_borrow`, which
+            // parses on its own and drops its handle: the handle is what shares the parse, and
+            // `ss_effect_slot_create` takes it.
+            var pin = GCHandle.Alloc(ssabData, GCHandleType.Pinned);
+            var handle = (IntPtr)NativeMethods.ss_resource_create_borrow((byte*)pin.AddrOfPinnedObject(), (nuint)ssabData.Length);
+            if (handle == IntPtr.Zero)
+            {
+                pin.Free();
+                return IntPtr.Zero;
+            }
+            s_resources.Add(ssabData, new SharedResource { Pin = pin, Handle = handle, Users = 1 });
+            return handle;
+        }
+
+        // One user fewer of ssabData's resource. The last one destroys it and unpins the buffer, so it must
+        // come after the runtime has let go of the resource (rebound or destroyed).
+        private static unsafe void Release(byte[] ssabData)
+        {
+            if (ssabData == null || !s_resources.TryGetValue(ssabData, out var shared)) return;
+            if (--shared.Users > 0) return;
+            s_resources.Remove(ssabData);
+            NativeMethods.ss_resource_destroy((void*)shared.Handle);
+            shared.Pin.Free();
         }
 
         public void Dispose()
@@ -101,15 +143,9 @@ namespace SpriteStudio.Runtime
             {
                 unsafe
                 {
-                    // Same invariant as LoadSsab: destroy the resource / runtime that borrow the pinned
-                    // buffer first, and Free the pin last (do not free the pin while borrowed, leaving it
-                    // dangling). Assumes the caller (InternalPlayer.Dispose) has already waited for
-                    // in-flight Jobs to complete.
-                    if (_resourceHandle != null)
-                    {
-                        NativeMethods.ss_resource_destroy(_resourceHandle);
-                        _resourceHandle = null;
-                    }
+                    // Same invariant as LoadSsab: the runtime lets go of the resource before this context
+                    // gives up its share of it, which may unpin the buffer. Assumes the caller
+                    // (InternalPlayer.Dispose) has already waited for in-flight Jobs to complete.
                     if (_handle.IsValid)
                     {
                         NativeMethods.ss_runtime_destroy(_handle.ptr);
@@ -119,13 +155,10 @@ namespace SpriteStudio.Runtime
             }
             finally
             {
-                // The pin is a managed GCHandle. Always Free it after destroying the borrowers
-                // (resource/runtime), and even if the above threw. Leaking it would keep the borrowed
-                // managed byte[] pinned forever, a certain leak.
-                if (_ssabPin.IsAllocated)
-                {
-                    _ssabPin.Free();
-                }
+                // Even if the above threw: a share never given up keeps the buffer pinned for good.
+                unsafe { _resourceHandle = null; }
+                Release(_ssabData);
+                _ssabData = null;
             }
         }
     }
