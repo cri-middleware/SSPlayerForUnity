@@ -750,8 +750,10 @@ namespace SpriteStudio.Runtime.Tests
         {
             if (!Application.isPlaying) Assert.Ignore("The update runner drives players in Play mode only.");
             var player = MakePlayingPlayer();
-            player.Pause();
+            // Paused after Start, whose AutoPlay plays again: a player still running advances by the
+            // frame's delta before it builds, which is a whole frame at 60 Hz.
             yield return null;
+            player.Pause();
             Assume.That(player.TotalFrames, Is.GreaterThan(5), "walk needs more than five frames");
 
             var probe = player.gameObject.AddComponent<SeekFromUpdate>();
