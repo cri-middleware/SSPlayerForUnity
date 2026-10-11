@@ -41,10 +41,10 @@ namespace SpriteStudio.Runtime
     /// one LateUpdate:
     ///   1. Serial: advance each player by 1 frame + decide drawFrame/frame-skip.
     ///   2. Parallel: run get_frame_data for non-skip players across workers via IJobParallelFor, and step
-    ///      each player's effect slots on the same worker right after it. get_frame_data is independent per
-    ///      context (no global mutable state) = concurrency-safe, and so is a slot's step, so the heaviest
-    ///      pose/matrix/vertex/draw batch computation and the particle simulation are parallelized across
-    ///      characters. Wait for completion at a barrier.
+    ///      each player's effect slots, copying the plans they return, on the same worker right after it.
+    ///      get_frame_data is independent per context (no global mutable state) = concurrency-safe, and so is
+    ///      a slot's step, so the heaviest pose/matrix/vertex/draw batch computation and the particle
+    ///      simulation are parallelized across characters. Wait for completion at a barrier.
     ///   3. Serial: consume the obtained frame-data pointers and issue the mesh-build Burst Jobs, which
     ///      run on the workers while the main thread issues the rest.
     ///   4. Wait for all Jobs + apply to the meshes.
@@ -69,12 +69,14 @@ namespace SpriteStudio.Runtime
         private static NativeArray<float> _jobDrawFrames;
         private static NativeArray<IntPtr> _jobOutPtr;
         private static NativeArray<int> _jobOutLen;
-        // The effect slots the parallel pass steps (grow-only): each pending player's first slot and slot
-        // count, and every slot's input and result.
+        // The effect slots the parallel pass steps (grow-only): each pending player's first slot, slot count
+        // and merged effect buffers, and every slot's input, result and plan in those buffers.
         private static NativeArray<int> _jobEffectStart;
         private static NativeArray<int> _jobEffectCount;
+        private static NativeArray<SpriteStudioEffectPlanBuffer.CopyTarget> _jobEffectCopies;
         private static NativeArray<SpriteStudioGeometryBuilder.EffectStep> _jobEffectSteps;
         private static NativeArray<ss_effect_step_result> _jobEffectResults;
+        private static NativeArray<EffectDrawPlanData> _jobEffectPlans;
 
         /// <summary>Whether to run get_frame_data in parallel across characters (false = full serial fallback = for A/B comparison / regression bisection).</summary>
         public static bool ParallelFrameData = true;
@@ -165,9 +167,9 @@ namespace SpriteStudio.Runtime
             // get_frame_data is independent per context (no global mutable state; shared resources are
             // immutable Send+Sync), so it can run on worker threads in parallel across characters. This
             // parallelizes the heaviest pose/matrix/vertex/draw batch/FlatBuffer build. The same worker then
-            // steps the player's effect slots, each of which only its own player touches: particle simulation
-            // is otherwise most of the main thread's time in a frame with effects. .Complete() makes the main
-            // thread wait at the barrier.
+            // steps the player's effect slots, each of which only its own player touches, and copies their plans
+            // into the player's buffers: particle simulation and its geometry are otherwise most of the main
+            // thread's time in a frame with effects. .Complete() makes the main thread wait at the barrier.
             if (ParallelFrameData && n >= ParallelMinCount)
             {
                 LayOutEffectSteps(n, deltaTime);
@@ -175,13 +177,14 @@ namespace SpriteStudio.Runtime
                 {
                     Handles = _jobHandles, Frames = _jobDrawFrames,
                     OutPtr = _jobOutPtr, OutLen = _jobOutLen,
-                    EffectStart = _jobEffectStart, EffectCount = _jobEffectCount,
-                    EffectSteps = _jobEffectSteps, EffectResults = _jobEffectResults,
+                    EffectStart = _jobEffectStart, EffectCount = _jobEffectCount, EffectCopies = _jobEffectCopies,
+                    EffectSteps = _jobEffectSteps, EffectResults = _jobEffectResults, EffectPlans = _jobEffectPlans,
                 }.Schedule(n, Mathf.Max(1, ParallelBatch)).Complete();
                 for (int i = 0; i < n; i++)
                 {
                     if (_jobEffectCount[i] > 0)
-                        _pending[i].InternalPlayer._geometryBuilder.UseSteppedEffects(_jobEffectResults, _jobEffectStart[i]);
+                        _pending[i].InternalPlayer._geometryBuilder.UseSteppedEffects(
+                            _jobEffectResults, _jobEffectPlans, _jobEffectCopies[i], _jobEffectStart[i]);
                 }
             }
             else
@@ -239,7 +242,7 @@ namespace SpriteStudio.Runtime
 
         /// <summary>
         /// Lay out the effect slots of the first <paramref name="n"/> pending players for the parallel pass:
-        /// each player's first slot and count, and every slot as ConsumeFrame would step it.
+        /// each player's first slot, count and merged effect buffers, and every slot as ConsumeFrame would step it.
         /// </summary>
         private static void LayOutEffectSteps(int n, float deltaTime)
         {
@@ -256,15 +259,18 @@ namespace SpriteStudio.Runtime
             {
                 if (_jobEffectSteps.IsCreated) _jobEffectSteps.Dispose();
                 if (_jobEffectResults.IsCreated) _jobEffectResults.Dispose();
+                if (_jobEffectPlans.IsCreated) _jobEffectPlans.Dispose();
                 int cap = Mathf.NextPowerOfTwo(Mathf.Max(total, 16));
                 _jobEffectSteps = new NativeArray<SpriteStudioGeometryBuilder.EffectStep>(cap, Allocator.Persistent);
                 _jobEffectResults = new NativeArray<ss_effect_step_result>(cap, Allocator.Persistent);
+                _jobEffectPlans = new NativeArray<EffectDrawPlanData>(cap, Allocator.Persistent);
             }
             for (int i = 0; i < n; i++)
             {
                 if (_jobEffectCount[i] == 0) continue;
-                _pending[i].InternalPlayer._geometryBuilder.WriteEffectSteps(
-                    _pending[i].ConsumeDeltaTime(deltaTime), _jobEffectSteps, _jobEffectStart[i]);
+                var builder = _pending[i].InternalPlayer._geometryBuilder;
+                builder.WriteEffectSteps(_pending[i].ConsumeDeltaTime(deltaTime), _jobEffectSteps, _jobEffectStart[i]);
+                _jobEffectCopies[i] = builder.EffectCopyTarget();
             }
         }
 
@@ -278,12 +284,14 @@ namespace SpriteStudio.Runtime
             if (_jobOutLen.IsCreated) _jobOutLen.Dispose();
             if (_jobEffectStart.IsCreated) _jobEffectStart.Dispose();
             if (_jobEffectCount.IsCreated) _jobEffectCount.Dispose();
+            if (_jobEffectCopies.IsCreated) _jobEffectCopies.Dispose();
             _jobHandles = new NativeArray<IntPtr>(cap, Allocator.Persistent);
             _jobDrawFrames = new NativeArray<float>(cap, Allocator.Persistent);
             _jobOutPtr = new NativeArray<IntPtr>(cap, Allocator.Persistent);
             _jobOutLen = new NativeArray<int>(cap, Allocator.Persistent);
             _jobEffectStart = new NativeArray<int>(cap, Allocator.Persistent);
             _jobEffectCount = new NativeArray<int>(cap, Allocator.Persistent);
+            _jobEffectCopies = new NativeArray<SpriteStudioEffectPlanBuffer.CopyTarget>(cap, Allocator.Persistent);
             if (_pending.Length < cap) _pending = new ISpriteStudioRenderable[cap];
         }
 
@@ -291,8 +299,10 @@ namespace SpriteStudio.Runtime
         {
             if (_jobEffectStart.IsCreated) _jobEffectStart.Dispose();
             if (_jobEffectCount.IsCreated) _jobEffectCount.Dispose();
+            if (_jobEffectCopies.IsCreated) _jobEffectCopies.Dispose();
             if (_jobEffectSteps.IsCreated) _jobEffectSteps.Dispose();
             if (_jobEffectResults.IsCreated) _jobEffectResults.Dispose();
+            if (_jobEffectPlans.IsCreated) _jobEffectPlans.Dispose();
         }
 
         /// <summary>Dispose the persistent NativeArrays when play mode ends (called from the runner's OnDestroy).</summary>
@@ -347,12 +357,12 @@ namespace SpriteStudio.Runtime
     }
 
     /// <summary>
-    /// Runs get_frame_data in parallel across characters, then steps each character's effect slots.
-    /// get_frame_data is independent per context (no global mutable state; shared resources are immutable
-    /// Send+Sync), so concurrent calls are safe, and a slot's step touches only that slot and reads its own
-    /// context. [BurstCompile] is not applied because it calls a DllImport (P/Invoke is not allowed from
-    /// Burst). Each index writes only its own slot and its own range of effect results, so there is no
-    /// aliasing.
+    /// Runs get_frame_data in parallel across characters, then steps each character's effect slots and copies
+    /// the plans they return into the character's merged effect buffers. get_frame_data is independent per
+    /// context (no global mutable state; shared resources are immutable Send+Sync), so concurrent calls are
+    /// safe, and a slot's step touches only that slot and reads its own context. [BurstCompile] is not
+    /// applied because it calls a DllImport (P/Invoke is not allowed from Burst). Each index writes only its
+    /// own slots, its own buffers and its own range of effect results and plans, so there is no aliasing.
     /// </summary>
     internal struct GetFrameDataJob : IJobParallelFor
     {
@@ -362,9 +372,11 @@ namespace SpriteStudio.Runtime
         [WriteOnly] public NativeArray<int> OutLen;
         [ReadOnly] public NativeArray<int> EffectStart;
         [ReadOnly] public NativeArray<int> EffectCount;
+        public NativeArray<SpriteStudioEffectPlanBuffer.CopyTarget> EffectCopies;
         [ReadOnly] public NativeArray<SpriteStudioGeometryBuilder.EffectStep> EffectSteps;
         // Written at [EffectStart[index], +EffectCount[index]), not at [index].
         [NativeDisableParallelForRestriction] public NativeArray<ss_effect_step_result> EffectResults;
+        [NativeDisableParallelForRestriction] public NativeArray<EffectDrawPlanData> EffectPlans;
 
         public void Execute(int index)
         {
@@ -383,11 +395,18 @@ namespace SpriteStudio.Runtime
                 int start = EffectStart[index];
                 bool parentLooped = NativeMethods.ss_runtime_just_looped(context);
                 RawPartState* parts = SpriteStudioGeometryBuilder.PartsOf(p, out int partCount);
+                var copies = EffectCopies[index];
                 for (int k = 0; k < count; k++)
                 {
-                    EffectResults[start + k] = SpriteStudioGeometryBuilder.StepEffectSlot(
+                    var step = SpriteStudioGeometryBuilder.StepEffectSlot(
                         context, EffectSteps[start + k], Frames[index], parentLooped, parts, partCount);
+                    EffectResults[start + k] = step;
+                    // Once a plan does not fit, the main thread appends them all, growing the buffers.
+                    EffectPlans[start + k] = step.visible && step.draw_plan_len > 0 && copies.Fits
+                        ? SpriteStudioEffectPlanBuffer.CopyPlan(new SpriteStudioEffectPlanBuffer.PlanView(step.draw_plan_buf), ref copies)
+                        : default;
                 }
+                EffectCopies[index] = copies;
             }
         }
     }

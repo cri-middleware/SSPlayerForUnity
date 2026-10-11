@@ -657,8 +657,11 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         }
 
         // Effect steps the update manager's parallel pass took on a worker, for the next ConsumeFrameData:
-        // this player's first result in _steppedEffects, or -1 to step the slots there.
+        // this player's first result in _steppedEffects, or -1 to step the slots there. The worker also copied
+        // the visible plans into the merged buffers, at _steppedPlans, unless they did not fit.
         private NativeArray<ss_effect_step_result> _steppedEffects;
+        private NativeArray<EffectDrawPlanData> _steppedPlans;
+        private SpriteStudioEffectPlanBuffer.CopyTarget _steppedCopies;
         private int _steppedEffectsStart = -1;
 
         /// <summary>
@@ -682,12 +685,22 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         }
 
         /// <summary>
-        /// Hand over what the parallel pass got stepping <see cref="WriteEffectSteps"/>'s slots, starting at
-        /// <paramref name="start"/>; the next ConsumeFrameData draws these instead of stepping the slots.
+        /// The merged effect buffers, for the parallel pass's worker to copy this player's plans into as it
+        /// steps <see cref="WriteEffectSteps"/>'s slots.
         /// </summary>
-        internal void UseSteppedEffects(NativeArray<ss_effect_step_result> results, int start)
+        internal SpriteStudioEffectPlanBuffer.CopyTarget EffectCopyTarget() => _effectBuffer.WorkerTarget();
+
+        /// <summary>
+        /// Hand over what the parallel pass got stepping <see cref="WriteEffectSteps"/>'s slots, starting at
+        /// <paramref name="start"/>, and the plans it copied into <see cref="EffectCopyTarget"/>; the next
+        /// ConsumeFrameData draws these instead of stepping the slots.
+        /// </summary>
+        internal void UseSteppedEffects(NativeArray<ss_effect_step_result> results, NativeArray<EffectDrawPlanData> plans,
+            in SpriteStudioEffectPlanBuffer.CopyTarget copies, int start)
         {
             _steppedEffects = results;
+            _steppedPlans = plans;
+            _steppedCopies = copies;
             _steppedEffectsStart = start;
         }
 
@@ -719,14 +732,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         {
             count = 0;
             if (frameData == null) return null;
-            byte* table = frameData + *(int*)frameData;
-            byte* vtable = table - *(int*)table;
-            ushort field = PartsVtoff < *(ushort*)vtable ? *(ushort*)(vtable + PartsVtoff) : (ushort)0;
-            if (field == 0) return null;
-            byte* vector = table + field;
-            vector += *(int*)vector;
-            count = *(int*)vector;
-            return (RawPartState*)(vector + sizeof(int));
+            return (RawPartState*)SpriteStudioNativeBuffers.RootVector(frameData, PartsVtoff, out count);
         }
 
         // The frame rate effects step at: the animation's, or 60 when it reports none.
@@ -738,10 +744,18 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
         /// <summary>
         /// Step the active effect slots -- or take the steps the parallel pass took, from
-        /// <paramref name="steppedEffects"/> on -- and append the visible ones' draw_plan into the merged buffer.
+        /// <paramref name="steppedEffects"/> on -- and append the visible ones' draw_plan into the merged buffer,
+        /// unless the parallel pass copied them there already.
         /// </summary>
         private unsafe void StepEffects(byte* frameDataPtr, float drawFrameNo, float deltaTime, float fps, bool parentLooped, int steppedEffects)
         {
+            if (steppedEffects >= 0 && _steppedCopies.Fits)
+            {
+                _effectBuffer.TakeCopied(_steppedCopies);
+                for (int k = 0; k < _player._effectPartCount; k++)
+                    _effectBuffer.SetPlan(_player._effectPartIndices[k], _steppedPlans[steppedEffects + k]);
+                return;
+            }
             // Only the serial path steps here; the parallel pass read the parts on its worker.
             int partCount = 0;
             RawPartState* parts = steppedEffects >= 0 ? null : PartsOf(frameDataPtr, out partCount);
@@ -1337,6 +1351,46 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     mc->Rb.A == cAcc.Rb.Rgba.A && mc->Rb.R == cAcc.Rb.Rgba.R && mc->Rb.G == cAcc.Rb.Rgba.G && mc->Rb.B == cAcc.Rb.Rgba.B && mc->Rb.Rate == cAcc.Rb.Rate;
                 UnityEngine.Debug.Assert(colorOk,
                     "RawPartColor field offsets do not match the framedata PartAttributePartColor accessor - verify BlendType@0/Lt@4/Rt@12/Lb@20/Rb@28 and U8Color A@0/R@1/G@2/B@3+Rate@4, then update the mirror struct");
+            }
+
+            // (3) The same roundtrip for the EffectDrawPlan SpriteStudioEffectPlanBuffer.PlanView reads raw: two
+            //     sentinel commands (their stride too) and a different length for every vector.
+            var pb = new Google.FlatBuffers.FlatBufferBuilder(256);
+            var vertsVec = ss.runtime.EffectDrawPlan.CreateVertsVector(pb, new[] { 1f, 2f });
+            var uvsVec = ss.runtime.EffectDrawPlan.CreateUvsVector(pb, new[] { 3f, 4f, 5f });
+            var colorsVec = ss.runtime.EffectDrawPlan.CreateColorsVector(pb, new[] { 6f, 7f, 8f, 9f });
+            var indicesVec = ss.runtime.EffectDrawPlan.CreateIndicesVector(pb, new[] { 10, 11, 12, 13, 14 });
+            ss.runtime.EffectDrawPlan.StartCommandsVector(pb, 2);
+            ss.runtime.EffectDrawCommand.CreateEffectDrawCommand(pb, 0x55667788u, 0x0E0F1011u, 0x12131415u, 0);
+            ss.runtime.EffectDrawCommand.CreateEffectDrawCommand(pb, 0x11223344u, 0x0A0B0C0Du, 0x01020304u, 1);
+            var commandsVec = pb.EndVector();
+            ss.runtime.EffectDrawPlan.StartEffectDrawPlan(pb);
+            ss.runtime.EffectDrawPlan.AddCommands(pb, commandsVec);
+            ss.runtime.EffectDrawPlan.AddVertStride(pb, 2);
+            ss.runtime.EffectDrawPlan.AddVerts(pb, vertsVec);
+            ss.runtime.EffectDrawPlan.AddUvs(pb, uvsVec);
+            ss.runtime.EffectDrawPlan.AddColors(pb, colorsVec);
+            ss.runtime.EffectDrawPlan.AddIndices(pb, indicesVec);
+            pb.Finish(ss.runtime.EffectDrawPlan.EndEffectDrawPlan(pb).Value);
+
+            byte[] planArr = pb.DataBuffer.ToSizedArray();
+            var plan = ss.runtime.EffectDrawPlan.GetRootAsEffectDrawPlan(new Google.FlatBuffers.ByteBuffer(planArr));
+            fixed (byte* planPtr = planArr)
+            {
+                var view = new SpriteStudioEffectPlanBuffer.PlanView(planPtr);
+                bool planOk = view.CommandCount == plan.CommandsLength && view.VertCount == plan.VertsLength
+                    && view.UvCount == plan.UvsLength && view.ColorCount == plan.ColorsLength && view.IndexCount == plan.IndicesLength
+                    && view.Verts[1] == plan.Verts(1) && view.Uvs[2] == plan.Uvs(2) && view.Colors[3] == plan.Colors(3)
+                    && view.Indices[4] == plan.Indices(4);
+                for (int c = 0; planOk && c < view.CommandCount; c++)
+                {
+                    byte* mcmd = view.Commands + c * SpriteStudioEffectPlanBuffer.PlanView.CommandSize;
+                    var cmd = plan.Commands(c).Value;
+                    planOk = *(uint*)mcmd == cmd.CellmapHash && *(uint*)(mcmd + 4) == cmd.QuadCount
+                        && *(uint*)(mcmd + 8) == cmd.ParticleOffset && mcmd[12] == cmd.Blend;
+                }
+                UnityEngine.Debug.Assert(planOk,
+                    "SpriteStudioEffectPlanBuffer.PlanView does not match the EffectDrawPlan accessor - verify the vtable offsets commands@4/verts@8/uvs@10/colors@12/indices@14 and EffectDrawCommand CellmapHash@0/QuadCount@4/ParticleOffset@8/Blend@12, stride 16");
             }
 #endif
         }
