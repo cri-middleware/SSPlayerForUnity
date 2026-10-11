@@ -74,4 +74,3 @@ to a `Mesh` with `SetVertexBufferData`. `.sspj` projects are converted to `.ssab
     immutable folder, so a native library or binding that ships without its `.meta` installs as nothing,
     silently. This is also why `deploy-examples` has to run before Unity first opens an example project —
     see [CONTRIBUTING.md](./CONTRIBUTING.md).
-*   **Keep `package/Tests/` green** when changing core logic or the geometry builder.
