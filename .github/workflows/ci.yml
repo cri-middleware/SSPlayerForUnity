@@ -1,18 +1,29 @@
 name: CI
 
-# Cheap consistency checks that need neither Unity nor the SDK binaries, so they
-# run on every push and PR. The test suite needs the Editor and a licence, so no
-# workflow runs it: it is scripts/run-tests.sh, on a maintainer's machine. A real
-# pack needs the native libs, and is built by release.yml.
+# Two tiers, as in SpriteStudio-SDK. Every pull request runs the consistency
+# checks, which need neither Unity nor the SDK binaries, and builds the runtime
+# for Linux from the SDK submodule with scripts/build-runtime.sh. The weekly run,
+# a dispatch and the release PR (release/X.Y into main) also build the runtime
+# for macOS, iOS, Android, Web and Windows, and build the documentation site.
 #
-# These exist because of what actually went wrong: a package.json missing the
-# dependencies its asmdefs use, native plugins shipped without a .meta, and
-# dev-only files sliding into the tarball. All three are catchable from the repo
-# alone.
+# The test suite needs the Editor and a licence, so no workflow runs it: it is
+# scripts/run-tests.sh, on a maintainer's machine. A real pack takes the pinned
+# SDK release (download-sdk), and is built by release.yml.
+#
+# The consistency checks exist because of what actually went wrong: a
+# package.json missing the dependencies its asmdefs use, native plugins shipped
+# without a .meta, and dev-only files sliding into the tarball. All three are
+# catchable from the repo alone.
 on:
-  push:
-    branches: [main, develop]
   pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - '.gitignore'
+      - 'LICENSE*'
+  # The weekly run also writes the develop caches that PRs restore from, since
+  # PRs do not save.
+  schedule:
+    - cron: '0 0 * * 0'
   workflow_dispatch:
 
 permissions:
@@ -167,19 +178,26 @@ jobs:
       # The zsh scripts are covered by ci-scripts.yml, on a runner that has zsh -
       # so this job handles the bash ones and names what it left alone rather than
       # implying it covered everything.
-      - name: Bash scripts parse
+      # build-runtime.sh is zsh: it uses ${(@kv)...}, ${(@s/=/)...}, 1-based array
+      # indexing and the :l modifier for its argument map, so bash cannot parse
+      # it. `zsh -n` checks syntax only; the runtime job runs the script.
+      - name: Install zsh
+        run: sudo apt-get update && sudo apt-get install -y zsh
+
+      - name: Scripts parse (bash and zsh)
         run: |
           set -uo pipefail
           fail=0
           for f in scripts/*.sh; do
-            if ! head -1 "$f" | grep -q 'bash'; then
-              echo "deferred to ci-scripts.yml (zsh): $f"
-              continue
-            fi
-            if bash -n "$f"; then
-              echo "ok: $f"
+            if head -1 "$f" | grep -q zsh; then
+              shell=zsh
             else
-              echo "::error file=$f::bash parse error"
+              shell=bash
+            fi
+            if "$shell" -n "$f"; then
+              echo "ok ($shell): $f"
+            else
+              echo "::error file=$f::$shell parse error"
               fail=1
             fi
           done
@@ -199,3 +217,159 @@ jobs:
                   bad = True
           sys.exit(1 if bad else 0)
           "
+
+  # The runtime built from the SDK submodule, the source a pull request that bumps
+  # the submodule changes: scripts/build-runtime.sh builds it, generates the C#
+  # bindings, and copies both into package/.
+  runtime:
+    name: 🐧 Runtime (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Install zsh
+        run: sudo apt-get update && sudo apt-get install -y zsh
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          # Pinned by SHA, so the channel must be named explicitly here.
+          toolchain: stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: SpriteStudio-SDK
+          # Only develop writes caches. A PR's cache is visible to that PR alone,
+          # so saving one per PR would only fill the 10 GB quota and evict the
+          # develop caches every PR restores from.
+          save-if: ${{ github.ref == 'refs/heads/develop' }}
+
+      - name: Build the runtime
+        run: ./scripts/build-runtime.sh platform=linux build=debug
+
+  # The weekly tier. `github.base_ref == 'main'` is the release PR: under git-flow
+  # only release/X.Y is merged into main.
+  platforms:
+    name: ${{ matrix.name }}
+    if: github.event_name != 'pull_request' || github.base_ref == 'main'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: 🍎 Runtime (macOS, universal)
+            os: macos-latest
+            platform: macos
+
+          - name: 🍏 Runtime (iOS)
+            os: macos-latest
+            platform: ios
+
+          - name: 🤖 Runtime (Android, arm64)
+            os: ubuntu-latest
+            platform: android
+
+          - name: 🌐 Runtime (Web, wasm32)
+            os: ubuntu-latest
+            platform: web
+
+          - name: 🏁 Runtime (Windows, x86_64)
+            os: windows-latest
+            platform: windows
+
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Install zsh
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y zsh
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: SpriteStudio-SDK
+          # The key is the job id and the runner OS, which the jobs of this
+          # matrix share. Without the platform only the first to finish could
+          # save, and the others would restore its target dir.
+          key: ${{ matrix.platform }}
+          save-if: ${{ github.ref == 'refs/heads/develop' }}
+
+      # The targets and tools SpriteStudio-SDK's release.yml installs for the
+      # release scripts build-runtime.sh runs.
+      - name: Setup Android NDK
+        if: matrix.platform == 'android'
+        uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1.6.0
+        with:
+          ndk-version: r23c
+          link-to-sdk: true
+
+      - name: Install targets
+        run: |
+          case "${{ matrix.platform }}" in
+            macos)   rustup target add aarch64-apple-darwin x86_64-apple-darwin ;;
+            ios)     rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios ;;
+            android) cargo install cargo-ndk --locked
+                     rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android ;;
+            web)     rustup toolchain install nightly
+                     rustup target add wasm32-unknown-unknown --toolchain nightly
+                     rustup component add rust-src --toolchain nightly ;;
+            windows) rustup target add x86_64-pc-windows-msvc ;;
+          esac
+
+      - name: Build the runtime
+        if: matrix.platform == 'macos'
+        run: ./scripts/build-runtime.sh platform=macos arch=universal build=release
+
+      - name: Build the runtime
+        if: matrix.platform == 'ios' || matrix.platform == 'web'
+        run: ./scripts/build-runtime.sh platform=${{ matrix.platform }} build=release
+
+      - name: Build the runtime
+        if: matrix.platform == 'android'
+        run: ./scripts/build-runtime.sh platform=android arch=arm64 build=release
+
+      - name: Build the runtime
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: ./scripts/build-runtime.ps1 platform=windows build=release
+
+  # Builds the site the way pages.yml publishes it, both locales --strict, so a
+  # broken link or nav entry surfaces here rather than when a release is
+  # published.
+  docs:
+    name: 📚 Docs site
+    if: github.event_name != 'pull_request' || github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: 3.x
+          cache: pip
+          cache-dependency-path: docs/requirements.txt
+
+      - name: Install docs dependencies
+        run: ./scripts/prepare-docs.sh
+
+      - name: Build the Pages tree (docs, both locales, strict validation)
+        run: ./scripts/build-pages.sh prepare=no serve=no
