@@ -366,7 +366,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 }
 
                 // Step the active effect/instance slots and fill the merged buffer / child mesh pointers.
-                StepEffects(drawFrameNo, deltaTime, fps, parentLooped, steppedEffects);
+                StepEffects(frameDataPtr, drawFrameNo, deltaTime, fps, parentLooped, steppedEffects);
                 int childHandleCount = StepInstances(drawFrameNo, deltaTime, parentLooped, partsLength);
 
                 // maxBatches also aggregates only active effect/instance parts (inactive contribute default=0, so unneeded).
@@ -692,13 +692,41 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         }
 
         /// <summary>
-        /// Step one effect slot of the player whose runtime is <paramref name="context"/>. Both StepEffects and
-        /// the parallel pass's worker make this call, so the two cannot step a slot differently.
+        /// Step one effect slot of the player whose runtime is <paramref name="context"/>, against the parts of
+        /// the frame just built (<see cref="PartsOf"/>). Both StepEffects and the parallel pass's worker make
+        /// this call, so the two cannot step a slot differently.
+        /// <para>
+        /// A part the frame hides is not drawn -- the runtime leaves it out of the draw order -- so its slot
+        /// steps without building a draw plan: the clock and the transitions still move, which is all an
+        /// independently playing effect needs while hidden, and the first drawn step after it builds the plan
+        /// it would have built anyway.
+        /// </para>
         /// </summary>
-        internal static unsafe ss_effect_step_result StepEffectSlot(void* context, in EffectStep step, float drawFrameNo, bool parentLooped)
+        internal static unsafe ss_effect_step_result StepEffectSlot(void* context, in EffectStep step, float drawFrameNo, bool parentLooped,
+            RawPartState* parts, int partCount)
         {
             var ev = NativeMethods.ss_runtime_get_active_effect_event(context, step.PartIndex);
-            return NativeMethods.ss_effect_slot_step((void*)step.Slot, ev, drawFrameNo, step.DeltaSeconds, step.Fps, parentLooped, false, 3);
+            bool draw = step.PartIndex < (uint)partCount && parts[step.PartIndex].Hide == 0;
+            return NativeMethods.ss_effect_slot_step((void*)step.Slot, ev, drawFrameNo, step.DeltaSeconds, step.Fps, parentLooped, false, 3, draw);
+        }
+
+        /// <summary>
+        /// The parts vector of a FrameData buffer, read straight from the bytes as the fill in
+        /// ConsumeFrameData reads it (root table, then field <see cref="PartsVtoff"/>), so a worker can read it
+        /// without a managed ByteBuffer. Null with a zero count when the frame carries none.
+        /// </summary>
+        internal static unsafe RawPartState* PartsOf(byte* frameData, out int count)
+        {
+            count = 0;
+            if (frameData == null) return null;
+            byte* table = frameData + *(int*)frameData;
+            byte* vtable = table - *(int*)table;
+            ushort field = PartsVtoff < *(ushort*)vtable ? *(ushort*)(vtable + PartsVtoff) : (ushort)0;
+            if (field == 0) return null;
+            byte* vector = table + field;
+            vector += *(int*)vector;
+            count = *(int*)vector;
+            return (RawPartState*)(vector + sizeof(int));
         }
 
         // The frame rate effects step at: the animation's, or 60 when it reports none.
@@ -712,8 +740,11 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         /// Step the active effect slots -- or take the steps the parallel pass took, from
         /// <paramref name="steppedEffects"/> on -- and append the visible ones' draw_plan into the merged buffer.
         /// </summary>
-        private unsafe void StepEffects(float drawFrameNo, float deltaTime, float fps, bool parentLooped, int steppedEffects)
+        private unsafe void StepEffects(byte* frameDataPtr, float drawFrameNo, float deltaTime, float fps, bool parentLooped, int steppedEffects)
         {
+            // Only the serial path steps here; the parallel pass read the parts on its worker.
+            int partCount = 0;
+            RawPartState* parts = steppedEffects >= 0 ? null : PartsOf(frameDataPtr, out partCount);
             for (int k = 0; k < _player._effectPartCount; k++)
             {
                 int i = _player._effectPartIndices[k];
@@ -725,7 +756,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         PartIndex = (uint)i,
                         DeltaSeconds = deltaTime,
                         Fps = fps,
-                    }, drawFrameNo, parentLooped);
+                    }, drawFrameNo, parentLooped, parts, partCount);
                 if (step.visible && step.draw_plan_len > 0)
                     _effectBuffer.SetPlan(i, _effectBuffer.Append(step.draw_plan_buf, (int)step.draw_plan_len));
                 // Non-visible stays at the MemClear'd default
@@ -1219,6 +1250,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         [FieldOffset(0)]   public ulong UpdateFlag;
         [FieldOffset(48)]  public float Alpha;
         [FieldOffset(128)] public short PartColor;
+        [FieldOffset(138)] public byte Hide;
     }
 
     internal static class SpriteStudioRawLayoutCheck
@@ -1251,7 +1283,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 0,0,                                                   // PartIndex, Cell
                 (short)0x4321,                                         // PartColor (sentinel)
                 0,0,0,                                                 // Shader, Vertex, Deform
-                false,false,false,false,false);                       // FlipH..ImgFlipV
+                false,false,true,false,false);                        // FlipH, FlipV, Hide (sentinel), ImgFlipH, ImgFlipV
             var partsVec = b.EndVector();
 
             ss.runtime.FrameData.StartPartsColorVector(b, 1);
@@ -1292,8 +1324,9 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 RawPartState* mp = (RawPartState*)(basePtr + t.__vector(t.__offset(SpriteStudioGeometryBuilder.PartsVtoff)));
                 UnityEngine.Debug.Assert(
-                    mp->UpdateFlag == (ulong)pAcc.UpdateFlag && mp->Alpha == pAcc.Alpha && mp->PartColor == pAcc.PartColor,
-                    "RawPartState field offsets do not match the framedata PartState accessor - verify UpdateFlag@0/Alpha@48/PartColor@128 and update the mirror struct");
+                    mp->UpdateFlag == (ulong)pAcc.UpdateFlag && mp->Alpha == pAcc.Alpha && mp->PartColor == pAcc.PartColor
+                    && (mp->Hide != 0) == pAcc.Hide,
+                    "RawPartState field offsets do not match the framedata PartState accessor - verify UpdateFlag@0/Alpha@48/PartColor@128/Hide@138 and update the mirror struct");
 
                 RawPartColor* mc = (RawPartColor*)(basePtr + t.__vector(t.__offset(SpriteStudioGeometryBuilder.PartsColorVtoff)));
                 bool colorOk =

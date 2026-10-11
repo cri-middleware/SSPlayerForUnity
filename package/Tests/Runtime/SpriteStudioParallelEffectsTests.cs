@@ -28,19 +28,23 @@ namespace SpriteStudio.Runtime.Tests
         private const int Players = 3; // the parallel pass needs at least ParallelMinCount
         private const int Frames = 120;
 
+        private static SpriteStudioAnimeAsset LoadEffect(out bool created)
+        {
+            created = false;
+            var asset = Resources.Load<SpriteStudioAnimeAsset>(EffectAssetPath);
+            if (asset != null && asset.SsabData != null && asset.SsabData.Length > 0) return asset;
+            string path = Path.GetFullPath(EffectSsabPath);
+            if (!File.Exists(path)) Assert.Ignore("Effect.ssab is unavailable (converted with the clipping-mask fixture from the SDK's overall.sspj).");
+            asset = ScriptableObject.CreateInstance<SpriteStudioAnimeAsset>();
+            asset.SsabData = File.ReadAllBytes(path);
+            created = true;
+            return asset;
+        }
+
         [UnityTest]
         public IEnumerator ParallelPass_DrawsWhatTheSerialPassDraws()
         {
-            var asset = Resources.Load<SpriteStudioAnimeAsset>(EffectAssetPath);
-            bool createdAsset = false;
-            if (asset == null || asset.SsabData == null || asset.SsabData.Length == 0)
-            {
-                string path = Path.GetFullPath(EffectSsabPath);
-                if (!File.Exists(path)) Assert.Ignore("Effect.ssab is unavailable (converted with the clipping-mask fixture from the SDK's overall.sspj).");
-                asset = ScriptableObject.CreateInstance<SpriteStudioAnimeAsset>();
-                asset.SsabData = File.ReadAllBytes(path);
-                createdAsset = true;
-            }
+            var asset = LoadEffect(out bool createdAsset);
 
             bool parallel = SpriteStudioUpdateManager.ParallelFrameData;
             var serial = new List<ulong>();
@@ -66,6 +70,59 @@ namespace SpriteStudio.Runtime.Tests
             Assert.AreEqual(serial.Count, stepped.Count);
             for (int f = 0; f < serial.Count; f++)
                 Assert.AreEqual(serial[f], stepped[f], $"frame {f} differs between the serial and the parallel pass");
+        }
+
+        /// <summary>
+        /// A hidden effect part steps without building a draw plan, and its clock still moves: shown again, a
+        /// player draws what a player that never hid it draws, in the parallel pass and in the serial one. The
+        /// particles are checked to be there, so two players drawing none would not pass.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator HiddenEffects_DrawWhatTheNeverHiddenDrawOnceShown()
+        {
+            var asset = LoadEffect(out bool createdAsset);
+            bool parallel = SpriteStudioUpdateManager.ParallelFrameData;
+            var objects = new List<GameObject>();
+            try
+            {
+                Time.captureDeltaTime = 1f / 60f;
+                foreach (bool pass in new[] { true, false })
+                {
+                    SpriteStudioUpdateManager.ParallelFrameData = pass;
+                    var shown = new GameObject("NeverHidden").AddComponent<SpriteStudioPlayer>();
+                    var hidden = new GameObject("HiddenAWhile").AddComponent<SpriteStudioPlayer>();
+                    objects.Add(shown.gameObject);
+                    objects.Add(hidden.gameObject);
+                    shown.AnimeAsset = hidden.AnimeAsset = asset;
+                    shown.SetAnimation(Animation);
+                    hidden.SetAnimation(Animation);
+                    int compared = 0;
+                    for (int f = 0; f < 90; f++)
+                    {
+                        // Part 0 is the root, so cascading hides every effect part with it.
+                        if (f == 10) Assume.That(hidden.InternalPlayer.SetPartVisibilityOverride(0, true, true), Is.True);
+                        if (f == 50) Assume.That(hidden.InternalPlayer.ClearPartVisibilityOverride(0), Is.True);
+                        yield return null;
+                        if (f < 60) continue;
+                        var a = shown.InternalPlayer;
+                        var b = hidden.InternalPlayer;
+                        Assert.AreEqual(Hash(a.MeshVertices, a.VertexCount, 0), Hash(b.MeshVertices, b.VertexCount, 0),
+                            $"frame {f} ({(pass ? "parallel" : "serial")} pass): the effect lost the time it spent hidden");
+                        if (DrawsParticles(b._geometryBuilder)) compared++;
+                    }
+                    Assert.Greater(compared, 0, $"no particle was drawn after the hidden stretch ({(pass ? "parallel" : "serial")} pass)");
+                    foreach (var go in objects) Object.DestroyImmediate(go);
+                    objects.Clear();
+                    yield return null;
+                }
+            }
+            finally
+            {
+                foreach (var go in objects) if (go != null) Object.DestroyImmediate(go);
+                SpriteStudioUpdateManager.ParallelFrameData = parallel;
+                Time.captureDeltaTime = 0f;
+                if (createdAsset) Object.DestroyImmediate(asset);
+            }
         }
 
         // Plays the animation on fresh players and records, after each frame, a hash of every player's vertices.
