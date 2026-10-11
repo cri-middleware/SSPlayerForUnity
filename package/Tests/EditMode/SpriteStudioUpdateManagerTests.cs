@@ -55,6 +55,10 @@ namespace SpriteStudio.Runtime.EditModeTests
             }
 
             public IntPtr GetLiveHandle() => LiveHandle;
+
+            public SpriteStudioInternalPlayer InternalPlayer => null;
+
+            public float ConsumeDeltaTime(float deltaTime) => deltaTime;
         }
 
         [SetUp]
