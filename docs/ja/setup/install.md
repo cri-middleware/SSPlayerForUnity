@@ -20,17 +20,45 @@
 
 ---
 
-## 1. パッケージからのインストール（推奨）
+## 1. リリースのパッケージからのインストール（推奨）
 
-最も簡単で確実な方法です。GitHub Releases で配布されているコンパイル済みの Unity パッケージを利用します。
+最も簡単で確実な方法です。各リリースが公開するコンパイル済みのパッケージを使います。npm と GitHub Releases の tarball の 2 か所にあり、中身は同じです。npm なら Package Manager が名前で取得でき、tarball なら設定が要りません。
+
+### npm から
+
+パッケージは npm に [`jp.co.cri-mw.spritestudio.ssplayer-unity`](https://www.npmjs.com/package/jp.co.cri-mw.spritestudio.ssplayer-unity) として公開しています。プロジェクトごとに一度、npm を `jp.co.cri-mw` scope の registry として登録してから、名前でインストールします。
+
+1. **Edit > Project Settings > Package Manager** を開き、**Scoped Registries** に次の項目を追加して保存します。
+   - **Name**: `npmjs`（任意の名前で構いません）
+   - **URL**: `https://registry.npmjs.org`
+   - **Scope(s)**: `jp.co.cri-mw`
+2. **Window > Package Manager** を開き、左上の **＋** ボタンから **Install package by name...** を選びます。
+3. 名前に `jp.co.cri-mw.spritestudio.ssplayer-unity`、バージョンにインストールするバージョンを入力し、**Install** を押します。[npm のバージョン一覧](https://www.npmjs.com/package/jp.co.cri-mw.spritestudio.ssplayer-unity?activeTab=versions)は [GitHub Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) と同じです。
+
+同じ 2 つの設定は、`Packages/manifest.json` に直接書いても構いません。既にある項目の隣に足し、`X.Y.Z` をインストールするバージョンに置き換えます。
+
+```json
+{
+  "scopedRegistries": [
+    {
+      "name": "npmjs",
+      "url": "https://registry.npmjs.org",
+      "scopes": ["jp.co.cri-mw"]
+    }
+  ],
+  "dependencies": {
+    "jp.co.cri-mw.spritestudio.ssplayer-unity": "X.Y.Z"
+  }
+}
+```
+
+### tarball から
 
 1. パッケージの tarball をダウンロードします。下記の恒久リンクは常に最新リリースを指します。
    - [`jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz)
    - 特定バージョンを選びたい場合は、[GitHub Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) ページから `.tgz` アセットをダウンロードしてください。
 2. Unity メニューから **Window > Package Manager** を開きます。
 3. 左上の **＋** ボタンから **Add package from tarball...** を選び、ダウンロードしたファイルを選択します。
-
-> **注意:** Package Manager の *Add package from URL...*（git URL）ではこのパッケージを導入できません。ネイティブプラグインのバイナリはリリースの tarball のみに同梱されるため、必ずダウンロードした `.tgz` を *Add package from tarball...* で追加してください。
 
 > **ダウンロードの検証（任意）:** 各リリースには `SHA256SUMS` も添付されています。本パッケージはネイティブバイナリを含むため、必要に応じてダウンロードした tarball が改変されていないか確認できます。
 >
@@ -40,6 +68,8 @@
 > ```
 >
 > バージョン付き tarball と安定エイリアスの両方が記載されているため、ダウンロードした側が `OK`、もう一方は `No such file or directory` と表示されます。
+
+> **注意:** Package Manager の *Add package from URL...*（git URL）ではこのパッケージを導入できません。ネイティブプラグインのバイナリはリリースのパッケージにのみ同梱されるため、npm から、または *Add package from tarball...* で追加してください。
 
 ---
 

@@ -20,17 +20,45 @@ The project template you start from can be **either 2D or 3D**. What this packag
 
 ---
 
-## 1. Install from a Package (Recommended)
+## 1. Install the Released Package (Recommended)
 
-This is the easiest and most reliable method. It uses the precompiled Unity package distributed on GitHub Releases.
+This is the easiest and most reliable method. It uses the precompiled package each release publishes, on npm and as a tarball on GitHub Releases: the same package in both places. From npm, Package Manager fetches it by name; the tarball needs no setup.
+
+### From npm
+
+The package is on npm as [`jp.co.cri-mw.spritestudio.ssplayer-unity`](https://www.npmjs.com/package/jp.co.cri-mw.spritestudio.ssplayer-unity). Register npm once per project as the registry for the `jp.co.cri-mw` scope, then install the package by name.
+
+1. Open **Edit > Project Settings > Package Manager**, add an entry under **Scoped Registries**, and save it:
+   - **Name**: `npmjs` (any name will do)
+   - **URL**: `https://registry.npmjs.org`
+   - **Scope(s)**: `jp.co.cri-mw`
+2. Open **Window > Package Manager**, click the **＋** button in the top left, and select **Install package by name...**.
+3. Enter `jp.co.cri-mw.spritestudio.ssplayer-unity` as the name and the version to install, then click **Install**. The [versions on npm](https://www.npmjs.com/package/jp.co.cri-mw.spritestudio.ssplayer-unity?activeTab=versions) are the ones on [GitHub Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases).
+
+The same two settings can go into `Packages/manifest.json` instead, beside the entries already there, with `X.Y.Z` replaced by the version to install:
+
+```json
+{
+  "scopedRegistries": [
+    {
+      "name": "npmjs",
+      "url": "https://registry.npmjs.org",
+      "scopes": ["jp.co.cri-mw"]
+    }
+  ],
+  "dependencies": {
+    "jp.co.cri-mw.spritestudio.ssplayer-unity": "X.Y.Z"
+  }
+}
+```
+
+### From a tarball
 
 1. Download the package tarball. The stable link below always points to the latest release:
    - [`jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz)
    - To pick a specific version instead, download the `.tgz` asset from the [GitHub Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) page.
 2. Open **Window > Package Manager** from the Unity menu.
 3. Click the **＋** button in the top left, select **Add package from tarball...**, and choose the downloaded file.
-
-> **Note:** Package Manager's *Add package from URL...* (git URL) cannot install this package. The native plugin binaries are distributed only inside the release tarball, so always use *Add package from tarball...* with the downloaded `.tgz`.
 
 > **Verifying the download (optional):** every release also attaches a `SHA256SUMS` file. Since the package contains native binaries, you may want to check the tarball you downloaded matches:
 >
@@ -40,6 +68,8 @@ This is the easiest and most reliable method. It uses the precompiled Unity pack
 > ```
 >
 > It covers both the version-pinned tarball and the stable alias, so it reports `OK` for whichever one you downloaded and `No such file or directory` for the other.
+
+> **Note:** Package Manager's *Add package from URL...* (git URL) cannot install this package. The native plugin binaries are distributed only inside the released package, so install it from npm or with *Add package from tarball...*.
 
 ---
 
