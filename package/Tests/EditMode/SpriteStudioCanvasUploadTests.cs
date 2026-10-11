@@ -9,11 +9,14 @@ namespace SpriteStudio.Runtime.EditModeTests
     /// Guard for the Canvas upload (<see cref="SpriteStudioMeshUploader.ApplyCanvas"/>), which leaves the mesh's
     /// indices in place while the topology is unchanged. A frame that only moved the vertices must still get
     /// its new vertex streams, and a frame with a new topology must replace the indices, with fewer vertices than
-    /// the frame before as with more.
+    /// the frame before as with more. Each holds whether the upload converts the streams itself or takes what
+    /// <see cref="SpriteStudioMeshUploader.ScheduleCanvas"/> converted on a worker, unless the tint has changed
+    /// since.
     /// </summary>
     public class SpriteStudioCanvasUploadTests
     {
         private static readonly Color32 White = new Color32(255, 255, 255, 255);
+        private static readonly Color32 Blue = new Color32(0, 0, 255, 255);
         private static readonly int[] Quad = { 0, 1, 2, 1, 3, 2 };
 
         private NativeArray<SsVertex> _vertices;
@@ -63,17 +66,25 @@ namespace SpriteStudio.Runtime.EditModeTests
             _bounds[1] = new Vector3(x + 1f, 1f, 0f);
         }
 
-        private void Upload(ulong topology, Color32 tint, bool frameSkipped = false, int vertexCount = 4, int indexCount = 6)
+        private SpriteStudioMeshUploader.UploadData Data(ulong topology, bool frameSkipped = false, int vertexCount = 4, int indexCount = 6)
+            => new SpriteStudioMeshUploader.UploadData(frameSkipped, vertexCount, indexCount, _vertices, _indices, _submeshes, 0, topology, _bounds);
+
+        // With converted, ScheduleCanvas has run the conversion first, as the update manager does for a frame it built.
+        private void Upload(ulong topology, Color32 tint, bool frameSkipped = false, bool converted = false, int vertexCount = 4, int indexCount = 6)
         {
-            _uploader.ApplyCanvas(_mesh, tint, new SpriteStudioMeshUploader.UploadData(
-                frameSkipped, vertexCount, indexCount, _vertices, _indices, _submeshes, 0, topology, _bounds));
+            if (converted) Convert(topology, tint, vertexCount, indexCount);
+            _uploader.ApplyCanvas(_mesh, tint, Data(topology, frameSkipped, vertexCount, indexCount));
         }
 
-        [Test]
-        public void Channels_CarryTheTintThePartAlphaAndThePartColour()
+        private void Convert(ulong topology, Color32 tint, int vertexCount = 4, int indexCount = 6)
+            => _uploader.ScheduleCanvas(_mesh, tint, Data(topology, false, vertexCount, indexCount), default).Complete();
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void Channels_CarryTheTintThePartAlphaAndThePartColour(bool converted)
         {
             SetQuad(0f, new Color32(51, 102, 153, 128), Quad);
-            Upload(1, new Color32(255, 128, 0, 200));
+            Upload(1, new Color32(255, 128, 0, 200), converted: converted);
 
             var colours = _mesh.colors32;
             Assert.AreEqual(new Color32(255, 128, 0, 200 * 128 / 255), colours[3], "the tint times the part's alpha");
@@ -91,15 +102,16 @@ namespace SpriteStudio.Runtime.EditModeTests
                 "the bounds the mesh job computed");
         }
 
-        [Test]
-        public void SameTopology_TakesTheNewVertices_AndKeepsTheIndices()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void SameTopology_TakesTheNewVertices_AndKeepsTheIndices(bool converted)
         {
             SetQuad(0f, White, Quad);
-            Upload(1, White);
+            Upload(1, White, converted: converted);
 
             // The topology says nothing changed, so these indices are not the ones the frame draws with.
             SetQuad(10f, new Color32(255, 255, 255, 51), new[] { 3, 3, 3, 3, 3, 3 });
-            Upload(1, White);
+            Upload(1, White, converted: converted);
 
             Assert.AreEqual(new Vector3(11f, 1f, 0f), _mesh.vertices[3]);
             Assert.AreEqual(51, _mesh.colors32[3].a);
@@ -107,35 +119,37 @@ namespace SpriteStudio.Runtime.EditModeTests
             Assert.AreEqual(10.5f, _mesh.bounds.center.x, 1e-5f);
         }
 
-        [Test]
-        public void NewTopology_ReplacesTheIndices()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void NewTopology_ReplacesTheIndices(bool converted)
         {
             SetQuad(0f, White, Quad);
-            Upload(1, White);
+            Upload(1, White, converted: converted);
 
             var reordered = new[] { 1, 3, 2, 0, 1, 2 };
             SetQuad(0f, White, reordered);
-            Upload(2, White);
+            Upload(2, White, converted: converted);
 
             CollectionAssert.AreEqual(reordered, _mesh.GetIndices(0));
         }
 
-        [Test]
-        public void NewTopology_WithFewerVertices_ReplacesTheIndices()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void NewTopology_WithFewerVertices_ReplacesTheIndices(bool converted)
         {
             SetQuad(0f, White, Quad);
-            Upload(1, White);
+            Upload(1, White, converted: converted);
 
             // The quad's first triangle alone: the quad's indices reference a vertex this frame no longer has.
             var triangle = new[] { 0, 1, 2 };
             for (int i = 0; i < triangle.Length; i++) _indices[i] = (uint)triangle[i];
-            Upload(2, White, vertexCount: 3, indexCount: 3);
+            Upload(2, White, converted: converted, vertexCount: 3, indexCount: 3);
 
             Assert.AreEqual(3, _mesh.vertexCount);
             CollectionAssert.AreEqual(triangle, _mesh.GetIndices(0));
 
             SetQuad(0f, White, Quad);
-            Upload(3, White);
+            Upload(3, White, converted: converted);
 
             Assert.AreEqual(4, _mesh.vertexCount);
             CollectionAssert.AreEqual(Quad, _mesh.GetIndices(0));
@@ -147,9 +161,35 @@ namespace SpriteStudio.Runtime.EditModeTests
             SetQuad(0f, White, Quad);
             Upload(1, White);
 
-            Upload(1, new Color32(0, 0, 255, 255), frameSkipped: true);
+            Upload(1, Blue, frameSkipped: true);
 
-            Assert.AreEqual(new Color32(0, 0, 255, 255), _mesh.colors32[0]);
+            Assert.AreEqual(Blue, _mesh.colors32[0]);
+            CollectionAssert.AreEqual(Quad, _mesh.GetIndices(0));
+        }
+
+        [Test]
+        public void ConvertedFrame_UploadsTheConvertedStreams()
+        {
+            SetQuad(0f, White, Quad);
+            Convert(1, White);
+
+            // Moved after the conversion, which the update manager never does: the mesh shows which streams the
+            // upload took.
+            SetQuad(10f, White, Quad);
+            Upload(1, White);
+
+            Assert.AreEqual(new Vector3(1f, 1f, 0f), _mesh.vertices[3]);
+        }
+
+        [Test]
+        public void ConvertedFrame_WithTheTintChangedSince_UploadsTheNewTint()
+        {
+            SetQuad(0f, White, Quad);
+            Convert(1, White);
+
+            Upload(1, Blue);
+
+            Assert.AreEqual(Blue, _mesh.colors32[0]);
             CollectionAssert.AreEqual(Quad, _mesh.GetIndices(0));
         }
     }

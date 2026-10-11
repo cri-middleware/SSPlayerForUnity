@@ -1545,5 +1545,6 @@ internal struct MaskPartData
         public void ConsumeFrameData(System.IntPtr frameDataPtrRaw, int len, float deltaTime) => _geometryBuilder.ConsumeFrameData(frameDataPtrRaw, len, deltaTime);
         public void ApplyToMesh(UnityEngine.Mesh targetMesh, bool perBatchSubmesh = false) => _geometryBuilder.ApplyToMesh(targetMesh, perBatchSubmesh);
         public void ApplyToCanvasMesh(UnityEngine.Mesh targetMesh, UnityEngine.Color32 tint) => _geometryBuilder.ApplyToCanvasMesh(targetMesh, tint);
+        internal void ScheduleCanvasConversion(UnityEngine.Mesh targetMesh, UnityEngine.Color32 tint) => _geometryBuilder.ScheduleCanvasConversion(targetMesh, tint);
     }
 }

@@ -643,6 +643,16 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             _meshUploader.ApplyCanvas(targetMesh, tint, BuildUploadData());
         }
 
+        /// <summary>
+        /// Start <see cref="ApplyToCanvasMesh"/>'s conversion on a worker, behind the mesh job ConsumeFrameData
+        /// scheduled, so that ApplyToCanvasMesh with the same tint only uploads. See
+        /// <see cref="SpriteStudioMeshUploader.ScheduleCanvas"/>.
+        /// </summary>
+        internal void ScheduleCanvasConversion(UnityEngine.Mesh targetMesh, UnityEngine.Color32 tint)
+        {
+            _updateJobHandle = _meshUploader.ScheduleCanvas(targetMesh, tint, BuildUploadData(), _updateJobHandle);
+        }
+
         private SpriteStudioMeshUploader.UploadData BuildUploadData() => new SpriteStudioMeshUploader.UploadData(
             _frameSkipped, _vertexCount, _indexCount, _meshVertices, _meshIndices,
             _batchBuilder.Submeshes, _batchBuilder.SubmeshCount, _topologySignature, _meshBounds);
