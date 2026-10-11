@@ -382,10 +382,11 @@ namespace SpriteStudio.Runtime
                 if (count == 0 || p == null || l == 0) return;
                 int start = EffectStart[index];
                 bool parentLooped = NativeMethods.ss_runtime_just_looped(context);
+                RawPartState* parts = SpriteStudioGeometryBuilder.PartsOf(p, out int partCount);
                 for (int k = 0; k < count; k++)
                 {
                     EffectResults[start + k] = SpriteStudioGeometryBuilder.StepEffectSlot(
-                        context, EffectSteps[start + k], Frames[index], parentLooped);
+                        context, EffectSteps[start + k], Frames[index], parentLooped, parts, partCount);
                 }
             }
         }
