@@ -321,6 +321,18 @@ internal struct MaskPartData
         // Rising-edge memory for OnAnimationFinished (previous value of is_finished).
         private bool _prevFinished;
 
+        // A track or source call has gone through since the animation was last set up. The pose then
+        // depends on more than track 0's frame: an overlay or a fade moves while track 0 holds, or after it
+        // has finished, so the geometry builder must not skip a frame whose number has not changed.
+        // Cleared by a setup and by a load, both of which fold the runtime's stack back to track 0 alone.
+        private bool _mixingActive;
+        internal bool MixingActive => _mixingActive;
+
+        // Whether the last frame advanced the runtime. A Timeline-driven player is prepared without an
+        // update, and the runtime only clears a track's "just looped" at the top of an update, so a
+        // loop from the last update that ran would otherwise read as this frame's.
+        private bool _tickRan;
+
         // Grow-only backing buffer for SpriteStudioSignal parameters, filled per PollEvents pass and sliced
         // per signal (each signal gets a distinct [start, count) range) — no per-signal allocation and no
         // boxing. Reset at the start of each poll; a signal's slice stays valid until the next poll on this
@@ -360,6 +372,7 @@ internal struct MaskPartData
             // replaced. Cleared here rather than on success, because a REFUSED load leaves the previous
             // pack's selection just as meaningless.
             CurrentAnimationName = null;
+            _mixingActive = false;
 
             // On a reload (runtime asset swap) an in-flight Burst Job may still be borrowing the old
             // ssab buffer. Always complete the Job before destroying / re-borrowing native resources to
@@ -694,6 +707,8 @@ internal struct MaskPartData
                 {
                     // setup_animation resets the native world matrices to identity; force a geometry rebuild.
                     _geometryBuilder?.InvalidateFrameCache();
+                    // The setup also folds the track stack back to track 0 alone.
+                    _mixingActive = false;
 
                     if (_ssab.HasValue)
                     {
@@ -793,9 +808,11 @@ internal struct MaskPartData
         /// <summary>
         /// The speed in effect, as a multiple of the frame rate. Read from the runtime rather than from a
         /// copy of what was last set: a zero or negative rate is clamped to a stop there, so a cached value
-        /// would report the -1 that was asked for while playback is actually held at 0.
+        /// would report the -1 that was asked for while playback is actually held at 0. Read from track 0's
+        /// own setting, as are the frame rate, frame skip and direction below: before an animation is laid
+        /// the setter keeps the value on the track alone, and the animation would read back its default.
         /// </summary>
-        public float GetSpeed() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_speed_scale(_handle.ptr) : 1.0f; } }
+        public float GetSpeed() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_track_speed(_handle.ptr, 0) : 1.0f; } }
 
         public void SetFrame(float frame) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_frame_no(_handle.ptr, frame); } }
         public float GetFrame() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_frame_no(_handle.ptr) : 0.0f; } }
@@ -815,7 +832,7 @@ internal struct MaskPartData
         }
 
         public void SetFrameRate(int fps) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_frame_rate(_handle.ptr, fps); } }
-        public int GetFrameRate() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_frame_rate(_handle.ptr) : 0; } }
+        public int GetFrameRate() { unsafe { return _handle.IsValid ? Math.Max(0, NativeMethods.ss_runtime_get_track_frame_rate(_handle.ptr, 0)) : 0; } }
 
         public void SetAnimationSection(int start, int end) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_animation_section(_handle.ptr, start, end); } }
         public int GetAnimationSectionStart() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_start_frame(_handle.ptr) : 0; } }
@@ -975,8 +992,8 @@ internal struct MaskPartData
         }
 
         public void SetPlaybackDirection(int direction, int style) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_playback_direction(_handle.ptr, direction, style); } }
-        public int GetPlaybackDirection() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_playback_direction(_handle.ptr) : 0; } }
-        public int GetPlaybackStyle() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_playback_style(_handle.ptr) : 0; } }
+        public int GetPlaybackDirection() { unsafe { return _handle.IsValid ? Math.Max(0, NativeMethods.ss_runtime_get_track_playback_direction(_handle.ptr, 0)) : 0; } }
+        public int GetPlaybackStyle() { unsafe { return _handle.IsValid ? Math.Max(0, NativeMethods.ss_runtime_get_track_playback_style(_handle.ptr, 0)) : 0; } }
 
         public void SetLoop(int count) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_loop_count(_handle.ptr, count); } }
         public int GetLoop() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_loop_count(_handle.ptr) : 0; } }
@@ -989,11 +1006,10 @@ internal struct MaskPartData
         public int GetRemainLoops() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_remaining_loops(_handle.ptr) : 0; } }
 
         // skip_frames (real-time following) state is held on the Rust side
-        // (PlaybackController.is_skip_frames). This is a thin pass-through. Rust's setup() resets
-        // skip_frames to its default (true) just like the other playback parameters (loop/style/speed),
-        // so re-applying the desired value is done together in PlaybackCore.Play.
+        // (track 0's playback settings). This is a thin pass-through; PlaybackCore.Play re-applies the
+        // desired value together with the other playback parameters (loop/style/speed).
         public void SetSkipFrames(bool skip) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_skip_frames(_handle.ptr, skip); } }
-        public bool IsFrameSkipEnabled() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_get_skip_frames(_handle.ptr); } }
+        public bool IsFrameSkipEnabled() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_get_track_skip_frames(_handle.ptr, 0); } }
 
         public bool SubFrameEnabled { get; set; } = false;
         #endregion
@@ -1240,6 +1256,339 @@ internal struct MaskPartData
         }
         #endregion
 
+        #region Animation Mixing
+        // Thin wrappers over the runtime's track / source C-API. Animations are named as SetupAnimation
+        // names them and resolved against the loaded ssab, so a name the pack does not have fails here
+        // rather than in the runtime. Each mutator returns false when nothing is loaded or the runtime
+        // refuses the call. A read of a track or source that does not exist returns 0, except the two
+        // whose 0 is a real answer: GetTrackFadeProgress (-1 when not fading) and the source handles (-1
+        // for none). Durations are in seconds, as Tick takes them; the runtime counts milliseconds.
+
+        // The runtime's "no handle" (SS_RUNTIME_INVALID_HANDLE); csbindgen emits no constants.
+        private const uint InvalidHandle = uint.MaxValue;
+
+        /// <summary>A source handle as the C# side carries it: the runtime's "none" reads -1.</summary>
+        internal static int SourceId(uint handle) => handle == InvalidHandle ? -1 : (int)handle;
+
+        // Tracks and sources are addressed by u32 in the runtime; a negative number names none, and is
+        // refused here rather than wrapped around.
+        private bool CanAddressTrack(int track) => _handle.IsValid && _ssab.HasValue && track >= 0;
+        private bool CanAddressSource(int source) => _handle.IsValid && _ssab.HasValue && source >= 0;
+
+        private static float OrZero(float value) => float.IsNaN(value) ? 0f : value;
+
+        private bool MixingApplied(bool ok)
+        {
+            // A stopped or paused player has to show the change too, without its frame number moving.
+            if (ok) _mixingActive = true;
+            return ok;
+        }
+
+        private bool TryFindAnimation(string name, out ss.format.AnimationData animation)
+        {
+            animation = default;
+            if (!_ssab.HasValue || string.IsNullOrEmpty(name)) return false;
+            var binary = _ssab.Value;
+            for (int i = 0; i < binary.AnimationsLength; i++)
+            {
+                var anim = binary.Animations(i);
+                if (anim.HasValue && anim.Value.Name == name)
+                {
+                    animation = anim.Value;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // A crossfade or a track animation on track 0 hands the character to the incoming animation from
+        // the call on, as a setup does. Recording it there and then is what keeps a SetupAnimation of the
+        // animation the crossfade left from being taken for the one still set up, and the events from
+        // being read as the outgoing one's. The instance children and effect slots stay: they come from
+        // the pack's parts, which every animation of it shares.
+        private void TrackZeroSwitched(ss.format.AnimationData animation)
+        {
+            _currentAnimation = animation;
+            CurrentAnimationName = animation.Name;
+            // As a setup re-arms it: the incoming animation's completion is reported on its own edge. No
+            // start is reported -- the switch carries on whatever play state track 0 had.
+            _prevFinished = false;
+        }
+
+        // Laying an animation can grow what the runtime evaluates, so the mesh job reading its buffers
+        // has to be done first, as it is before a setup.
+        private void CompleteMeshJob() => _geometryBuilder?.CurrentUpdateJobHandle.Complete();
+
+        public bool SetTrackAnimation(int track, string animationName)
+        {
+            if (!CanAddressTrack(track) || !TryFindAnimation(animationName, out var animation)) return false;
+            CompleteMeshJob();
+            unsafe
+            {
+                if (!MixingApplied(NativeMethods.ss_runtime_set_track_animation_by_hash(_handle.ptr, (uint)track, animation.NameHash)))
+                    return false;
+            }
+            if (track == 0) TrackZeroSwitched(animation);
+            return true;
+        }
+
+        public int GetTrackCount()
+        {
+            unsafe { return _handle.IsValid && _ssab.HasValue ? (int)NativeMethods.ss_runtime_get_track_count(_handle.ptr) : 0; }
+        }
+
+        public bool ClearTrack(int track)
+        {
+            if (!CanAddressTrack(track)) return false;
+            unsafe { return MixingApplied(NativeMethods.ss_runtime_clear_track(_handle.ptr, (uint)track)); }
+        }
+
+        public bool SetTrackAlpha(int track, float alpha)
+        {
+            if (!CanAddressTrack(track)) return false;
+            unsafe { return MixingApplied(NativeMethods.ss_runtime_set_track_alpha(_handle.ptr, (uint)track, alpha)); }
+        }
+
+        public float GetTrackAlpha(int track)
+        {
+            if (!CanAddressTrack(track)) return 0f;
+            unsafe { return OrZero(NativeMethods.ss_runtime_get_track_alpha(_handle.ptr, (uint)track)); }
+        }
+
+        public bool SetTrackBlend(int track, SpriteStudioTrackBlend blend)
+        {
+            if (!CanAddressTrack(track)) return false;
+            unsafe { return MixingApplied(NativeMethods.ss_runtime_set_track_blend(_handle.ptr, (uint)track, (uint)blend)); }
+        }
+
+        public SpriteStudioTrackBlend GetTrackBlend(int track)
+        {
+            if (!CanAddressTrack(track)) return SpriteStudioTrackBlend.Mix;
+            unsafe
+            {
+                uint blend = NativeMethods.ss_runtime_get_track_blend(_handle.ptr, (uint)track);
+                return blend == InvalidHandle ? SpriteStudioTrackBlend.Mix : (SpriteStudioTrackBlend)blend;
+            }
+        }
+
+        public bool SetTrackSync(int track, SpriteStudioTrackSync sync)
+        {
+            if (!CanAddressTrack(track)) return false;
+            // Not a change to the pose: it only decides where the next animation laid on the track starts.
+            unsafe { return NativeMethods.ss_runtime_set_track_sync(_handle.ptr, (uint)track, (uint)sync); }
+        }
+
+        public SpriteStudioTrackSync GetTrackSync(int track)
+        {
+            if (!CanAddressTrack(track)) return SpriteStudioTrackSync.Free;
+            unsafe
+            {
+                uint sync = NativeMethods.ss_runtime_get_track_sync(_handle.ptr, (uint)track);
+                return sync == InvalidHandle ? SpriteStudioTrackSync.Free : (SpriteStudioTrackSync)sync;
+            }
+        }
+
+        public bool SetTrackFrame(int track, float frame)
+        {
+            if (!CanAddressTrack(track)) return false;
+            unsafe { return MixingApplied(NativeMethods.ss_runtime_set_track_frame(_handle.ptr, (uint)track, frame)); }
+        }
+
+        public float GetTrackFrame(int track)
+        {
+            if (!CanAddressTrack(track)) return 0f;
+            unsafe { return OrZero(NativeMethods.ss_runtime_get_track_frame(_handle.ptr, (uint)track)); }
+        }
+
+        // The playback settings below decide how a track moves, not what it shows, so only the speed --
+        // which can start or stop an overlay -- marks the stack as in use.
+
+        public bool SetTrackSpeed(int track, float speed)
+        {
+            if (!CanAddressTrack(track)) return false;
+            unsafe { return MixingApplied(NativeMethods.ss_runtime_set_track_speed(_handle.ptr, (uint)track, speed)); }
+        }
+
+        public float GetTrackSpeed(int track)
+        {
+            if (!CanAddressTrack(track)) return 0f;
+            unsafe { return OrZero(NativeMethods.ss_runtime_get_track_speed(_handle.ptr, (uint)track)); }
+        }
+
+        public bool SetTrackFrameRate(int track, int fps)
+        {
+            if (!CanAddressTrack(track)) return false;
+            unsafe { return NativeMethods.ss_runtime_set_track_frame_rate(_handle.ptr, (uint)track, fps); }
+        }
+
+        public int GetTrackFrameRate(int track)
+        {
+            if (!CanAddressTrack(track)) return 0;
+            // -1 is the runtime's "no such track"; 0 is a track with neither an animation nor an override.
+            unsafe { return Math.Max(0, NativeMethods.ss_runtime_get_track_frame_rate(_handle.ptr, (uint)track)); }
+        }
+
+        public bool SetTrackFrameSkipEnabled(int track, bool enabled)
+        {
+            if (!CanAddressTrack(track)) return false;
+            unsafe { return NativeMethods.ss_runtime_set_track_skip_frames(_handle.ptr, (uint)track, enabled); }
+        }
+
+        public bool IsTrackFrameSkipEnabled(int track)
+        {
+            if (!CanAddressTrack(track)) return false;
+            unsafe { return NativeMethods.ss_runtime_get_track_skip_frames(_handle.ptr, (uint)track); }
+        }
+
+        public bool SetTrackPlaybackDirection(int track, SpriteStudioPlaybackDirection direction, SpriteStudioPlaybackStyle style)
+        {
+            if (!CanAddressTrack(track)) return false;
+            unsafe { return NativeMethods.ss_runtime_set_track_playback_direction(_handle.ptr, (uint)track, (int)direction, (int)style); }
+        }
+
+        public SpriteStudioPlaybackDirection GetTrackPlaybackDirection(int track)
+        {
+            if (!CanAddressTrack(track)) return SpriteStudioPlaybackDirection.Forward;
+            unsafe { return (SpriteStudioPlaybackDirection)Math.Max(0, NativeMethods.ss_runtime_get_track_playback_direction(_handle.ptr, (uint)track)); }
+        }
+
+        public SpriteStudioPlaybackStyle GetTrackPlaybackStyle(int track)
+        {
+            if (!CanAddressTrack(track)) return SpriteStudioPlaybackStyle.Normal;
+            unsafe { return (SpriteStudioPlaybackStyle)Math.Max(0, NativeMethods.ss_runtime_get_track_playback_style(_handle.ptr, (uint)track)); }
+        }
+
+        public bool SetTrackLoopCount(int track, int count)
+        {
+            if (!CanAddressTrack(track)) return false;
+            unsafe { return NativeMethods.ss_runtime_set_track_loop_count(_handle.ptr, (uint)track, count); }
+        }
+
+        public int GetTrackLoopCount(int track)
+        {
+            // The runtime's 0 already means "no animation": a count reads back positive, or -1 for looping
+            // forever.
+            if (!CanAddressTrack(track)) return 0;
+            unsafe { return NativeMethods.ss_runtime_get_track_loop_count(_handle.ptr, (uint)track); }
+        }
+
+        public bool IsTrackFinished(int track)
+        {
+            if (!CanAddressTrack(track)) return false;
+            unsafe { return NativeMethods.ss_runtime_is_track_finished(_handle.ptr, (uint)track); }
+        }
+
+        public bool TrackJustLooped(int track)
+        {
+            // A pulse of the last update: a frame that did not update reports none (see _tickRan).
+            if (!_tickRan || !CanAddressTrack(track)) return false;
+            unsafe { return NativeMethods.ss_runtime_track_just_looped(_handle.ptr, (uint)track); }
+        }
+
+        public bool SetTrackOutgoingEventThreshold(int track, float threshold)
+        {
+            if (!CanAddressTrack(track)) return false;
+            unsafe { return NativeMethods.ss_runtime_set_track_outgoing_event_threshold(_handle.ptr, (uint)track, threshold); }
+        }
+
+        public float GetTrackOutgoingEventThreshold(int track)
+        {
+            if (!CanAddressTrack(track)) return 0f;
+            unsafe { return OrZero(NativeMethods.ss_runtime_get_track_outgoing_event_threshold(_handle.ptr, (uint)track)); }
+        }
+
+        public bool Crossfade(int track, string animationName, float durationSeconds)
+        {
+            if (!CanAddressTrack(track) || !TryFindAnimation(animationName, out var animation)) return false;
+            CompleteMeshJob();
+            unsafe
+            {
+                if (!MixingApplied(NativeMethods.ss_runtime_crossfade_by_hash(_handle.ptr, (uint)track, animation.NameHash, durationSeconds * 1000f)))
+                    return false;
+            }
+            // The incoming animation takes track 0 over when the fade begins, not when it completes.
+            if (track == 0) TrackZeroSwitched(animation);
+            return true;
+        }
+
+        public bool FadeTrack(int track, float targetAlpha, float durationSeconds)
+        {
+            if (!CanAddressTrack(track)) return false;
+            unsafe { return MixingApplied(NativeMethods.ss_runtime_fade_track(_handle.ptr, (uint)track, targetAlpha, durationSeconds * 1000f)); }
+        }
+
+        public float GetTrackFadeProgress(int track)
+        {
+            // -1 rather than 0 for "not fading": 0 is a fade that has just begun.
+            if (!CanAddressTrack(track)) return -1f;
+            unsafe
+            {
+                float progress = NativeMethods.ss_runtime_get_track_fade_progress(_handle.ptr, (uint)track);
+                return float.IsNaN(progress) ? -1f : progress;
+            }
+        }
+
+        public bool CancelTrackFade(int track)
+        {
+            if (!CanAddressTrack(track)) return false;
+            unsafe { return MixingApplied(NativeMethods.ss_runtime_cancel_track_fade(_handle.ptr, (uint)track)); }
+        }
+
+        public int GetTrackMainSource(int track)
+        {
+            if (!CanAddressTrack(track)) return -1;
+            unsafe { return SourceId(NativeMethods.ss_runtime_get_track_main_source(_handle.ptr, (uint)track)); }
+        }
+
+        public int AddTrackSource(int track, string animationName, float weight)
+        {
+            if (!CanAddressTrack(track) || !TryFindAnimation(animationName, out var animation)) return -1;
+            CompleteMeshJob();
+            unsafe
+            {
+                uint handle = NativeMethods.ss_runtime_add_track_source_by_hash(_handle.ptr, (uint)track, animation.NameHash, weight);
+                return MixingApplied(handle != InvalidHandle) ? (int)handle : -1;
+            }
+        }
+
+        public bool SetSourceWeight(int source, float weight)
+        {
+            if (!CanAddressSource(source)) return false;
+            unsafe { return MixingApplied(NativeMethods.ss_runtime_set_source_weight(_handle.ptr, (uint)source, weight)); }
+        }
+
+        public float GetSourceWeight(int source)
+        {
+            if (!CanAddressSource(source)) return 0f;
+            unsafe { return OrZero(NativeMethods.ss_runtime_get_source_weight(_handle.ptr, (uint)source)); }
+        }
+
+        public bool SetSourceFrame(int source, float frame)
+        {
+            if (!CanAddressSource(source)) return false;
+            unsafe { return MixingApplied(NativeMethods.ss_runtime_set_source_frame(_handle.ptr, (uint)source, frame)); }
+        }
+
+        public float GetSourceFrame(int source)
+        {
+            if (!CanAddressSource(source)) return 0f;
+            unsafe { return OrZero(NativeMethods.ss_runtime_get_source_frame(_handle.ptr, (uint)source)); }
+        }
+
+        public bool SetSourceEventThreshold(int source, float threshold)
+        {
+            if (!CanAddressSource(source)) return false;
+            // Decides which events are reported, not what is drawn.
+            unsafe { return NativeMethods.ss_runtime_set_source_event_threshold(_handle.ptr, (uint)source, threshold); }
+        }
+
+        public float GetSourceEventThreshold(int source)
+        {
+            if (!CanAddressSource(source)) return 0f;
+            unsafe { return OrZero(NativeMethods.ss_runtime_get_source_event_threshold(_handle.ptr, (uint)source)); }
+        }
+        #endregion
+
         /// <summary>
         /// Why the last native call that tracks a reason failed, or null when it succeeded.
         /// <para>
@@ -1286,6 +1635,8 @@ internal struct MaskPartData
                         // rebuild so a same-numbered start frame is not skipped (otherwise trackers read
                         // identity = origin).
                         _geometryBuilder?.InvalidateFrameCache();
+                        // The setup also folds the track stack back to track 0 alone.
+                        _mixingActive = false;
 
                         if (_ssab.HasValue)
                         {
@@ -1331,6 +1682,7 @@ internal struct MaskPartData
                 // ss_runtime_update takes delta in "milliseconds" (update_interval = 1000/fps).
                 // Unity's Time.deltaTime is in seconds, so multiply by 1000.
                 NativeMethods.ss_runtime_update(_handle.ptr, deltaTime * 1000.0f);
+                _tickRan = true;
                 PollEvents();
             }
         }
@@ -1374,14 +1726,24 @@ internal struct MaskPartData
                     OnAnimationLooped?.Invoke();
                 }
 
+                // Each index addresses the event table of the animation of the source that fired it, so the
+                // table is looked up per event. Reading them all against the animation set up here reports
+                // other events, or none, once a crossfade on track 0 has handed the track to another one.
                 int eventCount = NativeMethods.ss_runtime_get_passed_event_count(_handle.ptr);
-                if (eventCount > 0 && _currentAnimation.HasValue)
+                if (eventCount > 0 && _ssab.HasValue)
                 {
-                    var anim = _currentAnimation.Value;
+                    var binary = _ssab.Value;
                     for (int i = 0; i < eventCount; i++)
                     {
+                        uint source = NativeMethods.ss_runtime_get_passed_event_source_handle(_handle.ptr, i);
+                        int animIdx = NativeMethods.ss_runtime_get_source_animation_index(_handle.ptr, source);
+                        if (animIdx < 0 || animIdx >= binary.AnimationsLength) continue;
+                        var animObj = binary.Animations(animIdx);
+                        if (!animObj.HasValue) continue;
                         int eventIdx = NativeMethods.ss_runtime_get_passed_event_index(_handle.ptr, i);
-                        var eventsObj = anim.Events(eventIdx);
+                        // A not-found (-1), or an index past that table, would read past the FlatBuffer.
+                        if (eventIdx < 0 || eventIdx >= animObj.Value.EventsLength) continue;
+                        var eventsObj = animObj.Value.Events(eventIdx);
                         if (!eventsObj.HasValue) continue;
                         var events = eventsObj.Value;
 
@@ -1399,6 +1761,7 @@ internal struct MaskPartData
                                     PartIndex = user.PartIndex,
                                     FrameNo = events.FrameIndex,
                                     PartName = PartNameAt(user.PartIndex),
+                                    Source = SourceId(source),
                                     HasInt = val.Integer.HasValue,
                                     IntValue = val.Integer.HasValue ? val.Integer.Value.Value : 0,
                                     HasString = val.Str != null,
@@ -1456,6 +1819,7 @@ internal struct MaskPartData
                                     PartIndex = sig.PartIndex,
                                     FrameNo = events.FrameIndex,
                                     PartName = PartNameAt(sig.PartIndex),
+                                    Source = SourceId(source),
                                     Active = val.Active,
                                     CommandId = val.CommandId,
                                     _params = _signalParamBuffer,
@@ -1479,6 +1843,7 @@ internal struct MaskPartData
                                     PartIndex = audio.PartIndex,
                                     FrameNo = events.FrameIndex,
                                     PartName = PartNameAt(audio.PartIndex),
+                                    Source = SourceId(source),
                                     SoundListNameHash = val.SoundListNameHash,
                                     SoundNameHash = val.SoundNameHash,
                                     SoundName = val.SoundName,
@@ -1540,7 +1905,14 @@ internal struct MaskPartData
 
         // Read the effect draw_plan (native FlatBuffers) in the same manner as frame-data, and
 
-        public void PrepareFrameData(float deltaTime, bool advance, out System.IntPtr handle, out float drawFrame) => _geometryBuilder.PrepareFrameData(deltaTime, advance, out handle, out drawFrame);
+        public void PrepareFrameData(float deltaTime, bool advance, out System.IntPtr handle, out float drawFrame)
+        {
+            // The owning component's per-frame entry, so the one place that knows whether this frame ran.
+            // ScheduleMeshUpdate goes to the builder directly and does not touch it: it builds without
+            // advancing, after a Tick or for an instance child, and is not a frame of its own.
+            _tickRan = advance;
+            _geometryBuilder.PrepareFrameData(deltaTime, advance, out handle, out drawFrame);
+        }
         public void ScheduleMeshUpdate(float deltaTime) => _geometryBuilder.ScheduleMeshUpdate(deltaTime);
         public void ConsumeFrameData(System.IntPtr frameDataPtrRaw, int len, float deltaTime) => _geometryBuilder.ConsumeFrameData(frameDataPtrRaw, len, deltaTime);
         public void ApplyToMesh(UnityEngine.Mesh targetMesh, bool perBatchSubmesh = false) => _geometryBuilder.ApplyToMesh(targetMesh, perBatchSubmesh);

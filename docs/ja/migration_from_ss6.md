@@ -144,7 +144,7 @@ void HandleFinished() { /* 戻り値なし。自動破棄の挙動は無くな�
 
 ## 5. その他の注意点・仕様差分
 
-- **マルチトラック／クロスフェード**: SS6Player の複数トラックによるアニメーションの重ね合わせや `TrackTransition()`（クロスフェード）に直接対応する API はありません。レイヤー表現が必要な場合は**複数のコンポーネントを併用**してください。
+- **マルチトラック／クロスフェード**: SS6Player の複数トラックによるアニメーションの重ね合わせと `TrackTransition()`（クロスフェード）は、トラックの積み重ねで行います。`SetTrackAnimation()` で `SetAnimation()` が選んだアニメーションの上にアニメーションを重ね、`Crossfade()` でトラックをフェードしながら切り替えます。[モーションブレンド](./workflow/motion_blending.md) を参照してください。
 - **エフェクト**: SS6Player の `Script_SpriteStudio6_RootEffect` のような独立コンポーネントは不要です。エフェクトパーツを含むアニメーションは、`SpriteStudioPlayer` / `SpriteStudioGraphic` 内で**インラインに再生**されます。
 - **パーツへの GameObject 追従**: SS6Player の `TrackConnectParts()` / `InstanceGet()` などに代わり、`SpriteStudioPlayer` の **Part Trackers**（指定パーツへ任意の `Transform` を追従させる機能）を利用してください。詳細は [スクリプト制御とイベント](./workflow/usage_scripting.md#パーツトラッキング指定パーツへの追従) を参照してください。
 - **Timeline**: 引き続き対応しています。`SpriteStudioPlayer` は `ITimeControl` を実装しており、Timeline トラックから再生時刻を制御できます。

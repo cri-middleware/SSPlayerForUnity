@@ -61,6 +61,12 @@ Part Tracking (making a `Transform` follow a part) is a `SpriteStudioPlayer` (wo
 > - **`Play()` rewinds.** To resume from the current frame, `Pause()` holds it and `Resume()` lifts the hold — `Play()` cannot be used to resume.
 > - **Signals materialize managed strings.** The Tick / mesh-construction loop is zero-allocation, and numeric Signal parameters are decoded into a reusable typed buffer, but part names, command ids, and string-typed parameters must still become managed strings. Animations that fire Signals in large numbers or at high frequency can therefore cause minor hitches on mobile / WebGL.
 
+## Motion Blending
+
+> [!WARNING]
+> - **Instance and Effect parts are outside motion blending.** They belong to the `.ssab`, not to one animation, so a crossfade on track 0 keeps them running instead of setting them up again. Which key drives such a part across the switch is not blended: where both animations key it on the same frame, it may carry on with the outgoing animation's setting.
+> - **A Timeline-driven player does not blend.** The clip seeks the player instead of advancing it, so fades and overlays hold still, and the clip sets its own animation back up on track 0.
+
 ## Playback Feature Constraints
 
 These come from the shared `libssruntime` and therefore apply to every render path and platform. They apply to every official player too, so the full explanations — and the rest of the shared constraints (embedded mode, unvalidated `.ssab` input, and so on) — live in the portal: **[Shared Limitations](https://cri-middleware.github.io/SpriteStudio-Docs/sdk/limitations/)**.

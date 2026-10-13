@@ -19,6 +19,7 @@ This documentation is organized by purpose, as follows.
     - [Asset Import and Editor Integration](./workflow/usage_asset_pipeline.md): Start here for your first `.sspj` import
     - [Generated Assets and AssetBundle](./workflow/generated_assets.md): Per-file roles, dependencies, and how to split bundles
     - [Script Control and Events](./workflow/usage_scripting.md): Control from C# / Timeline and receiving events
+    - [Motion Blending](./workflow/motion_blending.md): Layering animations on tracks and cross-fading between them
     - [Performance Tuning and Advanced Settings](./workflow/tips.md): Settings for large-scale rendering and optimization
     - [Migration from SS6Player](./migration_from_ss6.md): Migration guide from the legacy SS6Player for Unity
 - **Customization & Automation** — Integrate with CLI and CI/CD
@@ -38,6 +39,7 @@ This plugin is designed to fully bring out the expressiveness of SpriteStudio on
 *   **Flexible UI and World Rendering:** Supports rendering in ordinary scene space (`SpriteStudioPlayer`) as well as on a uGUI (`SpriteStudioGraphic`) Canvas, and automatically follows Mask and RectMask2D.
 *   **Timeline Integration:** Animations can be controlled directly from Timeline tracks, making cutscenes and complex staging easy to implement.
 *   **Signals and Events:** Receive "user data" and "signals" set on the timeline as Unity events, allowing you to trigger SE playback and scripts with precise timing.
+*   **Motion Blending:** Lay animations over one another on tracks and cross-fade between them, so a character slides from one motion into the next instead of cutting. See [Motion Blending](./workflow/motion_blending.md).
 *   **Dynamic Part Following:** Any GameObject can follow (Constraint) a specific part of a character, making it easy to swap weapons or attach effects.
 *   **Dynamic Texture Replacement (Avatar Customization / CellMap Overrides):** Swap a cellmap's texture at runtime, per player, to implement color variations or costume / equipment changes for a character.
 

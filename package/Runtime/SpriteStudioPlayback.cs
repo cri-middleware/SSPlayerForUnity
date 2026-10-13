@@ -30,6 +30,35 @@ namespace SpriteStudio.Runtime
     }
 
     /// <summary>
+    /// How a track lays its animation over the tracks below it. The values are the C-API's
+    /// <c>SS_RUNTIME_TRACK_BLEND_*</c>.
+    /// </summary>
+    public enum SpriteStudioTrackBlend
+    {
+        /// <summary>Lerp toward the track's pose by its alpha.</summary>
+        Mix = 0,
+
+        /// <summary>Add the track's offset from the setup pose.</summary>
+        Additive = 1,
+    }
+
+    /// <summary>
+    /// Where an animation laid on a track starts. The values are the C-API's
+    /// <c>SS_RUNTIME_TRACK_SYNC_*</c>.
+    /// </summary>
+    public enum SpriteStudioTrackSync
+    {
+        /// <summary>From the head of its section.</summary>
+        Free = 0,
+
+        /// <summary>
+        /// At the phase track 0's animation stands at (the share of its section played), matched once
+        /// when the animation is laid.
+        /// </summary>
+        Start = 1,
+    }
+
+    /// <summary>
     /// The four corner colors of a gradient override, in one value.
     /// </summary>
     /// <remarks>

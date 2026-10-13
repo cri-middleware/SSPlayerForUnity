@@ -15,6 +15,11 @@ namespace SpriteStudio.Runtime
         public int FrameNo;
         public string PartName;
         public int PartIndex;
+        /// <summary>
+        /// The source that fired the event: a handle as <c>GetTrackMainSource</c> and <c>AddTrackSource</c>
+        /// return them. Without the track stack in use it is always track 0's main source.
+        /// </summary>
+        public int Source;
         
         public bool HasInt;
         public int IntValue;
@@ -76,6 +81,11 @@ namespace SpriteStudio.Runtime
         public int FrameNo;
         public string PartName;
         public int PartIndex;
+        /// <summary>
+        /// The source that fired the event: a handle as <c>GetTrackMainSource</c> and <c>AddTrackSource</c>
+        /// return them. Without the track stack in use it is always track 0's main source.
+        /// </summary>
+        public int Source;
         public bool Active;
         public string CommandId;
 
@@ -139,6 +149,11 @@ namespace SpriteStudio.Runtime
         public int FrameNo;
         public string PartName;
         public int PartIndex;
+        /// <summary>
+        /// The source that fired the event: a handle as <c>GetTrackMainSource</c> and <c>AddTrackSource</c>
+        /// return them. Without the track stack in use it is always track 0's main source.
+        /// </summary>
+        public int Source;
         public uint SoundListNameHash;
         public uint SoundNameHash;
         public string SoundName;
