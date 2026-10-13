@@ -797,8 +797,9 @@ internal struct MaskPartData
         /// Whether the last update crossed a loop boundary. A <b>pulse</b>: the runtime clears it at the
         /// top of every update, so it only reads true inside the tick that crossed — which is why it is
         /// not named <c>IsLooped</c>, here or in the Brain, whose C ABI spells it <c>ss_runtime_just_looped</c>. Reading it a tick late reads false.
+        /// A frame that did not update (a Timeline seek) reports none, as <see cref="TrackJustLooped"/> does.
         /// </summary>
-        public bool JustLooped() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_just_looped(_handle.ptr); } }
+        public bool JustLooped() { unsafe { return _tickRan && _handle.IsValid && NativeMethods.ss_runtime_just_looped(_handle.ptr); } }
         public void Pause() { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_pause(_handle.ptr); } }
         public void Resume() { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_resume(_handle.ptr); } }
         public void Stop() { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_stop(_handle.ptr); } }

@@ -370,6 +370,25 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
+        public void TrackZerosLoop_IsNotReportedOnAFrameThatDidNotAdvance_UnderEitherName()
+        {
+            var player = MakePlayer("attack1");
+
+            bool looped = false;
+            for (int i = 0; i < 60 && !looped; i++)
+            {
+                player.InternalPlayer.Tick(Dt, false);
+                looped = player.JustLooped;
+            }
+            Assert.IsTrue(looped, "attack1 loops within a second");
+            Assert.IsTrue(player.TrackJustLooped(0), "track 0's loop under its track name too");
+
+            player.InternalPlayer.PrepareFrameData(Dt, false, out _, out _);
+            Assert.IsFalse(player.JustLooped, "the last update's loop is not this frame's");
+            Assert.IsFalse(player.TrackJustLooped(0), "and both names agree");
+        }
+
+        [Test]
         public void ARestartedCrossfade_KeepsTheTrackMoving()
         {
             var player = MakePlayer("walk");
