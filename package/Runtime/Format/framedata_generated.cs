@@ -359,7 +359,7 @@ public struct PartState : IFlatbufferObject
   public float LocalScaleY { get { return __p.bb.GetFloat(__p.bb_pos + 44); } }
   public float Alpha { get { return __p.bb.GetFloat(__p.bb_pos + 48); } }
   public float LocalAlpha { get { return __p.bb.GetFloat(__p.bb_pos + 52); } }
-  public float Priority { get { return __p.bb.GetFloat(__p.bb_pos + 56); } }
+  public int Priority { get { return __p.bb.GetInt(__p.bb_pos + 56); } }
   public float PivotX { get { return __p.bb.GetFloat(__p.bb_pos + 60); } }
   public float PivotY { get { return __p.bb.GetFloat(__p.bb_pos + 64); } }
   public float AnchorX { get { return __p.bb.GetFloat(__p.bb_pos + 68); } }
@@ -388,7 +388,7 @@ public struct PartState : IFlatbufferObject
   public bool ImgFlipH { get { return 0!=__p.bb.Get(__p.bb_pos + 139); } }
   public bool ImgFlipV { get { return 0!=__p.bb.Get(__p.bb_pos + 140); } }
 
-  public static Offset<ss.runtime.PartState> CreatePartState(FlatBufferBuilder builder, ss.runtime.UpdateAttributeFlags UpdateFlag, float PositionX, float PositionY, float PositionZ, float RotationX, float RotationY, float RotationZ, float ScaleX, float ScaleY, float LocalScaleX, float LocalScaleY, float Alpha, float LocalAlpha, float Priority, float PivotX, float PivotY, float AnchorX, float AnchorY, float SizeX, float SizeY, float UvTranslationX, float UvTranslationY, float UvRotationZ, float UvScaleX, float UvScaleY, float BoundingRadius, float Mask, float SkewX, float SkewY, uint Texture, short PartIndex, short Cell, short PartColor, short Shader, short Vertex, short Deform, bool FlipH, bool FlipV, bool Hide, bool ImgFlipH, bool ImgFlipV) {
+  public static Offset<ss.runtime.PartState> CreatePartState(FlatBufferBuilder builder, ss.runtime.UpdateAttributeFlags UpdateFlag, float PositionX, float PositionY, float PositionZ, float RotationX, float RotationY, float RotationZ, float ScaleX, float ScaleY, float LocalScaleX, float LocalScaleY, float Alpha, float LocalAlpha, int Priority, float PivotX, float PivotY, float AnchorX, float AnchorY, float SizeX, float SizeY, float UvTranslationX, float UvTranslationY, float UvRotationZ, float UvScaleX, float UvScaleY, float BoundingRadius, float Mask, float SkewX, float SkewY, uint Texture, short PartIndex, short Cell, short PartColor, short Shader, short Vertex, short Deform, bool FlipH, bool FlipV, bool Hide, bool ImgFlipH, bool ImgFlipV) {
     builder.Prep(8, 144);
     builder.Pad(3);
     builder.PutBool(ImgFlipV);
@@ -418,7 +418,7 @@ public struct PartState : IFlatbufferObject
     builder.PutFloat(AnchorX);
     builder.PutFloat(PivotY);
     builder.PutFloat(PivotX);
-    builder.PutFloat(Priority);
+    builder.PutInt(Priority);
     builder.PutFloat(LocalAlpha);
     builder.PutFloat(Alpha);
     builder.PutFloat(LocalScaleY);
