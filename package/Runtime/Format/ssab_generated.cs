@@ -3633,7 +3633,7 @@ public struct InitialPartAttributes : IFlatbufferObject
   public float LocalScaleY { get { int o = __p.__offset(26); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)1.0f; } }
   public float Alpha { get { int o = __p.__offset(28); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)1.0f; } }
   public float LocalAlpha { get { int o = __p.__offset(30); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)1.0f; } }
-  public float Priority { get { int o = __p.__offset(32); return o != 0 ? __p.bb.GetFloat(o + __p.bb_pos) : (float)0.0f; } }
+  public int Priority { get { int o = __p.__offset(32); return o != 0 ? __p.bb.GetInt(o + __p.bb_pos) : (int)0; } }
   public bool FlipH { get { int o = __p.__offset(34); return o != 0 ? 0!=__p.bb.Get(o + __p.bb_pos) : (bool)false; } }
   public bool FlipV { get { int o = __p.__offset(36); return o != 0 ? 0!=__p.bb.Get(o + __p.bb_pos) : (bool)false; } }
   public bool Hide { get { int o = __p.__offset(38); return o != 0 ? 0!=__p.bb.Get(o + __p.bb_pos) : (bool)false; } }
@@ -3675,7 +3675,7 @@ public struct InitialPartAttributes : IFlatbufferObject
       float local_scale_y = 1.0f,
       float alpha = 1.0f,
       float local_alpha = 1.0f,
-      float priority = 0.0f,
+      int priority = 0,
       bool flip_h = false,
       bool flip_v = false,
       bool hide = false,
@@ -3760,7 +3760,7 @@ public struct InitialPartAttributes : IFlatbufferObject
   public static void AddLocalScaleY(FlatBufferBuilder builder, float localScaleY) { builder.AddFloat(11, localScaleY, 1.0f); }
   public static void AddAlpha(FlatBufferBuilder builder, float alpha) { builder.AddFloat(12, alpha, 1.0f); }
   public static void AddLocalAlpha(FlatBufferBuilder builder, float localAlpha) { builder.AddFloat(13, localAlpha, 1.0f); }
-  public static void AddPriority(FlatBufferBuilder builder, float priority) { builder.AddFloat(14, priority, 0.0f); }
+  public static void AddPriority(FlatBufferBuilder builder, int priority) { builder.AddInt(14, priority, 0); }
   public static void AddFlipH(FlatBufferBuilder builder, bool flipH) { builder.AddBool(15, flipH, false); }
   public static void AddFlipV(FlatBufferBuilder builder, bool flipV) { builder.AddBool(16, flipV, false); }
   public static void AddHide(FlatBufferBuilder builder, bool hide) { builder.AddBool(17, hide, false); }
@@ -3812,7 +3812,7 @@ static public class InitialPartAttributesVerify
       && verifier.VerifyField(tablePos, 26 /*LocalScaleY*/, 4 /*float*/, 4, false)
       && verifier.VerifyField(tablePos, 28 /*Alpha*/, 4 /*float*/, 4, false)
       && verifier.VerifyField(tablePos, 30 /*LocalAlpha*/, 4 /*float*/, 4, false)
-      && verifier.VerifyField(tablePos, 32 /*Priority*/, 4 /*float*/, 4, false)
+      && verifier.VerifyField(tablePos, 32 /*Priority*/, 4 /*int*/, 4, false)
       && verifier.VerifyField(tablePos, 34 /*FlipH*/, 1 /*bool*/, 1, false)
       && verifier.VerifyField(tablePos, 36 /*FlipV*/, 1 /*bool*/, 1, false)
       && verifier.VerifyField(tablePos, 38 /*Hide*/, 1 /*bool*/, 1, false)
