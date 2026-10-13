@@ -167,13 +167,13 @@ void HandleUserData(SpriteStudioUserData data)
 
 ### 受け取るイベントデータの構造
 
-どのイベントも `FrameNo` を持ちます。キーが **置かれている** フレームであって、検出されたフレームとは限りません（1 ティックで複数フレームをまたぐことがあり、その間のキーはすべてそのティックで発火します）。
+どのイベントも `FrameNo` を持ちます。キーが **置かれている** フレームであって、検出されたフレームとは限りません（1 ティックで複数フレームをまたぐことがあり、その間のキーはすべてそのティックで発火します）。`Source` は発火したアニメーションのソースのハンドルで、アニメーションを積んだときにだけ意味を持ちます。[モーションブレンド](./motion_blending.md#イベント) を参照してください。
 
 ```csharp
 // UserData: 設定されている値だけ HasXxx が true になる
 struct SpriteStudioUserData
 {
-    string PartName; int PartIndex; int FrameNo;
+    string PartName; int PartIndex; int FrameNo; int Source;
     bool HasInt;    int    IntValue;
     bool HasString; string StringValue;
     bool HasRect;   Rect   RectValue;
@@ -183,7 +183,7 @@ struct SpriteStudioUserData
 // Signal: パラメータは型付き（boxing なし）。GetParam / TryGetParam で取得（実行時のみ有効）
 struct SpriteStudioSignal
 {
-    string PartName; int PartIndex; int FrameNo;
+    string PartName; int PartIndex; int FrameNo; int Source;
     bool Active; string CommandId;
     int ParamCount;                                    // コマンドパラメータ数
     SpriteStudioSignalParam GetParam(int index);       // 0 <= index < ParamCount
@@ -199,7 +199,7 @@ struct SpriteStudioSignalParam
 // Audio: SoundName で対象音を識別
 struct SpriteStudioAudio
 {
-    string PartName; int PartIndex; int FrameNo;
+    string PartName; int PartIndex; int FrameNo; int Source;
     uint SoundListNameHash; uint SoundNameHash;
     string SoundName; int LoopNum;
 }

@@ -6,10 +6,6 @@ runtime and converter work lives in the
 
 ## Playback & rendering
 
-- [ ] **Animation blending / crossfade** — multi-track playback: layered per-part animation with crossfade
-  transitions. The SDK's track stack ships, and its FFI (`ss_runtime_crossfade` / `set_track_animation` /
-  `add_track_source` / `fade_track`) is generated into `package/Runtime/Bindings/` with no C# caller. What is
-  missing is the Player surface on top of it.
 - [ ] **Events and sound while a Timeline plays** — a clip seeks the player to a frame and never advances it, so under
   a `SpriteStudioTrack` or a ControlTrack no UserData / Signal / Audio event fires and no built-in sound plays, in Play
   mode too. Advance through the frames a Playback evaluation crosses, as an AnimationTrack fires a clip's

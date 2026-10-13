@@ -172,12 +172,14 @@ void HandleUserData(SpriteStudioUserData data)
 
 Every event carries `FrameNo`: the frame its key is **authored** on, which is not necessarily the
 frame it was noticed on — one tick can step across several, and every key in between fires on it.
+`Source` is the handle of the animation source that fired it; it matters only once animations are
+stacked — see [Motion Blending](./motion_blending.md#events).
 
 ```csharp
 // UserData: only the values that are set have their HasXxx set to true
 struct SpriteStudioUserData
 {
-    string PartName; int PartIndex; int FrameNo;
+    string PartName; int PartIndex; int FrameNo; int Source;
     bool HasInt;    int    IntValue;
     bool HasString; string StringValue;
     bool HasRect;   Rect   RectValue;
@@ -187,7 +189,7 @@ struct SpriteStudioUserData
 // Signal: parameters are typed (no boxing); read them via GetParam / TryGetParam (runtime only)
 struct SpriteStudioSignal
 {
-    string PartName; int PartIndex; int FrameNo;
+    string PartName; int PartIndex; int FrameNo; int Source;
     bool Active; string CommandId;
     int ParamCount;                                    // number of command parameters
     SpriteStudioSignalParam GetParam(int index);       // 0 <= index < ParamCount
@@ -203,7 +205,7 @@ struct SpriteStudioSignalParam
 // Audio: identifies the target sound by SoundName
 struct SpriteStudioAudio
 {
-    string PartName; int PartIndex; int FrameNo;
+    string PartName; int PartIndex; int FrameNo; int Source;
     uint SoundListNameHash; uint SoundNameHash;
     string SoundName; int LoopNum;
 }

@@ -144,7 +144,7 @@ void HandleFinished() { /* no return value; the auto-destroy behavior is gone */
 
 ## 5. Other Notes and Behavioral Differences
 
-- **Multi-track / cross-fade**: There is no direct equivalent to SS6Player's multi-track layering or `TrackTransition()` (cross-fade). If you need layered playback, **use multiple components** together.
+- **Multi-track / cross-fade**: SS6Player's multi-track layering and `TrackTransition()` (cross-fade) become the track stack: `SetTrackAnimation()` lays an animation on a track over the one `SetAnimation()` selected, and `Crossfade()` switches a track with a fade. See [Motion Blending](./workflow/motion_blending.md).
 - **Effects**: No standalone component like SS6Player's `Script_SpriteStudio6_RootEffect` is needed. Animations containing effect parts are **played inline** within `SpriteStudioPlayer` / `SpriteStudioGraphic`.
 - **Attaching GameObjects to parts**: Instead of SS6Player's `TrackConnectParts()` / `InstanceGet()`, use the **Part Trackers** feature of `SpriteStudioPlayer` (drive an arbitrary `Transform` to follow a named part). See [Scripting & Events](./workflow/usage_scripting.md#part-tracking-following-a-specified-part).
 - **Timeline**: Still supported. `SpriteStudioPlayer` implements `ITimeControl`, so you can drive playback time from a Timeline track.

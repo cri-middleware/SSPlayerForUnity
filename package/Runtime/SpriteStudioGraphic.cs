@@ -465,6 +465,218 @@ namespace SpriteStudio.Runtime
 
         #endregion
 
+        #region Animation Mixing
+        // The runtime's track stack (motion blending). Track 0 is the animation SetAnimation selects; the
+        // tracks above it lay other animations of the same asset over it. SetAnimation to another animation
+        // folds the stack back to track 0 alone, and every track's settings but track 0's go with it.
+        // Durations are in seconds. Mutators return false when nothing is loaded, the animation name is not
+        // in the asset, or the runtime refuses the call. A read of a track or source that does not exist
+        // returns 0 (check TrackCount first), except GetTrackFadeProgress (-1 when not fading) and the
+        // source handles (-1 for none), where 0 is a real answer.
+
+        /// <summary>
+        /// Lays an animation on a track, replacing what the track held. On track 0 it switches the
+        /// animation as <see cref="SetAnimation"/> does, keeping the tracks above, and
+        /// <see cref="CurrentAnimation"/> names it from the call on.
+        /// </summary>
+        public bool SetTrackAnimation(int track, string animName)
+        {
+            var p = _core.Internal;
+            if (p == null || !p.SetTrackAnimation(track, animName)) return false;
+            if (track == 0) OnTrackZeroSwitched();
+            return true;
+        }
+
+        /// <summary>
+        /// Fades <paramref name="animName"/> in on a track over <paramref name="duration"/> seconds while
+        /// everything the track carried fades out. On track 0 the incoming animation is the current one
+        /// from the call on: <see cref="CurrentAnimation"/>, <see cref="IsPlaying"/> /
+        /// <see cref="IsFinished"/>, the frame and the events are its own, so <see cref="SetAnimation"/>
+        /// can go back to the animation it left. A crossfade started during another takes the one in
+        /// flight over where it stands.
+        /// </summary>
+        public bool Crossfade(int track, string animName, float duration)
+        {
+            var p = _core.Internal;
+            if (p == null || !p.Crossfade(track, animName, duration)) return false;
+            if (track == 0) OnTrackZeroSwitched();
+            return true;
+        }
+
+        /// <summary>Number of tracks on the stack, track 0 included. 0 when nothing is loaded.</summary>
+        public int TrackCount => _core.Internal?.GetTrackCount() ?? 0;
+
+        /// <summary>Empties a track; above track 0 it no longer contributes to the pose.</summary>
+        public bool ClearTrack(int track) => _core.Internal?.ClearTrack(track) ?? false;
+
+        /// <summary>How strongly a track is laid over the ones below it, 0 to 1.</summary>
+        public bool SetTrackAlpha(int track, float alpha) => _core.Internal?.SetTrackAlpha(track, alpha) ?? false;
+
+        /// <inheritdoc cref="SetTrackAlpha"/>
+        public float GetTrackAlpha(int track) => _core.Internal?.GetTrackAlpha(track) ?? 0f;
+
+        /// <summary>Whether a track mixes toward its pose or adds its offset from the setup pose.</summary>
+        public bool SetTrackBlend(int track, SpriteStudioTrackBlend blend) => _core.Internal?.SetTrackBlend(track, blend) ?? false;
+
+        /// <inheritdoc cref="SetTrackBlend"/>
+        public SpriteStudioTrackBlend GetTrackBlend(int track) => _core.Internal?.GetTrackBlend(track) ?? SpriteStudioTrackBlend.Mix;
+
+        /// <summary>
+        /// Where the next animation laid on the track starts: from its head, or at track 0's phase. Set it
+        /// before laying the animation.
+        /// </summary>
+        public bool SetTrackSync(int track, SpriteStudioTrackSync sync) => _core.Internal?.SetTrackSync(track, sync) ?? false;
+
+        /// <inheritdoc cref="SetTrackSync"/>
+        public SpriteStudioTrackSync GetTrackSync(int track) => _core.Internal?.GetTrackSync(track) ?? SpriteStudioTrackSync.Free;
+
+        /// <summary>Moves a track's playhead.</summary>
+        public bool SetTrackFrame(int track, float frameNo) => _core.Internal?.SetTrackFrame(track, frameNo) ?? false;
+
+        /// <inheritdoc cref="SetTrackFrame"/>
+        public float GetTrackFrame(int track) => _core.Internal?.GetTrackFrame(track) ?? 0f;
+
+        // A track's playback settings apply to every animation on it, those a crossfade fades in included,
+        // and outlast them. Track 0's are the SpeedScale / FrameRate / FrameSkipEnabled / PlaybackDirection
+        // this component already has, and its loop count is LoopCount.
+
+        /// <summary>A track's speed, as a multiple of the frame rate. Track 0's is <see cref="SpeedScale"/>.</summary>
+        public bool SetTrackSpeed(int track, float speed)
+        {
+            if (!(_core.Internal?.SetTrackSpeed(track, speed) ?? false)) return false;
+            // SetAnimation pushes the serialized value back, which would undo a speed written past it.
+            if (track == 0) _speedScale = speed;
+            return true;
+        }
+
+        /// <inheritdoc cref="SetTrackSpeed"/>
+        public float GetTrackSpeed(int track) => _core.Internal?.GetTrackSpeed(track) ?? 0f;
+
+        /// <summary>A track's frame-rate override (fps). Track 0's is <see cref="FrameRate"/>.</summary>
+        public bool SetTrackFrameRate(int track, int fps) => _core.Internal?.SetTrackFrameRate(track, fps) ?? false;
+
+        /// <inheritdoc cref="SetTrackFrameRate"/>
+        public int GetTrackFrameRate(int track) => _core.Internal?.GetTrackFrameRate(track) ?? 0;
+
+        /// <summary>Whether a track follows real time. Track 0's is <see cref="FrameSkipEnabled"/>.</summary>
+        public bool SetTrackFrameSkipEnabled(int track, bool enabled)
+        {
+            if (!(_core.Internal?.SetTrackFrameSkipEnabled(track, enabled) ?? false)) return false;
+            // SetAnimation pushes the serialized value back, which would undo a value written past it.
+            if (track == 0) _skipFrames = enabled;
+            return true;
+        }
+
+        /// <inheritdoc cref="SetTrackFrameSkipEnabled"/>
+        public bool IsTrackFrameSkipEnabled(int track) => _core.Internal?.IsTrackFrameSkipEnabled(track) ?? false;
+
+        /// <summary>A track's heading and style. Track 0's are <see cref="PlaybackDirection"/> / <see cref="PlaybackStyle"/>.</summary>
+        public bool SetTrackPlaybackDirection(int track, SpriteStudioPlaybackDirection direction, SpriteStudioPlaybackStyle style)
+            => _core.Internal?.SetTrackPlaybackDirection(track, direction, style) ?? false;
+
+        /// <inheritdoc cref="SetTrackPlaybackDirection"/>
+        public SpriteStudioPlaybackDirection GetTrackPlaybackDirection(int track)
+            => _core.Internal?.GetTrackPlaybackDirection(track) ?? SpriteStudioPlaybackDirection.Forward;
+
+        /// <inheritdoc cref="SetTrackPlaybackDirection"/>
+        public SpriteStudioPlaybackStyle GetTrackPlaybackStyle(int track)
+            => _core.Internal?.GetTrackPlaybackStyle(track) ?? SpriteStudioPlaybackStyle.Normal;
+
+        /// <summary>
+        /// How many times the animation on a track plays (-1 or 0 = forever). Unlike the settings above it
+        /// belongs to the animation: one laid on a track loops forever until this is set again. Track 0's
+        /// is <see cref="LoopCount"/>, which this component puts back on every animation track 0 switches
+        /// to. The read is 0 for a track with no animation, and -1 for one looping forever.
+        /// </summary>
+        public bool SetTrackLoopCount(int track, int count)
+        {
+            if (!(_core.Internal?.SetTrackLoopCount(track, count) ?? false)) return false;
+            // Every switch of track 0 puts LoopCount back; written past it, a count would be undone there.
+            if (track == 0) _loopCount = count;
+            return true;
+        }
+
+        /// <inheritdoc cref="SetTrackLoopCount"/>
+        public int GetTrackLoopCount(int track) => _core.Internal?.GetTrackLoopCount(track) ?? 0;
+
+        /// <summary>
+        /// Whether the animation on a track has played every loop. A finished track holds its last frame,
+        /// still mixed in, until the host fades or clears it; no event is sent for it. Track 0's is
+        /// <see cref="IsFinished"/>.
+        /// </summary>
+        public bool IsTrackFinished(int track) => _core.Internal?.IsTrackFinished(track) ?? false;
+
+        /// <summary>
+        /// Whether the last update crossed a loop boundary on a track: a pulse, and false on a frame that
+        /// did not advance the animation. Track 0's is <see cref="JustLooped"/>.
+        /// </summary>
+        public bool TrackJustLooped(int track) => _core.Internal?.TrackJustLooped(track) ?? false;
+
+        /// <summary>
+        /// The outgoing side of a crossfade on the track fires events while its share, 1 - progress, is at
+        /// least this. The default, +Infinity, silences it from the moment the fade begins; 0.5 lets it
+        /// fire for the first half.
+        /// </summary>
+        public bool SetTrackOutgoingEventThreshold(int track, float threshold)
+            => _core.Internal?.SetTrackOutgoingEventThreshold(track, threshold) ?? false;
+
+        /// <inheritdoc cref="SetTrackOutgoingEventThreshold"/>
+        public float GetTrackOutgoingEventThreshold(int track) => _core.Internal?.GetTrackOutgoingEventThreshold(track) ?? 0f;
+
+        /// <summary>Fades a track's alpha to <paramref name="targetAlpha"/> over <paramref name="duration"/> seconds.</summary>
+        public bool FadeTrack(int track, float targetAlpha, float duration) => _core.Internal?.FadeTrack(track, targetAlpha, duration) ?? false;
+
+        /// <summary>How far a track's fade has gone, 0 to 1, or -1 when it is not fading.</summary>
+        public float GetTrackFadeProgress(int track) => _core.Internal?.GetTrackFadeProgress(track) ?? -1f;
+
+        /// <summary>Stops a track's fade where it stands.</summary>
+        public bool CancelTrackFade(int track) => _core.Internal?.CancelTrackFade(track) ?? false;
+
+        /// <summary>The handle of the source a track reports, or -1 for none.</summary>
+        public int GetTrackMainSource(int track) => _core.Internal?.GetTrackMainSource(track) ?? -1;
+
+        /// <summary>
+        /// Adds an animation to a track beside what it holds, at <paramref name="weight"/>. Returns its
+        /// source handle, or -1. A handle is reused once its source is released (a crossfade releases what
+        /// it faded out), so do not hold one past its source.
+        /// </summary>
+        public int AddTrackSource(int track, string animName, float weight) => _core.Internal?.AddTrackSource(track, animName, weight) ?? -1;
+
+        /// <summary>A source's weight within its track.</summary>
+        public bool SetSourceWeight(int source, float weight) => _core.Internal?.SetSourceWeight(source, weight) ?? false;
+
+        /// <inheritdoc cref="SetSourceWeight"/>
+        public float GetSourceWeight(int source) => _core.Internal?.GetSourceWeight(source) ?? 0f;
+
+        /// <summary>Moves a source's playhead.</summary>
+        public bool SetSourceFrame(int source, float frameNo) => _core.Internal?.SetSourceFrame(source, frameNo) ?? false;
+
+        /// <inheritdoc cref="SetSourceFrame"/>
+        public float GetSourceFrame(int source) => _core.Internal?.GetSourceFrame(source) ?? 0f;
+
+        /// <summary>
+        /// A source fires events while its weight is at least this. The default, +Infinity, leaves only
+        /// track 0's main animation firing.
+        /// </summary>
+        public bool SetSourceEventThreshold(int source, float threshold) => _core.Internal?.SetSourceEventThreshold(source, threshold) ?? false;
+
+        /// <inheritdoc cref="SetSourceEventThreshold"/>
+        public float GetSourceEventThreshold(int source) => _core.Internal?.GetSourceEventThreshold(source) ?? 0f;
+
+        // The component's half of a crossfade or a track animation on track 0, which switch the animation
+        // without a setup. The serialized name follows, so the inspector and CurrentAnimation name the
+        // incoming animation, and SetAnimation of the outgoing one is a switch again. The
+        // runtime lays the incoming animation looping forever, as a setup does, so LoopCount is put back;
+        // speed, frame skip, frame rate and direction are track 0's and carry over on their own.
+        private void OnTrackZeroSwitched()
+        {
+            var p = _core.Internal;
+            _animationName = p.CurrentAnimationName;
+            p.SetLoop(_loopCount);
+        }
+
+        #endregion
+
         protected override void Start()
         {
             base.Start();
