@@ -36,7 +36,19 @@ namespace SpriteStudio.Runtime
             set
             {
                 _animeAsset = value;
-                _core.ReloadAsset(_animeAsset);
+                if (_animeAsset == null)
+                {
+                    UnloadAsset();
+                }
+                else if (_core.Internal != null)
+                {
+                    _core.ReloadAsset(_animeAsset);
+                }
+                else if (isActiveAndEnabled)
+                {
+                    // The runtime went with the pack a null asset let go of; this one brings it back.
+                    EnsureCore();
+                }
                 // The cellmap name->hash table belongs to the new asset: re-resolve name-keyed replacements.
                 _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
                 _canvasMaterialDirty = true;
@@ -315,8 +327,9 @@ namespace SpriteStudio.Runtime
         /// Which way the playhead is configured to walk. It <b>survives</b> <see cref="SetAnimation(string)"/>:
         /// "play this backwards" describes the playback, not the clip that happens to be loaded, so the
         /// runtime keeps it across a transition (as it keeps <see cref="SpeedScale"/> and
-        /// <see cref="FrameSkipEnabled"/>). It lives in the runtime, not in a serialized field: a value set while
-        /// the component is disabled is dropped, and enabling the component starts it Forward again.
+        /// <see cref="FrameSkipEnabled"/>). It lives in the runtime, not in a serialized field. Disabling the component,
+        /// or setting <see cref="AnimeAsset"/> to null, disposes that runtime: a value set before another is
+        /// built is dropped, and the new one starts Forward.
         /// </summary>
         public SpriteStudioPlaybackDirection PlaybackDirection
         {
@@ -332,8 +345,9 @@ namespace SpriteStudio.Runtime
         /// What the playhead does at the far end of the section. Like
         /// <see cref="PlaybackDirection"/> it <b>survives</b> <see cref="SetAnimation(string)"/>; only the
         /// heading within a round trip is re-derived, so a switch made on the return leg starts the new
-        /// animation walking outward rather than mid-bounce. It lives in the runtime, not in a serialized field: a
-        /// value set while the component is disabled is dropped, and enabling the component starts it Normal again.
+        /// animation walking outward rather than mid-bounce. It lives in the runtime, not in a serialized field. Disabling the
+        /// component, or setting <see cref="AnimeAsset"/> to null, disposes that runtime: a value set before
+        /// another is built is dropped, and the new one starts Normal.
         /// </summary>
         public SpriteStudioPlaybackStyle PlaybackStyle
         {
@@ -773,10 +787,7 @@ namespace SpriteStudio.Runtime
                 _sharedMesh.MarkDynamic();
             }
 
-            _core.EnsureCreated(_animeAsset, _subFrameEnabled);
-            // Canvas path: drop SpriteStudio internal masking; a parent uGUI Mask clips this graphic
-            // read-only via the stencil wrap below, and a parent RectMask2D through the shader's clip rect.
-            if (_core.Internal != null) _core.Internal.SuppressInternalMask = true;
+            EnsureCore();
             // Resolve the serialized cellmap texture replacements against the asset (applied on the next build).
             _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
             _canvasMaterialDirty = true;
@@ -794,6 +805,35 @@ namespace SpriteStudio.Runtime
 
             if (_started && Application.isPlaying) StartPlayback();
         }
+
+        // Create the native player if there is none and load the asset into it (see EnsureCreated), as the
+        // Canvas path needs it. Returns true when it loaded one.
+        private bool EnsureCore()
+        {
+            bool loaded = _core.EnsureCreated(_animeAsset, _subFrameEnabled);
+            // Canvas path: drop SpriteStudio internal masking; a parent uGUI Mask clips this graphic
+            // read-only via the stencil wrap below, and a parent RectMask2D through the shader's clip rect.
+            if (_core.Internal != null) _core.Internal.SuppressInternalMask = true;
+            return loaded;
+        }
+
+        // A null asset draws nothing. The CanvasRenderer would otherwise keep the last mesh and material,
+        // which an Addressables release destroys with the asset (the graphic then draws magenta), and the
+        // runtime would keep building the old pack every frame.
+        private void UnloadAsset()
+        {
+            _audioController?.StopAll();
+            _core.Dispose();
+            ReleaseAtlasMaterial();
+            _lastMaterialSignature = 0;
+            _canvasMaterialDirty = true;
+            if (_sharedMesh != null) _sharedMesh.Clear();
+            canvasRenderer.Clear();
+        }
+
+        // Set by OnValidate when the Inspector set the asset to None: LateUpdate lets go of the previous
+        // pack, since releasing it destroys materials, which OnValidate must not do.
+        [System.NonSerialized] private bool _unloadPending;
 
         private void InvokeAnimationStarted() => OnAnimationStartedEvent?.Invoke();
         private void InvokeAnimationFinished()
@@ -858,13 +898,18 @@ namespace SpriteStudio.Runtime
             // "flashes and disappears". Explicitly set up -> pin the start frame, and rebuild/reassert every
             // frame without advancing (ApplyAndRender every frame rather than dirty-once, so the mesh keeps
             // showing even after uGUI clears the CanvasRenderer's mesh).
+            if (_unloadPending)
+            {
+                _unloadPending = false;
+                if (_animeAsset == null) UnloadAsset();
+            }
             if (Application.isPlaying) return;
             // Self-heal if the .ssab was still importing when OnEnable ran (Editor restart race): pick the
             // ssab up once it is available. Without this an empty Internal created at OnEnable would never
             // get its ssab, so SetupAnimation fails forever. A reimported .ssab keeps this reference and
             // brings new data, which EnsureCreated loads the same way; what came from the previous pack is
             // rebuilt either way.
-            if (_core.EnsureCreated(_animeAsset, _subFrameEnabled))
+            if (EnsureCore())
             {
                 _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
                 _canvasMaterialDirty = true;
@@ -916,6 +961,8 @@ namespace SpriteStudio.Runtime
             // Reflect inspector edits to the replacement list (or an asset swap) into the draw-time map.
             _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
             _canvasMaterialDirty = true;
+            // None in the Inspector lets go of the previous pack as the setter does.
+            if (_animeAsset == null && _core.Internal != null && _core.Internal.HasSsab) _unloadPending = true;
             if (_core.Internal == null) return;
             _core.Internal.SetSpeed(_speedScale);
             _core.Internal.SetLoop(_loopCount);
@@ -925,8 +972,13 @@ namespace SpriteStudio.Runtime
 #endif
 
         // --- ISpriteStudioRenderable (driven by SpriteStudioUpdateManager) ---
+        // Explicit implementations, so none of it joins the package's public API: a raw native pointer, and
+        // calls that are only right in the order the update manager makes them.
 
-        public void PrepareFrame(float deltaTime, out System.IntPtr handle, out float drawFrame)
+        void ISpriteStudioRenderable.PrepareFrame(float deltaTime, out System.IntPtr handle, out float drawFrame)
+            => PrepareFrame(deltaTime, out handle, out drawFrame);
+
+        internal void PrepareFrame(float deltaTime, out System.IntPtr handle, out float drawFrame)
         {
             if (_core.Internal == null) { handle = System.IntPtr.Zero; drawFrame = 0f; return; }
             _core.Internal.PrepareFrameData(deltaTime, true, out handle, out drawFrame);
@@ -934,11 +986,9 @@ namespace SpriteStudio.Runtime
         }
 
         /// <inheritdoc/>
-        // Explicit implementation: only the update manager needs this, and a raw native pointer must not
-        // become part of the package's public API.
         System.IntPtr ISpriteStudioRenderable.GetLiveHandle() => _core.Internal != null ? _core.Internal.NativeHandle : System.IntPtr.Zero;
 
-        public void ConsumeFrame(System.IntPtr frameDataPtr, int len, float deltaTime)
+        void ISpriteStudioRenderable.ConsumeFrame(System.IntPtr frameDataPtr, int len, float deltaTime)
         {
             if (_core.Internal == null) return;
             _core.Internal.ConsumeFrameData(frameDataPtr, len, deltaTime);
@@ -951,7 +1001,9 @@ namespace SpriteStudio.Runtime
 
         float ISpriteStudioRenderable.ConsumeDeltaTime(float deltaTime) => deltaTime;
 
-        public void ApplyAndRender()
+        void ISpriteStudioRenderable.ApplyAndRender() => ApplyAndRender();
+
+        internal void ApplyAndRender()
         {
             if (_core.Internal == null || _sharedMesh == null) return;
 

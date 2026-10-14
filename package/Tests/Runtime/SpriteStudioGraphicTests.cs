@@ -178,5 +178,45 @@ namespace SpriteStudio.Runtime.Tests
             Assert.AreEqual((float)UnityEngine.Rendering.CompareFunction.Equal, drawn.GetFloat("_StencilComp"));
             Assert.AreEqual(1f, drawn.GetFloat("_Stencil"));
         }
+
+        [Test]
+        public void NullAsset_LeavesNothingOfThePackOnTheCanvasRenderer()
+        {
+            var graphic = MakeBuiltGraphic();
+            var atlas = graphic.mainTexture;
+
+            graphic.AnimeAsset = null;
+
+            Assert.IsNull(graphic.InternalPlayer, "the runtime holding the old pack should be gone");
+            Assert.AreEqual(0, graphic.CanvasMesh.vertexCount, "the old pack's geometry should not stay drawn");
+            Assert.AreNotSame(atlas, graphic.mainTexture, "the released asset's atlas should not stay bound");
+            graphic.ApplyAndRender();
+            Assert.AreEqual(0, graphic.CanvasMesh.vertexCount, "nothing is built without an asset");
+
+            // The next asset is loaded as the first one was, with the Canvas path's masking.
+            graphic.AnimeAsset = Resources.Load<SpriteStudioAnimeAsset>("Ringo/Ringo");
+            Assert.IsTrue(graphic.InternalPlayer.SuppressInternalMask);
+            Assert.IsTrue(graphic.SetAnimation("walk"));
+            graphic.InternalPlayer.ScheduleMeshUpdate(0f);
+            graphic.ApplyAndRender();
+            Assert.Greater(graphic.CanvasMesh.vertexCount, 0, "the next asset draws again");
+        }
+
+#if UNITY_EDITOR
+        [Test]
+        public void InspectorNone_LetsGoOfThePack()
+        {
+            var graphic = MakeBuiltGraphic();
+
+            // What the Inspector does: write the field, then OnValidate. Releasing waits for LateUpdate.
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            typeof(SpriteStudioGraphic).GetField("_animeAsset", flags).SetValue(graphic, null);
+            typeof(SpriteStudioGraphic).GetMethod("OnValidate", flags).Invoke(graphic, null);
+            typeof(SpriteStudioGraphic).GetMethod("LateUpdate", flags).Invoke(graphic, null);
+
+            Assert.IsFalse(graphic.InternalPlayer != null && graphic.InternalPlayer.HasSsab, "no pack should stay loaded");
+            Assert.AreEqual(0, graphic.CanvasMesh.vertexCount);
+        }
+#endif
     }
 }

@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 
 namespace SpriteStudio.Runtime
 {
-    public class SpriteStudioGeometryBuilder : IDisposable
+    internal class SpriteStudioGeometryBuilder : IDisposable
     {
         private readonly SpriteStudioInternalPlayer _player;
 
@@ -210,6 +210,9 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             {
                 _player.UpdateRuntime(deltaTime);
                 _player.PollEvents();
+                // An event handler disposed this player: it disabled it, destroyed it with DestroyImmediate, or set
+                // its asset to null.
+                if (!_player._handle.IsValid) return;
             }
 
             drawFrame = _player.SubFrameEnabled ? _player.GetFrame() : UnityEngine.Mathf.Floor(_player.GetFrame());

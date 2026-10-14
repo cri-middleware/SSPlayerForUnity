@@ -10,7 +10,7 @@ namespace SpriteStudio.Runtime
     /// A context dedicated to the hard-to-manage lifecycle (create / destroy) of the Rust-side native pointers.
     /// Separates ownership of the SSAB binary and Handle lifetime management out of SpriteStudioInternalPlayer.
     /// </summary>
-    public class SpriteStudioNativeContext : IDisposable
+    internal class SpriteStudioNativeContext : IDisposable
     {
         private SsPlayerHandle _handle;
         private unsafe void* _resourceHandle;

@@ -13,7 +13,7 @@ namespace SpriteStudio.Runtime
     /// animation Tick and Job System-based mesh construction.
     /// Enforces strict lifecycle management (IDisposable) to prevent memory leaks.
     /// </summary>
-    public class SpriteStudioInternalPlayer : IDisposable
+    internal class SpriteStudioInternalPlayer : IDisposable
     {
         // Native context (pointer management is delegated to it).
         internal SpriteStudioNativeContext _nativeContext;
@@ -341,6 +341,23 @@ internal struct MaskPartData
         private SpriteStudioSignalParam[] _signalParamBuffer;
         private int _signalParamCount;
 
+        // The events one update passed, copied out of the runtime before PollEvents fires anything: a
+        // handler that sets up another animation re-points the source at that animation's event table, so
+        // an index read after the callback would decode another event, or none. Grow-only and marked per
+        // pass like _signalParamBuffer, so a nested pass appends above the entries the outer one still reads.
+        private struct PassedEvent
+        {
+            public uint Source;
+            public int AnimationIndex;
+            public int EventIndex;
+        }
+        private PassedEvent[] _passedEvents;
+        private int _passedEventCount;
+
+        // Bumped by every LoadSsab. A handler that swaps the pack ends the pass that called it: the events
+        // still to fire were decoded against the pack it replaced.
+        private int _loadGeneration;
+
         // True once an ssab has been loaded into the native runtime. Lets the owner (PlaybackCore /
         // player) detect "Internal created but ssab not yet loaded" — which happens when OnEnable runs
         // before the .ssab finishes importing on an Editor restart — and self-heal by loading it later.
@@ -368,6 +385,7 @@ internal struct MaskPartData
         /// </summary>
         public void LoadSsab(byte[] ssabData, AssetResolver resolver = null)
         {
+            _loadGeneration++;
             _assetResolver = resolver;
             // Nothing is set up on the pack about to be bound, whatever was set up on the one being
             // replaced. Cleared here rather than on success, because a REFUSED load leaves the previous
@@ -1714,6 +1732,8 @@ internal struct MaskPartData
             // poll always enters at mark 0. Skipping the nested pass instead would drop that pass's whole
             // event batch permanently — the runtime clears its passed-event list on the next update.
             int paramMark = _signalParamCount;
+            int eventMark = _passedEventCount;
+            int generation = _loadGeneration;
             try
             {
             unsafe
@@ -1727,33 +1747,40 @@ internal struct MaskPartData
                 bool finished = NativeMethods.ss_runtime_is_finished(_handle.ptr);
                 bool rising = finished && !_prevFinished;
                 _prevFinished = finished;
+
+                // just_looped is reset to false every update() and becomes true only on an update that
+                // crosses a loop boundary (one pulse per update), so it can be fired as-is. Read with the
+                // events before anything fires: a handler's setup or seek rewrites all of them.
+                bool looped = NativeMethods.ss_runtime_just_looped(_handle.ptr);
+                int eventEnd = CapturePassedEvents();
+
                 if (rising)
                 {
                     OnAnimationFinished?.Invoke();
+                    if (DispatchInterrupted(generation)) return;
                 }
-
-                // just_looped is reset to false every update() and becomes true only on an update that
-                // crosses a loop boundary (one pulse per update), so it can be fired as-is.
-                if (NativeMethods.ss_runtime_just_looped(_handle.ptr))
+                if (looped)
                 {
                     OnAnimationLooped?.Invoke();
+                    if (DispatchInterrupted(generation)) return;
                 }
 
                 // Each index addresses the event table of the animation of the source that fired it, so the
                 // table is looked up per event. Reading them all against the animation set up here reports
                 // other events, or none, once a crossfade on track 0 has handed the track to another one.
-                int eventCount = NativeMethods.ss_runtime_get_passed_event_count(_handle.ptr);
-                if (eventCount > 0 && _ssab.HasValue)
+                if (eventEnd > eventMark && _ssab.HasValue)
                 {
                     var binary = _ssab.Value;
-                    for (int i = 0; i < eventCount; i++)
+                    for (int i = eventMark; i < eventEnd; i++)
                     {
-                        uint source = NativeMethods.ss_runtime_get_passed_event_source_handle(_handle.ptr, i);
-                        int animIdx = NativeMethods.ss_runtime_get_source_animation_index(_handle.ptr, source);
+                        // Through the field: a nested pass may have grown the buffer.
+                        var passed = _passedEvents[i];
+                        uint source = passed.Source;
+                        int animIdx = passed.AnimationIndex;
                         if (animIdx < 0 || animIdx >= binary.AnimationsLength) continue;
                         var animObj = binary.Animations(animIdx);
                         if (!animObj.HasValue) continue;
-                        int eventIdx = NativeMethods.ss_runtime_get_passed_event_index(_handle.ptr, i);
+                        int eventIdx = passed.EventIndex;
                         // A not-found (-1), or an index past that table, would read past the FlatBuffer.
                         if (eventIdx < 0 || eventIdx >= animObj.Value.EventsLength) continue;
                         var eventsObj = animObj.Value.Events(eventIdx);
@@ -1784,7 +1811,8 @@ internal struct MaskPartData
                                     HasPoint = val.Point.HasValue,
                                     PointValue = val.Point.HasValue ? new UnityEngine.Vector2(val.Point.Value.V1, val.Point.Value.V2) : default
                                 };
-                                OnUserData.Invoke(ev);
+                                OnUserData?.Invoke(ev);
+                                if (DispatchInterrupted(generation)) return;
                             }
                         }
 
@@ -1839,7 +1867,8 @@ internal struct MaskPartData
                                     _paramStart = paramStart,
                                     ParamCount = written,
                                 };
-                                OnSignal.Invoke(ev);
+                                OnSignal?.Invoke(ev);
+                                if (DispatchInterrupted(generation)) return;
                             }
                         }
 
@@ -1862,7 +1891,8 @@ internal struct MaskPartData
                                     SoundName = val.SoundName,
                                     LoopNum = val.LoopNum
                                 };
-                                OnAudio.Invoke(ev);
+                                OnAudio?.Invoke(ev);
+                                if (DispatchInterrupted(generation)) return;
                             }
                         }
                     }
@@ -1872,8 +1902,38 @@ internal struct MaskPartData
             finally
             {
                 _signalParamCount = paramMark;
+                _passedEventCount = eventMark;
             }
         }
+
+        // Copy the events the last update passed above the current mark, and return the end of the copy.
+        // The animation is resolved now, while the source still plays the one that fired them.
+        private unsafe int CapturePassedEvents()
+        {
+            int start = _passedEventCount;
+            int count = NativeMethods.ss_runtime_get_passed_event_count(_handle.ptr);
+            if (count <= 0) return start;
+            int end = start + count;
+            if (_passedEvents == null || _passedEvents.Length < end)
+                System.Array.Resize(ref _passedEvents, Mathf.NextPowerOfTwo(Mathf.Max(end, 8)));
+            for (int i = 0; i < count; i++)
+            {
+                uint source = NativeMethods.ss_runtime_get_passed_event_source_handle(_handle.ptr, i);
+                _passedEvents[start + i] = new PassedEvent
+                {
+                    Source = source,
+                    AnimationIndex = NativeMethods.ss_runtime_get_source_animation_index(_handle.ptr, source),
+                    EventIndex = NativeMethods.ss_runtime_get_passed_event_index(_handle.ptr, i),
+                };
+            }
+            _passedEventCount = end;
+            return end;
+        }
+
+        // Whether the handler just called ended this player's pass: it disposed the player (disabled it,
+        // destroyed it with DestroyImmediate, or set its asset to null), whose native handle is gone, or it
+        // loaded another pack.
+        private bool DispatchInterrupted(int generation) => _isDisposed || generation != _loadGeneration;
 
         // Append one decoded parameter to the grow-only signal-param buffer (see _signalParamBuffer).
         // Struct copy only; the buffer allocates once and grows rarely, so steady state is zero-GC.

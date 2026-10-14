@@ -9,7 +9,7 @@ namespace SpriteStudio.Runtime
     /// PMA and discard are a function of the blend type (see <see cref="SpriteStudioBlendTable"/>),
     /// so they are not separate key axes. Mask axes will be added here later.
     /// </summary>
-    public readonly struct SpriteStudioMaterialKey : IEquatable<SpriteStudioMaterialKey>
+    internal readonly struct SpriteStudioMaterialKey : IEquatable<SpriteStudioMaterialKey>
     {
         public readonly uint TextureHash;
         public readonly byte BlendType;   // ssab BlendType (0..7)
@@ -59,7 +59,7 @@ namespace SpriteStudio.Runtime
     /// Key off the ssab BlendType values, not names: Mul / Mulalpha can be swapped relative to their
     /// names (ssab Mul = alpha-ignored multiply).
     /// </summary>
-    public static class SpriteStudioBlendTable
+    internal static class SpriteStudioBlendTable
     {
         public struct State
         {
@@ -105,7 +105,7 @@ namespace SpriteStudio.Runtime
     }
 
     /// <summary>Shader property IDs and material-variant construction for SpriteStudio draw blends.</summary>
-    public static class SpriteStudioMaterial
+    internal static class SpriteStudioMaterial
     {
         /// <summary>ssab BlendType.Mix. The base material is authored as Mix + PMA, so it needs no variant.</summary>
         public const byte BlendMix = 0;

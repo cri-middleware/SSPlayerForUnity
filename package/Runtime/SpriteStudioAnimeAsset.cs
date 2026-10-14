@@ -49,7 +49,7 @@ namespace SpriteStudio.Runtime
         /// </summary>
         /// <param name="packHash">Name hash of the referenced anime pack (PartTypeInstance.RefAnimePackHash).</param>
         /// <param name="nameHash">Name hash of the referenced animation. Used by SetupAnimationByHash after resolution.</param>
-        public byte[] ResolveExternalSsab(uint packHash, uint nameHash)
+        internal byte[] ResolveExternalSsab(uint packHash, uint nameHash)
         {
             // 1. Reference to another pack: look it up from the external references, prioritizing a pack_hash match.
             if (packHash != 0 && ExternalReferences != null)
@@ -89,7 +89,7 @@ namespace SpriteStudio.Runtime
         /// Return the Materials index corresponding to a DrawBatch's texture hash.
         /// Returns -1 if no correspondence is found (the caller falls back to material[0], etc.).
         /// </summary>
-        public int GetMaterialIndexForHash(uint textureHash)
+        internal int GetMaterialIndexForHash(uint textureHash)
         {
             if (_hashToMaterial == null)
             {
@@ -113,7 +113,7 @@ namespace SpriteStudio.Runtime
         /// hashes resolvable only on the external-reference side bubble up to the parent as submeshes.
         /// Returns null if not found (the caller falls back).
         /// </summary>
-        public Material ResolveMaterialForHash(uint textureHash)
+        internal Material ResolveMaterialForHash(uint textureHash)
         {
             int mi = GetMaterialIndexForHash(textureHash);
             if (mi >= 0 && Materials != null && mi < Materials.Count)
@@ -228,7 +228,7 @@ namespace SpriteStudio.Runtime
         /// A cellmap yields both its NameHash and ImagePathHash; an external texture yields its NameHash.
         /// False (and hashes = null) when the name is unknown to this asset.
         /// </summary>
-        public bool TryGetCellmapHashes(string cellmapName, out uint[] hashes)
+        internal bool TryGetCellmapHashes(string cellmapName, out uint[] hashes)
         {
             EnsureCellmapTable();
             if (!string.IsNullOrEmpty(cellmapName) && _cellmapNameToHashes.TryGetValue(cellmapName, out hashes))
@@ -284,7 +284,7 @@ namespace SpriteStudio.Runtime
         /// TextureHash 0 (cell-less, e.g. Shape) resolves to a white-textured base. Returns null
         /// only when even that cannot be created.
         /// </summary>
-        public Material ResolveMaterial(uint textureHash, byte blendType)
+        internal Material ResolveMaterial(uint textureHash, byte blendType)
         {
             var baseMat = (textureHash == 0) ? GetWhiteBaseMaterial() : ResolveMaterialForHash(textureHash);
             if (baseMat == null) return null;
@@ -310,7 +310,7 @@ namespace SpriteStudio.Runtime
         /// without per-frame params (e.g. TestStub). Param-carrying AddOns need a per-instance pool
         /// (added in the next step) so concurrent parts do not stomp each other's params.
         /// </summary>
-        public Material ResolveAddOnMaterial(Shader addonShader, uint shaderHash, uint textureHash, byte blendType)
+        internal Material ResolveAddOnMaterial(Shader addonShader, uint shaderHash, uint textureHash, byte blendType)
         {
             if (addonShader == null || shaderHash == 0) return ResolveMaterial(textureHash, blendType);
 
@@ -335,7 +335,7 @@ namespace SpriteStudio.Runtime
         /// instance, sets its per-part params each frame, and destroys it. Used for the bounded per-part
         /// pool so concurrent parts with different params do not stomp each other. HideAndDontSave.
         /// </summary>
-        public Material CreatePerPartMaterialInstance(Shader addonShader, uint textureHash, byte blendType)
+        internal Material CreatePerPartMaterialInstance(Shader addonShader, uint textureHash, byte blendType)
         {
             if (addonShader == null) return null;
             var baseMat = (textureHash == 0) ? GetWhiteBaseMaterial() : ResolveMaterialForHash(textureHash);
@@ -350,7 +350,7 @@ namespace SpriteStudio.Runtime
         /// Cached per (textureHash, blend, comp) via the shared variant dictionary. Returns null only
         /// when the base material cannot be resolved.
         /// </summary>
-        public Material ResolveTestMaterial(uint textureHash, byte blendType, byte stencilComp)
+        internal Material ResolveTestMaterial(uint textureHash, byte blendType, byte stencilComp)
         {
             var baseMat = (textureHash == 0) ? GetWhiteBaseMaterial() : ResolveMaterialForHash(textureHash);
             if (baseMat == null) return null;
@@ -374,7 +374,7 @@ namespace SpriteStudio.Runtime
         /// same hash; the per-frame _MaskThreshold is supplied by the player via a
         /// MaterialPropertyBlock. Cached per (textureHash, op). Null if the shader is missing.
         /// </summary>
-        public Material ResolveMaskWriteMaterial(uint textureHash, byte stencilOp)
+        internal Material ResolveMaskWriteMaterial(uint textureHash, byte stencilOp)
         {
             if (_maskWriteShader == null)
             {
@@ -456,7 +456,7 @@ namespace SpriteStudio.Runtime
         /// and all other ssab blends collapse to MIX, so there are no per-blend variants. blendType is
         /// accepted for call-site symmetry but ignored. Returns null only if the base cannot be created.
         /// </summary>
-        public Material ResolveCanvasMaterial(uint textureHash, byte blendType)
+        internal Material ResolveCanvasMaterial(uint textureHash, byte blendType)
         {
             return GetCanvasBaseMaterial(textureHash);
         }

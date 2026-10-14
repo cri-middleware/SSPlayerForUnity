@@ -32,7 +32,7 @@ namespace SpriteStudio.Runtime
         public const byte Mesh = (byte)ss.runtime.DrawBatchKind.Mesh;
     }
 
-    public struct DrawBatchData
+    internal struct DrawBatchData
     {
         public ushort StartRank;
         public ushort Count;
@@ -50,7 +50,7 @@ namespace SpriteStudio.Runtime
 
     // Effect draw command (the draw range for one emitter/cellmap).
     // Filled by copying values from the generated accessor ss.runtime.EffectDrawCommand.
-    public struct EffectDrawCommandData
+    internal struct EffectDrawCommandData
     {
         public uint CellmapHash;
         public uint QuadCount;
@@ -60,14 +60,14 @@ namespace SpriteStudio.Runtime
 
     // Holds one effect part's draw plan as position info into the merged buffers (_effectVerts, etc.).
     // The geometry itself has already been copied into the merged NativeArrays.
-    public struct EffectDrawPlanData
+    internal struct EffectDrawPlanData
     {
         public int CommandStart;  // start index within _effectCommands
         public int CommandCount;  // command count (0 = no draw)
         public int QuadBase;      // global quad offset within the merged geometry
     }
 
-    public unsafe struct InstanceMeshPointer
+    internal unsafe struct InstanceMeshPointer
     {
         public SsVertex* Vertices;
         public uint* Indices;
@@ -75,20 +75,20 @@ namespace SpriteStudio.Runtime
         public int IndexCount;
     }
 
-    public struct PartStateData
+    internal struct PartStateData
     {
         public ulong UpdateFlag;
         public float Alpha;
         public short PartColorIndex;
     }
 
-    public struct CornerColorData
+    internal struct CornerColorData
     {
         public Color32 Rgba;
         public float Rate;
     }
 
-    public struct PartColorData
+    internal struct PartColorData
     {
         public byte BlendType;
         public CornerColorData Lt;
@@ -97,7 +97,7 @@ namespace SpriteStudio.Runtime
         public CornerColorData Rb;
     }
 
-    public struct SsVertex
+    internal struct SsVertex
     {
         public Vector3 Position;
         public Color32 Color;
@@ -144,7 +144,7 @@ namespace SpriteStudio.Runtime
     }
 
     [BurstCompile(CompileSynchronously = false)]
-    public unsafe struct UpdateMeshJob : IJob
+    internal unsafe struct UpdateMeshJob : IJob
     {
         [NativeDisableUnsafePtrRestriction] public float* WorldMatrices;
         [NativeDisableUnsafePtrRestriction] public float* LocalUvs;

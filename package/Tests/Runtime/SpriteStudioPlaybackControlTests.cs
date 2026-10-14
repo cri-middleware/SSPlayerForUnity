@@ -516,6 +516,82 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         // ============================================================
+        // A null asset lets go of the pack: the renderer keeps nothing of it, the runtime stops building
+        // it, and the next asset is loaded as the first one was.
+        // ============================================================
+
+        [Test]
+        public void NullAsset_LeavesNothingOfThePackOnTheRenderer()
+        {
+            var player = MakePlayingPlayer();
+            player.InternalPlayer.ScheduleMeshUpdate(0f);
+            player.ApplyAndRender();
+            var renderer = player.GetComponent<MeshRenderer>();
+            var mesh = player.GetComponent<MeshFilter>().sharedMesh;
+            Assume.That(renderer.sharedMaterials.Length, Is.GreaterThan(0), "precondition: the player drew its pack");
+
+            player.AnimeAsset = null;
+
+            Assert.IsNull(player.InternalPlayer, "the runtime holding the old pack should be gone");
+            Assert.AreEqual(0, renderer.sharedMaterials.Length, "no material of the released asset should stay on the renderer");
+            Assert.AreEqual(0, mesh.vertexCount, "the old pack's geometry should not stay drawn");
+            Assert.IsFalse(player.IsPlaying);
+            Assert.DoesNotThrow(() => { player.SetAnimation("walk"); player.Play(); player.ApplyAndRender(); });
+            Assert.AreEqual(0, renderer.sharedMaterials.Length, "nothing is built without an asset");
+        }
+
+        [Test]
+        public void AnAssetAfterNull_IsLoadedAndPlays()
+        {
+            var player = MakePlayingPlayer();
+            player.AnimeAsset = null;
+
+            player.AnimeAsset = MakeAsset();
+
+            Assert.IsNotNull(player.InternalPlayer, "the runtime should come back with the asset");
+            Assert.IsTrue(player.InternalPlayer.HasSsab);
+            Assert.IsTrue(player.SetAnimation("walk"));
+            player.Play();
+            Assert.IsTrue(player.IsPlaying);
+        }
+
+        [Test]
+        public void NullAsset_OnADisabledPlayer_ClearsWhatItLastDrew()
+        {
+            var player = MakePlayingPlayer();
+            player.InternalPlayer.ScheduleMeshUpdate(0f);
+            player.ApplyAndRender();
+            var renderer = player.GetComponent<MeshRenderer>();
+            player.enabled = false;
+
+            player.AnimeAsset = null;
+
+            Assert.AreEqual(0, renderer.sharedMaterials.Length, "the renderer still draws while the player is disabled");
+            player.enabled = true;
+            Assert.IsFalse(player.InternalPlayer != null && player.InternalPlayer.HasSsab, "re-enabling loads nothing");
+        }
+
+#if UNITY_EDITOR
+        [Test]
+        public void InspectorNone_LetsGoOfThePack()
+        {
+            var player = MakePlayingPlayer();
+            player.InternalPlayer.ScheduleMeshUpdate(0f);
+            player.ApplyAndRender();
+            var renderer = player.GetComponent<MeshRenderer>();
+
+            // What the Inspector does: write the field, then OnValidate. Releasing waits for LateUpdate.
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            typeof(SpriteStudioPlayer).GetField("_animeAsset", flags).SetValue(player, null);
+            typeof(SpriteStudioPlayer).GetMethod("OnValidate", flags).Invoke(player, null);
+            typeof(SpriteStudioPlayer).GetMethod("LateUpdate", flags).Invoke(player, null);
+
+            Assert.IsFalse(player.InternalPlayer != null && player.InternalPlayer.HasSsab, "no pack should stay loaded");
+            Assert.AreEqual(0, renderer.sharedMaterials.Length);
+        }
+#endif
+
+        // ============================================================
         // (A''') Enabling again: OnDisable disposes the native player, so each later enable has to set the
         // configured animation up again and honour AutoPlay, as Start did the first time.
         // ============================================================

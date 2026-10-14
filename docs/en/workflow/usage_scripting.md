@@ -247,6 +247,9 @@ void HandleFinished()
 }
 ```
 
+> [!NOTE]
+> `OnAnimationFinished` fires before the keys its tick crossed, and those keys still fire once the handler returns, read from the animation that finished: a switch made here neither loses the last keys nor reads them from the next animation. A handler that disables the player or its GameObject, destroys it with `DestroyImmediate`, or assigns it another `AnimeAsset` (null included) ends that tick's events there, and the rest are not delivered. `Destroy` waits for the end of the frame, so after it the rest still arrive.
+
 ### Implementation Example: Triggering Events Using UserData
 
 An implementation example that receives UserData set in SpriteStudio (playing footsteps, triggering attack hit detection, etc.) and processes it on the game side.
