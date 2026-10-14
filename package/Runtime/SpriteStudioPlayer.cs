@@ -19,6 +19,7 @@ namespace SpriteStudio.Runtime
     // exactly once when placed in the scene (does not play). The per-frame drive in Play mode is still
     // centrally managed by SpriteStudioUpdateManager as before (the manager does not run in edit mode).
     [ExecuteAlways]
+    [AddComponentMenu("SpriteStudio/SpriteStudio Player")]
     public class SpriteStudioPlayer : MonoBehaviour, ITimeControl, ISpriteStudioRenderable
     {
         [Header("SpriteStudio Asset")]

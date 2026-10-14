@@ -15,6 +15,7 @@ namespace SpriteStudio.Runtime
     [RequireComponent(typeof(RectTransform))]
     [RequireComponent(typeof(CanvasRenderer))]
     [ExecuteAlways]
+    [AddComponentMenu("SpriteStudio/SpriteStudio Graphic")]
     public class SpriteStudioGraphic : MaskableGraphic, ISpriteStudioRenderable
     {
         [Header("SpriteStudio Asset")]
