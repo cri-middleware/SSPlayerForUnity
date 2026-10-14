@@ -57,7 +57,20 @@ namespace SpriteStudio.Runtime
             set
             {
                 _animeAsset = value;
-                _core.ReloadAsset(_animeAsset);
+                if (_animeAsset == null)
+                {
+                    UnloadAsset();
+                }
+                else if (_core.Internal != null)
+                {
+                    _core.ReloadAsset(_animeAsset);
+                }
+                else if (isActiveAndEnabled)
+                {
+                    // The runtime went with the pack a null asset let go of; this one brings it back.
+                    _core.EnsureCreated(_animeAsset, _subFrameEnabled);
+                    ApplyPixelsPerUnit();
+                }
                 // The cellmap name->hash table belongs to the new asset: re-resolve name-keyed replacements.
                 _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
                 // The part set (and thus name->index mapping) may have changed: re-resolve trackers.
@@ -438,8 +451,9 @@ namespace SpriteStudio.Runtime
         /// Which way the playhead is configured to walk. It <b>survives</b> <see cref="SetAnimation(string)"/>:
         /// "play this backwards" describes the playback, not the clip that happens to be loaded, so the
         /// runtime keeps it across a transition (as it keeps <see cref="SpeedScale"/> and
-        /// <see cref="FrameSkipEnabled"/>). It lives in the runtime, not in a serialized field: a value set while
-        /// the component is disabled is dropped, and enabling the component starts it Forward again.
+        /// <see cref="FrameSkipEnabled"/>). It lives in the runtime, not in a serialized field. Disabling the component,
+        /// or setting <see cref="AnimeAsset"/> to null, disposes that runtime: a value set before another is
+        /// built is dropped, and the new one starts Forward.
         /// </summary>
         public SpriteStudioPlaybackDirection PlaybackDirection
         {
@@ -455,8 +469,9 @@ namespace SpriteStudio.Runtime
         /// What the playhead does at the far end of the section. Like
         /// <see cref="PlaybackDirection"/> it <b>survives</b> <see cref="SetAnimation(string)"/>; only the
         /// heading within a round trip is re-derived, so a switch made on the return leg starts the new
-        /// animation walking outward rather than mid-bounce. It lives in the runtime, not in a serialized field: a
-        /// value set while the component is disabled is dropped, and enabling the component starts it Normal again.
+        /// animation walking outward rather than mid-bounce. It lives in the runtime, not in a serialized field. Disabling the
+        /// component, or setting <see cref="AnimeAsset"/> to null, disposes that runtime: a value set before
+        /// another is built is dropped, and the new one starts Normal.
         /// </summary>
         public SpriteStudioPlaybackStyle PlaybackStyle
         {
@@ -957,7 +972,15 @@ namespace SpriteStudio.Runtime
             _core.OnUserData -= InvokeUserData;
             _core.OnSignal -= InvokeSignal;
             _core.OnAudio -= InvokeAudio;
-            _audioController?.StopAll();   // On disable, stop all built-in sounds
+            ReleasePack();
+        }
+
+        // Let go of everything that came from the loaded pack: its sounds, the material instances made for
+        // it, and the native player that holds it. A player enabled again, or given another asset, builds
+        // them again.
+        private void ReleasePack()
+        {
+            _audioController?.StopAll();   // stop all built-in sounds
 
             // Release the per-part AddOn material instances and force a material-list rebuild on
             // re-enable (the cleared list count no longer matches the submesh count).
@@ -969,6 +992,16 @@ namespace SpriteStudio.Runtime
             // new (animation-not-set-up) native handle would be wrongly judged "same name, no setup needed"
             // and rendering would break.
             ReleaseTimelineControl();
+        }
+
+        // A null asset draws nothing. The renderer would otherwise keep the last mesh and its materials,
+        // which an Addressables release destroys with the asset (the parts then draw magenta), and the
+        // runtime would keep building the old pack every frame.
+        private void UnloadAsset()
+        {
+            ReleasePack();
+            if (_sharedMesh != null) _sharedMesh.Clear();
+            if (_meshRenderer != null) _meshRenderer.SetSharedMaterials(_submeshMaterials);
         }
 
         private void OnDestroy()
@@ -1047,9 +1080,12 @@ namespace SpriteStudio.Runtime
 
             if (Application.isPlaying)
             {
+                // A pack assigned after None: the runtime went with the previous one.
+                if (assetChanged && _animeAsset != null && _core.Internal == null && isActiveAndEnabled)
+                    _core.EnsureCreated(_animeAsset, _subFrameEnabled);
                 // Reflect changes live during play. Reload the ssab on an asset swap, then (re)start the
                 // animation from the head when the asset or animation changed.
-                if (_core.Internal != null)
+                if (_core.Internal != null && _animeAsset != null)
                 {
                     if (assetChanged)
                     {
@@ -1069,10 +1105,15 @@ namespace SpriteStudio.Runtime
                 // Edit mode rebuilds the preview (EnsureCreated reloads the ssab on an asset change).
                 _editPreviewDirty = true;
             }
+            // None in the Inspector lets go of the previous pack as the setter does, from LateUpdate:
+            // releasing it destroys materials, which OnValidate must not do.
+            if (assetChanged && _animeAsset == null) _unloadPending = true;
 
             _appliedAsset = _animeAsset;
             _appliedAnimation = _animationName;
         }
+
+        [System.NonSerialized] private bool _unloadPending;
 
         // Edit-mode static preview. With [ExecuteAlways], LateUpdate is called every editor frame, but only
         // when _editPreviewDirty is set does it "build the start frame once" and hold it static (does not play).
@@ -1081,6 +1122,11 @@ namespace SpriteStudio.Runtime
 
         private void LateUpdate()
         {
+            if (_unloadPending)
+            {
+                _unloadPending = false;
+                if (_animeAsset == null) UnloadAsset();
+            }
             if (Application.isPlaying) return;
             // A reimported .ssab keeps this reference and brings new data, which EnsureCreated loads; so does
             // the self-heal if the .ssab was still importing when OnEnable ran (Editor restart race). Either
