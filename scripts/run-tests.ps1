@@ -128,7 +128,7 @@ try {
     }
 
     # The .ssab fixtures under package/Tests/Runtime/Resources/ are build artifacts converted from the
-    # SpriteStudio-SDK sources, not committed files. Only three test classes know how to produce them (their
+    # SpriteStudio-SDK sources, not committed files. Only four test classes know how to produce them (their
     # [UnitySetUp] drives the converter); every other class just asserts "Ringo.ssab is required". NUnit runs
     # the consumers first, so on a clean tree the suites below fail long before anything gets generated.
     # Convert the fixtures up front so EditMode / PlayMode / Player all start from a warm tree.
@@ -137,9 +137,11 @@ try {
         "$FixtureDir/Ringo/Ringo.ssab",
         "$FixtureDir/Ringo/Ringo_tyu.ssab",
         "$FixtureDir/Sound/Sound.ssab",
-        "$FixtureDir/overall/Mask.ssab"
+        "$FixtureDir/overall/Mask.ssab",
+        "$FixtureDir/EventDispatch/UserData.ssab",
+        "$FixtureDir/EventDispatch/Signal.ssab"
     )
-    $FixtureTests = "SpriteStudio.Runtime.Tests.SpriteStudioRingoPlaybackTests;SpriteStudio.Runtime.Tests.SpriteStudioAudioEventTests;SpriteStudio.Runtime.Tests.SpriteStudioClippingMaskTests"
+    $FixtureTests = "SpriteStudio.Runtime.Tests.SpriteStudioRingoPlaybackTests;SpriteStudio.Runtime.Tests.SpriteStudioAudioEventTests;SpriteStudio.Runtime.Tests.SpriteStudioClippingMaskTests;SpriteStudio.Runtime.Tests.SpriteStudioEventDispatchTests"
 
     $MissingFixtures = @($FixtureFiles | Where-Object { -not (Test-Path $_) })
     if ($MissingFixtures.Count -gt 0) {
