@@ -13,8 +13,9 @@ namespace SpriteStudio.Runtime.Tests
     /// tests it itself; what is checked here is the player's half: the current animation follows a
     /// switch of track 0 at the call, the loop count the component holds is put back on what track 0
     /// switches to, track 0's settings are the component's own, the reads of nothing, and that the
-    /// stack moves under the player's update, and that each event comes from the source that fired it,
-    /// read from that source's animation. Time is advanced with manual Ticks.
+    /// stack moves under the player's update, that a frame the stack did not move is not rebuilt, and
+    /// that each event comes from the source that fired it, read from that source's animation. Time is
+    /// advanced with manual Ticks.
     /// Ringo: attack1 is 20 frames at 60 fps, walk and wait1 are 80.
     /// </summary>
     public class SpriteStudioTrackTests
@@ -401,6 +402,105 @@ namespace SpriteStudio.Runtime.Tests
 
             Assert.IsTrue(player.SetAnimation("walk"), "and the first animation is still one to go back to");
             Assert.AreEqual("walk", player.InternalPlayer.CurrentAnimationName);
+        }
+
+        // ---- a frame whose pose did not move is not rebuilt ----
+
+        // Builds the current frame, then reports whether the next advancing frame skipped its rebuild.
+        private static bool NextFrameSkipped(SpriteStudioPlayer player)
+        {
+            player.InternalPlayer.ScheduleMeshUpdate(0f);
+            player.InternalPlayer.PrepareFrameData(Dt, true, out _, out _);
+            return player.InternalPlayer._geometryBuilder._frameSkipped;
+        }
+
+        [Test]
+        public void ATrackCall_RebuildsAPausedPlayerOnce_ThenItsFramesAreSkippedAgain()
+        {
+            var player = MakePlayer("walk");
+            Assume.That(player.InternalPlayer._hasEffectParts || player.InternalPlayer._hasInstanceParts, Is.False,
+                "Ringo's walk is rebuilt only when it moves");
+            player.Pause();
+            Assert.IsTrue(NextFrameSkipped(player), "a paused frame is the one already built");
+
+            Assert.IsTrue(player.SetTrackAlpha(0, 0.5f));
+            player.InternalPlayer.PrepareFrameData(Dt, true, out _, out _);
+            Assert.IsFalse(player.InternalPlayer._geometryBuilder._frameSkipped, "the call is shown while paused");
+
+            Assert.IsTrue(NextFrameSkipped(player), "and only once: the stack is not moving");
+        }
+
+        [Test]
+        public void ATrackCall_RebuildsAStoppedPlayerOnce_ThenItsFramesAreSkippedAgain()
+        {
+            var player = MakePlayer("walk");
+            player.SetTrackAnimation(1, "wait1");
+            player.Stop();
+            Assert.IsTrue(NextFrameSkipped(player), "a stopped frame is the one already built");
+
+            Assert.IsTrue(player.SetTrackAlpha(1, 0.5f));
+            player.InternalPlayer.PrepareFrameData(Dt, true, out _, out _);
+            Assert.IsFalse(player.InternalPlayer._geometryBuilder._frameSkipped, "the call is shown while stopped");
+
+            Assert.IsTrue(NextFrameSkipped(player), "and only once: a stopped clock moves no overlay");
+        }
+
+        [Test]
+        public void ASourceAddedToTrackZero_KeepsTheRebuildsGoing_AfterTrackZeroFinishes()
+        {
+            var player = MakePlayer("attack1");
+            player.LoopCount = 1;
+            player.Play();
+            Assert.GreaterOrEqual(player.AddTrackSource(0, "walk", 0.5f), 0);
+
+            for (int i = 0; i < 40; i++) player.InternalPlayer.PrepareFrameData(Dt, true, out _, out _);
+            Assert.IsTrue(player.IsFinished, "attack1 played its one loop");
+
+            Assert.IsFalse(NextFrameSkipped(player), "walk, the added source, still moves the pose");
+        }
+
+        [Test]
+        public void ACancelledCrossfade_KeepsTheRebuildsGoing_WhileItsOutgoingSidePlays()
+        {
+            var player = MakePlayer("walk");
+            player.LoopCount = 1;
+            player.Play();
+            player.Crossfade(0, "attack1", 1f);
+            for (int i = 0; i < 5; i++) player.InternalPlayer.PrepareFrameData(Dt, true, out _, out _);
+            Assert.IsTrue(player.CancelTrackFade(0));
+
+            for (int i = 0; i < 30; i++) player.InternalPlayer.PrepareFrameData(Dt, true, out _, out _);
+            Assert.IsTrue(player.IsFinished, "attack1 played its one loop");
+
+            Assert.IsFalse(NextFrameSkipped(player), "walk, the side the cancelled fade kept, still moves the pose");
+        }
+
+        [Test]
+        public void AMovingOverlay_IsRebuilt_WhileTrackZeroHolds_AndNotUnderPause()
+        {
+            var player = MakePlayer("walk");
+            Assert.IsTrue(player.SetTrackSpeed(0, 0f), "track 0's frame stands still");
+            player.SetTrackAnimation(1, "wait1");
+            player.InternalPlayer.PrepareFrameData(Dt, true, out _, out _);
+
+            Assert.IsFalse(NextFrameSkipped(player), "the overlay moves the pose");
+
+            player.Pause();
+            player.InternalPlayer.PrepareFrameData(Dt, true, out _, out _);
+            Assert.IsTrue(NextFrameSkipped(player), "a pause holds the overlay");
+        }
+
+        [Test]
+        public void AFinishedCrossfade_StopsTheRebuilds_OnceTrackZeroHolds()
+        {
+            var player = MakePlayer("walk");
+            player.Crossfade(0, "wait1", 0.1f);
+            for (int i = 0; i < 30; i++) player.InternalPlayer.PrepareFrameData(Dt, true, out _, out _);
+            Assert.AreEqual(-1f, player.GetTrackFadeProgress(0), "a tenth-of-a-second fade is over after half a second");
+
+            Assert.IsTrue(player.SetTrackSpeed(0, 0f), "the incoming side's frame stands still");
+            player.InternalPlayer.PrepareFrameData(Dt, true, out _, out _);
+            Assert.IsTrue(NextFrameSkipped(player), "nothing moves after the fade");
         }
 
         [Test]

@@ -208,7 +208,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             // ss_runtime_update takes delta in milliseconds (update_interval = 1000/fps).
             if (advance)
             {
-                unsafe { NativeMethods.ss_runtime_update(_player._handle.ptr, deltaTime * 1000.0f); }
+                _player.UpdateRuntime(deltaTime);
                 _player.PollEvents();
             }
 
@@ -221,11 +221,11 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             // With subFrame disabled and no effect/instance parts, if the integer frame matches the previous
             // build the SoA output is exactly identical, so skip the FFI, aggregation and Job and reuse the
             // previous frame's geometry as-is. Effects (particles advance every frame) and instances (child
-            // animations advance independently) are excluded, and so is a track stack in use, whose overlays
-            // and fades move the pose while track 0's frame stands still.
+            // animations advance independently) are excluded, and so is an update that moved the track
+            // stack, whose overlays and fades move the pose while track 0's frame stands still.
             _frameSkipped = false;
             if (!_player.SubFrameEnabled && !_player._hasEffectParts && !_player._hasInstanceParts
-                && !_player.MixingActive
+                && !_player.StackMoved
                 && _vertexCount > 0 && drawFrame == _lastBuiltDrawFrameNo)
             {
                 _frameSkipped = true;

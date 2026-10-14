@@ -321,12 +321,13 @@ internal struct MaskPartData
         // Rising-edge memory for OnAnimationFinished (previous value of is_finished).
         private bool _prevFinished;
 
-        // A track or source call has gone through since the animation was last set up. The pose then
-        // depends on more than track 0's frame: an overlay or a fade moves while track 0 holds, or after it
-        // has finished, so the geometry builder must not skip a frame whose number has not changed.
-        // Cleared by a setup and by a load, both of which fold the runtime's stack back to track 0 alone.
-        private bool _mixingActive;
-        internal bool MixingActive => _mixingActive;
+        // Whether the last update moved the track stack: a fade, or a source other than track 0's main,
+        // stepped on a running clock. The pose then changes while track 0's frame number stands still, so
+        // the geometry builder must not skip that frame. Read before the update, so the update in which a
+        // fade completes or an overlay ends is still drawn. A track or source call does not set it: the
+        // call invalidates the frame cache once instead, which a stopped or paused player needs too.
+        private bool _stackMoved;
+        internal bool StackMoved => _stackMoved;
 
         // Whether the last frame advanced the runtime. A Timeline-driven player is prepared without an
         // update, and the runtime only clears a track's "just looped" at the top of an update, so a
@@ -372,7 +373,6 @@ internal struct MaskPartData
             // replaced. Cleared here rather than on success, because a REFUSED load leaves the previous
             // pack's selection just as meaningless.
             CurrentAnimationName = null;
-            _mixingActive = false;
 
             // On a reload (runtime asset swap) an in-flight Burst Job may still be borrowing the old
             // ssab buffer. Always complete the Job before destroying / re-borrowing native resources to
@@ -707,8 +707,6 @@ internal struct MaskPartData
                 {
                     // setup_animation resets the native world matrices to identity; force a geometry rebuild.
                     _geometryBuilder?.InvalidateFrameCache();
-                    // The setup also folds the track stack back to track 0 alone.
-                    _mixingActive = false;
 
                     if (_ssab.HasValue)
                     {
@@ -1281,7 +1279,8 @@ internal struct MaskPartData
         private bool MixingApplied(bool ok)
         {
             // A stopped or paused player has to show the change too, without its frame number moving.
-            if (ok) _mixingActive = true;
+            // Once: a stack that keeps moving afterwards is caught by StackMoved.
+            if (ok) _geometryBuilder?.InvalidateFrameCache();
             return ok;
         }
 
@@ -1636,8 +1635,6 @@ internal struct MaskPartData
                         // rebuild so a same-numbered start frame is not skipped (otherwise trackers read
                         // identity = origin).
                         _geometryBuilder?.InvalidateFrameCache();
-                        // The setup also folds the track stack back to track 0 alone.
-                        _mixingActive = false;
 
                         if (_ssab.HasValue)
                         {
@@ -1677,14 +1674,29 @@ internal struct MaskPartData
 
             if (!_handle.IsValid) return;
 
+            // Tick is executed strictly sequentially on the main thread (state mutability boundary)
+            UpdateRuntime(deltaTime);
+            _tickRan = true;
+            PollEvents();
+        }
+
+        /// <summary>
+        /// Advance the runtime by <paramref name="deltaTime"/> seconds, recording whether the track stack
+        /// moved the pose in this update (<see cref="StackMoved"/>). The one place either path calls
+        /// ss_runtime_update from.
+        /// </summary>
+        internal void UpdateRuntime(float deltaTime)
+        {
             unsafe
             {
-                // Tick is executed strictly sequentially on the main thread (state mutability boundary)
+                // Before the update: the one that completes a fade or ends an overlay still moves the pose.
+                // The stack does not read the clock; a stopped or paused clock steps nothing.
+                _stackMoved = NativeMethods.ss_runtime_is_stack_in_motion(_handle.ptr)
+                    && NativeMethods.ss_runtime_is_clock_playing(_handle.ptr)
+                    && !NativeMethods.ss_runtime_is_clock_pausing(_handle.ptr);
                 // ss_runtime_update takes delta in "milliseconds" (update_interval = 1000/fps).
                 // Unity's Time.deltaTime is in seconds, so multiply by 1000.
                 NativeMethods.ss_runtime_update(_handle.ptr, deltaTime * 1000.0f);
-                _tickRan = true;
-                PollEvents();
             }
         }
 
@@ -1912,6 +1924,8 @@ internal struct MaskPartData
             // ScheduleMeshUpdate goes to the builder directly and does not touch it: it builds without
             // advancing, after a Tick or for an instance child, and is not a frame of its own.
             _tickRan = advance;
+            // A frame prepared without an update moves no stack (the update path sets it afresh).
+            if (!advance) _stackMoved = false;
             _geometryBuilder.PrepareFrameData(deltaTime, advance, out handle, out drawFrame);
         }
         public void ScheduleMeshUpdate(float deltaTime) => _geometryBuilder.ScheduleMeshUpdate(deltaTime);
