@@ -39,7 +39,7 @@ usage () {
   echo "                          all = English then Japanese, the only safe order"
   echo "  venv=<dir>              Virtualenv to run zensical from, relative to the repo"
   echo "                          root (default: $VENV). Falls back to zensical on PATH,"
-  echo "                          which is how CI runs with no venv at all."
+  echo "                          where a plain pip install -r leaves it."
   echo "  -h | --help             Show this help"
   echo ""
   echo "Output: site/ (English) and site/ja/ (Japanese). Both builds are --strict, so a"
@@ -109,8 +109,8 @@ for candidate in "$VENV_BIN/zensical" "$VENV_BIN/zensical.exe"; do
   fi
 done
 
-# CI installs the pins with plain `pip install -r`, so there is no venv there and
-# zensical is simply on PATH. Fall back to it rather than demanding a venv.
+# A plain `pip install -r docs/requirements.txt` leaves zensical on PATH with no
+# venv. Fall back to it rather than demanding a venv.
 if [ -z "$ZENSICAL" ] && command -v zensical > /dev/null 2>&1; then
   ZENSICAL="$(command -v zensical)"
   echo "$APP: no venv at $VENV; using zensical from PATH"

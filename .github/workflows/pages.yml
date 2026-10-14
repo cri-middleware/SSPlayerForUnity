@@ -1,6 +1,6 @@
 name: Deploy Pages
 
-# Publish the MkDocs site to GitHub Pages via the artifact method (no gh-pages
+# Publish the Zensical site to GitHub Pages via the artifact method (no gh-pages
 # branch). Matches SSPlayerForRenPy / SSPlayerForWeb.
 #
 # Triggers on release publish and manual dispatch only (never on push) — this

@@ -17,7 +17,8 @@ on:
         default: true
         type: boolean
 
-# Needed to create the release and upload assets.
+# Read-only by default; the job that drafts the Release asks for contents: write
+# itself.
 permissions:
   contents: read
 

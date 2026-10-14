@@ -178,10 +178,8 @@ jobs:
           print(f"Packed file list clean ({len(files)} files).")
           PY
 
-      # The zsh scripts are covered by ci-scripts.yml, on a runner that has zsh -
-      # so this job handles the bash ones and names what it left alone rather than
-      # implying it covered everything.
-      # build-runtime.sh is zsh: it uses ${(@kv)...}, ${(@s/=/)...}, 1-based array
+      # Each script is parsed by the shell its shebang names, so this job needs zsh
+      # too: build-runtime.sh uses ${(@kv)...}, ${(@s/=/)...}, 1-based array
       # indexing and the :l modifier for its argument map, so bash cannot parse
       # it. `zsh -n` checks syntax only; the runtime job runs the script.
       - name: Install zsh
