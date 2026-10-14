@@ -9,7 +9,7 @@ namespace SpriteStudio.Editor
     /// and the <c>&lt;output folder&gt;/&lt;sspj stem&gt;</c> rule that gives one .sspj its destination.
     /// </summary>
     /// <remarks>
-    /// The setting lives in <see cref="EditorUserSettings"/> (ProjectSettings/EditorUserSettings.asset),
+    /// The setting lives in <see cref="EditorUserSettings"/> (UserSettings/EditorUserSettings.asset),
     /// so it is per project and per person -- see docs/*/workflow/import.md.
     /// </remarks>
     internal static class SpriteStudioOutputFolder

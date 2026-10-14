@@ -1,6 +1,6 @@
 // Shared library of SpriteStudio-specific color composition, PMA, and part-color
-// mediation. The single source of truth, #included by both the Built-in hand-written
-// HLSL shaders and URP (Shader Graph Custom Function).
+// mediation. The single source of truth, #included by the hand-written shaders of both
+// pipelines (Built-in and URP).
 //
 // Policy:
 //  - Keyword-gated #define macros (#if defined(PS_*)) would cause shader-variant explosion /

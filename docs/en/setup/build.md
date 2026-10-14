@@ -54,6 +54,7 @@ By passing arguments, you can switch the target platform, architecture, and buil
 | `platform` | `windows` / `macos` / `linux` / `android` / `ios` / `web` | Target platform |
 | `arch` | `x86_64` / `arm64` / `universal`, etc. | Target architecture |
 | `build` | `debug` / `release` | Build mode (`release` for distribution) |
+| `hostbuild` | `auto` / `false` | `false` sends a host build through the SDK's release script too (default `auto`) |
 
 Examples:
 
@@ -70,7 +71,7 @@ Examples:
 
 > **About iOS:** `platform=ios` generates a `libssruntime.xcframework` containing both the device (arm64) and simulator (arm64 / x86_64) slices, and places it in `package/Runtime/Plugins/iOS/`. Since device / simulator are separated within the XCFramework, no simulator-only option is needed (it also works on the simulator on Apple Silicon Macs).
 
-> **Note:** If you specify the same platform/arch as the host environment, `cargo build` is run directly. Otherwise (cross-compilation), the work is delegated to the release script on the SDK side.
+> **Note:** A debug build for the host's own platform/arch runs `cargo build` directly (on Linux, the SDK's `release-linux.sh`). Anything else — a release build, or cross-compilation — is delegated to the release script on the SDK side, and `hostbuild=false` sends a host build there as well.
 
 ## Regenerating the FlatBuffers Accessors
 

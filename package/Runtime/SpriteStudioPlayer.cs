@@ -19,6 +19,7 @@ namespace SpriteStudio.Runtime
     // exactly once when placed in the scene (does not play). The per-frame drive in Play mode is still
     // centrally managed by SpriteStudioUpdateManager as before (the manager does not run in edit mode).
     [ExecuteAlways]
+    [AddComponentMenu("SpriteStudio/SpriteStudio Player")]
     public class SpriteStudioPlayer : MonoBehaviour, ITimeControl, ISpriteStudioRenderable
     {
         [Header("SpriteStudio Asset")]
@@ -437,8 +438,8 @@ namespace SpriteStudio.Runtime
         /// Which way the playhead is configured to walk. It <b>survives</b> <see cref="SetAnimation(string)"/>:
         /// "play this backwards" describes the playback, not the clip that happens to be loaded, so the
         /// runtime keeps it across a transition (as it keeps <see cref="SpeedScale"/> and
-        /// <see cref="FrameSkipEnabled"/>). Set it once, whenever you like. There is no serialized default, so it
-        /// starts Forward on a freshly created component.
+        /// <see cref="FrameSkipEnabled"/>). It lives in the runtime, not in a serialized field: a value set while
+        /// the component is disabled is dropped, and enabling the component starts it Forward again.
         /// </summary>
         public SpriteStudioPlaybackDirection PlaybackDirection
         {
@@ -454,8 +455,8 @@ namespace SpriteStudio.Runtime
         /// What the playhead does at the far end of the section. Like
         /// <see cref="PlaybackDirection"/> it <b>survives</b> <see cref="SetAnimation(string)"/>; only the
         /// heading within a round trip is re-derived, so a switch made on the return leg starts the new
-        /// animation walking outward rather than mid-bounce. There is no serialized default, so it starts
-        /// Normal on a freshly created component.
+        /// animation walking outward rather than mid-bounce. It lives in the runtime, not in a serialized field: a
+        /// value set while the component is disabled is dropped, and enabling the component starts it Normal again.
         /// </summary>
         public SpriteStudioPlaybackStyle PlaybackStyle
         {

@@ -48,7 +48,7 @@ function Show-Usage {
     Write-Host "                          all = English then Japanese, the only safe order"
     Write-Host "  venv=<dir>              Virtualenv to run zensical from, relative to the repo"
     Write-Host "                          root (default: .venv). Falls back to zensical on PATH,"
-    Write-Host "                          which is how CI runs with no venv at all."
+    Write-Host "                          where a plain pip install -r leaves it."
     Write-Host "  -h | --help             Show this help"
     Write-Host ""
     Write-Host "Output: site/ (English) and site/ja/ (Japanese). Both builds are --strict, so a"
@@ -105,8 +105,8 @@ foreach ($candidate in @((Join-Path $VENV_BIN "zensical.exe"), (Join-Path $VENV_
     }
 }
 
-# CI installs the pins with plain `pip install -r`, so there is no venv there and
-# zensical is simply on PATH. Fall back to it rather than demanding a venv.
+# A plain `pip install -r docs/requirements.txt` leaves zensical on PATH with no
+# venv. Fall back to it rather than demanding a venv.
 if (-not $ZENSICAL) {
     $onPath = Get-Command zensical -ErrorAction SilentlyContinue
     if ($onPath) {

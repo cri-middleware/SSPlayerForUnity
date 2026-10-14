@@ -16,6 +16,7 @@ namespace SpriteStudio.Editor
         private SerializedProperty _speedScaleProp;
         private SerializedProperty _subFrameEnabledProp;
         private SerializedProperty _skipFramesProp;
+        private SerializedProperty _cellmapTextureOverridesProp;
         private SerializedProperty _playAudioProp;
         private SerializedProperty _audioVolumeProp;
 
@@ -41,6 +42,7 @@ namespace SpriteStudio.Editor
             _speedScaleProp = serializedObject.FindProperty("_speedScale");
             _subFrameEnabledProp = serializedObject.FindProperty("_subFrameEnabled");
             _skipFramesProp = serializedObject.FindProperty("_skipFrames");
+            _cellmapTextureOverridesProp = serializedObject.FindProperty("_cellmapTextureOverrides");
             _playAudioProp = serializedObject.FindProperty("_playAudio");
             _audioVolumeProp = serializedObject.FindProperty("_audioVolume");
 
@@ -70,6 +72,9 @@ namespace SpriteStudio.Editor
             AppearanceControlsGUI();
             RaycastControlsGUI();
             MaskableControlsGUI();
+
+            EditorGUILayout.Space();
+            EditorGUILayout.PropertyField(_cellmapTextureOverridesProp, true);
 
             EditorGUILayout.Space();
             EditorGUILayout.PropertyField(_playAudioProp);   // The [Header("Audio")] on the field renders the section label.

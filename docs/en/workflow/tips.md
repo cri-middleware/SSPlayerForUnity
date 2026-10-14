@@ -52,7 +52,7 @@ Supports AddOns set on SpriteStudio parts (sepia / hsb / outline / blur / pixela
 
 - The built-in AddOns are pre-registered and need no setup: the package ships a default catalog at `Runtime/Resources/SpriteStudioAddOnCatalog.asset` that resolves them automatically.
 - To add a custom shader, give the player a catalog of your own: create one with **Assets > Create > SpriteStudio > Shader Catalog**, add an entry whose **Id Name** matches the shader id set on the part in the SpriteStudio editor, with a **Shader** that follows the AddOn contract (`SpriteStudioAddOn.hlsl`), and assign the catalog to the player's **Shader Catalog** field. The player looks an id up there first, and whatever it does not list falls through to the built-in AddOns. The default catalog belongs to the installed package, which cannot be edited.
-- It does not use `MaterialPropertyBlock`; instead it supplies materials from a material pool keyed by `(shaderId, blend)`, so it **does not obstruct the SRP Batcher**.
+- It does not use `MaterialPropertyBlock`: each AddOn part draws with a material instance of its own, which the player rebuilds whenever its submeshes, asset, Shader Catalog or texture overrides change, and whose parameters it sets on every frame, so it **does not obstruct the SRP Batcher**.
 
 > The AddOn path supports both URP / Built-in.
 

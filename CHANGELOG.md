@@ -9,17 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Initial public release (work in progress).** A Unity "Body" that plays SpriteStudio animations (`.ssab`) by driving the SpriteStudio-SDK Rust runtime (`libssruntime`) over csbindgen-generated FFI, with per-frame geometry built in Burst jobs.
-- **Rendering**: world rendering (`SpriteStudioPlayer`, `MeshRenderer`) and uGUI rendering (`SpriteStudioGraphic`, Canvas), including Mask / RectMask2D support on Canvas. Universal (URP) and Built-in (BRP) render pipelines.
+- **Rendering**: world rendering (`SpriteStudioPlayer`, `MeshRenderer`) and uGUI rendering (`SpriteStudioGraphic`, Canvas), including Mask / RectMask2D support on Canvas. Universal (URP) and Built-in (BRP) render pipelines, in Gamma and Linear color space.
 - **Feature coverage**: bone hierarchies, mesh & deform, particle effects, extended blending, and masks.
+- **AddOn and custom shaders** (`SpriteStudioPlayer`): all 13 SpriteStudio AddOns (sepia, hsb, outline, blur, …) draw per part with no setup, and a **Shader Catalog** asset maps a part's shader id to a shader of your own.
 - **Asset pipeline**: `.sspj` is converted to `.ssab` / `.ssqb` at import time by the bundled `libssconverter`, driven from a `ScriptedImporter`, and packaged as a `SpriteStudioAnimeAsset` (textures, materials, animation names, external references). Batch conversion with `ssconverter-cli` is supported for CI/CD.
-- **Playback control**: play / pause / resume / stop, seek, section playback, reverse, ping-pong, speed, and frame rate.
-- **Events**: animation finished / looped, user data, signal, and audio, delivered as Unity events.
-- **Timeline integration** via `ITimeControl`.
+- **Editor round trip**: the SS Importer window (**Window > SpriteStudio > Importer**) with folder batch import and Recent SSPJs; Open SSPJ and Reconvert from the asset's inspector, with the `.ssab` ↔ `.sspj` binding shared through Git in `ProjectSettings/SpriteStudioSourceMap.json`; dragging an asset into the Hierarchy or Scene view places a player; a static first-frame preview in Edit mode.
+- **Playback control**: play / pause / resume / stop, seek, section playback, reverse, ping-pong, speed, and frame rate, plus state queries (`IsPlaying`, `IsFinished`, `IsPlayingForward`, `FrameNo`) and the names an asset holds (`AnimationNames`, `GetPartNames`, …). A setup that fails logs the runtime's own reason.
+- **Motion blending**: a track stack on both components. Lay animations over the one `SetAnimation()` selects, weight or fade them, and `Crossfade()` from one animation into the next.
+- **Events**: animation started / finished / looped, user data, signal, and audio, delivered as C# and Unity events; the keyed ones carry the authored frame number.
+- **Built-in sound**: audio keys play their sounds with no code (**Play Audio**, **Audio Volume**, `StopAllSounds()`).
+- **Timeline integration** via `ITimeControl` and a dedicated `SpriteStudioTrack`.
 - **Per-part runtime overrides**: color, cell, and visibility, addressed by part name or index, with priority modes.
+- **Runtime texture replacement**: `SetCellmapTexture()` swaps the texture bound for a cellmap on one player at runtime, for outfits and color variations without an asset per variant.
 - **Flip & offset** (`SpriteStudioPlayer`): mirror or shift what the player draws without moving its `Transform`, so children and colliders stay put. Part tracking follows the mirrored pose.
-- **Part tracking**: any GameObject can follow a specified part.
+- **Part tracking**: any GameObject can follow a specified part, with position, rotation and scale each switchable.
 - **Sub-frame interpolation** for smooth playback on high-refresh-rate displays and in slow motion.
-- **Zero-allocation playback loop**: geometry is built in Burst jobs and uploaded via `SetVertexBufferData`, with no per-frame GC allocations.
+- **Zero-allocation playback loop**: geometry is built in Burst jobs and uploaded via `SetVertexBufferData`, with no per-frame GC allocations. Players are evaluated in parallel on worker threads, and players of one `.ssab` share its parsed resource.
+- **Distribution**: install from npm or a tarball, with native libraries for Windows, macOS, Linux, Android, iOS and WebGL.
 
 ### Known Limitations
 - The API may change without notice while the package is in beta.

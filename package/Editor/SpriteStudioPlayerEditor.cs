@@ -21,6 +21,7 @@ namespace SpriteStudio.Editor
         private SerializedProperty _offsetProp;
         private SerializedProperty _partTrackersProp;
         private SerializedProperty _shaderCatalogProp;
+        private SerializedProperty _cellmapTextureOverridesProp;
         private SerializedProperty _playAudioProp;
         private SerializedProperty _audioVolumeProp;
 
@@ -50,6 +51,7 @@ namespace SpriteStudio.Editor
             _offsetProp = serializedObject.FindProperty("_offset");
             _partTrackersProp = serializedObject.FindProperty("_partTrackers");
             _shaderCatalogProp = serializedObject.FindProperty("_shaderCatalog");
+            _cellmapTextureOverridesProp = serializedObject.FindProperty("_cellmapTextureOverrides");
             _playAudioProp = serializedObject.FindProperty("_playAudio");
             _audioVolumeProp = serializedObject.FindProperty("_audioVolume");
 
@@ -83,6 +85,7 @@ namespace SpriteStudio.Editor
             EditorGUILayout.Space();
             EditorGUILayout.PropertyField(_shaderCatalogProp);
             EditorGUILayout.PropertyField(_partTrackersProp, true);
+            EditorGUILayout.PropertyField(_cellmapTextureOverridesProp, true);
 
             EditorGUILayout.Space();
             EditorGUILayout.PropertyField(_playAudioProp);   // The [Header("Audio")] on the field renders the section label.

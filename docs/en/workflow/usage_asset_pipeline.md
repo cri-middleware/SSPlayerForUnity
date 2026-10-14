@@ -65,7 +65,7 @@ With just the following operation, your changes are reflected instantly in the g
 > With the asset still selected, you can invoke SpriteStudio from the Inspector, and immediately after editing, reflect (reconvert) the latest changes into the `.ssab` in Unity. This **powerful asset pipeline that lets you move seamlessly between SpriteStudio and Unity** dramatically lowers the cost of trial and error when adjusting animations.
 
 > [!TIP]
-> You can also reconvert from **Recent SSPJs** in the SS Importer window (click a row, or right-click → "Reconvert"). A `.sspj` with identical content (same modification date) skips unnecessary reconversion.
+> You can also reconvert from **Recent SSPJs** in the SS Importer window (click a row, or right-click → "Reconvert").
 
 > [!TIP]
 > 
