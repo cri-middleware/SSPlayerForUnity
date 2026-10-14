@@ -6,7 +6,7 @@ using UnityEditor;
 namespace SpriteStudio.Editor
 {
     /// <summary>
-    /// Shared helper that persists the Importer Window's "Recent SSPJs" list.
+    /// Shared helper that persists the SS Importer window's "Recent SSPJs" list.
     /// Used by both the Window and the batch conversion (<see cref="SpriteStudioImporter"/>).
     /// </summary>
     /// <remarks>

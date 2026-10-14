@@ -105,7 +105,7 @@ Rust コア (`libssruntime`) 自体の開発やデバッグを行う場合の手
 
 インストールに成功すると、次が利用可能になります。
 
-- **メニュー**: **Window > SpriteStudio > Importer**（インポート用ウィンドウ）
+- **メニュー**: **Window > SpriteStudio > Importer**（SS Importer ウィンドウ）
 - **コンポーネント**: `SpriteStudio Player` / `SpriteStudio Graphic`（Add Component から追加可能）
 
 ## 次のステップ

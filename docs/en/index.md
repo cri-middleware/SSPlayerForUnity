@@ -52,7 +52,7 @@ graph LR
     SS[" .sspj / Images<br>(Source Assets) "]
 
     subgraph Convert ["Conversion Process"]
-        IMP[[" Importer Window<br>(Built into Unity Editor) "]]
+        IMP[[" SS Importer window<br>(Built into Unity Editor) "]]
         CLI[[" ssconverter-cli<br>(CLI Tool) "]]
     end
 

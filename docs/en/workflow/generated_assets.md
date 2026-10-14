@@ -46,7 +46,7 @@ Converting one `.sspj` creates a `<sspj name>/` folder under the output folder (
 
 > [!TIP]
 > **The output can live anywhere in the project**
-> `Assets/ssab_generated` is only the default. **Output Folder** in the Importer window accepts any folder in the project, and you may move or rename the `<sspj name>/` folder afterwards (the binding to the `.sspj` follows the move, and **Reconvert** on the asset writes back into the folder it is in). If your Addressables groups are organized by folder, lay the output out to match.
+> `Assets/ssab_generated` is only the default. **Output Folder** in the SS Importer window accepts any folder in the project, and you may move or rename the `<sspj name>/` folder afterwards (the binding to the `.sspj` follows the move, and **Reconvert** on the asset writes back into the folder it is in). If your Addressables groups are organized by folder, lay the output out to match.
 >
 > Keep the `.ssab`, its images and its `.mat` **in the same place relative to each other**, though. Textures are looked for inside the `.ssab`'s own folder only — the project is never searched — so splitting the folder's contents apart breaks resolution.
 
@@ -116,7 +116,7 @@ There is really only one design decision: **at what granularity do you want to b
 1. Assign the `.png` to its own group / bundle (the `.ssab` and `.mat` may live in a different bundle).
 2. Build and ship the bundles and the application.
 3. Repaint the artwork, reload it in SpriteStudio, and save the `.sspj`.
-4. Press **Reconvert** on the asset in Unity. The `.png` is overwritten and its `.meta` is preserved, so the bundle assignment is unchanged. (Dropping the `.sspj` onto the Importer window converts it too, but into `<Output Folder>/<sspj name>/` — a different place once the folder has been moved or renamed.)
+4. Press **Reconvert** on the asset in Unity. The `.png` is overwritten and its `.meta` is preserved, so the bundle assignment is unchanged. (Dropping the `.sspj` onto the SS Importer window converts it too, but into `<Output Folder>/<sspj name>/` — a different place once the folder has been moved or renamed.)
 5. Rebuild the bundles and ship only the texture bundle.
 
 > [!WARNING]
