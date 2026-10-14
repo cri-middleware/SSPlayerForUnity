@@ -31,7 +31,7 @@ For detailed instructions, see the documents in the `docs/` folder — structure
 
 ## 🚀 Quick Start
 
-**Using it in your game?** Read on — install the package, drag a `.sspj` onto the Importer, place a component.
+**Using it in your game?** Read on — install the package, drag a `.sspj` onto the SS Importer, place a component.
 Everything after that (scripting, events, per-part overrides, Timeline) is the same path further in, in the
 [documentation](./docs/en/index.md).
 **Working on the Player, or the Rust runtime under it?** [CONTRIBUTING.md](./CONTRIBUTING.md) and the [Build Guide](./docs/en/setup/build.md).

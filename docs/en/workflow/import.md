@@ -8,20 +8,20 @@ For the basic import procedure, see [Asset Import and Editor Integration](./usag
 
 ## Configuring the output location
 
-The output location for conversion results is set via **Output Folder** in the SpriteStudio Importer window (default: `Assets/ssab_generated`); any folder under `Assets/` will do. Anything else — a file, or a folder outside `Assets/` — is refused with the reason, and the field goes back to the folder the next import will actually use. The setting is saved in `EditorUserSettings` (`ProjectSettings/EditorUserSettings.asset`), so it is per project and per person.
+The output location for conversion results is set via **Output Folder** in the SS Importer window (default: `Assets/ssab_generated`); any folder under `Assets/` will do. Anything else — a file, or a folder outside `Assets/` — is refused with the reason, and the field goes back to the folder the next import will actually use. The setting is saved in `EditorUserSettings` (`ProjectSettings/EditorUserSettings.asset`), so it is per project and per person.
 
 ## Automatic configuration on import into Unity (textures and materials)
 
 When an optimized binary (`.ssab`) to be used in Unity is added to the project, the internal `AssetPostprocessor` detects it and automatically applies the following asset settings.
 
-This automatic configuration works correctly in both cases: **when the file was converted and output from the SpriteStudio Importer window**, and **when a `.ssab` already converted by an external tool such as `ssconverter-cli` is manually copied (imported) into the Unity project**.
+This automatic configuration works correctly in both cases: **when the file was converted and output from the SS Importer window**, and **when a `.ssab` already converted by an external tool such as `ssconverter-cli` is manually copied (imported) into the Unity project**.
 
 - **Texture import settings**: For textures (image files) in the same folder as the `.ssab`, optimal import settings for 2D animation (uncompressed, Clamp, Mipmap disabled, alpha transparency, etc.) are applied automatically.
 - **Automatic shared material generation**: A single `.mat` file corresponding to each texture referenced by the `.ssab` is automatically generated adjacent to the texture.
 
 ## Batch conversion of folders
 
-Dropping a **folder** into the drop area of the SpriteStudio Importer window (Unity menu: **Window > SpriteStudio > Importer**) **recursively batch-converts** the `.sspj` files within it **to `.ssab`**. Dropping multiple files at once is also supported.
+Dropping a **folder** into the drop area of the SS Importer window (Unity menu: **Window > SpriteStudio > Importer**) **recursively batch-converts** the `.sspj` files within it **to `.ssab`**. Dropping multiple files at once is also supported.
 
 ## Reflecting animation changes (re-conversion)
 
@@ -29,11 +29,11 @@ When you modify an animation on the SpriteStudio side, there are several ways to
 
 - **Generated asset inspector**: You can run it from the **Reconvert** button in the `SpriteStudioAnimeAsset` inspector. It writes back into the folder that asset is in, so it still lands in the right place after you have moved or renamed the folder.
 - **Project browser right-click**: **SpriteStudio > Reconvert** on one or more `.ssab` does the same for each of them.
-- **Recent list in the SpriteStudio Importer window**: Clicking a row triggers re-conversion. You can also run it from **Reconvert** in the right-click menu. These start from the `.sspj`, so they write into **Output Folder**, exactly as a fresh drop would.
+- **Recent list in the SS Importer window**: Clicking a row triggers re-conversion. You can also run it from **Reconvert** in the right-click menu. These start from the `.sspj`, so they write into **Output Folder**, exactly as a fresh drop would.
 
 ## Notes
 
-- **We recommend managing `.sspj` outside the Unity project (e.g., outside the repository).** By dropping it onto the SpriteStudio Importer window, only the conversion result (`.ssab`) is generated in the output location (Output Folder) within the Unity project. This lets you operate without including source data that the game does not need in the Unity project.
+- **We recommend managing `.sspj` outside the Unity project (e.g., outside the repository).** By dropping it onto the SS Importer window, only the conversion result (`.ssab`) is generated in the output location (Output Folder) within the Unity project. This lets you operate without including source data that the game does not need in the Unity project.
 
 ---
 

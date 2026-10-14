@@ -17,7 +17,7 @@ If no `.ssab` yet exists in the Unity project, perform the initial conversion wi
 
 1. From the Unity menu, open **Window > SpriteStudio > Importer**.
 2. Check the output destination (**Output Folder**, default `Assets/ssab_generated`).
-3. From Explorer or Finder, **drag and drop the target `.sspj` file onto the drop area of the SpriteStudio Importer window**.
+3. From Explorer or Finder, **drag and drop the target `.sspj` file onto the drop area of the SS Importer window**.
 
 That alone runs the conversion, generating a `SpriteStudioAnimeAsset` (a ScriptableObject containing the `.ssab`) at the specified output destination.
 Drag and drop the generated asset onto the Hierarchy window or Scene view to place a `SpriteStudioPlayer` / `SpriteStudioGraphic` (see [Basic Usage](./usage_basic.md) for details).
@@ -65,7 +65,7 @@ With just the following operation, your changes are reflected instantly in the g
 > With the asset still selected, you can invoke SpriteStudio from the Inspector, and immediately after editing, reflect (reconvert) the latest changes into the `.ssab` in Unity. This **powerful asset pipeline that lets you move seamlessly between SpriteStudio and Unity** dramatically lowers the cost of trial and error when adjusting animations.
 
 > [!TIP]
-> You can also reconvert from **Recent SSPJs** in the SpriteStudio Importer window (click a row, or right-click → "Reconvert"). A `.sspj` with identical content (same modification date) skips unnecessary reconversion.
+> You can also reconvert from **Recent SSPJs** in the SS Importer window (click a row, or right-click → "Reconvert"). A `.sspj` with identical content (same modification date) skips unnecessary reconversion.
 
 > [!TIP]
 > 
@@ -110,7 +110,7 @@ This powerful editor-to-editor integration feature (`Open SSPJ` and `Reconvert`)
 > [!TIP]
 > **File path sharing and smart relinking in team development**
 >
-> The integration information from importing via the SpriteStudio Importer window (the `.ssab` ↔ `.sspj` binding) is saved as a **relative path** in `ProjectSettings/SpriteStudioSourceMap.json` directly under the Unity project.
+> The integration information from importing via the SS Importer window (the `.ssab` ↔ `.sspj` binding) is saved as a **relative path** in `ProjectSettings/SpriteStudioSourceMap.json` directly under the Unity project.
 >
 > By sharing this file through a version control system such as Git, the path integration is maintained even when another team member does `git clone` on their PC, and they can use `Open SSPJ` and `Reconvert` as-is.
 >

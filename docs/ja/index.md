@@ -50,7 +50,7 @@ graph LR
     SS[" .sspj / 画像<br>(ソースアセット) "]
 
     subgraph Convert ["変換プロセス"]
-        IMP[[" Importer ウィンドウ<br>(Unityエディタ内蔵) "]]
+        IMP[[" SS Importer ウィンドウ<br>(Unityエディタ内蔵) "]]
         CLI[[" ssconverter-cli<br>(CLIツール) "]]
     end
 

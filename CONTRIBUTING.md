@@ -71,7 +71,7 @@ With the Editor open, use the Unity Test Runner instead. Windows users: every sc
 ```bash
 ./scripts/deploy-examples.sh   # converts the SDK's Ringo into examples/SampleProject and examples/Override_Ringo
 ```
-No converted asset is committed, so this is what makes either project show anything. Run it **before** the project is opened in Unity: open it first and Unity deletes the committed `.meta` that carry the scenes' references. If you opened it first, `git checkout -- examples/<project>/Assets` puts them back. It builds `ssconverter-cli` from the submodule, so it needs Rust; without it, open the project, drag `SpriteStudio-SDK/tests/Ringo/Ringo.sspj` onto **Window > SpriteStudio > Importer**, and re-assign the imported asset on the player in the scene. `examples/UnityTestProject` is the blank scratch project: the package linked, and nothing else.
+No converted asset is committed, so this is what makes either project show anything. Run it **before** the project is opened in Unity: open it first and Unity deletes the committed `.meta` that carry the scenes' references. If you opened it first, `git checkout -- examples/<project>/Assets` puts them back. It builds `ssconverter-cli` from the submodule, so it needs Rust; without it, open the project, drag `SpriteStudio-SDK/tests/Ringo/Ringo.sspj` onto the SS Importer window (**Window > SpriteStudio > Importer**), and re-assign the imported asset on the player in the scene. `examples/UnityTestProject` is the blank scratch project: the package linked, and nothing else.
 
 ### Documentation
 Pages live as both `docs/en/<path>` and `docs/ja/<path>`, each locale with its own `assets/`; there is no fallback locale, so a page missing from one side is a nav entry pointing at nothing. Asset paths are source-relative (`../assets/…`) **including inside raw `<video>` / `<img>` HTML**, which Zensical rewrites the same way it rewrites Markdown links. If you edit a page, build both locales before you finish: nothing builds the docs on a pull request, so that local build is the only gate before the merge (CI builds them weekly).
@@ -162,7 +162,7 @@ SSPlayerForUnity への貢献にご関心をお寄せいただきありがとう
 ```bash
 ./scripts/deploy-examples.sh   # SDK の Ringo を examples/SampleProject と examples/Override_Ringo へ変換
 ```
-変換済みアセットは 1 つもコミットされていないため、これを実行しないとどちらのプロジェクトも何も表示しません。**Unity でプロジェクトを開く前に**実行してください。先に開くと、シーンの参照を持つコミット済みの `.meta` を Unity が削除します。先に開いてしまったときは `git checkout -- examples/<project>/Assets` で戻せます。submodule から `ssconverter-cli` をビルドするため Rust が必要です。Rust が無い場合は、プロジェクトを開いてから `SpriteStudio-SDK/tests/Ringo/Ringo.sspj` を **Window > SpriteStudio > Importer** にドラッグし、シーン上の Player に取り込んだアセットを割り当て直してください。`examples/UnityTestProject` は、パッケージをリンクしただけの空のスクラッチ用プロジェクトです。
+変換済みアセットは 1 つもコミットされていないため、これを実行しないとどちらのプロジェクトも何も表示しません。**Unity でプロジェクトを開く前に**実行してください。先に開くと、シーンの参照を持つコミット済みの `.meta` を Unity が削除します。先に開いてしまったときは `git checkout -- examples/<project>/Assets` で戻せます。submodule から `ssconverter-cli` をビルドするため Rust が必要です。Rust が無い場合は、プロジェクトを開いてから `SpriteStudio-SDK/tests/Ringo/Ringo.sspj` を SS Importer ウィンドウ（**Window > SpriteStudio > Importer**）にドラッグし、シーン上の Player に取り込んだアセットを割り当て直してください。`examples/UnityTestProject` は、パッケージをリンクしただけの空のスクラッチ用プロジェクトです。
 
 ### ドキュメント
 ページは `docs/en/<path>` と `docs/ja/<path>` の両方に存在し、アセットもロケールごとに `assets/` を持ちます。フォールバックロケールは無いため、片方に欠けたページは行き先の無い nav エントリになります。アセットのパスはソース相対（`../assets/…`）で、**生の `<video>` / `<img>` HTML の中でも同じ**です（Zensical は Markdown リンクと同じ規則で書き換えます）。ページを編集したら、仕上げる前に両ロケールをビルドしてください。プルリクエストでは docs はビルドされないため、マージ前のゲートは手元のビルドだけです（CI がビルドするのは週次です）。

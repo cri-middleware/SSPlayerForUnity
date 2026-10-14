@@ -106,7 +106,7 @@ Instead of using the setup script, you build the native library directly from so
 
 Once installation succeeds, the following become available.
 
-- **Menu**: **Window > SpriteStudio > Importer** (the import window)
+- **Menu**: **Window > SpriteStudio > Importer** (the SS Importer window)
 - **Components**: `SpriteStudio Player` / `SpriteStudio Graphic` (can be added via Add Component)
 
 ## Next Steps

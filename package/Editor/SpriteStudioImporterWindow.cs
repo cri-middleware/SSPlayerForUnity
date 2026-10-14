@@ -21,7 +21,7 @@ namespace SpriteStudio.Editor
         [MenuItem("Window/SpriteStudio/Importer")]
         public static void ShowWindow()
         {
-            var window = GetWindow<SpriteStudioImporterWindow>("SSImporter");
+            var window = GetWindow<SpriteStudioImporterWindow>("SS Importer");
             window.minSize = new Vector2(400, 500);
         }
 
