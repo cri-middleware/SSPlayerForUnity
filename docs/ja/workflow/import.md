@@ -8,7 +8,7 @@
 
 ## 出力先の設定
 
-変換結果の出力先は SS Importer ウィンドウの **Output Folder** で設定します（既定 `Assets/ssab_generated`）。`Assets/` 配下であれば任意のフォルダを指定できます。それ以外（ファイル、`Assets/` の外のフォルダ）を指定すると理由を出して拒否し、次のインポートが実際に使うフォルダへ表示を戻します。設定は `EditorUserSettings`（`ProjectSettings/EditorUserSettings.asset`）に保存されるため、プロジェクトごと・作業者ごとの設定になります。
+変換結果の出力先は SS Importer ウィンドウの **Output Folder** で設定します（既定 `Assets/ssab_generated`）。`Assets/` 配下であれば任意のフォルダを指定できます。それ以外（ファイル、`Assets/` の外のフォルダ）を指定すると理由を出して拒否し、次のインポートが実際に使うフォルダへ表示を戻します。設定は `EditorUserSettings`（`UserSettings/EditorUserSettings.asset`）に保存されるため、プロジェクトごと・作業者ごとの設定になります。
 
 ## Unity へのインポート時の自動設定（テクスチャ・マテリアル）
 

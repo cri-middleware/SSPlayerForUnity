@@ -141,7 +141,10 @@ namespace SpriteStudio.Runtime
         /// <see cref="LoopCount"/>, <see cref="SpeedScale"/> and <see cref="FrameSkipEnabled"/> all survive the
         /// switch: the runtime keeps speed and frame skip itself, and the loop count — which it does reset
         /// on every transition, since the transition is what states it — is re-applied here from this
-        /// component's own value. Returns true if setup succeeded.
+        /// component's own value. <see cref="PlaybackDirection"/> / <see cref="PlaybackStyle"/> survive it too (the
+        /// runtime keeps the direction and style; only the heading within a ping-pong round trip is
+        /// re-derived, so a switch never begins mid-bounce).
+        /// Returns true if setup succeeded.
         /// </summary>
         public bool SetAnimation(string animName)
         {
@@ -308,9 +311,11 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// Whether reverse (Backward) playback is on. <see cref="SetAnimation(string)"/> resets this to
-        /// Forward every time, so to start in reverse set it to true after SetAnimation (either before or
-        /// after Play).
+        /// Which way the playhead is configured to walk. It <b>survives</b> <see cref="SetAnimation(string)"/>:
+        /// "play this backwards" describes the playback, not the clip that happens to be loaded, so the
+        /// runtime keeps it across a transition (as it keeps <see cref="SpeedScale"/> and
+        /// <see cref="FrameSkipEnabled"/>). It lives in the runtime, not in a serialized field: a value set while
+        /// the component is disabled is dropped, and enabling the component starts it Forward again.
         /// </summary>
         public SpriteStudioPlaybackDirection PlaybackDirection
         {
@@ -326,8 +331,8 @@ namespace SpriteStudio.Runtime
         /// What the playhead does at the far end of the section. Like
         /// <see cref="PlaybackDirection"/> it <b>survives</b> <see cref="SetAnimation(string)"/>; only the
         /// heading within a round trip is re-derived, so a switch made on the return leg starts the new
-        /// animation walking outward rather than mid-bounce. There is no serialized default, so it starts
-        /// Normal on a freshly created component.
+        /// animation walking outward rather than mid-bounce. It lives in the runtime, not in a serialized field: a
+        /// value set while the component is disabled is dropped, and enabling the component starts it Normal again.
         /// </summary>
         public SpriteStudioPlaybackStyle PlaybackStyle
         {

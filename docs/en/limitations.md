@@ -60,12 +60,28 @@ Part Tracking (making a `Transform` follow a part) is a `SpriteStudioPlayer` (wo
 > [!NOTE]
 > - **`Play()` rewinds.** To resume from the current frame, `Pause()` holds it and `Resume()` lifts the hold — `Play()` cannot be used to resume.
 > - **Signals materialize managed strings.** The Tick / mesh-construction loop is zero-allocation, and numeric Signal parameters are decoded into a reusable typed buffer, but part names, command ids, and string-typed parameters must still become managed strings. Animations that fire Signals in large numbers or at high frequency can therefore cause minor hitches on mobile / WebGL.
+> - **Players run on scaled time.** Every player advances by `Time.deltaTime`, so `Time.timeScale = 0` — for a pause menu, say — also stops the animations on that menu's UI. There is no unscaled clock yet.
 
 ## Motion Blending
 
 > [!WARNING]
 > - **Instance and Effect parts are outside motion blending.** They belong to the `.ssab`, not to one animation, so a crossfade on track 0 keeps them running instead of setting them up again. Which key drives such a part across the switch is not blended: where both animations key it on the same frame, it may carry on with the outgoing animation's setting.
 > - **A Timeline-driven player does not blend.** The clip seeks the player instead of advancing it, so fades and overlays hold still, and the clip sets its own animation back up on track 0.
+
+## Timeline
+
+A `SpriteStudioTrack` or a Control Track drives `SpriteStudioPlayer` by seeking it to the clip's frame rather than advancing it, so a player under a clip gives up the things below. See [Driving from Timeline](./workflow/usage_scripting.md#driving-from-timeline).
+
+> [!WARNING]
+> - **No events and no sound.** While a clip drives the player, no `UserData` / `Signal` / `Audio` event fires and no built-in sound plays, in Play mode too; neither do `OnAnimationFinished` and `OnAnimationLooped`.
+> - **Loops, ping-pong and reverse do not apply.** The clip's time becomes a frame held inside the animation's section, so a looping animation under a clip plays once and holds its last frame.
+> - **A `SpriteStudioTrack` clip does not know its animation's length.** It starts at Timeline's default length rather than the animation's, so Match Content has nothing to snap to; Clip In, Speed Multiplier and Looping are off; and **Animation Name** is free text.
+> - **Scrubbing in Edit mode moves nothing.** The edit-mode preview holds the start frame, so check a cutscene in Play mode.
+
+## Effects
+
+> [!NOTE]
+> - **Every player of one asset draws the same particles.** An effect part's random seed comes from the part and the effect, not from the player, so players built from the same `.ssab` emit an identical pattern side by side.
 
 ## Playback Feature Constraints
 

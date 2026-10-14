@@ -32,7 +32,7 @@ SS6Player の「トラック（`indexTrack`）」を中心とした API から�
 ### 3-1. アニメーションの指定は「インデックス」から「名前」へ
 
 - **SS6Player**: `IndexGetAnimation("walk")` でインデックスを取得し、`AnimationPlay(indexTrack, indexAnimation, ...)` に**インデックス**を渡していました。
-- **本バージョン**: `SetAnimation("walk")` で**名前**を直接指定してロードし、`Play()` で再生します。トラックの概念はありません。
+- **本バージョン**: `SetAnimation("walk")` で**名前**を直接指定してロードし、`Play()` で再生します。
 
 ```csharp
 using SpriteStudio.Runtime;
@@ -66,7 +66,7 @@ _player.Play();
 | `StatusIsPlaying` / `StatusGetPlay(track)` | `IsPlaying` | 一時停止中も `true` |
 | `StatusGetPause(track)` | `IsPausing` | |
 | （なし） | `IsPlayingForward` | 実際の進行方向。`PlaybackStyle.PingPong` の戻りの脚では `false`。音声のゲートに使います |
-| `CountGetAnimation()` | （`SpriteStudioAnimeAsset` 側で参照） | |
+| `CountGetAnimation()` | `AnimationNames.Length` | |
 
 ### 3-3. ループ回数
 

@@ -90,7 +90,7 @@ These properties correspond to the inspector items. Changing them at runtime is 
 | Property | Type | Description |
 |---|---|---|
 | `AnimeAsset` | `SpriteStudioAnimeAsset` | Playback target asset (swappable) |
-| `CurrentAnimation` | `string` | Animation name |
+| `CurrentAnimation` | `string` | Animation name (read-only: switch it with `SetAnimation()`) |
 | `AutoPlay` | `bool` | Auto-play at startup and each time the component is enabled again |
 | `LoopCount` | `int` | Loop count (`-1` or `0` = infinite / `n` = n times) |
 | `SpeedScale` | `float` | Playback speed multiplier. Read back from the runtime, which clamps `0` and negatives to a **stop** (reverse is `PlaybackDirection`'s job), so `-1` reads back as `0` |
@@ -117,7 +117,7 @@ _player.FlipX = _velocity.x < 0f;
 Registered part trackers follow the mirrored pose, so an object pinned to a part stays pinned across a flip.
 A mirror is not a rotation, though, so the mirroring itself reaches the tracked object only when its
 `driveScale` is on (it arrives as a negative scale); position is exact either way, but orientation comes
-with caveats — see "What mirroring costs you".
+with caveats — see ["What mirroring costs you"](#what-mirroring-costs-you).
 
 `SpriteStudioGraphic` (uGUI) does not expose these yet.
 
@@ -282,9 +282,11 @@ Configure it by adding entries to the **Part Trackers** list of `SpriteStudioPla
 
 | Setting | Description |
 |---|---|
-| **Part Name** | The name of the part to follow (the PartData name in the `.ssab`). The inspector offers a dropdown populated from the asset's part names |
+| **Part Name** | The name of the part to follow (the PartData name in the `.ssab`). The inspector offers a dropdown populated from the asset's part names, with mesh (skinned) parts greyed out |
 | **Target** | The `Transform` to make follow. It can be directly under the player or in a separate hierarchy |
-| **Drive Scale** | When ON, inherited scale is also reflected (the part's own localScale is excluded). OFF (default) is position and rotation only, and the target's scale is left untouched |
+| **Drive Position** | When ON (default), the target follows the part's position |
+| **Drive Rotation** | When ON (default), the target turns with the part |
+| **Drive Scale** | When ON, inherited scale is also reflected (the part's own localScale is excluded). OFF (default) leaves the target's scale untouched |
 | **On Hide** | Behavior on frames where the part is hidden. `FollowAlways` (keep following; default) / `Deactivate` (deactivate the target) |
 
 ### Registering from a Script
@@ -444,6 +446,11 @@ Replacements set in the inspector's **"Cellmap Texture Overrides"** (a name / te
 
 ## Driving from Timeline
 
-`SpriteStudioPlayer` implements `ITimeControl`, allowing playback time to be controlled from a Unity Timeline track. Timeline tracks / assets are also included.
+`SpriteStudioPlayer` can be driven from a Timeline in two ways (`SpriteStudioGraphic` cannot):
+
+- **SpriteStudio Track** — add a `SpriteStudioTrack`, bind the `SpriteStudioPlayer` to it, and place clips on it. Each clip's **Animation Name** names the animation it plays. The track does not blend, so Timeline does not let its clips overlap. A clip sets its animation up stopped, so in the gap after a clip the player holds that clip's last frame until a script calls `Play()`.
+- **Control Track** — `SpriteStudioPlayer` implements `ITimeControl`, so a Control Track clip on its GameObject seeks the animation set in **Animation Name**.
 
 A clip's time counts from the animation's first frame. The player keeps its own **Loop Count**, **Speed Scale** and **Frame Skipping** through the clips, so a player set to play once still plays once when a script plays it after the cutscene.
+
+A clip seeks the player rather than advancing it, so under a clip no events fire, no sound plays and loops do not apply — see [Limitations](../limitations.md#timeline).

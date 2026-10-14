@@ -54,6 +54,7 @@
 | `platform` | `windows` / `macos` / `linux` / `android` / `ios` / `web` | 対象プラットフォーム |
 | `arch` | `x86_64` / `arm64` / `universal` など | 対象アーキテクチャ |
 | `build` | `debug` / `release` | ビルドモード（配布時は `release`） |
+| `hostbuild` | `auto` / `false` | `false` でホスト向けのビルドも SDK のリリーススクリプトを通す（既定 `auto`） |
 
 例:
 
@@ -70,7 +71,7 @@
 
 > **iOS について:** `platform=ios` は実機（arm64）と シミュレータ（arm64 / x86_64）の両スライスを含む `libssruntime.xcframework` を生成し、`package/Runtime/Plugins/iOS/` に配置します。device / simulator は XCFramework 内で分離されるため、シミュレータ専用オプションは不要です（Apple Silicon Mac のシミュレータでも動作します）。
 
-> **補足:** ホスト環境と同じ platform/arch を指定した場合は `cargo build` を直接実行します。それ以外（クロスコンパイル）の場合は SDK 側のリリーススクリプトへ委譲します。
+> **補足:** ホスト環境と同じ platform/arch の debug ビルドは `cargo build` を直接実行します（Linux では SDK の `release-linux.sh`）。それ以外（release ビルドやクロスコンパイル）は SDK 側のリリーススクリプトへ委譲します。`hostbuild=false` を指定すると、ホスト向けのビルドもリリーススクリプトを通します。
 
 ## FlatBuffers アクセサを再生成する
 

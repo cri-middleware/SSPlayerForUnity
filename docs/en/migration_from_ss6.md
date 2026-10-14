@@ -32,7 +32,7 @@ The API has moved from SS6Player's track-centric model (`indexTrack`) to a simpl
 ### 3-1. Select animations by name, not index
 
 - **SS6Player**: You resolved an index with `IndexGetAnimation("walk")` and passed that **index** to `AnimationPlay(indexTrack, indexAnimation, ...)`.
-- **Current version**: You specify the **name** directly with `SetAnimation("walk")`, then call `Play()`. There is no track concept.
+- **Current version**: You specify the **name** directly with `SetAnimation("walk")`, then call `Play()`.
 
 ```csharp
 using SpriteStudio.Runtime;
@@ -66,7 +66,7 @@ _player.Play();
 | `StatusIsPlaying` / `StatusGetPlay(track)` | `IsPlaying` | `true` even while paused |
 | `StatusGetPause(track)` | `IsPausing` | |
 | (none) | `IsPlayingForward` | The actual heading; `false` on a `PlaybackStyle.PingPong` return leg. Use it to gate audio |
-| `CountGetAnimation()` | (query via `SpriteStudioAnimeAsset`) | |
+| `CountGetAnimation()` | `AnimationNames.Length` | |
 
 ### 3-3. Loop count
 

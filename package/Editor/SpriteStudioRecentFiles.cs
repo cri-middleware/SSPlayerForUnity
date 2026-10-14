@@ -11,7 +11,7 @@ namespace SpriteStudio.Editor
     /// </summary>
     /// <remarks>
     /// The list lives in <see cref="EditorUserSettings"/>, which writes to
-    /// ProjectSettings/EditorUserSettings.asset -- one store per project, per user.
+    /// UserSettings/EditorUserSettings.asset -- one store per project, per user.
     /// <para>
     /// It used to live in EditorPrefs, which is per machine: every project opened with the same
     /// Unity install shared a single list under one unqualified key, so a project's Recent panel

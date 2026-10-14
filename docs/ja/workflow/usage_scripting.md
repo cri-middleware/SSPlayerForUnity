@@ -90,7 +90,7 @@ _player.Play();
 | プロパティ | 型 | 説明 |
 |---|---|---|
 | `AnimeAsset` | `SpriteStudioAnimeAsset` | 再生対象アセット（差し替え可） |
-| `CurrentAnimation` | `string` | アニメーション名 |
+| `CurrentAnimation` | `string` | アニメーション名（読み取り専用。切り替えは `SetAnimation()` で行います） |
 | `AutoPlay` | `bool` | 起動時と再有効化時の自動再生 |
 | `LoopCount` | `int` | ループ回数（`-1` または `0` = 無限 / `n` = n 回） |
 | `SpeedScale` | `float` | 再生速度倍率。ランタイムの実値を読み返す。`0` と負値は**停止**にクランプされる（逆再生は `PlaybackDirection` の役目）ため、`-1` を設定すると `0` が返る |
@@ -114,7 +114,7 @@ _player.FlipX = _velocity.x < 0f;
 ```
 
 登録済みのパーツトラッカーは反転後の姿勢に追従するので、パーツに固定したオブジェクトは反転しても外れません。ただし鏡像は回転ではないため、反転そのものが対象に伝わるのは対象の `driveScale` が
-ON のとき（負のスケールとして届きます）だけです。位置はどちらの場合も正確ですが、向きには制約があります（「反転が絡むときの制約」を参照）。
+ON のとき（負のスケールとして届きます）だけです。位置はどちらの場合も正確ですが、向きには制約があります（[「反転が絡むときの制約」](#反転が絡むときの制約)を参照）。
 
 `SpriteStudioGraphic`（uGUI）はまだ未対応です。
 
@@ -276,9 +276,11 @@ void HandleUserData(SpriteStudioUserData data)
 
 | 設定 | 説明 |
 |---|---|
-| **Part Name** | 追従対象のパーツ名（`.ssab` の PartData 名）。インスペクタではアセットのパーツ名からドロップダウンで選べます |
+| **Part Name** | 追従対象のパーツ名（`.ssab` の PartData 名）。インスペクタではアセットのパーツ名からドロップダウンで選べます（メッシュ（スキン）パーツはグレー表示で選べません） |
 | **Target** | 追従させる `Transform`。プレイヤー直下でも別階層でも可 |
-| **Drive Scale** | ON で継承スケールも反映（パーツ自身の localScale は除外）。OFF（既定）は位置と回転のみで、ターゲットのスケールには一切触れません |
+| **Drive Position** | ON（既定）でパーツの位置に追従します |
+| **Drive Rotation** | ON（既定）でパーツの回転に合わせて向きを変えます |
+| **Drive Scale** | ON で継承スケールも反映（パーツ自身の localScale は除外）。OFF（既定）ではターゲットのスケールに一切触れません |
 | **On Hide** | パーツが hide のフレームでの挙動。`FollowAlways`（追従を継続。既定）/ `Deactivate`（ターゲットを非アクティブ化） |
 
 ### スクリプトからの登録
@@ -438,6 +440,11 @@ player.SetCellmapTexture("Clothes 1", null);
 
 ## Timeline からの駆動
 
-`SpriteStudioPlayer` は `ITimeControl` を実装しており、Unity の Timeline トラックから再生時刻を制御できます。Timeline 用のトラック / アセットも同梱されています。
+`SpriteStudioPlayer` は、Timeline から次の 2 つの方法で動かせます（`SpriteStudioGraphic` は動かせません）。
+
+- **SpriteStudio Track** — `SpriteStudioTrack` を追加して `SpriteStudioPlayer` をバインドし、クリップを並べます。各クリップの **Animation Name** に、そのクリップで再生するアニメーションを指定します。トラックはブレンドしないため、Timeline 上でクリップを重ねることはできません。クリップはアニメーションを停止した状態で準備するため、クリップの後の空白では、プレイヤーはそのクリップの最後のフレームで止まったままになり、スクリプトから `Play()` を呼ぶまで動きません。
+- **Control Track** — `SpriteStudioPlayer` は `ITimeControl` を実装しているため、その GameObject を対象にした Control Track のクリップが、**Animation Name** に設定したアニメーションをシークします。
 
 クリップの時刻はアニメーションの先頭フレームから数えます。プレイヤー自身の **Loop Count**・**Speed Scale**・**Frame Skipping** はクリップを跨いで保持されるため、1 回再生に設定したプレイヤーは、カットシーンの後にスクリプトから再生しても 1 回で止まります。
+
+クリップはプレイヤーを進めるのではなくシークするため、クリップの下ではイベントが発火せず、サウンドも鳴らず、ループも効きません。[制約と適用範囲](../limitations.md#timeline) を参照してください。
