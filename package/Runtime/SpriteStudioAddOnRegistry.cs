@@ -105,7 +105,7 @@ namespace SpriteStudio.Runtime
         /// a registered per-part AddOn? Consults the user catalog first, then the built-in table. No
         /// Shader.Find (so it stays cheap on the per-frame build path).
         /// </summary>
-        public static bool TryGetIsPerPart(uint idHash, SpriteStudioShaderCatalog userCatalog, out bool isPerPart)
+        internal static bool TryGetIsPerPart(uint idHash, SpriteStudioShaderCatalog userCatalog, out bool isPerPart)
         {
             if (userCatalog != null && userCatalog.TryResolve(idHash, out _, out isPerPart)) return true;
             var def = DefaultCatalog;
@@ -121,7 +121,7 @@ namespace SpriteStudio.Runtime
         /// class. User catalog first, then the built-in table. Returns false when unresolved or the
         /// shader cannot be found (the caller then folds to the default material).
         /// </summary>
-        public static bool TryResolveShader(uint idHash, SpriteStudioShaderCatalog userCatalog, out Shader shader, out bool isPerPart)
+        internal static bool TryResolveShader(uint idHash, SpriteStudioShaderCatalog userCatalog, out Shader shader, out bool isPerPart)
         {
             if (userCatalog != null && userCatalog.TryResolve(idHash, out shader, out isPerPart)) return true;
             var def = DefaultCatalog;

@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 
 namespace SpriteStudio.Runtime
 {
-    public class SpriteStudioGeometryBuilder : IDisposable
+    internal class SpriteStudioGeometryBuilder : IDisposable
     {
         private readonly SpriteStudioInternalPlayer _player;
 

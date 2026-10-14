@@ -7,7 +7,7 @@ namespace SpriteStudio.Runtime
     /// highest-weight clip and deterministically seeks to the clip-local time.
     /// SpriteStudio cannot blend multiple animations, so it adopts the single most dominant clip.
     /// </summary>
-    public class SpriteStudioMixerBehaviour : PlayableBehaviour
+    internal class SpriteStudioMixerBehaviour : PlayableBehaviour
     {
         private SpriteStudioPlayer _boundPlayer;
 

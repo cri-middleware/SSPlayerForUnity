@@ -13,7 +13,7 @@ namespace SpriteStudio.Runtime
     /// animation Tick and Job System-based mesh construction.
     /// Enforces strict lifecycle management (IDisposable) to prevent memory leaks.
     /// </summary>
-    public class SpriteStudioInternalPlayer : IDisposable
+    internal class SpriteStudioInternalPlayer : IDisposable
     {
         // Native context (pointer management is delegated to it).
         internal SpriteStudioNativeContext _nativeContext;

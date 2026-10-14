@@ -11,9 +11,9 @@ namespace SpriteStudio.Runtime
     // the SpriteStudio/MaskWrite pass (ColorMask 0) that increments/decrements/inverts the
     // isolated stencil bits (covers both the pure-mask "write" and its "restore"; the op
     // distinguishes them). Test = a colour submesh that is kept/discarded by a stencil compare.
-    public enum StencilRole : byte { None = 0, Write = 1, Test = 2 }
+    internal enum StencilRole : byte { None = 0, Write = 1, Test = 2 }
 
-    public struct SubmeshInfo
+    internal struct SubmeshInfo
     {
         public int IndexStart;
         public int IndexCount;

@@ -45,7 +45,7 @@ namespace SpriteStudio.Runtime
         // animation/asset changes). Not serialized: rebuilt at runtime from partName.
         internal const int ResolveDirty = -2;
         internal const int ResolveNotFound = -1;
-        [System.NonSerialized] public int ResolvedIndex = ResolveDirty;
+        [System.NonSerialized] internal int ResolvedIndex = ResolveDirty;
 
         // The target this tracker deactivated itself -- for an absent part, or a hidden one under
         // Deactivate -- or null. Only that target is activated again when the condition clears, so one the

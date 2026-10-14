@@ -56,7 +56,7 @@ namespace SpriteStudio.Runtime
     /// component builds its preview serially on its own, with ScheduleMeshUpdate and ApplyAndRender (separate from
     /// the parallel path).
     /// </summary>
-    public static class SpriteStudioUpdateManager
+    internal static class SpriteStudioUpdateManager
     {
         private static readonly List<ISpriteStudioRenderable> _renderables = new List<ISpriteStudioRenderable>();
         private static ISpriteStudioRenderable[] _tickBuffer = new ISpriteStudioRenderable[32];

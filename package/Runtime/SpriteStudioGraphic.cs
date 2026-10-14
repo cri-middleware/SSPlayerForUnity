@@ -972,8 +972,13 @@ namespace SpriteStudio.Runtime
 #endif
 
         // --- ISpriteStudioRenderable (driven by SpriteStudioUpdateManager) ---
+        // Explicit implementations, so none of it joins the package's public API: a raw native pointer, and
+        // calls that are only right in the order the update manager makes them.
 
-        public void PrepareFrame(float deltaTime, out System.IntPtr handle, out float drawFrame)
+        void ISpriteStudioRenderable.PrepareFrame(float deltaTime, out System.IntPtr handle, out float drawFrame)
+            => PrepareFrame(deltaTime, out handle, out drawFrame);
+
+        internal void PrepareFrame(float deltaTime, out System.IntPtr handle, out float drawFrame)
         {
             if (_core.Internal == null) { handle = System.IntPtr.Zero; drawFrame = 0f; return; }
             _core.Internal.PrepareFrameData(deltaTime, true, out handle, out drawFrame);
@@ -981,11 +986,9 @@ namespace SpriteStudio.Runtime
         }
 
         /// <inheritdoc/>
-        // Explicit implementation: only the update manager needs this, and a raw native pointer must not
-        // become part of the package's public API.
         System.IntPtr ISpriteStudioRenderable.GetLiveHandle() => _core.Internal != null ? _core.Internal.NativeHandle : System.IntPtr.Zero;
 
-        public void ConsumeFrame(System.IntPtr frameDataPtr, int len, float deltaTime)
+        void ISpriteStudioRenderable.ConsumeFrame(System.IntPtr frameDataPtr, int len, float deltaTime)
         {
             if (_core.Internal == null) return;
             _core.Internal.ConsumeFrameData(frameDataPtr, len, deltaTime);
@@ -998,7 +1001,9 @@ namespace SpriteStudio.Runtime
 
         float ISpriteStudioRenderable.ConsumeDeltaTime(float deltaTime) => deltaTime;
 
-        public void ApplyAndRender()
+        void ISpriteStudioRenderable.ApplyAndRender() => ApplyAndRender();
+
+        internal void ApplyAndRender()
         {
             if (_core.Internal == null || _sharedMesh == null) return;
 
