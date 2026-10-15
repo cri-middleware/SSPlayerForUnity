@@ -38,7 +38,7 @@
 - **SSQB (Sequence Binary)** … 複数のアニメーション（例: `歩き` → `走り` → `ジャンプ`）を SpriteStudio 側で「シーケンス」としてタイムライン上に連結したもので、`SpriteStudioSequenceAsset` としてインポートされます。
 
 > [!IMPORTANT]
-> **SSQB の現状**: `.ssqb` の**インポート（データとしての認識・参照）には対応**していますが、**シーケンス再生は現時点では未提供**です（今後対応予定）。当面の連続再生は、[スクリプト制御とイベント](./usage_scripting.md) の `OnAnimationFinished` イベントを使って次のアニメーションへ切り替えることで実現してください。
+> **SSQB の現状**: `.ssqb` の**インポート（データとしての認識・参照）には対応**していますが、**シーケンス再生には対応していません**（[ROADMAP](https://github.com/cri-middleware/SSPlayerForUnity/blob/HEAD/ROADMAP.md) で管理しています）。アニメーションを続けて再生するには、[スクリプト制御とイベント](./usage_scripting.md) の `OnAnimationFinished` イベントを使って次のアニメーションへ切り替えてください。
 
 ## ゼロアロケーションについて
 

@@ -38,7 +38,7 @@ There are two types of imported binaries.
 - **SSQB (Sequence Binary)** … multiple animations (e.g. `walk` → `run` → `jump`) concatenated on a timeline as a "sequence" on the SpriteStudio side, imported as `SpriteStudioSequenceAsset`.
 
 > [!IMPORTANT]
-> **Current state of SSQB**: **Importing `.ssqb` (recognizing and referencing the data) is supported**, but **sequence playback is not yet provided** (planned for the future). For continuous playback in the meantime, use the `OnAnimationFinished` event described in [Script Control and Events](./usage_scripting.md) to switch to the next animation.
+> **Current state of SSQB**: **Importing `.ssqb` (recognizing and referencing the data) is supported**, but **sequence playback is not supported** (tracked in the [ROADMAP](https://github.com/cri-middleware/SSPlayerForUnity/blob/HEAD/ROADMAP.md)). To play animations back to back, use the `OnAnimationFinished` event described in [Script Control and Events](./usage_scripting.md) to switch to the next animation.
 
 ## About Zero-Allocation
 

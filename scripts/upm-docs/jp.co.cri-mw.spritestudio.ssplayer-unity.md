@@ -15,5 +15,5 @@ The same pages for the latest version are at <https://cri-middleware.github.io/S
 
 ## Not included
 
-- Images: the pages link a screenshot that lives only on the online pages, so that image does not show here.
+- Images and screen recordings: the pages embed several that live only on the online pages, so they do not show here.
 - The license texts are `LICENSE.md`, `LICENSE.ja.md` and `Third Party Notices.md` at the package root; `en/license.md` and `en/third_party_notices.md` repeat them.
