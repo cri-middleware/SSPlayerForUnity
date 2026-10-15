@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [7.0.0-beta.1] - Unreleased
 
 ### Added
-- **Initial public release (work in progress).** A Unity "Body" that plays SpriteStudio animations (`.ssab`) by driving the SpriteStudio-SDK Rust runtime (`libssruntime`) over csbindgen-generated FFI, with per-frame geometry built in Burst jobs.
+- **Initial public release.** A Unity player for SpriteStudio animations (`.ssab`), driving the SpriteStudio-SDK Rust runtime (`libssruntime`) over csbindgen-generated FFI, with per-frame geometry built in Burst jobs.
 - **Rendering**: world rendering (`SpriteStudioPlayer`, `MeshRenderer`) and uGUI rendering (`SpriteStudioGraphic`, Canvas), including Mask / RectMask2D support on Canvas. Universal (URP) and Built-in (BRP) render pipelines, in Gamma and Linear color space.
 - **Feature coverage**: bone hierarchies, mesh & deform, particle effects, extended blending, and masks.
 - **AddOn and custom shaders** (`SpriteStudioPlayer`): all 13 SpriteStudio AddOns (sepia, hsb, outline, blur, …) draw per part with no setup, and a **Shader Catalog** asset maps a part's shader id to a shader of your own.

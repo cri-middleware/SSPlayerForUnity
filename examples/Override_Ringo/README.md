@@ -13,8 +13,13 @@ without fighting the animation.
 
 ## Run it
 
-1. Open `examples/Override_Ringo` in Unity.
-2. Open `Assets/Scenes/Override_Ringo.unity` and press Play.
+1. From the repository root, run `./scripts/download-sdk.sh` (the native libraries) and
+   `./scripts/deploy-examples.sh` (the converted Ringo; no converted asset is committed) — `.ps1` on
+   Windows. Do this **before** the project is first opened, or Unity deletes the committed `.meta`
+   that carry the scene's references; see
+   [CONTRIBUTING › Example projects](../../CONTRIBUTING.md#example-projects).
+2. Open `examples/Override_Ringo` in Unity.
+3. Open `Assets/Scenes/Override_Ringo.unity` and press Play.
 
 The Ringo animation keeps playing while the demo cycles through the three overrides, showing the
 current step in the top-left corner:

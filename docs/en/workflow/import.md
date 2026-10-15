@@ -60,4 +60,4 @@ If you want to convert from the command line without launching the Unity editor 
 When run, a folder named `<sspj name>/` is created in the same directory as the original `.sspj`, and the `.ssab` (and `.ssqb`) along with image files are output beneath it.
 3. Place the **entire `<sspj name>/` folder** under the `Assets/` directory of the Unity project. It is then automatically imported as a `SpriteStudioAnimeAsset`, and the automatic texture and material configuration described above is performed the same way.
 
-For detailed options and specifications, refer to the documentation in the SDK repository.
+For detailed options and specifications, refer to the [`ssconverter-cli` README](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/cli/README.md) in the SDK repository.

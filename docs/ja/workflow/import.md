@@ -60,4 +60,4 @@ Unity エディタを起動せずにコマンドラインから変換したい�
 実行すると、元の `.sspj` と同じディレクトリに `<sspj名>/` というフォルダが作成され、その配下に `.ssab`（および `.ssqb`）と画像ファイルが出力されます。
 3. 出力された **`<sspj名>/` フォルダごと**、Unity プロジェクトの `Assets/` 配下へ配置します。すると `SpriteStudioAnimeAsset` として自動的にインポートされ、上記のテクスチャやマテリアルの自動設定も同様に行われます。
 
-詳細なオプションや仕様は、SDK リポジトリのドキュメントを参照してください。
+詳細なオプションや仕様は、SDK リポジトリの [`ssconverter-cli` の README](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/cli/README.ja.md) を参照してください。
