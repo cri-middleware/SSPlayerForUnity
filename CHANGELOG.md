@@ -28,7 +28,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Distribution**: install from npm or a tarball, with native libraries for Windows, macOS, Linux, Android, iOS and WebGL.
 
 ### Known Limitations
-- The API may change without notice while the package is in beta.
 - `LoadSsab` checks only the `"SSAB"` file identifier before handing the buffer to the native runtime; full structural verification is pending an upstream FlatBuffers fix (see [ROADMAP.md](./ROADMAP.md)).
 - Constraints inherited from the shared runtime - `independent=true` parts under reverse playback and seeking, seeking not firing skipped events, no reverse audio, single-`.ssab` blending - are documented in [Shared Limitations](https://cri-middleware.github.io/SpriteStudio-Docs/sdk/limitations/).
 
