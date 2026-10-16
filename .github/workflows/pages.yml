@@ -11,12 +11,12 @@ on:
     types: [published]
   workflow_dispatch:
 
-# Artifact-based Pages deploy needs pages/id-token; contents:read is for the
-# checkout. Note: no contents:write — the gh-pages branch is gone.
+# Read-only by default; contents:read is for the checkout. Only the deploy job
+# gets what the artifact-based Pages deploy needs (pages: write, id-token:
+# write); the build job runs the repository's scripts and does not need them.
+# Note: no contents:write — the gh-pages branch is gone.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -25,8 +25,11 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -75,6 +78,10 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
