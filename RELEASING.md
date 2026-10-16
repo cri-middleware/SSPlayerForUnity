@@ -139,18 +139,18 @@ gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # 
 
 ### 6. Publish to npm
 
-**A person runs this step**: `npm login` and the publish ask for a 2FA code, and a version on npm is permanent — npm never lets its number be used again. The package goes to npm as the very tarball on the draft, which `release.yml` packed and signed: the block prints the signature's path inside it, and publishes nothing when there is none, as in a tarball packed anywhere else. It goes before the Release is published, so that by the time the Release announces the version, a project can install it. Its name has no scope, since a Unity package name cannot carry one; a project reaches it through a scoped registry for `jp.co.cri-mw` at `https://registry.npmjs.org`. The dist-tag comes from the version: the prerelease's word (`beta`), or `latest` for a full release. `release.yml` publishes nothing to npm.
+**A person runs this step**: `npm login` and the publish ask for a 2FA code, and a version on npm is permanent — npm never lets its number be used again. The package goes to npm as the very tarball on the draft, which `release.yml` packed and signed: the block prints the signature's path inside it, and publishes nothing when there is none, as in a tarball packed anywhere else. It goes before the Release is published, so that by the time the Release announces the version, a project can install it. Its name has no scope, since a Unity package name cannot carry one; a project reaches it through a scoped registry for `jp.co.cri-mw` at `https://registry.npmjs.org`. `scripts/npm-dist-tag.sh` picks the dist-tag: `latest` for a full release, and for a prerelease while the package's `latest` is not yet a full release; the prerelease's word (`beta`, `rc`) after that. `release.yml` publishes nothing to npm.
 
 ```bash
 npm login                                         # once
 git fetch origin --tags
 TAG=$(git describe --exact-match --tags --match 'v[0-9]*' origin/main)
 VERSION=${TAG#v}
-case "$VERSION" in *-*) DIST=${VERSION#*-}; DIST=${DIST%%.*} ;; *) DIST=latest ;; esac
+DIST=$(scripts/npm-dist-tag.sh jp.co.cri-mw.spritestudio.ssplayer-unity "$VERSION")
 F="$(mktemp -d)/jp.co.cri-mw.spritestudio.ssplayer-unity-$VERSION.tgz"
 gh release download "${TAG:?}" -p "${F##*/}" -D "${F%/*}" &&
   tar -tzf "$F" | grep '\.attestation\.p7m$' &&     # the signature: nothing printed, nothing published
-  npm publish "$F" --tag "$DIST"
+  npm publish "$F" --tag "${DIST:?}"
 npm view jp.co.cri-mw.spritestudio.ssplayer-unity dist-tags
 ```
 
@@ -363,18 +363,18 @@ gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # 
 
 ### 6. npm への公開
 
-**この手順は人が行います。** `npm login` と publish のたびに 2FA のコードを求められ、npm に出したバージョンは取り消せないためです（同じ番号は二度と使えません）。npm には、`release.yml` が作って署名した、下書きに添付されている tarball そのものを出します。ブロックは tarball の中の署名のパスを出力し、署名が無ければ何も publish しません。ほかの場所で作った tarball には署名がありません。Release を公開するより先に行い、Release がバージョンを告知する時点でプロジェクトからインストールできるようにします。パッケージ名に scope はありません（Unity のパッケージ名は scope を持てません）。プロジェクトは `https://registry.npmjs.org` を `jp.co.cri-mw` の scoped registry として登録して使います。dist-tag はバージョンから決めます。プレリリースならその語（`beta`）、正式版なら `latest` です。`release.yml` は npm に何も出しません。
+**この手順は人が行います。** `npm login` と publish のたびに 2FA のコードを求められ、npm に出したバージョンは取り消せないためです（同じ番号は二度と使えません）。npm には、`release.yml` が作って署名した、下書きに添付されている tarball そのものを出します。ブロックは tarball の中の署名のパスを出力し、署名が無ければ何も publish しません。ほかの場所で作った tarball には署名がありません。Release を公開するより先に行い、Release がバージョンを告知する時点でプロジェクトからインストールできるようにします。パッケージ名に scope はありません（Unity のパッケージ名は scope を持てません）。プロジェクトは `https://registry.npmjs.org` を `jp.co.cri-mw` の scoped registry として登録して使います。dist-tag は `scripts/npm-dist-tag.sh` が決めます。正式版は `latest` です。プレリリースも、パッケージの `latest` がまだ正式版でなければ `latest`、正式版になった後はその語（`beta`・`rc`）です。`release.yml` は npm に何も出しません。
 
 ```bash
 npm login                                         # 最初に一度
 git fetch origin --tags
 TAG=$(git describe --exact-match --tags --match 'v[0-9]*' origin/main)
 VERSION=${TAG#v}
-case "$VERSION" in *-*) DIST=${VERSION#*-}; DIST=${DIST%%.*} ;; *) DIST=latest ;; esac
+DIST=$(scripts/npm-dist-tag.sh jp.co.cri-mw.spritestudio.ssplayer-unity "$VERSION")
 F="$(mktemp -d)/jp.co.cri-mw.spritestudio.ssplayer-unity-$VERSION.tgz"
 gh release download "${TAG:?}" -p "${F##*/}" -D "${F%/*}" &&
   tar -tzf "$F" | grep '\.attestation\.p7m$' &&     # 署名。何も出力されなければ publish しない
-  npm publish "$F" --tag "$DIST"
+  npm publish "$F" --tag "${DIST:?}"
 npm view jp.co.cri-mw.spritestudio.ssplayer-unity dist-tags
 ```
 
