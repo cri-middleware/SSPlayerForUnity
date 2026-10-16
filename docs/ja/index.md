@@ -88,8 +88,6 @@ graph LR
 | 依存パッケージ | Burst / Mathematics / Collections / Timeline / uGUI（いずれも Unity 標準） |
 | 対応プラットフォーム | Windows / macOS / Linux / Android / iOS / WebGL（ネイティブライブラリは [ビルドガイド](./setup/build.md) 参照） |
 
-> **注意:** 現在のパッケージバージョンは `7.0.0-beta.1` です。API は予告なく変更される可能性があります。
-
 ## ライセンス (License)
 
 本プロジェクトは BSD-3-Clause ライセンスのもとで公開されています。詳細は [ライセンス](./license.md) をご参照ください。
