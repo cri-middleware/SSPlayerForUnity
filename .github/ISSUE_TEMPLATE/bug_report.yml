@@ -41,7 +41,6 @@ body:
     attributes:
       label: Player version / プレイヤーのバージョン
       description: The `version` in the package's `package.json`, or the release you installed.
-      placeholder: 7.0.0-beta.1
     validations:
       required: true
 
