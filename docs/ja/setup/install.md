@@ -11,6 +11,7 @@
 | Unity バージョン | **Unity 6.3 LTS (6000.3)** 以降 |
 | レンダーパイプライン | Universal (URP) / Built-in (BRP) |
 | 依存パッケージ | Burst / Mathematics / Collections / Timeline / uGUI（Package Manager が自動解決） |
+| 対応プラットフォーム | Windows / macOS / Linux / Android / iOS / WebGL（ネイティブライブラリは [ビルドガイド](./build.md) 参照） |
 
 依存パッケージはすべて Unity 標準パッケージのため、本パッケージを追加すると Package Manager が自動的に解決します。
 

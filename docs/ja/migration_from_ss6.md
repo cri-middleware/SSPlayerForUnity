@@ -148,6 +148,6 @@ void HandleFinished() { /* 戻り値なし。自動破棄の挙動は無くな�
 - **エフェクト**: SS6Player の `Script_SpriteStudio6_RootEffect` のような独立コンポーネントは不要です。エフェクトパーツを含むアニメーションは、`SpriteStudioPlayer` / `SpriteStudioGraphic` 内で**インラインに再生**されます。
 - **パーツへの GameObject 追従**: SS6Player の `TrackConnectParts()` / `InstanceGet()` などに代わり、`SpriteStudioPlayer` の **Part Trackers**（指定パーツへ任意の `Transform` を追従させる機能）を利用してください。詳細は [スクリプト制御とイベント](./workflow/usage_scripting.md#パーツトラッキング指定パーツへの追従) を参照してください。
 - **Timeline**: 引き続き対応しています。`SpriteStudioPlayer` は `ITimeControl` を実装しており、Timeline トラックから再生時刻を制御できます。
-- **対応環境**: 本バージョンは **Unity 6.3 LTS (6000.3) 以降**、URP / Built-in RP に対応します。詳細は [ドキュメント目次](./index.md#対応環境) を参照してください。
+- **対応環境**: [インストール](./setup/install.md#対応環境) を参照してください。
 - **パーツ単位のカラー / セル / 表示の上書き**: SS6Player の `PartsColorChange()` / `CellChangeParts()` / `HideSet()` に相当する機能は、**パーツオーバーライド（Override Layer API）** として提供しています。キーフレームやアニメーションのブレンドより優先してパーツを上書きできます。詳細は [スクリプト制御とイベント](./workflow/usage_scripting.md#パーツオーバーライドパーツカラー--セル--表示指定) を参照してください。
 - **コライダー連携**: SS6Player のコライダー機能に直接相当する API はありません。必要な場合は、指定パーツへ追従させた GameObject（**Part Trackers**）側に任意のコライダーを付ける方法で代替してください（Part Trackers の詳細は上記を参照）。
