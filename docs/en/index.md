@@ -83,15 +83,6 @@ graph LR
 - **Editor (at import time)**: Imports a `.sspj`, automatically converts it to `.ssab` / `.ssqb`, and generates a `SpriteStudioAnimeAsset` that bundles textures, materials, animation names, external references, and more. Pre-generation with `ssconverter-cli` is also possible.
 - **Runtime (during playback)**: The player component delegates to the shared core `SpriteStudioPlaybackCore`, `libssruntime` computes the frame data, and a Burst job builds the vertices and uploads them directly to the Mesh.
 
-## Supported Environment
-
-| Item | Details |
-|---|---|
-| Unity Version | **Unity 6.3 LTS (6000.3)** or later |
-| Render Pipeline | Universal (URP) / Built-in (BRP) |
-| Dependencies | Burst / Mathematics / Collections / Timeline / uGUI (all standard Unity packages) |
-| Supported Platforms | Windows / macOS / Linux / Android / iOS / WebGL (for native libraries, see the [Build Guide](./setup/build.md)) |
-
 ## License
 
 This project is released under the BSD-3-Clause license. For details, see the [License](./license.md).

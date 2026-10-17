@@ -95,4 +95,4 @@ These come from the shared `libssruntime` and therefore apply to every render pa
 
 ## Platforms
 
-Unity version, render pipelines, and the platform list are in [Supported Environment](./index.md#supported-environment). For the native libraries behind each platform, see the [Build Guide](./setup/build.md).
+Unity version, render pipelines, and the platform list are in [Supported Environment](./setup/install.md#supported-environment). For the native libraries behind each platform, see the [Build Guide](./setup/build.md).

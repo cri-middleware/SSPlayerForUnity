@@ -79,15 +79,6 @@ graph LR
 - **エディタ (インポート時)**: `.sspj` をインポートして自動的に `.ssab` / `.ssqb` へ変換し、テクスチャ・マテリアル・アニメーション名・外部参照などを束ねた `SpriteStudioAnimeAsset` を生成します。`ssconverter-cli` による事前生成も可能です。
 - **ランタイム (再生時)**: プレイヤーコンポーネントが共有コア `SpriteStudioPlaybackCore` に委譲し、`libssruntime` がフレームデータを計算、Burst ジョブが頂点を構築して Mesh に直接アップロードします。
 
-## 対応環境
-
-| 項目 | 内容 |
-|---|---|
-| Unity バージョン | **Unity 6.3 LTS (6000.3)** 以降 |
-| レンダーパイプライン | Universal (URP) / Built-in (BRP) |
-| 依存パッケージ | Burst / Mathematics / Collections / Timeline / uGUI（いずれも Unity 標準） |
-| 対応プラットフォーム | Windows / macOS / Linux / Android / iOS / WebGL（ネイティブライブラリは [ビルドガイド](./setup/build.md) 参照） |
-
 ## ライセンス (License)
 
 本プロジェクトは BSD-3-Clause ライセンスのもとで公開されています。詳細は [ライセンス](./license.md) をご参照ください。
