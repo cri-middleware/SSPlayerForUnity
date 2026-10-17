@@ -12,11 +12,8 @@
 #      and a build clears its own output directory first -- so `zensical build`
 #      deletes site/ja on its way in. English first, Japanese second; the other
 #      order publishes a site with no Japanese pages at all.
-#   2. --strict, always. Nothing builds the docs on a pull request
-#      (.github/workflows/pages.yml runs on a published release and on dispatch),
-#      so this is the only thing standing between a broken internal link and the
-#      published site. mkdocs.base.yml sets strict: true as well, but the flag is
-#      spelled out here because it is what the docs tell people to run.
+#   2. --strict, always. mkdocs.base.yml sets strict: true as well; the flag is
+#      spelled out here so the build stays strict if the config ever loses it.
 #
 # The -docs suffix keeps this apart from the scripts that build the code itself;
 # the whole SpriteStudio family spells the documentation pair the same way.
