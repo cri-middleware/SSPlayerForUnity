@@ -24,10 +24,9 @@ runtime and converter work lives in the
   (`SpriteStudioGraphic` takes `Graphic.color`). The update loop advances every player by scaled `Time.deltaTime`, so
   `Time.timeScale = 0` freezes UI animation along with the world; unscaled time and a clock shared by a group of
   players are not available.
-- [ ] **Per-player effect seed** — an effect part is created with a seed derived from its part index and the
-  effect name (in `SpriteStudioInternalPlayer`), so every player built from the same asset draws the
-  identical particle pattern. Vary it per player instance, behind a serialized seed field (0 = pick one)
-  so a run stays reproducible. The seed is already an `ss_effect_slot_create` argument and the runtime
+- [ ] **Per-player effect seed** — an effect part's seed comes from its part index and the effect name, so every
+  player built from the same asset draws the identical particle pattern. Vary it per player behind a serialized seed
+  field (0 = pick one), so a run stays reproducible; `ss_effect_slot_create` already takes the seed and the runtime
   honours an authored `is_lock_rand_seed` ahead of it, so the work is Player-side only.
 
 ## UI integration
@@ -48,11 +47,10 @@ with the sibling Players: `fit` / `align` for placement, a part rect read-out fo
 - [ ] **UI state binding** — a component that drives the player from `Selectable` state (normal / highlighted /
   pressed / selected / disabled), each mapped to an animation or a label. Without it every project rewrites
   the same `IPointerEnterHandler` glue.
-- [ ] **`Nines` and `Text` parts** — the two part kinds authored for UI, neither of which draws today:
-  `SpriteStudioGeometryBuilder` takes Normal / Shape / Mesh and drops `Nines` and `Text` on the floor. **Nines** is
-  the cheap one: the runtime hands over finished vertices, so it is a geometry path and nothing more. **Text**
-  arrives as a batch with no geometry plus the authored string — map it onto TextMeshPro rather than growing a glyph
-  atlas here, and allow substituting the string at runtime so a UI label can be localized.
+- [ ] **`Nines` and `Text` parts** — the two part kinds authored for UI; `SpriteStudioGeometryBuilder` draws neither.
+  Nines is a geometry path and nothing more, since the runtime hands over finished vertices, while Text arrives as a
+  batch with no geometry plus the authored string, to map onto TextMeshPro with the string substitutable at runtime
+  so a UI label can be localized.
 - [ ] **`SpriteStudioVisualElement` for UI Toolkit** — uGUI and UI Toolkit are separate systems, and everything
   above reaches only the former.
 - [ ] **Multi-atlas on the Canvas path** — one `CanvasRenderer` is one mesh and one material, so the graphic draws
@@ -87,10 +85,9 @@ Wait on a runtime capability from the SDK roadmap.
   (Animation Instancing).
 - [ ] **Runtime instance swap** — change the animation mounted on an Instance part at runtime. Waits for: Instance
   Lifecycle API (Dynamic instance swap, built on the shared resource registry that item introduces).
-- [ ] **Stretch a 9-slice part to a layout rect** — drawing one at all is the UI-integration item above; this is
-  the step after it. The runtime evaluates the part's size from its keyframes and hands over finished
-  vertices, and the Override Layer covers color / cell / visibility only, so nothing can resize one from the
-  host — a UI panel that cannot follow its container is a picture of a panel. Waits for: Per-part size override.
+- [ ] **Stretch a 9-slice part to a layout rect** — the step after drawing one at all (the UI-integration item above):
+  the Override Layer covers color / cell / visibility only, so nothing can resize a Nines part from the host, and a UI
+  panel that cannot follow its container is a picture of a panel. Waits for: Per-part size override.
 
 [google/flatbuffers#8975]: https://github.com/google/flatbuffers/pull/8975
 [#8937]: https://github.com/google/flatbuffers/issues/8937
