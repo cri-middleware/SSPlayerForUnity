@@ -78,7 +78,7 @@ git push origin "${BRANCH:?}" &&
   RUN=$(gh workflow run release.yml --ref "${BRANCH:?}" | sed 's|.*/||')
 gh run watch "${RUN:?}" --exit-status
 gh run download "${RUN:?}" -n ssplayer-unity-release-dist -D "qa/$RUN"
-gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # must print nothing
+! gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # must print nothing
 ```
 
 A missing signing secret does not fail the run: it packs the tarball unsigned, says so in the log, and passes, and Unity 6.3 then warns whoever installs it. The block's last command looks for that, here and in step 5, and must print nothing. If it prints anything, no change on the branch fixes it: the signing secrets, `UNITY_ORGANIZATION_ID` and the UPM service account's key, are not reaching this repository. An admin of the repository or the organization provides them, and on GitHub Free organization secrets cannot reach a private repository. Dispatch again once they do; in step 5, delete the draft first.
@@ -134,7 +134,7 @@ git fetch origin --tags
 TAG=$(git describe --exact-match --tags --match 'v[0-9]*' origin/main)
 RUN=$(gh workflow run release.yml --ref "${TAG:?}" -f upload_release=true | sed 's|.*/||')
 gh run watch "${RUN:?}" --exit-status
-gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # must print nothing
+! gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # must print nothing
 ```
 
 ### 6. Publish to npm
@@ -169,14 +169,15 @@ gh run watch "${RUN:?}" --exit-status             # RUN is empty until the run a
 
 ### 8. Merge back
 
-Merge `main` into `develop`. After a patch release this conflicts where `develop` has moved on: keep `develop`'s version and its `Unreleased` heading, with the patch's section below it. When the next version is decided, set it in `package/package.json` on `develop` and open a `## [X.Y.Z] - Unreleased` heading for it.
+Merge `main` into `develop`. After a patch release this conflicts where `develop` has moved on: keep `develop`'s version and its `Unreleased` heading, with the patch's section below it. The block merges on a detached `origin/develop`, so it runs in a worktree whichever branch the other checkouts hold, and a conflict stops it there: resolve it, `git commit`, and run the block's two `git push` lines. When the next version is decided, set it in `package/package.json` on `develop` and open a `## [X.Y.Z] - Unreleased` heading for it.
 
 ```bash
 git fetch origin --tags
 TAG=$(git describe --exact-match --tags --match 'v[0-9]*' origin/main)
-git switch develop && git pull --ff-only &&
-  git merge --no-ff origin/main && git push origin develop
-git push origin --delete "release/$(echo "${TAG:?}" | sed 's/^v//' | cut -d. -f1,2)"
+git switch --detach origin/develop &&
+  git merge --no-ff -m "Merge branch 'main' into develop" origin/main &&
+  git push origin HEAD:develop &&
+  git push origin --delete "release/$(echo "${TAG:?}" | sed 's/^v//' | cut -d. -f1,2)"
 ```
 
 If the button on its pull request already deleted the release branch, the last line only reports that the branch does not exist. Nothing needs it afterwards: the line's next release cuts it again in step 1.
@@ -302,7 +303,7 @@ git push origin "${BRANCH:?}" &&
   RUN=$(gh workflow run release.yml --ref "${BRANCH:?}" | sed 's|.*/||')
 gh run watch "${RUN:?}" --exit-status
 gh run download "${RUN:?}" -n ssplayer-unity-release-dist -D "qa/$RUN"
-gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # 何も出力されないこと
+! gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # 何も出力されないこと
 ```
 
 署名の Secret が欠けていても、この run は失敗しません。tarball を署名なしで作り、その旨をログに出して成功します。署名の無い tarball は、Unity 6.3 がインストールする人に警告します。ブロックの最後のコマンドはそれを探すもので、ここでも手順 5 でも何も出力されてはいけません。何か出力されたら、ブランチをどう変えても直りません。署名用の Secret（`UNITY_ORGANIZATION_ID` と UPM のサービスアカウントのキー）がこのリポジトリに届いていません。届けるのはリポジトリか組織の admin で、GitHub Free では組織の Secret は private のリポジトリに届けられません。届くようになったら実行し直してください。手順 5 では先に下書きを消します。
@@ -358,7 +359,7 @@ git fetch origin --tags
 TAG=$(git describe --exact-match --tags --match 'v[0-9]*' origin/main)
 RUN=$(gh workflow run release.yml --ref "${TAG:?}" -f upload_release=true | sed 's|.*/||')
 gh run watch "${RUN:?}" --exit-status
-gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # 何も出力されないこと
+! gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # 何も出力されないこと
 ```
 
 ### 6. npm への公開
@@ -393,14 +394,15 @@ gh run watch "${RUN:?}" --exit-status             # run が出るまで RUN は�
 
 ### 8. develop へ戻す
 
-`main` を `develop` へマージします。パッチリリースの後は、`develop` が先へ進んだ箇所で衝突します。`develop` のバージョンと `Unreleased` の見出しを残し、パッチの節をその下に置いてください。次のバージョンが決まったら、`develop` の `package/package.json` を設定し、`## [X.Y.Z] - Unreleased` の見出しを立てます。
+`main` を `develop` へマージします。パッチリリースの後は、`develop` が先へ進んだ箇所で衝突します。`develop` のバージョンと `Unreleased` の見出しを残し、パッチの節をその下に置いてください。ブロックは切り離した `origin/develop` の上でマージするので、ほかのチェックアウトがどのブランチにあっても worktree で実行できます。衝突したらそこで止まります。解決して `git commit` し、ブロックの 2 つの `git push` を実行してください。次のバージョンが決まったら、`develop` の `package/package.json` を設定し、`## [X.Y.Z] - Unreleased` の見出しを立てます。
 
 ```bash
 git fetch origin --tags
 TAG=$(git describe --exact-match --tags --match 'v[0-9]*' origin/main)
-git switch develop && git pull --ff-only &&
-  git merge --no-ff origin/main && git push origin develop
-git push origin --delete "release/$(echo "${TAG:?}" | sed 's/^v//' | cut -d. -f1,2)"
+git switch --detach origin/develop &&
+  git merge --no-ff -m "Merge branch 'main' into develop" origin/main &&
+  git push origin HEAD:develop &&
+  git push origin --delete "release/$(echo "${TAG:?}" | sed 's/^v//' | cut -d. -f1,2)"
 ```
 
 プルリクエストのページのボタンでリリースブランチを消してあれば、最後の行は「ブランチが無い」と出るだけです。同じ系統の次のリリースは手順 1 で切り直すので、この後ブランチが要ることはありません。
