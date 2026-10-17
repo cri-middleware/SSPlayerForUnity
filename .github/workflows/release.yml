@@ -135,6 +135,8 @@ jobs:
 
       # The pre-release mark the draft carries: one once a full release is
       # tagged, none before (scripts/release-channel.sh).
+      # A patch to an earlier line also names the full release before it in that
+      # line, which the generated notes start from instead of the newest release.
       - name: Read the Release's channel
         id: channel
         if: steps.release.outputs.draft == 'true'
@@ -142,6 +144,11 @@ jobs:
           channel="$(./scripts/release-channel.sh "$GITHUB_REF_NAME")"
           echo "::notice::${GITHUB_REF_NAME} is a ${channel} release"
           echo "channel=${channel}" >> "$GITHUB_OUTPUT"
+          if [ "$channel" = old ]; then
+            previous="$(git tag --list "${GITHUB_REF_NAME%.*}.*" --sort=v:refname |
+              awk -v tag="$GITHUB_REF_NAME" '$0 == tag { print previous; exit } $0 !~ /-|[0-9](a|b|rc)[0-9]+$/ { previous = $0 }')"
+            echo "previous=${previous}" >> "$GITHUB_OUTPUT"
+          fi
 
       # NOTE: the release is created as a DRAFT. Drafts are excluded from
       # `releases/latest`, so the stable download URL used by README and the docs
@@ -165,6 +172,7 @@ jobs:
           draft: true
           prerelease: ${{ steps.channel.outputs.channel == 'prerelease' }}
           generate_release_notes: true
+          previous_tag: ${{ steps.channel.outputs.previous }}
           # The version-pinned tarball, the stable alias filename, and the
           # checksums covering both.
           files: |
