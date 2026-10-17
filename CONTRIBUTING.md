@@ -65,7 +65,7 @@ If you find a bug, please open a GitHub Issue and include:
 ```bash
 ./scripts/run-tests.sh       # headless; do not run while the Unity Editor has the project open
 ```
-With the Editor open, use the Unity Test Runner instead. Windows users: every script has a `.ps1` counterpart, except the maintainer tools `scaffold-plugin-placeholders.sh` and `scan-snippets.sh`.
+With the Editor open, use the Unity Test Runner instead. Windows users: every script has a `.ps1` counterpart, except the maintainer tools `scaffold-plugin-placeholders.sh`, `scan-snippets.sh`, `npm-dist-tag.sh` and `release-channel.sh`.
 
 ### Example projects
 ```bash
@@ -162,7 +162,7 @@ SSPlayerForUnity への貢献にご関心をお寄せいただきありがとう
 ```bash
 ./scripts/run-tests.sh       # ヘッドレス実行。Unity エディターでプロジェクトを開いたままでは実行しないでください
 ```
-エディターを開いている場合は Unity Test Runner を使用してください。Windows では各スクリプトの `.ps1` 版を使います（メンテナー用の `scaffold-plugin-placeholders.sh` と `scan-snippets.sh` は `.sh` のみです）。
+エディターを開いている場合は Unity Test Runner を使用してください。Windows では各スクリプトの `.ps1` 版を使います（メンテナー用の `scaffold-plugin-placeholders.sh`・`scan-snippets.sh`・`npm-dist-tag.sh`・`release-channel.sh` は `.sh` のみです）。
 
 ### サンプルプロジェクト
 ```bash
