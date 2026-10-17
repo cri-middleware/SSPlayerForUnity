@@ -70,7 +70,8 @@ with the sibling Players: `fit` / `align` for placement, a part rect read-out fo
   before handing the buffer to the native runtime: a format sanity check, not validation of the buffer's
   contents. Bump the FlatBuffers version `scripts/download-flatbuffers.sh` pulls and switch `LoadSsab` to a full
   `SsAnimeBinary.VerifySsAnimeBinary` gate, so a malformed or crafted `.ssab` is rejected with a friendly error
-  instead of risking an out-of-bounds read in native code. Blocked on: the FlatBuffers verifier fix
+  instead of risking an out-of-bounds read in native code, and drop the partial-validation note from `SECURITY.md` (EN / JA)
+  with it. Blocked on: the FlatBuffers verifier fix
   ([google/flatbuffers#8975], for [#8937]).
 
 ## Needs SDK
