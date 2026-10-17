@@ -42,6 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-tags: true
           persist-credentials: false
 
       # node packs the tarball (`npm pack` applies package.json's "files"
@@ -132,6 +133,16 @@ jobs:
           # build fails, in a step that has nothing to do with the release.
           retention-days: 7
 
+      # The pre-release mark the draft carries: one once a full release is
+      # tagged, none before (scripts/release-channel.sh).
+      - name: Read the Release's channel
+        id: channel
+        if: steps.release.outputs.draft == 'true'
+        run: |
+          channel="$(./scripts/release-channel.sh "$GITHUB_REF_NAME")"
+          echo "::notice::${GITHUB_REF_NAME} is a ${channel} release"
+          echo "channel=${channel}" >> "$GITHUB_OUTPUT"
+
       # NOTE: the release is created as a DRAFT. Drafts are excluded from
       # `releases/latest`, so the stable download URL used by README and the docs
       # (releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz) does NOT
@@ -140,10 +151,9 @@ jobs:
       # triggers the Deploy Pages workflow. So after a green run: review the draft, then
       # click "Publish release".
       #
-      # "Set as a pre-release" / "Set as the latest release" are chosen there too — the
-      # same decision, made once, in the place where the release is actually published,
-      # which is why there is no prerelease input here. Keep it a full (non-prerelease)
-      # release so `latest` resolves.
+      # The draft carries its pre-release mark from the step above: none for a full
+      # release or a prerelease before the first one, so `latest` resolves to it once it
+      # is published, and a pre-release after that, so `latest` stays on the full release.
       - name: Upload package to release
         if: steps.release.outputs.draft == 'true'
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
@@ -153,6 +163,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: SpriteStudio Player for Unity ${{ github.ref_name }}
           draft: true
+          prerelease: ${{ steps.channel.outputs.channel == 'prerelease' }}
           generate_release_notes: true
           # The version-pinned tarball, the stable alias filename, and the
           # checksums covering both.
