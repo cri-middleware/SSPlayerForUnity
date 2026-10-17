@@ -29,8 +29,6 @@ runtime and converter work lives in the
   identical particle pattern. Vary it per player instance, behind a serialized seed field (0 = pick one)
   so a run stays reproducible. The seed is already an `ss_effect_slot_create` argument and the runtime
   honours an authored `is_lock_rand_seed` ahead of it, so the work is Player-side only.
-- [ ] **Runtime material override** — swap the material for a texture key at runtime.
-- [ ] **Per-part colliders** — auto-sized 2D / 3D colliders that follow parts, with enter / stay / exit callbacks.
 
 ## UI integration
 
@@ -43,7 +41,7 @@ with the sibling Players: `fit` / `align` for placement, a part rect read-out fo
   size in the rect's local space and never reads `rectTransform`, so resizing the rect changes nothing today.
 - [ ] **Part rect read-out** — `TryGetPartRect(part, out Rect)` in player-local space, built from the `PartState`
   fields the runtime already delivers every frame (`size_x` / `size_y`, `anchor`, `pivot`) and the part
-  transform. Also what per-part colliders above need, so build it once and share it.
+  transform.
 - [ ] **Per-part hit testing** — `HitTestPart(Vector2)` plus a `Graphic.Raycast` override that answers from part
   rects rather than the whole `RectTransform`, so an irregularly shaped button stops eating clicks around its
   artwork and a transparent margin lets the control behind it through.
