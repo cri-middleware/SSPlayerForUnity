@@ -33,7 +33,7 @@
 - **SpriteStudioPlayer** … ワールド空間用。選んだアセットを割り当てた GameObject が作成されます。
 - **SpriteStudioGraphic (Canvas UI)** … Canvas UI 用。
 
-選択すると GameObject が作成され、**Anime Asset には今ドロップしたアセットが自動的に割り当てられます**。あとは **Animation Name** を設定すれば再生できます。
+選択すると GameObject が作成され、**Anime Asset には今ドロップしたアセットが自動的に割り当てられます**。**Animation Name** にはそのアセットの最初のアニメーションが入ります。別のアニメーションにするなら **Animation Name** のリストから選んでください。
 
 > [!TIP]
 > - **SpriteStudioGraphic (Canvas UI)** を選んだ際にシーンへ `Canvas` が無い場合は、**GameObject > UI > Canvas** と同じように `Canvas`（およびプロジェクトの入力方式に合った入力モジュール付きの `EventSystem`）が自動的に作成され、その下に設置されます。
@@ -58,7 +58,7 @@
 1. 空の GameObject を作成します。
 2. **Add Component** から **SpriteStudio Player** を追加します（`MeshFilter` / `MeshRenderer` は自動で付与されます）。
 3. インスペクタの **SpriteStudio Asset** 見出しの下にある **Anime Asset** に、インポートした `SpriteStudioAnimeAsset` を割り当てます。
-4. **Animation Name** に再生したいアニメーション名を入力します。
+4. **Animation Name** で再生したいアニメーションを選びます。アセットを割り当てるとリストになり、最初はそのアセットの最初のアニメーションが入っています。
 
 #### Canvas (uGUI) に置く場合（`SpriteStudioGraphic`）
 
