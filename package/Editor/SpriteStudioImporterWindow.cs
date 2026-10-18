@@ -18,6 +18,9 @@ namespace SpriteStudio.Editor
         private string converterVersion;
         private string playerVersion;
 
+        private bool dragInWindow;
+        private bool dragOverDropArea;
+
         [MenuItem("Window/SpriteStudio/Importer")]
         public static void ShowWindow()
         {
@@ -41,6 +44,7 @@ namespace SpriteStudio.Editor
 
         private void OnGUI()
         {
+            TrackDrag(Event.current);
             DrawOutputSection();
             EditorGUILayout.Space();
             DrawDropArea();
@@ -101,15 +105,56 @@ namespace SpriteStudio.Editor
             EditorUtility.DisplayDialog("SpriteStudio: Output folder", reason, "OK");
         }
 
+        // Runs before any control can Use() the event, so a drag over the Output Folder field still
+        // lights the drop box.
+        private void TrackDrag(Event evt)
+        {
+            switch (evt.type)
+            {
+                case EventType.DragUpdated:
+                    if (!dragInWindow)
+                    {
+                        dragInWindow = true;
+                        Repaint();
+                    }
+                    break;
+                case EventType.DragPerform:
+                case EventType.DragExited:
+                    if (dragInWindow)
+                    {
+                        dragInWindow = false;
+                        dragOverDropArea = false;
+                        Repaint();
+                    }
+                    break;
+            }
+        }
+
         private void DrawDropArea()
         {
             Rect dropRect = GUILayoutUtility.GetRect(0.0f, 150.0f, GUILayout.ExpandWidth(true));
+            Event evt = Event.current;
+
+            if (evt.type == EventType.DragUpdated)
+            {
+                bool over = dropRect.Contains(evt.mousePosition);
+                if (over != dragOverDropArea)
+                {
+                    dragOverDropArea = over;
+                    Repaint();
+                }
+            }
+
             GUI.Box(dropRect, GUIContent.none, EditorStyles.helpBox);
+            if (dragInWindow)
+                DrawDropHighlight(dropRect, dragOverDropArea);
 
             var centeredStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, wordWrap = true };
-            GUI.Label(dropRect, "Drop .sspj or a folder here\n(folders are batch-converted recursively)", centeredStyle);
+            string text = dragOverDropArea
+                ? "Release to convert"
+                : "Drop .sspj or a folder here\n(folders are batch-converted recursively)";
+            GUI.Label(dropRect, text, centeredStyle);
 
-            Event evt = Event.current;
             switch (evt.type)
             {
                 case EventType.DragUpdated:
@@ -128,6 +173,18 @@ namespace SpriteStudio.Editor
                     Event.current.Use();
                     break;
             }
+        }
+
+        private static void DrawDropHighlight(Rect rect, bool over)
+        {
+            var accent = new Color(0.24f, 0.52f, 0.95f);
+            EditorGUI.DrawRect(rect, new Color(accent.r, accent.g, accent.b, over ? 0.30f : 0.12f));
+
+            const float border = 2.0f;
+            EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width, border), accent);
+            EditorGUI.DrawRect(new Rect(rect.x, rect.yMax - border, rect.width, border), accent);
+            EditorGUI.DrawRect(new Rect(rect.x, rect.y, border, rect.height), accent);
+            EditorGUI.DrawRect(new Rect(rect.xMax - border, rect.y, border, rect.height), accent);
         }
 
         private void DrawRecentFilesSection()
