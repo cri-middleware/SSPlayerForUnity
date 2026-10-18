@@ -19,7 +19,6 @@ namespace SpriteStudio.Editor
         private string playerVersion;
 
         private bool dragInWindow;
-        private bool dragOverDropArea;
 
         [MenuItem("Window/SpriteStudio/Importer")]
         public static void ShowWindow()
@@ -51,6 +50,7 @@ namespace SpriteStudio.Editor
             EditorGUILayout.Space();
             DrawRecentFilesSection();
             DrawFooter();
+            AcceptDrop(Event.current);
         }
 
         private void DrawOutputSection()
@@ -112,7 +112,7 @@ namespace SpriteStudio.Editor
             switch (evt.type)
             {
                 case EventType.DragUpdated:
-                    if (!dragInWindow)
+                    if (!dragInWindow && DragAndDrop.paths != null && DragAndDrop.paths.Length > 0)
                     {
                         dragInWindow = true;
                         Repaint();
@@ -123,7 +123,6 @@ namespace SpriteStudio.Editor
                     if (dragInWindow)
                     {
                         dragInWindow = false;
-                        dragOverDropArea = false;
                         Repaint();
                     }
                     break;
@@ -133,52 +132,40 @@ namespace SpriteStudio.Editor
         private void DrawDropArea()
         {
             Rect dropRect = GUILayoutUtility.GetRect(0.0f, 150.0f, GUILayout.ExpandWidth(true));
-            Event evt = Event.current;
-
-            if (evt.type == EventType.DragUpdated)
-            {
-                bool over = dropRect.Contains(evt.mousePosition);
-                if (over != dragOverDropArea)
-                {
-                    dragOverDropArea = over;
-                    Repaint();
-                }
-            }
-
             GUI.Box(dropRect, GUIContent.none, EditorStyles.helpBox);
             if (dragInWindow)
-                DrawDropHighlight(dropRect, dragOverDropArea);
+                DrawDropHighlight(dropRect);
 
             var centeredStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, wordWrap = true };
-            string text = dragOverDropArea
+            string text = dragInWindow
                 ? "Release to convert"
                 : "Drop .sspj or a folder here\n(folders are batch-converted recursively)";
             GUI.Label(dropRect, text, centeredStyle);
-
-            switch (evt.type)
-            {
-                case EventType.DragUpdated:
-                case EventType.DragPerform:
-                    if (!dropRect.Contains(evt.mousePosition))
-                        break;
-
-                    DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
-
-                    if (evt.type == EventType.DragPerform)
-                    {
-                        DragAndDrop.AcceptDrag();
-                        // Handles folders (recursive scan), multiple files, duplicates, collisions, and Recent all together
-                        SpriteStudioImporter.ImportPaths(DragAndDrop.paths);
-                    }
-                    Event.current.Use();
-                    break;
-            }
         }
 
-        private static void DrawDropHighlight(Rect rect, bool over)
+        // Last in OnGUI, so a control that takes the drag first keeps it: the Output Folder field, given a
+        // folder from the Project window.
+        private static void AcceptDrop(Event evt)
+        {
+            if (evt.type != EventType.DragUpdated && evt.type != EventType.DragPerform)
+                return;
+            if (DragAndDrop.paths == null || DragAndDrop.paths.Length == 0)
+                return;
+
+            DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
+            if (evt.type == EventType.DragPerform)
+            {
+                DragAndDrop.AcceptDrag();
+                // Handles folders (recursive scan), multiple files, duplicates, collisions, and Recent all together
+                SpriteStudioImporter.ImportPaths(DragAndDrop.paths);
+            }
+            evt.Use();
+        }
+
+        private static void DrawDropHighlight(Rect rect)
         {
             var accent = new Color(0.24f, 0.52f, 0.95f);
-            EditorGUI.DrawRect(rect, new Color(accent.r, accent.g, accent.b, over ? 0.30f : 0.12f));
+            EditorGUI.DrawRect(rect, new Color(accent.r, accent.g, accent.b, 0.25f));
 
             const float border = 2.0f;
             EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width, border), accent);

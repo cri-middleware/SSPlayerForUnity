@@ -39,11 +39,11 @@ Everything after that (scripting, events, per-part overrides, Timeline) is the s
 This player supports Unity 6.3 LTS and later, and works in both URP and BRP. Projects have to be authored in **SpriteStudio 7.5 or later**.
 
 1. **Install**: In **Project Settings > Package Manager**, add `https://registry.npmjs.org` as a scoped registry for `jp.co.cri-mw`, then install `jp.co.cri-mw.spritestudio.ssplayer-unity` with Package Manager's **Install package by name...** — the [Installation Guide](./docs/en/setup/install.md) has the steps. Or download the package tarball from GitHub Releases (stable link, always the latest release) — [`jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz) — and choose **Add package from tarball...**. *(Package Manager's "Add package from URL..." / git URL does not work for this package, since the native binaries ship only in the released package.)*
-2. **Import**: Open **Window > SpriteStudio > Importer** from the Unity menu, and drag your `.sspj` from Explorer or Finder onto the box in the middle of the window that reads **Drop .sspj or a folder here**. It is converted into the window's **Output Folder**, `Assets/ssab_generated/<sspj name>/` by default:
+2. **Import**: Open **Window > SpriteStudio > Importer** from the Unity menu, and drag your `.sspj` onto the window from Explorer or Finder — the box in the middle lights up while you drag. It is converted into the window's **Output Folder**, `Assets/ssab_generated/<sspj name>/` by default:
 
    ```
    Ringo/                       ← your SpriteStudio project, anywhere on disk
-   ├── Ringo.sspj               ← drag this onto the "Drop .sspj or a folder here" box
+   ├── Ringo.sspj               ← drag this onto the SS Importer window
    ├── Ringo.png
    └── …
 

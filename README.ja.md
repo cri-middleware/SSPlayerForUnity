@@ -37,11 +37,11 @@
 本プレイヤーは Unity 6.3 LTS 以降に対応しており、URP と BRP のいずれでも動作します。対応するのは **SpriteStudio 7.5 以上**で作成されたプロジェクトです。
 
 1. **インストール**: **Project Settings > Package Manager** で `https://registry.npmjs.org` を `jp.co.cri-mw` の scoped registry として追加し、Package Manager の **Install package by name...** で `jp.co.cri-mw.spritestudio.ssplayer-unity` をインストールします（手順は[インストールガイド](./docs/ja/setup/install.md)）。または GitHub Releases からパッケージの tarball（恒久リンク・常に最新リリース）— [`jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz) — をダウンロードし、**Add package from tarball...** で指定します。*(「Add package from URL...」/ git URL では導入できません。ネイティブバイナリはリリースのパッケージにのみ同梱されるためです。)*
-2. **インポート**: Unity メニューから **Window > SpriteStudio > Importer** を開き、ウィンドウの中ほどにある **Drop .sspj or a folder here** と書かれた枠へ、エクスプローラーや Finder から `.sspj` をドラッグ＆ドロップします。ウィンドウの **Output Folder**（既定は `Assets/ssab_generated/<sspj の名前>/`）に変換されます。
+2. **インポート**: Unity メニューから **Window > SpriteStudio > Importer** を開き、エクスプローラーや Finder から `.sspj` をウィンドウへドラッグ＆ドロップします（ドラッグ中は中ほどの枠が光ります）。ウィンドウの **Output Folder**（既定は `Assets/ssab_generated/<sspj の名前>/`）に変換されます。
 
    ```
    Ringo/                       ← SpriteStudio のプロジェクト（ディスク上のどこでも可）
-   ├── Ringo.sspj               ← これを「Drop .sspj or a folder here」の枠へドロップする
+   ├── Ringo.sspj               ← これを SS Importer のウィンドウへドロップする
    ├── Ringo.png
    └── …
 
