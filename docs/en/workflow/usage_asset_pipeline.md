@@ -17,7 +17,7 @@ If no `.ssab` yet exists in the Unity project, perform the initial conversion wi
 
 1. From the Unity menu, open **Window > SpriteStudio > Importer**.
 2. Check the output destination (**Output Folder**, default `Assets/ssab_generated`).
-3. From Explorer or Finder, **drag and drop the target `.sspj` file onto the box in the middle of the SS Importer window that reads "Drop .sspj or a folder here"**.
+3. From Explorer or Finder, **drag and drop the target `.sspj` file onto the SS Importer window** — the box in the middle lights up while you drag.
 
 That alone runs the conversion, generating a `SpriteStudioAnimeAsset` (a ScriptableObject containing the `.ssab`) at the specified output destination.
 Drag and drop the generated asset onto the Hierarchy window or Scene view to place a `SpriteStudioPlayer` / `SpriteStudioGraphic` (see [Basic Usage](./usage_basic.md) for details).

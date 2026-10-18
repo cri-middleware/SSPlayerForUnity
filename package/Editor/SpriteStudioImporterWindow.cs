@@ -18,6 +18,8 @@ namespace SpriteStudio.Editor
         private string converterVersion;
         private string playerVersion;
 
+        private bool dragInWindow;
+
         [MenuItem("Window/SpriteStudio/Importer")]
         public static void ShowWindow()
         {
@@ -41,12 +43,14 @@ namespace SpriteStudio.Editor
 
         private void OnGUI()
         {
+            TrackDrag(Event.current);
             DrawOutputSection();
             EditorGUILayout.Space();
             DrawDropArea();
             EditorGUILayout.Space();
             DrawRecentFilesSection();
             DrawFooter();
+            AcceptDrop(Event.current);
         }
 
         private void DrawOutputSection()
@@ -101,33 +105,73 @@ namespace SpriteStudio.Editor
             EditorUtility.DisplayDialog("SpriteStudio: Output folder", reason, "OK");
         }
 
+        // Runs before any control can Use() the event, so a drag over the Output Folder field still
+        // lights the drop box.
+        private void TrackDrag(Event evt)
+        {
+            switch (evt.type)
+            {
+                case EventType.DragUpdated:
+                    if (!dragInWindow && DragAndDrop.paths != null && DragAndDrop.paths.Length > 0)
+                    {
+                        dragInWindow = true;
+                        Repaint();
+                    }
+                    break;
+                case EventType.DragPerform:
+                case EventType.DragExited:
+                    if (dragInWindow)
+                    {
+                        dragInWindow = false;
+                        Repaint();
+                    }
+                    break;
+            }
+        }
+
         private void DrawDropArea()
         {
             Rect dropRect = GUILayoutUtility.GetRect(0.0f, 150.0f, GUILayout.ExpandWidth(true));
             GUI.Box(dropRect, GUIContent.none, EditorStyles.helpBox);
+            if (dragInWindow)
+                DrawDropHighlight(dropRect);
 
             var centeredStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, wordWrap = true };
-            GUI.Label(dropRect, "Drop .sspj or a folder here\n(folders are batch-converted recursively)", centeredStyle);
+            string text = dragInWindow
+                ? "Release to convert"
+                : "Drop .sspj or a folder here\n(folders are batch-converted recursively)";
+            GUI.Label(dropRect, text, centeredStyle);
+        }
 
-            Event evt = Event.current;
-            switch (evt.type)
+        // Last in OnGUI, so a control that takes the drag first keeps it: the Output Folder field, given a
+        // folder from the Project window.
+        private static void AcceptDrop(Event evt)
+        {
+            if (evt.type != EventType.DragUpdated && evt.type != EventType.DragPerform)
+                return;
+            if (DragAndDrop.paths == null || DragAndDrop.paths.Length == 0)
+                return;
+
+            DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
+            if (evt.type == EventType.DragPerform)
             {
-                case EventType.DragUpdated:
-                case EventType.DragPerform:
-                    if (!dropRect.Contains(evt.mousePosition))
-                        break;
-
-                    DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
-
-                    if (evt.type == EventType.DragPerform)
-                    {
-                        DragAndDrop.AcceptDrag();
-                        // Handles folders (recursive scan), multiple files, duplicates, collisions, and Recent all together
-                        SpriteStudioImporter.ImportPaths(DragAndDrop.paths);
-                    }
-                    Event.current.Use();
-                    break;
+                DragAndDrop.AcceptDrag();
+                // Handles folders (recursive scan), multiple files, duplicates, collisions, and Recent all together
+                SpriteStudioImporter.ImportPaths(DragAndDrop.paths);
             }
+            evt.Use();
+        }
+
+        private static void DrawDropHighlight(Rect rect)
+        {
+            var accent = new Color(0.24f, 0.52f, 0.95f);
+            EditorGUI.DrawRect(rect, new Color(accent.r, accent.g, accent.b, 0.25f));
+
+            const float border = 2.0f;
+            EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width, border), accent);
+            EditorGUI.DrawRect(new Rect(rect.x, rect.yMax - border, rect.width, border), accent);
+            EditorGUI.DrawRect(new Rect(rect.x, rect.y, border, rect.height), accent);
+            EditorGUI.DrawRect(new Rect(rect.xMax - border, rect.y, border, rect.height), accent);
         }
 
         private void DrawRecentFilesSection()

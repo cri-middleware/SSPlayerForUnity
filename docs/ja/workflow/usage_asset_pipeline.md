@@ -17,7 +17,7 @@ Unity 上で再生・制御可能な専用の最適化バイナリ（**`.ssab`**
 
 1. Unity メニューから **Window > SpriteStudio > Importer** を開きます。
 2. 出力先（**Output Folder**、デフォルトは `Assets/ssab_generated`）を確認します。
-3. エクスプローラーや Finder から、目的の **`.sspj` ファイルを、SS Importer ウィンドウの中ほどにある「Drop .sspj or a folder here」と書かれた枠へドラッグ＆ドロップ** します。
+3. エクスプローラーや Finder から、目的の **`.sspj` ファイルを SS Importer ウィンドウへドラッグ＆ドロップ** します（ドラッグ中は中ほどの枠が光ります）。
 
 これだけでコンバート処理が走り、指定した出力先に `SpriteStudioAnimeAsset`（`.ssab` を内包した ScriptableObject）が生成されます。生成されたアセットを Hierarchy ウィンドウや Scene ビューへドラッグ＆ドロップして、`SpriteStudioPlayer` / `SpriteStudioGraphic` を配置しましょう（詳細は [基本的な使い方](./usage_basic.md) を参照）。
 
