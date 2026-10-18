@@ -33,7 +33,7 @@ When you drop it, a menu appears for choosing which component to place, so selec
 - **SpriteStudioPlayer** … For world space. A GameObject with the selected asset assigned is created.
 - **SpriteStudioGraphic (Canvas UI)** … For Canvas UI.
 
-Once selected, a GameObject is created, and **the asset you just dropped is automatically assigned to Anime Asset**. After that, set the **Animation Name** to play it back.
+Once selected, a GameObject is created, and **the asset you just dropped is automatically assigned to Anime Asset**, with **Animation Name** set to its first animation. Pick another from the **Animation Name** list if you want a different one.
 
 > [!TIP]
 > - If you choose **SpriteStudioGraphic (Canvas UI)** and there is no `Canvas` in the scene, a `Canvas` (and an `EventSystem`, with the input module your project's input handling uses) is automatically created as **GameObject > UI > Canvas** creates them, and the player is placed underneath it.
@@ -58,7 +58,7 @@ This method uses an empty GameObject to which you add the component yourself.
 1. Create an empty GameObject.
 2. From **Add Component**, add **SpriteStudio Player** (`MeshFilter` / `MeshRenderer` are added automatically).
 3. In the Inspector, assign the imported `SpriteStudioAnimeAsset` to **Anime Asset**, under the **SpriteStudio Asset** heading.
-4. Enter the name of the animation you want to play in **Animation Name**.
+4. Pick the animation to play from **Animation Name**. Once the asset is assigned it is a list, starting on the asset's first animation.
 
 #### Placing on a Canvas (uGUI) (`SpriteStudioGraphic`)
 

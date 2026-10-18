@@ -37,12 +37,29 @@
 本プレイヤーは Unity 6.3 LTS 以降に対応しており、URP と BRP のいずれでも動作します。対応するのは **SpriteStudio 7.5 以上**で作成されたプロジェクトです。
 
 1. **インストール**: **Project Settings > Package Manager** で `https://registry.npmjs.org` を `jp.co.cri-mw` の scoped registry として追加し、Package Manager の **Install package by name...** で `jp.co.cri-mw.spritestudio.ssplayer-unity` をインストールします（手順は[インストールガイド](./docs/ja/setup/install.md)）。または GitHub Releases からパッケージの tarball（恒久リンク・常に最新リリース）— [`jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz) — をダウンロードし、**Add package from tarball...** で指定します。*(「Add package from URL...」/ git URL では導入できません。ネイティブバイナリはリリースのパッケージにのみ同梱されるためです。)*
-2. **インポート**: Unity メニューから **Window > SpriteStudio > Importer** を開き、`.sspj` をドラッグ＆ドロップして自動変換します。
-3. **配置**: 生成された `SpriteStudioAnimeAsset` を Project ウィンドウから Hierarchy（または Scene ビュー）へドラッグ＆ドロップし、`SpriteStudioPlayer`（ワールド空間）または `SpriteStudioGraphic`（uGUI Canvas）を選んで、**Animation Name** を設定して再生します。
+2. **インポート**: Unity メニューから **Window > SpriteStudio > Importer** を開き、ウィンドウの中ほどにある **Drop .sspj or a folder here** と書かれた枠へ、エクスプローラーや Finder から `.sspj` をドラッグ＆ドロップします。ウィンドウの **Output Folder**（既定は `Assets/ssab_generated/<sspj の名前>/`）に変換されます。
+
+   ```
+   Ringo/                       ← SpriteStudio のプロジェクト（ディスク上のどこでも可）
+   ├── Ringo.sspj               ← これを「Drop .sspj or a folder here」の枠へドロップする
+   ├── Ringo.png
+   └── …
+
+   MyGame/                      ← Unity のプロジェクト
+   └── Assets/
+       └── ssab_generated/      ← Output Folder（既定）
+           └── Ringo/           ← .sspj の名前
+               ├── Ringo.ssab   ← SpriteStudioAnimeAsset
+               ├── Ringo.png
+               ├── Ringo.mat
+               └── …
+   ```
+
+3. **配置**: `SpriteStudioAnimeAsset`（上の `Ringo.ssab`）を Project ウィンドウから Hierarchy（または Scene ビュー）へドラッグ＆ドロップし、`SpriteStudioPlayer`（ワールド空間）または `SpriteStudioGraphic`（uGUI Canvas）を選びます。**Animation Name** にはパックの最初のアニメーションが入っています。別のものにするならリストから選び、再生します。
 
 SpriteStudio のデータが手元に無くても始められます。[公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)がそのまま使えます。キャラクターなら [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo)、エフェクトを含むものなら [パーティクル](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) が手頃です。
 
-カスタマイズを目的とした導入手順（手動ビルド等）の詳細は [インストールガイド](./docs/ja/setup/install.md) を参照してください。
+**次に読む:** [インストールガイド](./docs/ja/setup/install.md) · [アセットのインポート](./docs/ja/workflow/usage_asset_pipeline.md) · [基本的な使い方](./docs/ja/workflow/usage_basic.md) · [制約と適用範囲](./docs/ja/limitations.md)
 
 ## 🔗 関連リポジトリ
 

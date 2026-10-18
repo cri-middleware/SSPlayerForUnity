@@ -39,12 +39,29 @@ Everything after that (scripting, events, per-part overrides, Timeline) is the s
 This player supports Unity 6.3 LTS and later, and works in both URP and BRP. Projects have to be authored in **SpriteStudio 7.5 or later**.
 
 1. **Install**: In **Project Settings > Package Manager**, add `https://registry.npmjs.org` as a scoped registry for `jp.co.cri-mw`, then install `jp.co.cri-mw.spritestudio.ssplayer-unity` with Package Manager's **Install package by name...** — the [Installation Guide](./docs/en/setup/install.md) has the steps. Or download the package tarball from GitHub Releases (stable link, always the latest release) — [`jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz) — and choose **Add package from tarball...**. *(Package Manager's "Add package from URL..." / git URL does not work for this package, since the native binaries ship only in the released package.)*
-2. **Import**: Open **Window > SpriteStudio > Importer** from the Unity menu, then drag and drop your `.sspj` file to convert it automatically.
-3. **Place**: Drag the generated `SpriteStudioAnimeAsset` from the Project window into the Hierarchy (or Scene view), pick `SpriteStudioPlayer` (world space) or `SpriteStudioGraphic` (uGUI Canvas), then set the **Animation Name** and press Play.
+2. **Import**: Open **Window > SpriteStudio > Importer** from the Unity menu, and drag your `.sspj` from Explorer or Finder onto the box in the middle of the window that reads **Drop .sspj or a folder here**. It is converted into the window's **Output Folder**, `Assets/ssab_generated/<sspj name>/` by default:
+
+   ```
+   Ringo/                       ← your SpriteStudio project, anywhere on disk
+   ├── Ringo.sspj               ← drag this onto the "Drop .sspj or a folder here" box
+   ├── Ringo.png
+   └── …
+
+   MyGame/                      ← your Unity project
+   └── Assets/
+       └── ssab_generated/      ← Output Folder (the default)
+           └── Ringo/           ← named after the .sspj
+               ├── Ringo.ssab   ← the SpriteStudioAnimeAsset
+               ├── Ringo.png
+               ├── Ringo.mat
+               └── …
+   ```
+
+3. **Place**: Drag the `SpriteStudioAnimeAsset` (`Ringo.ssab` above) from the Project window into the Hierarchy (or Scene view), and pick `SpriteStudioPlayer` (world space) or `SpriteStudioGraphic` (uGUI Canvas). **Animation Name** starts on the pack's first animation; pick another from its list if you like, and press Play.
 
 No `.sspj` of your own yet? SpriteStudio's [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is — the page is in Japanese, the downloads are not. [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character to start with, and [Particle](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) a good one for effects.
 
-For advanced setups like compiling from source or modifying the package, please refer to the [Installation Guide](./docs/en/setup/install.md).
+**Read next:** [Installation Guide](./docs/en/setup/install.md) · [Asset Import](./docs/en/workflow/usage_asset_pipeline.md) · [Basic Usage](./docs/en/workflow/usage_basic.md) · [Limitations & Scope](./docs/en/limitations.md)
 
 ## 🔗 Related Repositories
 
