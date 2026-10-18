@@ -33,7 +33,8 @@ csbindgen FFI, builds each frame's geometry in Burst jobs and uploads it with `S
 
 | Question | File |
 |---|---|
-| Use and install | [README.md](./README.md), the [docs site](./docs/en/) |
+| Using it: every API and limitation | the [docs site](./docs/en/) |
+| Install, convert, first frame, where to read next | [README.md](./README.md), per `SpriteStudio-SDK/MAINTAINING_PLAYERS.md` |
 | Constraints, setup, build, test | [CONTRIBUTING.md](./CONTRIBUTING.md), [Build Guide](./docs/en/setup/build.md) |
 | Releases, maintainers only | [RELEASING.md](./RELEASING.md) |
 | Plans and non-goals | [ROADMAP.md](./ROADMAP.md) |
