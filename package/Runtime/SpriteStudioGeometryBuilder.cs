@@ -416,13 +416,23 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 _partCount = partsLength;
                 _partColorCount = partsColorLength;
 
-                // Fill PartState first so the batch aggregation below (Normal's needsCenter test) can read
-                // UpdateFlag from _partStates instead of re-decoding it from the FlatBuffer.
+                // Fill DrawOrder ([ushort] vector) first, so the batch aggregation loop reads from _drawOrder.
+                // It is a contiguous scalar vector, so memcpy the whole thing rather than per-element (as with effect geometry).
+                // draw_order is FrameData field 6 -> vtable offset 16.
+                SpriteStudioNativeBuffers.CopyFbVector(tFrame, 16, frameDataPtr, _drawOrder, 0, drawOrderLength);
+
+                // Fill PartState before the batch aggregation below (Normal's needsCenter test) reads UpdateFlag
+                // from _partStates, for the parts in the draw order only: the batches and the mesh job reach a part
+                // state through the draw order and nothing else, so the other entries are never read and keep
+                // whatever they held.
                 var pStates = (PartStateData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_partStates);
+                ushort* order = (ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder);
                 if (rawParts != null)
                 {
-                    for (int i = 0; i < partsLength; i++)
+                    for (int r = 0; r < drawOrderLength; r++)
                     {
+                        int i = order[r];
+                        if (i >= partsLength) continue;
                         ref readonly RawPartState p = ref rawParts[i];
                         pStates[i] = new PartStateData
                         {
@@ -432,11 +442,6 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         };
                     }
                 }
-
-                // Fill DrawOrder ([ushort] vector) first too, so the batch aggregation loop reads from _drawOrder.
-                // It is a contiguous scalar vector, so memcpy the whole thing rather than per-element (as with effect geometry).
-                // draw_order is FrameData field 6 -> vtable offset 16.
-                SpriteStudioNativeBuffers.CopyFbVector(tFrame, 16, frameDataPtr, _drawOrder, 0, drawOrderLength);
 
                 // Build the per-frame mask writer list (mirrors _build_mask_writers). Behaviour-neutral
                 // until the stencil submesh pipeline consumes it.
