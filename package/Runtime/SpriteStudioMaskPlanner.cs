@@ -65,7 +65,7 @@ namespace SpriteStudio.Runtime
         /// own: an instance part with maskInfluence=0 puts its child's writers on the counter plane (union),
         /// which is what SS7.5 does when maskInfluence is mixed. Root players pass the AND identity (true),
         /// so this is a no-op there.</param>
-        public unsafe void BuildWriters(ss.runtime.FrameData frameData, NativeArray<ushort> drawOrder,
+        public unsafe void BuildWriters(RawPartState* parts, NativeArray<ushort> drawOrder,
             bool hasMaskParts, SpriteStudioInternalPlayer.MaskPartData[] maskPartData, int drawOrderLength, int partsLength,
             bool inheritedMaskInfluence)
         {
@@ -87,14 +87,13 @@ namespace SpriteStudio.Runtime
                 if (p_idx < 0 || p_idx >= partsLength || p_idx >= maskPartData.Length) continue;
                 var md = maskPartData[p_idx];
                 if (!md.Writes) continue;
-                var ps = frameData.Parts(p_idx);
-                if (!ps.HasValue) continue;
+                ref readonly RawPartState ps = ref parts[p_idx];
                 // A writer writes only where its per-frame mask is non-zero and it is not hidden.
                 // Both live in FrameData, so this is the half of the classification
                 // MaskPartData cannot answer: an authored MASK of 0 is how a writer is switched off over a
                 // range of frames, and Threshold cannot stand in for it - a shape mask samples no texture,
                 // so every emit path pins its threshold to -1 and its coverage is its whole geometry.
-                if (ps.Value.Mask == 0f || ps.Value.Hide) continue;
+                if (ps.Mask == 0f || ps.Hide != 0) continue;
                 ((byte*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskWriterActive))[p_idx] = 1;
                 var pWriter = (MaskWriter*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskWriters);
                 pWriter[_maskWriterCount++] = new MaskWriter
@@ -104,7 +103,7 @@ namespace SpriteStudio.Runtime
                     // Effective maskInfluence = own AND the instance part's above: the op/plane follows it.
                     OpInvert = SpriteStudioInternalPlayer.EffectiveMaskInfluence(md, inheritedMaskInfluence),
                     IsClipping = md.IsClipping,
-                    Threshold = (255f - ps.Value.Mask) / 255f,
+                    Threshold = (255f - ps.Mask) / 255f,
                 };
             }
         }
@@ -113,7 +112,7 @@ namespace SpriteStudio.Runtime
         /// Collect each part's (texture hash, blend) from the draw batches. A Mask twin has texture 0, and a
         /// following color batch overwrites it with the real texture. PartTypeMask only has a Mask batch (real texture).
         /// </summary>
-        public unsafe void BuildPartLookup(ss.runtime.FrameData frameData, NativeArray<ushort> drawOrder,
+        public unsafe void BuildPartLookup(RawDrawBatch* drawBatches, NativeArray<ushort> drawOrder,
             int drawBatchesLength, int drawOrderLength, int partsLength)
         {
             if (!_maskPartTexHash.IsCreated || _maskPartTexHash.Length < partsLength)
@@ -128,20 +127,26 @@ namespace SpriteStudio.Runtime
                 NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskPartBlend),
                 (long)partsLength * sizeof(byte));
 
+            ushort* order = (ushort*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(drawOrder);
+            uint* texHash = (uint*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskPartTexHash);
+            byte* blend = (byte*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskPartBlend);
             for (int bi = 0; bi < drawBatchesLength; bi++)
             {
-                var b = frameData.DrawBatches(bi).Value;
-                var k = b.Kind;
-                if (k != ss.runtime.DrawBatchKind.Normal && k != ss.runtime.DrawBatchKind.Shape
-                    && k != ss.runtime.DrawBatchKind.Mesh && k != ss.runtime.DrawBatchKind.Mask) continue;
-                for (int j = 0; j < b.Count; j++)
+                ref readonly RawDrawBatch b = ref drawBatches[bi];
+                byte k = b.Kind;
+                if (k != SsDrawBatchKind.Normal && k != SsDrawBatchKind.Shape
+                    && k != SsDrawBatchKind.Mesh && k != SsDrawBatchKind.Mask) continue;
+                int startRank = b.StartRank, count = b.Count;
+                uint batchTexHash = b.TextureHash;
+                byte batchBlend = b.BlendType;
+                for (int j = 0; j < count; j++)
                 {
-                    int rank = b.StartRank + j;
+                    int rank = startRank + j;
                     if (rank < 0 || rank >= drawOrderLength) continue;
-                    int p_idx = ((ushort*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(drawOrder))[rank];
+                    int p_idx = order[rank];
                     if (p_idx < 0 || p_idx >= partsLength) continue;
-                    _maskPartTexHash[p_idx] = b.TextureHash;
-                    _maskPartBlend[p_idx] = (byte)b.BlendType;
+                    texHash[p_idx] = batchTexHash;
+                    blend[p_idx] = batchBlend;
                 }
             }
         }
