@@ -73,7 +73,7 @@ namespace SpriteStudio.Runtime
             StencilRole role = StencilRole.None, byte stencilOp = 0, byte stencilComp = 0, byte stencilRef = 0,
             byte stencilReadMask = 0, byte stencilWriteMask = 0, float maskThreshold = 0f, uint shaderHash = 0)
         {
-            if (role == StencilRole.None && _submeshCount > 0)
+            if (role != StencilRole.Write && _submeshCount > 0)
             {
                 var pSub = (SubmeshInfo*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_submeshes);
                 ref var last = ref pSub[_submeshCount - 1];
@@ -85,9 +85,15 @@ namespace SpriteStudio.Runtime
 				//   An instance parent carries its child's clipping restores to its own end, so the child's
 				//   last colour run and whatever the parent emits next are separated by those restores'
 				//   indices - merging them drew a restore's geometry as colour.
-                if (last.Role == StencilRole.None && shaderHash == 0 && last.ShaderHash == 0
+				// A Test submesh only reads the stencil, so the next one under the same stencil state
+				//   joins it. A writer between them is a Write submesh of its own, which ends the run.
+                if (last.Role == role && shaderHash == 0 && last.ShaderHash == 0
                     && last.TextureHash == textureHash && last.BlendType == blendType
-                    && last.IndexStart + last.IndexCount == indexStart)
+                    && last.IndexStart + last.IndexCount == indexStart
+                    && (role == StencilRole.None
+                        || (last.StencilOp == stencilOp && last.StencilComp == stencilComp
+                            && last.StencilRef == stencilRef && last.StencilReadMask == stencilReadMask
+                            && last.StencilWriteMask == stencilWriteMask && last.MaskThreshold == maskThreshold)))
                 {
                     last.IndexCount += indexCount;
                     return;
