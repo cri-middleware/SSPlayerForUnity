@@ -28,6 +28,16 @@ runtime and converter work lives in the
   player built from the same asset draws the identical particle pattern. Vary it per player behind a serialized seed
   field (0 = pick one), so a run stays reproducible; `ss_effect_slot_create` already takes the seed and the runtime
   honours an authored `is_lock_rand_seed` ahead of it, so the work is Player-side only.
+- [ ] **Instance children's mesh jobs in one schedule** — every visible instance child schedules an `UpdateMeshJob` of
+  its own from the main thread, about half a microsecond a child: with twenty players of overall `Instance`, 150
+  children a frame, that is about a seventh of the frame. Starts as a study of whether children join their parent's job
+  or small ones build on the main thread, without changing the order meshes are written and uploaded in; implemented
+  once the study settles the design and measures the gain.
+- [ ] **Instance children's frames on the worker threads** — top-level players fetch their frame in the parallel pass,
+  but each instance child fetches its own on the main thread, inside its parent's `ConsumeFrameData`, one after
+  another: about 6% of the frame with twenty players of overall `Instance` or `InstancePropagation`. A child's frame
+  comes from its parent's evaluation, so the pass needs one more stage per level of nesting, and `Play`, `SetFrame` and
+  the mask context handed down must keep their order. Starts as a design study; implemented once that settles.
 
 ## UI integration
 
