@@ -30,6 +30,7 @@ namespace SpriteStudio.Runtime
         public const byte Instance = (byte)ss.runtime.DrawBatchKind.Instance;
         public const byte Effect = (byte)ss.runtime.DrawBatchKind.Effect;
         public const byte Mesh = (byte)ss.runtime.DrawBatchKind.Mesh;
+        public const byte Mask = (byte)ss.runtime.DrawBatchKind.Mask;
     }
 
     internal struct DrawBatchData

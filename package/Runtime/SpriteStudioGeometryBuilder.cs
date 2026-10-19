@@ -37,10 +37,12 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
         public JobHandle CurrentUpdateJobHandle => _updateJobHandle;
 
-        // FrameData vtable offsets (parts / parts_color fields). Match the generated code's Parts(j)=__offset(4) /
-        // PartsColor(j)=__offset(8). Single source of truth for the fill and the layout check (SpriteStudioRawLayoutCheck).
+        // FrameData vtable offsets (parts / parts_color / draw_batches fields). Match the generated code's
+        // Parts(j)=__offset(4) / PartsColor(j)=__offset(8) / DrawBatches(j)=__offset(18). Single source of truth for
+        // the raw reads and the layout check (SpriteStudioRawLayoutCheck).
         internal const int PartsVtoff = 4;
         internal const int PartsColorVtoff = 8;
+        internal const int DrawBatchesVtoff = 18;
 
         public SpriteStudioGeometryBuilder(SpriteStudioInternalPlayer player)
         {
@@ -346,10 +348,12 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 NativeMethods.ss_runtime_get_mesh_indices(_player._handle.ptr, &frame.MeshIndices, &frame.MeshIndicesLen);
                 NativeMethods.ss_runtime_get_mesh_index_offsets(_player._handle.ptr, &frame.MeshIndexOffsets, &frame.MeshIndexOffsetsLen);
 
-                int drawBatchesLength = frameData.DrawBatchesLength;
                 int drawOrderLength = frameData.DrawOrderLength;
                 int partsLength = frameData.PartsLength;
                 int partsColorLength = frameData.PartsColorLength;
+                int shadersLength = frameData.ShadersLength;
+                RawDrawBatch* drawBatches = (RawDrawBatch*)SpriteStudioNativeBuffers.RootVector(frameDataPtr, DrawBatchesVtoff, out int drawBatchesLength);
+                RawPartState* rawParts = PartsOf(frameDataPtr, out _);
 
                 SpriteStudioNativeBuffers.EnsureCapacity(ref _instanceMeshes, partsLength);
 
@@ -412,17 +416,23 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 _partCount = partsLength;
                 _partColorCount = partsColorLength;
 
-                // Fill PartState first so the batch aggregation below (Normal's needsCenter test) can read
-                // UpdateFlag from _partStates instead of re-decoding it from the FlatBuffer.
+                // Fill DrawOrder ([ushort] vector) first, so the batch aggregation loop reads from _drawOrder.
+                // It is a contiguous scalar vector, so memcpy the whole thing rather than per-element (as with effect geometry).
+                // draw_order is FrameData field 6 -> vtable offset 16.
+                SpriteStudioNativeBuffers.CopyFbVector(tFrame, 16, frameDataPtr, _drawOrder, 0, drawOrderLength);
+
+                // Fill PartState before the batch aggregation below (Normal's needsCenter test) reads UpdateFlag
+                // from _partStates, for the parts in the draw order only: the batches and the mesh job reach a part
+                // state through the draw order and nothing else, so the other entries are never read and keep
+                // whatever they held.
                 var pStates = (PartStateData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_partStates);
-                // Eliminate the per-element accessor (frameData.Parts(i)) and read the contiguous parts
-                // struct-vector (fixed struct at vtable offset 4, 144B stride) directly via the RawPartState mirror.
-                int partsVecOff = tFrame.__offset(PartsVtoff);
-                if (partsVecOff != 0)
+                ushort* order = (ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder);
+                if (rawParts != null)
                 {
-                    RawPartState* rawParts = (RawPartState*)(frameDataPtr + tFrame.__vector(partsVecOff));
-                    for (int i = 0; i < partsLength; i++)
+                    for (int r = 0; r < drawOrderLength; r++)
                     {
+                        int i = order[r];
+                        if (i >= partsLength) continue;
                         ref readonly RawPartState p = ref rawParts[i];
                         pStates[i] = new PartStateData
                         {
@@ -433,14 +443,9 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     }
                 }
 
-                // Fill DrawOrder ([ushort] vector) first too, so the batch aggregation loop reads from _drawOrder.
-                // It is a contiguous scalar vector, so memcpy the whole thing rather than per-element (as with effect geometry).
-                // draw_order is FrameData field 6 -> vtable offset 16.
-                SpriteStudioNativeBuffers.CopyFbVector(tFrame, 16, frameDataPtr, _drawOrder, 0, drawOrderLength);
-
                 // Build the per-frame mask writer list (mirrors _build_mask_writers). Behaviour-neutral
                 // until the stencil submesh pipeline consumes it.
-                _maskPlanner.BuildWriters(frameData, _drawOrder, _player._hasMaskParts, _player._maskPartData, drawOrderLength, partsLength,
+                _maskPlanner.BuildWriters(rawParts, _drawOrder, _player._hasMaskParts, _player._maskPartData, drawOrderLength, partsLength,
                     _player._inheritedMaskInfluence);
 
                 int totalVertices = 0;
@@ -452,7 +457,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 // lower-priority parts" scope.
                 if (_player.MaskActive)
                 {
-                    _maskPlanner.BuildPartLookup(frameData, _drawOrder, drawBatchesLength, drawOrderLength, partsLength);
+                    _maskPlanner.BuildPartLookup(drawBatches, _drawOrder, drawBatchesLength, drawOrderLength, partsLength);
                     for (int wi = 0; wi < _maskPlanner.WriterCount; wi++)
                     {
                         var w = _maskPlanner.GetWriter(wi);
@@ -470,23 +475,24 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 for (int i = 0; i < drawBatchesLength; i++)
                 {
-                    var b = frameData.DrawBatches(i).Value;
+                    ref readonly RawDrawBatch b = ref drawBatches[i];
+                    byte kind = b.Kind;
 
-                    if (b.Kind == ss.runtime.DrawBatchKind.Instance)
+                    if (kind == SsDrawBatchKind.Instance)
                     {
                         ProcessInstanceBatch(b, partsLength, ref totalVertices, ref totalIndices);
                     }
-                    else if (b.Kind == ss.runtime.DrawBatchKind.Effect)
+                    else if (kind == SsDrawBatchKind.Effect)
                     {
                         ProcessEffectBatch(b, partsLength, ref totalVertices, ref totalIndices);
                     }
-                    else if (b.Kind == ss.runtime.DrawBatchKind.Normal || b.Kind == ss.runtime.DrawBatchKind.Shape || b.Kind == ss.runtime.DrawBatchKind.Mesh)
+                    else if (kind == SsDrawBatchKind.Normal || kind == SsDrawBatchKind.Shape || kind == SsDrawBatchKind.Mesh)
                     {
-                        ProcessNormalShapeMeshBatch(b, partsLength, ref frame, frameData, ref totalVertices, ref totalIndices);
+                        ProcessNormalShapeMeshBatch(b, partsLength, ref frame, frameData, rawParts, shadersLength, ref totalVertices, ref totalIndices);
                     }
-                    else if (b.Kind == ss.runtime.DrawBatchKind.Mask && _player.MaskActive)
+                    else if (kind == SsDrawBatchKind.Mask && _player.MaskActive)
                     {
-                        ProcessMaskBatch(b, partsLength, ref frame, frameData, ref totalVertices, ref totalIndices);
+                        ProcessMaskBatch(b, partsLength, ref frame, rawParts, ref totalVertices, ref totalIndices);
                     }
                 }
 
@@ -930,12 +936,14 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             return SpriteStudioInternalPlayer.IsMaskTarget(md, _player._inheritedMaskInfluence);
         }
 
-        private unsafe void ProcessInstanceBatch(ss.runtime.DrawBatch b, int partsLength, ref int totalVertices, ref int totalIndices)
+        private unsafe void ProcessInstanceBatch(in RawDrawBatch b, int partsLength, ref int totalVertices, ref int totalIndices)
         {
-            for (int k = 0; k < b.Count; k++)
+            ushort* drawOrder = (ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder);
+            int startRank = b.StartRank, count = b.Count;
+            for (int k = 0; k < count; k++)
             {
-                int rank = b.StartRank + k;
-                int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
+                int rank = startRank + k;
+                int p_idx = drawOrder[rank];
                 if (p_idx < 0 || p_idx >= partsLength) continue;
 
                 var meshPtr = _instanceMeshes[p_idx];
@@ -998,12 +1006,14 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             ((SubmeshInfo*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_deferredCloses))[_deferredCloseCount++] = s;
         }
 
-        private unsafe void ProcessEffectBatch(ss.runtime.DrawBatch b, int partsLength, ref int totalVertices, ref int totalIndices)
+        private unsafe void ProcessEffectBatch(in RawDrawBatch b, int partsLength, ref int totalVertices, ref int totalIndices)
         {
-            for (int k = 0; k < b.Count; k++)
+            ushort* drawOrder = (ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder);
+            int startRank = b.StartRank, count = b.Count;
+            for (int k = 0; k < count; k++)
             {
-                int rank = b.StartRank + k;
-                int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
+                int rank = startRank + k;
+                int p_idx = drawOrder[rank];
                 if (p_idx < 0 || p_idx >= partsLength) continue;
                 
                 var plan = _effectBuffer.GetPlan(p_idx);
@@ -1044,10 +1054,15 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             }
         }
 
-        private unsafe void ProcessNormalShapeMeshBatch(ss.runtime.DrawBatch b, int partsLength, ref DrawFrame frame, ss.runtime.FrameData frameData, ref int totalVertices, ref int totalIndices)
+        private unsafe void ProcessNormalShapeMeshBatch(in RawDrawBatch b, int partsLength, ref DrawFrame frame, ss.runtime.FrameData frameData,
+            RawPartState* rawParts, int shadersLength, ref int totalVertices, ref int totalIndices)
         {
             int vc = 0;
             int ic = 0;
+            ushort* drawOrder = (ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder);
+            int startRank = b.StartRank, count = b.Count;
+            byte kind = b.Kind, blendType = b.BlendType;
+            uint textureHash = b.TextureHash;
 
             // Also taken when this player has no mask parts of its own but some part still needs a stencil
             // test (MaskAffectsParts: coverage from outside may reach it, or it draws inside the mask and
@@ -1057,11 +1072,10 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             // so parts drawn before any such instance correctly see the flag still false.
             if ((_player.MaskAffectsParts || _instanceCoverageOpen) && _player._maskPartData != null)
             {
-                byte kind = (byte)b.Kind;
-                for (int k = 0; k < b.Count; k++)
+                for (int k = 0; k < count; k++)
                 {
-                    int rank = b.StartRank + k;
-                    int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
+                    int rank = startRank + k;
+                    int p_idx = drawOrder[rank];
                     if (p_idx < 0 || p_idx >= partsLength) continue;
                     if (!_maskPlanner.MaskPartVcIc(p_idx, kind, frame, _partStates, out int pvc, out int pic)) continue;
                     var md = _player._maskPartData[p_idx];
@@ -1073,7 +1087,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     {
                         // Canvas suppression: drop pure masks (no colour), draw everything else unmasked.
                         if (md.PureMask) continue;
-                        _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                        _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, textureHash, blendType,
                             StencilRole.None, 0, 0, 0f, ref totalVertices, ref totalIndices);
                         continue;
                     }
@@ -1083,12 +1097,12 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     if (md.PureMask) continue;
                     if (MaskTargetOf(md, out byte comp))
                     {
-                        _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                        _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, textureHash, blendType,
                             StencilRole.Test, 0, comp, 0f, ref totalVertices, ref totalIndices);
                     }
                     else
                     {
-                        _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                        _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, textureHash, blendType,
                             StencilRole.None, 0, 0, 0f, ref totalVertices, ref totalIndices);
                     }
                     // Its own colour is already emitted above, whatever the mask says: a clipping part
@@ -1101,8 +1115,8 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         // counter plane (union) instead of the parity plane (XOR) - SS7.5's mixed-influence union.
                         byte wop = SpriteStudioInternalPlayer.EffectiveMaskInfluence(md, _player._inheritedMaskInfluence)
                             ? StencilOpInvert : StencilOpIncr;
-                        float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
-                        _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, b.TextureHash, (byte)b.BlendType,
+                        float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - rawParts[p_idx].Mask) / 255f;
+                        _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, textureHash, blendType,
                             StencilRole.Write, wop, 0, th, ref totalVertices, ref totalIndices);
                     }
                 }
@@ -1114,38 +1128,33 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             // out as their own Count=1 submesh (stamped with the shader id hash); the rest accumulate
             // into shared rank-runs, mirroring the mask per-part split. Vertex order is unchanged, so the
             // mesh job fills exactly the same geometry — only the submesh granularity differs.
-            if (frameData.ShadersLength > 0)
+            if (shadersLength > 0)
             {
                 // Built-in AddOns resolve with no project setup; the (optional) user catalog overrides.
                 var userCatalog = _player.ShaderCatalog;
-                byte sKind = (byte)b.Kind;
-                int runStart = b.StartRank;   // first rank of the current shared run (rank-span based)
+                int runStart = startRank;   // first rank of the current shared run (rank-span based)
                 int runVc = 0, runIc = 0;
-                for (int k = 0; k < b.Count; k++)
+                for (int k = 0; k < count; k++)
                 {
-                    int rank = b.StartRank + k;
-                    int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
+                    int rank = startRank + k;
+                    int p_idx = drawOrder[rank];
                     int pvc = 0, pic = 0;
                     bool valid = p_idx >= 0 && p_idx < partsLength
-                                 && _maskPlanner.MaskPartVcIc(p_idx, sKind, frame, _partStates, out pvc, out pic);
+                                 && _maskPlanner.MaskPartVcIc(p_idx, kind, frame, _partStates, out pvc, out pic);
                     if (!valid) continue; // skipped parts add no geometry; their rank stays in the run span
 
                     uint shaderHash = 0;
                     float ap0 = 0, ap1 = 0, ap2 = 0, ap3 = 0, ap4 = 0, ap5 = 0, ap6 = 0, ap7 = 0;
-                    var ps = frameData.Parts(p_idx);
-                    if (ps.HasValue)
+                    int sIdx = rawParts[p_idx].Shader;
+                    if (sIdx >= 0 && sIdx < shadersLength)
                     {
-                        int sIdx = ps.Value.Shader;
-                        if (sIdx >= 0 && sIdx < frameData.ShadersLength)
+                        var shAttr = frameData.Shaders(sIdx).Value;
+                        uint idHash = shAttr.IdHash;
+                        if (idHash != 0 && SpriteStudioAddOnRegistry.TryGetIsPerPart(idHash, userCatalog, out bool isPerPart) && isPerPart)
                         {
-                            var shAttr = frameData.Shaders(sIdx).Value;
-                            uint idHash = shAttr.IdHash;
-                            if (idHash != 0 && SpriteStudioAddOnRegistry.TryGetIsPerPart(idHash, userCatalog, out bool isPerPart) && isPerPart)
-                            {
-                                shaderHash = idHash;
-                                ap0 = shAttr.Param0; ap1 = shAttr.Param1; ap2 = shAttr.Param2; ap3 = shAttr.Param3;
-                                ap4 = shAttr.Param4; ap5 = shAttr.Param5; ap6 = shAttr.Param6; ap7 = shAttr.Param7;
-                            }
+                            shaderHash = idHash;
+                            ap0 = shAttr.Param0; ap1 = shAttr.Param1; ap2 = shAttr.Param2; ap3 = shAttr.Param3;
+                            ap4 = shAttr.Param4; ap5 = shAttr.Param5; ap6 = shAttr.Param6; ap7 = shAttr.Param7;
                         }
                     }
 
@@ -1154,13 +1163,13 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         // Flush the pending shared run [runStart, rank), then emit this part on its own.
                         int runCount = rank - runStart;
                         if (runCount > 0 && runIc > 0)
-                            _batchBuilder.EmitDrawBatch((ushort)runStart, (ushort)runCount, runVc, runIc, sKind, b.TextureHash, (byte)b.BlendType, 0u, ref totalVertices, ref totalIndices);
-                        _batchBuilder.EmitDrawBatch((ushort)rank, 1, pvc, pic, sKind, b.TextureHash, (byte)b.BlendType, shaderHash, ref totalVertices, ref totalIndices);
+                            _batchBuilder.EmitDrawBatch((ushort)runStart, (ushort)runCount, runVc, runIc, kind, textureHash, blendType, 0u, ref totalVertices, ref totalIndices);
+                        _batchBuilder.EmitDrawBatch((ushort)rank, 1, pvc, pic, kind, textureHash, blendType, shaderHash, ref totalVertices, ref totalIndices);
                         _batchBuilder.SetLastSubmeshAddOnParams(ap0, ap1, ap2, ap3, ap4, ap5, ap6, ap7);
                         // Cell rectangle (pixel UVs) for cell-rect AddOns (ss-circle / ss-spot). Only Normal
                         // parts carry a cell quad in LocalUvs (layout [lt.u,lt.v, rt, lb, rb.u@6,rb.v@7, center]);
                         // Shape/Mesh leave it 0 so those AddOns degenerate (discard).
-                        if (sKind == SsDrawBatchKind.Normal && frame.LocalUvs != null && (p_idx * 10 + 7) < (int)frame.LocalUvsLen)
+                        if (kind == SsDrawBatchKind.Normal && frame.LocalUvs != null && (p_idx * 10 + 7) < (int)frame.LocalUvsLen)
                         {
                             float* uvp = frame.LocalUvs + p_idx * 10;
                             _batchBuilder.SetLastSubmeshCellRect(uvp[0], uvp[1], uvp[6], uvp[7]);
@@ -1173,25 +1182,25 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     }
                 }
                 // Flush the trailing shared run [runStart, batchEnd).
-                int tailCount = (b.StartRank + b.Count) - runStart;
+                int tailCount = (startRank + count) - runStart;
                 if (tailCount > 0 && runIc > 0)
-                    _batchBuilder.EmitDrawBatch((ushort)runStart, (ushort)tailCount, runVc, runIc, sKind, b.TextureHash, (byte)b.BlendType, 0u, ref totalVertices, ref totalIndices);
+                    _batchBuilder.EmitDrawBatch((ushort)runStart, (ushort)tailCount, runVc, runIc, kind, textureHash, blendType, 0u, ref totalVertices, ref totalIndices);
                 return;
             }
 
-            for (int k = 0; k < b.Count; k++)
+            PartStateData* partStates = (PartStateData*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_partStates);
+            for (int k = 0; k < count; k++)
             {
-                int rank = b.StartRank + k;
-                int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
+                int p_idx = drawOrder[startRank + k];
                 if (p_idx < 0 || p_idx >= partsLength) continue;
 
-                if (b.Kind == ss.runtime.DrawBatchKind.Normal)
+                if (kind == SsDrawBatchKind.Normal)
                 {
-                    bool needsCenter = (_partStates[p_idx].UpdateFlag & SsUpdateFlag.NeedsCenterMask) != 0;
+                    bool needsCenter = (partStates[p_idx].UpdateFlag & SsUpdateFlag.NeedsCenterMask) != 0;
                     vc += needsCenter ? 5 : 4;
                     ic += needsCenter ? 12 : 6;
                 }
-                else if (b.Kind == ss.runtime.DrawBatchKind.Shape)
+                else if (kind == SsDrawBatchKind.Shape)
                 {
                     int svc = frame.ShapeVertexCounts[p_idx];
                     if (svc >= 3)
@@ -1200,7 +1209,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         ic += (svc - 2) * 3;
                     }
                 }
-                else if (b.Kind == ss.runtime.DrawBatchKind.Mesh)
+                else if (kind == SsDrawBatchKind.Mesh)
                 {
                     uint v0 = frame.MeshVertexOffsets[p_idx];
                     uint v1 = frame.MeshVertexOffsets[p_idx + 1];
@@ -1216,16 +1225,18 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
             if (vc > 0 && ic > 0)
             {
-                _batchBuilder.EmitDrawBatch((ushort)b.StartRank, (ushort)b.Count, vc, ic, (byte)b.Kind, b.TextureHash, (byte)b.BlendType, 0u, ref totalVertices, ref totalIndices);
+                _batchBuilder.EmitDrawBatch((ushort)startRank, (ushort)count, vc, ic, kind, textureHash, blendType, 0u, ref totalVertices, ref totalIndices);
             }
         }
 
-        private unsafe void ProcessMaskBatch(ss.runtime.DrawBatch b, int partsLength, ref DrawFrame frame, ss.runtime.FrameData frameData, ref int totalVertices, ref int totalIndices)
+        private unsafe void ProcessMaskBatch(in RawDrawBatch b, int partsLength, ref DrawFrame frame, RawPartState* rawParts, ref int totalVertices, ref int totalIndices)
         {
-            for (int k = 0; k < b.Count; k++)
+            ushort* drawOrder = (ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder);
+            int startRank = b.StartRank, count = b.Count;
+            for (int k = 0; k < count; k++)
             {
-                int rank = b.StartRank + k;
-                int p_idx = ((ushort*)Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawOrder))[rank];
+                int rank = startRank + k;
+                int p_idx = drawOrder[rank];
                 if (p_idx < 0 || p_idx >= partsLength) continue;
                 var md = _player._maskPartData[p_idx];
                 // Every pure mask has a Mask batch at its own rank: the only batch of a Mask part, and the
@@ -1241,7 +1252,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 // Op/plane follows the effective maskInfluence (own AND the instance part's above).
                 byte rop = SpriteStudioInternalPlayer.EffectiveMaskInfluence(md, _player._inheritedMaskInfluence) ? StencilOpInvert : StencilOpDecr;
                 // Same geometry, texture and threshold as the Phase A write it undoes.
-                float th = md.DrawKind == SsDrawBatchKind.Shape ? -1f : (255f - frameData.Parts(p_idx).Value.Mask) / 255f;
+                float th = md.DrawKind == SsDrawBatchKind.Shape ? -1f : (255f - rawParts[p_idx].Mask) / 255f;
                 _batchBuilder.EmitMaskStep(md.DrawKind, rank, mvc, mic, _maskPlanner.GetPartTexHash(p_idx), _maskPlanner.GetPartBlend(p_idx),
                     StencilRole.Write, rop, 0, th, ref totalVertices, ref totalIndices);
             }
@@ -1251,7 +1262,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
     }
 
     // === Raw layout mirrors for reading FlatBuffer fixed struct-vectors directly, without a per-element accessor ===
-    // Byte-compatible with framedata_generated.cs's PartState(144B) / PartAttributePartColor(36B) / U8Rect.
+    // Byte-compatible with framedata_generated.cs's PartState(144B) / PartAttributePartColor(36B) / DrawBatch(16B) / U8Rect.
     // Warning: if you regenerate the .fbs and the layout changes, update these too (the startup sizeof assert detects total-size drift).
     [StructLayout(LayoutKind.Explicit, Size = 8)]
     internal struct RawCorner   // U8Color(ARGB) + Rate (SsAttributePartColorKeyValueColor)
@@ -1278,8 +1289,20 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
     {
         [FieldOffset(0)]   public ulong UpdateFlag;
         [FieldOffset(48)]  public float Alpha;
+        [FieldOffset(108)] public float Mask;
         [FieldOffset(128)] public short PartColor;
+        [FieldOffset(130)] public short Shader;
         [FieldOffset(138)] public byte Hide;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 16)]
+    internal struct RawDrawBatch   // DrawBatch (VertexCount / IndexCount / Flags are not read)
+    {
+        [FieldOffset(0)]  public ushort StartRank;
+        [FieldOffset(2)]  public ushort Count;
+        [FieldOffset(4)]  public uint TextureHash;
+        [FieldOffset(12)] public byte BlendType;
+        [FieldOffset(13)] public byte Kind;
     }
 
     internal static class SpriteStudioRawLayoutCheck
@@ -1294,6 +1317,8 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 "RawPartColor size != 36: framedata PartAttributePartColor layout changed - update the mirror struct");
             UnityEngine.Debug.Assert(Unity.Collections.LowLevel.Unsafe.UnsafeUtility.SizeOf<RawCorner>() == 8,
                 "RawCorner size != 8: framedata color-corner layout changed - update the mirror struct");
+            UnityEngine.Debug.Assert(Unity.Collections.LowLevel.Unsafe.UnsafeUtility.SizeOf<RawDrawBatch>() == 16,
+                "RawDrawBatch size != 16: framedata DrawBatch layout changed - update the mirror struct");
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             // (2) Roundtrip that also catches same-size reorderings: write a known sentinel struct with the
@@ -1307,11 +1332,14 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 (ss.runtime.UpdateAttributeFlags)0x1122334455667788UL, // UpdateFlag (sentinel)
                 0,0,0,0,0, 0,0,0,0,0,                                  // PositionX..LocalScaleY
                 0.5f,                                                  // Alpha (sentinel)
-                0,0,0,0,0, 0,0,0,0,0, 0,0,0,0,0, 0,0,                  // LocalAlpha..SkewY
+                0,0,0,0,0, 0,0,0,0,0, 0,0,0,0,                         // LocalAlpha..BoundingRadius
+                0.25f,                                                 // Mask (sentinel)
+                0,0,                                                   // SkewX, SkewY
                 0,                                                     // Texture
                 0,0,                                                   // PartIndex, Cell
                 (short)0x4321,                                         // PartColor (sentinel)
-                0,0,0,                                                 // Shader, Vertex, Deform
+                (short)0x1357,                                         // Shader (sentinel)
+                0,0,                                                   // Vertex, Deform
                 false,false,true,false,false);                        // FlipH, FlipV, Hide (sentinel), ImgFlipH, ImgFlipV
             var partsVec = b.EndVector();
 
@@ -1324,12 +1352,18 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 13,14,15,16, 3.5f); // Rb
             var pcVec = b.EndVector();
 
-            // Satisfy FrameData's required fields (draw_order / draw_batches / mask_indices) with empty vectors
+            // Two sentinel batches, so the stride is checked too.
+            ss.runtime.FrameData.StartDrawBatchesVector(b, 2);
+            ss.runtime.DrawBatch.CreateDrawBatch(b, 0x0102, 0x0304, 0x05060708u, 0x090A, 0x0B0C,
+                ss.runtime.BlendType.Screen, ss.runtime.DrawBatchKind.Mask, 0x0D);
+            ss.runtime.DrawBatch.CreateDrawBatch(b, 0x1112, 0x1314, 0x15161718u, 0x191A, 0x1B1C,
+                ss.runtime.BlendType.Sub, ss.runtime.DrawBatchKind.Mesh, 0x1D);
+            var drawBatchesVec = b.EndVector();
+
+            // Satisfy FrameData's other required fields (draw_order / mask_indices) with empty vectors
             // (EndFrameData requires their presence; the contents are unused in this check).
             ss.runtime.FrameData.StartDrawOrderVector(b, 0);
             var drawOrderVec = b.EndVector();
-            ss.runtime.FrameData.StartDrawBatchesVector(b, 0);
-            var drawBatchesVec = b.EndVector();
             ss.runtime.FrameData.StartMaskIndicesVector(b, 0);
             var maskIndicesVec = b.EndVector();
 
@@ -1353,9 +1387,9 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 RawPartState* mp = (RawPartState*)(basePtr + t.__vector(t.__offset(SpriteStudioGeometryBuilder.PartsVtoff)));
                 UnityEngine.Debug.Assert(
-                    mp->UpdateFlag == (ulong)pAcc.UpdateFlag && mp->Alpha == pAcc.Alpha && mp->PartColor == pAcc.PartColor
-                    && (mp->Hide != 0) == pAcc.Hide,
-                    "RawPartState field offsets do not match the framedata PartState accessor - verify UpdateFlag@0/Alpha@48/PartColor@128/Hide@138 and update the mirror struct");
+                    mp->UpdateFlag == (ulong)pAcc.UpdateFlag && mp->Alpha == pAcc.Alpha && mp->Mask == pAcc.Mask
+                    && mp->PartColor == pAcc.PartColor && mp->Shader == pAcc.Shader && (mp->Hide != 0) == pAcc.Hide,
+                    "RawPartState field offsets do not match the framedata PartState accessor - verify UpdateFlag@0/Alpha@48/Mask@108/PartColor@128/Shader@130/Hide@138 and update the mirror struct");
 
                 RawPartColor* mc = (RawPartColor*)(basePtr + t.__vector(t.__offset(SpriteStudioGeometryBuilder.PartsColorVtoff)));
                 bool colorOk =
@@ -1366,6 +1400,18 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     mc->Rb.A == cAcc.Rb.Rgba.A && mc->Rb.R == cAcc.Rb.Rgba.R && mc->Rb.G == cAcc.Rb.Rgba.G && mc->Rb.B == cAcc.Rb.Rgba.B && mc->Rb.Rate == cAcc.Rb.Rate;
                 UnityEngine.Debug.Assert(colorOk,
                     "RawPartColor field offsets do not match the framedata PartAttributePartColor accessor - verify BlendType@0/Lt@4/Rt@12/Lb@20/Rb@28 and U8Color A@0/R@1/G@2/B@3+Rate@4, then update the mirror struct");
+
+                // Read through the same root-vector reader ConsumeFrameData uses.
+                RawDrawBatch* mb = (RawDrawBatch*)SpriteStudioNativeBuffers.RootVector(basePtr, SpriteStudioGeometryBuilder.DrawBatchesVtoff, out int mbCount);
+                bool batchOk = mbCount == 2 && mbCount == fd.DrawBatchesLength;
+                for (int i = 0; batchOk && i < mbCount; i++)
+                {
+                    var bAcc = fd.DrawBatches(i).Value;
+                    batchOk = mb[i].StartRank == bAcc.StartRank && mb[i].Count == bAcc.Count && mb[i].TextureHash == bAcc.TextureHash
+                        && mb[i].BlendType == (byte)bAcc.BlendType && mb[i].Kind == (byte)bAcc.Kind;
+                }
+                UnityEngine.Debug.Assert(batchOk,
+                    "RawDrawBatch does not match the framedata DrawBatch accessor - verify draw_batches@18 and StartRank@0/Count@2/TextureHash@4/BlendType@12/Kind@13, stride 16, then update the mirror struct");
             }
 
             // (3) The same roundtrip for the EffectDrawPlan SpriteStudioEffectPlanBuffer.PlanView reads raw: two
