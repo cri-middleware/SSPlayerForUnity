@@ -256,7 +256,13 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         /// mesh, all in one method. Used by child Instances (frame-driven) and the edit-mode preview. Top-level
         /// Play mode is split by SpriteStudioUpdateManager into PrepareFrameData -> parallel get_frame_data -> ConsumeFrameData.
         /// </summary>
-        public void ScheduleMeshUpdate(float deltaTime)
+        public void ScheduleMeshUpdate(float deltaTime) => ScheduleMeshUpdate(deltaTime, null);
+
+        /// <param name="parentLooped">The loop the effect and instance slots step with; null reads this
+        /// player's own. An instance child passes its slot's child_looped: the child's context keeps its
+        /// last loop pulse through ticks that do not update it, so read there it would re-fire the child's
+        /// keys on every zero-delta tick after a loop.</param>
+        internal void ScheduleMeshUpdate(float deltaTime, bool? parentLooped)
         {
             PrepareFrameData(deltaTime, false, out var handle, out _);
             if (handle == System.IntPtr.Zero) return;
@@ -265,7 +271,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 byte* p = null;
                 nuint l = 0;
                 NativeMethods.ss_runtime_get_frame_data((void*)handle, _pendingDrawFrame, &p, &l);
-                ConsumeFrameData((System.IntPtr)p, (int)l, deltaTime);
+                ConsumeFrameData((System.IntPtr)p, (int)l, deltaTime, parentLooped);
             }
         }
 
@@ -274,6 +280,9 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         /// the SoA, and dispatch the mesh-building Burst Job. ptr==Zero / len==0 is treated as no geometry.
         /// </summary>
         public void ConsumeFrameData(System.IntPtr frameDataPtrRaw, int len, float deltaTime)
+            => ConsumeFrameData(frameDataPtrRaw, len, deltaTime, null);
+
+        private void ConsumeFrameData(System.IntPtr frameDataPtrRaw, int len, float deltaTime, bool? parentLoopedOverride)
         {
             _hasFrameData = false;
             // Effect steps the parallel pass took are for this call only, whether or not it gets as far as
@@ -357,7 +366,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 SpriteStudioNativeBuffers.EnsureCapacity(ref _instanceMeshes, partsLength);
 
-                bool parentLooped = NativeMethods.ss_runtime_just_looped(_player._handle.ptr);
+                bool parentLooped = parentLoopedOverride ?? NativeMethods.ss_runtime_just_looped(_player._handle.ptr);
                 float fps = EffectFps();
 
                 // Allocate the effect plan table, clear it to default, and reset the merged buffer's count, all together.
@@ -844,7 +853,13 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     // the composed roles into its own submeshes, so the parent never patches them afterwards.
                     PropagateMaskContext(i, childPlayer, outerCoverage);
                     childPlayer.SetFrame(step.child_frame_no);
-                    childPlayer.ScheduleMeshUpdate(deltaTime);
+                    // The slot advanced the child at its key's speed, so the child's own independent
+                    // instances and effects must too, or they drift from it. Read the speed the slot used,
+                    // not ev.speed: while the slot ignores the implicit frame-0 key ev says 1.0 but the
+                    // child keeps running at the last real key's speed.
+                    float childDelta = deltaTime * UnityEngine.Mathf.Abs(
+                        NativeMethods.ss_instance_slot_get_speed((void*)_player._instanceChildren[i].InstanceSlot));
+                    childPlayer.ScheduleChildMeshUpdate(childDelta, step.child_looped);
 
                     _childHandles[childHandleCount++] = childPlayer.CurrentUpdateJobHandle;
 
