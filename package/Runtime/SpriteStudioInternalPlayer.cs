@@ -1989,6 +1989,8 @@ internal struct MaskPartData
             _geometryBuilder.PrepareFrameData(deltaTime, advance, out handle, out drawFrame);
         }
         public void ScheduleMeshUpdate(float deltaTime) => _geometryBuilder.ScheduleMeshUpdate(deltaTime);
+        /// <summary>Build an instance child, stepping its own instances and effects with the loop its slot reported.</summary>
+        internal void ScheduleChildMeshUpdate(float deltaTime, bool childLooped) => _geometryBuilder.ScheduleMeshUpdate(deltaTime, childLooped);
         public void ConsumeFrameData(System.IntPtr frameDataPtrRaw, int len, float deltaTime) => _geometryBuilder.ConsumeFrameData(frameDataPtrRaw, len, deltaTime);
         public void ApplyToMesh(UnityEngine.Mesh targetMesh, bool perBatchSubmesh = false) => _geometryBuilder.ApplyToMesh(targetMesh, perBatchSubmesh);
         public void ApplyToCanvasMesh(UnityEngine.Mesh targetMesh, UnityEngine.Color32 tint) => _geometryBuilder.ApplyToCanvasMesh(targetMesh, tint);
