@@ -844,7 +844,13 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     // the composed roles into its own submeshes, so the parent never patches them afterwards.
                     PropagateMaskContext(i, childPlayer, outerCoverage);
                     childPlayer.SetFrame(step.child_frame_no);
-                    childPlayer.ScheduleMeshUpdate(deltaTime);
+                    // The slot advanced the child at its key's speed, so the child's own independent
+                    // instances and effects must too, or they drift from it. Read the speed the slot used,
+                    // not ev.speed: while the slot ignores the implicit frame-0 key ev says 1.0 but the
+                    // child keeps running at the last real key's speed.
+                    float childDelta = deltaTime * UnityEngine.Mathf.Abs(
+                        NativeMethods.ss_instance_slot_get_speed((void*)_player._instanceChildren[i].InstanceSlot));
+                    childPlayer.ScheduleMeshUpdate(childDelta);
 
                     _childHandles[childHandleCount++] = childPlayer.CurrentUpdateJobHandle;
 
