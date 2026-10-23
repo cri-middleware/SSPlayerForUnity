@@ -59,7 +59,7 @@ The same two settings can go into `Packages/manifest.json` instead, beside the e
    - [`jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz)
    - To pick a specific version instead, download the `.tgz` asset from the [GitHub Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) page.
 2. Open **Window > Package Manager** from the Unity menu.
-3. Click the **＋** button in the top left, select **Add package from tarball...**, and choose the downloaded file.
+3. Click the **＋** button in the top left, select **Install package from tarball...**, and choose the downloaded file.
 
 > **Verifying the download (optional):** every release also attaches a `SHA256SUMS` file. Since the package contains native binaries, you may want to check the tarball you downloaded matches:
 >
@@ -70,7 +70,7 @@ The same two settings can go into `Packages/manifest.json` instead, beside the e
 >
 > It covers both the version-pinned tarball and the stable alias, so it reports `OK` for whichever one you downloaded and `No such file or directory` for the other.
 
-> **Note:** Package Manager's *Add package from URL...* (git URL) cannot install this package. The native plugin binaries are distributed only inside the released package, so install it from npm or with *Add package from tarball...*.
+> **Note:** Package Manager's *Install package from git URL...* (git URL) cannot install this package. The native plugin binaries are distributed only inside the released package, so install it from npm or with *Install package from tarball...*.
 
 ---
 
@@ -85,7 +85,7 @@ This method is for when you want to modify the Unity-side C# scripts or work dir
 2. Run the setup script in the `scripts/` folder to download and place the native library (`libssruntime`).
    - **Windows**: `scripts\download-sdk.ps1`
    - **Mac/Linux**: `./scripts/download-sdk.sh`
-3. Copy the prepared `package/` folder under your Unity project's `Packages/` directory, or add it via **Add package from disk...** in Package Manager by specifying its `package.json`.
+3. Copy the prepared `package/` folder under your Unity project's `Packages/` directory, or add it via **Install package from disk...** in Package Manager by specifying its `package.json`.
 
 ---
 

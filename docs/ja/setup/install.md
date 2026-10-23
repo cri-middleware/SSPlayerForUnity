@@ -59,7 +59,7 @@
    - [`jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz)
    - 特定バージョンを選びたい場合は、[GitHub Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) ページから `.tgz` アセットをダウンロードしてください。
 2. Unity メニューから **Window > Package Manager** を開きます。
-3. 左上の **＋** ボタンから **Add package from tarball...** を選び、ダウンロードしたファイルを選択します。
+3. 左上の **＋** ボタンから **Install package from tarball...** を選び、ダウンロードしたファイルを選択します。
 
 > **ダウンロードの検証（任意）:** 各リリースには `SHA256SUMS` も添付されています。本パッケージはネイティブバイナリを含むため、必要に応じてダウンロードした tarball が改変されていないか確認できます。
 >
@@ -70,7 +70,7 @@
 >
 > バージョン付き tarball と安定エイリアスの両方が記載されているため、ダウンロードした側が `OK`、もう一方は `No such file or directory` と表示されます。
 
-> **注意:** Package Manager の *Add package from URL...*（git URL）ではこのパッケージを導入できません。ネイティブプラグインのバイナリはリリースのパッケージにのみ同梱されるため、npm から、または *Add package from tarball...* で追加してください。
+> **注意:** Package Manager の *Install package from git URL...*（git URL）ではこのパッケージを導入できません。ネイティブプラグインのバイナリはリリースのパッケージにのみ同梱されるため、npm から、または *Install package from tarball...* で追加してください。
 
 ---
 
@@ -85,7 +85,7 @@ Unity 側の C# スクリプトを改造したり、パッケージの中身を�
 2. ネイティブライブラリ（`libssruntime`）をダウンロード・配置するために、`scripts/` フォルダ内にあるセットアップスクリプトを実行します。
    - **Windows**: `scripts\download-sdk.ps1`
    - **Mac/Linux**: `./scripts/download-sdk.sh`
-3. 準備が整った `package/` フォルダを、ご自身の Unity プロジェクトの `Packages/` 配下にコピーするか、Package Manager の **Add package from disk...** から `package.json` を指定して追加します。
+3. 準備が整った `package/` フォルダを、ご自身の Unity プロジェクトの `Packages/` 配下にコピーするか、Package Manager の **Install package from disk...** から `package.json` を指定して追加します。
 
 ---
 
