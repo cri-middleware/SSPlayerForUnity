@@ -21,8 +21,9 @@
 - **カスタマイズ・自動化ガイド** — CLI や CI/CD に組み込む
     - [各種コンバート機能と CI/CD](./workflow/import.md): `ssconverter-cli` によるバッチ変換・自動化
 - **[制約と適用範囲](./limitations.md)** — 未実装の機能と、出荷前に把握しておくべき制約
-- **Player・SDK 開発者向けガイド** — ネイティブをソースからビルドする
+- **Player・SDK 開発者向けガイド** — ネイティブをソースからビルドし、プレイヤーの構成を知る
     - [ビルドガイド](./setup/build.md): `libssruntime` / `libssconverter` のビルド手順
+    - [プレイヤーの構成](./development/internals.md): ファイルの対応、変更したパッケージの使い方、Unity での確かめ方、ファイルをまたぐ設計の理由
 
 ## 主な機能 (Key Features)
 

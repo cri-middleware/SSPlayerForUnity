@@ -48,13 +48,13 @@ If you find a bug, please open a GitHub Issue and include:
 ### Prerequisites
 - Unity, matching the `unity` field in [`package/package.json`](./package/package.json).
 - A Rust toolchain (`rustup`) - only to build `libssruntime` / `libssconverter` from source, or to run `deploy-examples`, which builds `ssconverter-cli`.
-- The `SpriteStudio-SDK` submodule: `git submodule update --init --recursive`.
+- The `SpriteStudio-SDK` submodule (`git submodule update --init --recursive`), for `build-runtime`, `deploy-examples` and the test fixtures, which are converted from its sources. `download-sdk` does not need it.
 
 ### Setup
 ```bash
 ./scripts/download-sdk.sh          # fetch prebuilt native libraries
-./scripts/download-flatbuffers.sh  # set up the FlatBuffers C# source
 ```
+The FlatBuffers C# runtime under `package/Runtime/FlatBuffers/` is committed; `scripts/download-flatbuffers.sh` re-vendors it, and is run only to change its version. How the package is put together, and how to use your checkout in a project of your own, are in [docs/en/development/internals.md](./docs/en/development/internals.md).
 
 ### Build from source (optional)
 ```bash
@@ -145,13 +145,13 @@ SSPlayerForUnity への貢献にご関心をお寄せいただきありがとう
 ### 前提
 - Unity（バージョンは [`package/package.json`](./package/package.json) の `unity` フィールドに準拠）
 - Rust ツールチェーン（`rustup`）— `libssruntime` / `libssconverter` をソースからビルドする場合と、`ssconverter-cli` をビルドする `deploy-examples` を実行する場合のみ
-- `SpriteStudio-SDK` サブモジュール: `git submodule update --init --recursive`
+- `SpriteStudio-SDK` サブモジュール（`git submodule update --init --recursive`）。`build-runtime`・`deploy-examples` と、そのソースから変換するテスト用のデータに要ります。`download-sdk` には要りません。
 
 ### セットアップ
 ```bash
 ./scripts/download-sdk.sh          # ビルド済みネイティブライブラリの取得
-./scripts/download-flatbuffers.sh  # FlatBuffers の C# ソースを配置
 ```
+`package/Runtime/FlatBuffers/` の FlatBuffers の C# ランタイムはコミット済みです。`scripts/download-flatbuffers.sh` はそれを取り込み直すもので、版を変えるときだけ実行します。パッケージの構成と、チェックアウトを自分のプロジェクトで使う方法は [docs/ja/development/internals.md](./docs/ja/development/internals.md) にあります。
 
 ### ソースからのビルド（任意）
 ```bash

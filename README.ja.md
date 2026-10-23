@@ -32,7 +32,7 @@
 ## 🚀 クイックスタート
 
 **ゲームで使う場合**はこのまま下へ。パッケージを入れる → `.sspj` を SS Importer に D&D → コンポーネントを置く。その先（スクリプト制御、イベント、パーツ単位の上書き、Timeline）も同じ道の続きで、[ドキュメント](./docs/ja/index.md)にあります。
-**Player 自体や、その下の Rust ランタイムを変更する場合**は [CONTRIBUTING.md](./CONTRIBUTING.md) と[ビルドガイド](./docs/ja/setup/build.md)へ。
+**Player 自体や、その下の Rust ランタイムを変更する場合**は [CONTRIBUTING.md](./CONTRIBUTING.md) と[ビルドガイド](./docs/ja/setup/build.md)へ。ファイルの対応、変更したパッケージをプロジェクトで使う方法、Unity での確かめ方、ファイルをまたぐ設計の理由は[プレイヤーの構成](./docs/ja/development/internals.md)にあります。
 
 本プレイヤーは Unity 6.3 LTS 以降に対応しており、URP と BRP のいずれでも動作します。対応するのは **SpriteStudio 7.5 以上**で作成されたプロジェクトです。
 
