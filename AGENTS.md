@@ -26,8 +26,9 @@
 ## What this repo is
 
 A Unity integration for SpriteStudio: a thin C# **Body** drives the Rust **Brain** (`libssruntime`) over
-csbindgen FFI, builds each frame's geometry in Burst jobs and uploads it with `SetVertexBufferData`. A
-`ScriptedImporter` converts `.sspj` to `.ssab` with `libssconverter`.
+csbindgen FFI, builds each frame's geometry in Burst jobs and uploads it with `SetVertexBufferData`. The
+editor converts `.sspj` to `.ssab` with `libssconverter` (`SpriteStudioConversionRunner`), and
+`ScriptedImporter`s turn `.ssab` and `.ssqb` into assets.
 
 ## Where each answer is written
 
