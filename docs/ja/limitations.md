@@ -45,7 +45,6 @@
 ## エディタとインポート
 
 > [!WARNING]
-> - **インストールは git URL ではなく npm か tarball から。** ネイティブプラグインのバイナリはリリースのパッケージにのみ同梱されているため、Package Manager の *Install package from git URL…* ではインストールできません。npm から、またはダウンロードした `.tgz` を *Install package from tarball…* で追加してください（[インストール](./setup/install.md)）。
 > - **`Open SSPJ` には SpriteStudio 本体が必要です。** OS のファイル関連付け経由でエディタを起動するため、作業する PC に [SpriteStudio](https://www.webtech.co.jp/spritestudio/) がインストールされている必要があります。`.ssab` ↔ `.sspj` の紐付け自体は `ProjectSettings/SpriteStudioSourceMap.json` に相対パスで保存され、プロジェクトと一緒に共有されます（[アセットのインポートとエディタ連携](./workflow/usage_asset_pipeline.md)）。
 
 > [!NOTE]
@@ -92,4 +91,4 @@
 
 ## プラットフォーム
 
-Unity のバージョン、レンダーパイプライン、対応プラットフォームの一覧は [インストール](./setup/install.md#対応環境) の「対応環境」にあります。各プラットフォーム向けのネイティブライブラリについては [ビルドガイド](./setup/build.md) を参照してください。
+Unity のバージョン、レンダーパイプライン、対応プラットフォームの一覧は [インストール](./setup/install.md#対応環境) の「対応環境」にあります。

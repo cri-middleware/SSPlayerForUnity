@@ -2,7 +2,7 @@
 
 [← Back to documentation index](../index.md)
 
-This page explains how to add SpriteStudio Player for Unity to your project. Choose one of the three installation methods that best fits your needs.
+This page explains how to add SpriteStudio Player for Unity to your project: install the released package, from npm or as a tarball.
 
 ## Supported Environment
 
@@ -11,7 +11,7 @@ This page explains how to add SpriteStudio Player for Unity to your project. Cho
 | Unity version | **Unity 6.3 LTS (6000.3)** or later |
 | Render pipeline | Universal (URP) / Built-in (BRP) |
 | Dependent packages | Burst / Mathematics / Collections / Timeline / uGUI (automatically resolved by Package Manager) |
-| Supported platforms | Windows / macOS / Linux / Android / iOS / WebGL (for native libraries, see the [Build Guide](./build.md)) |
+| Supported platforms | Windows / macOS / Linux / Android / iOS / WebGL |
 
 All dependent packages are standard Unity packages, so Package Manager resolves them automatically when you add this package.
 
@@ -70,36 +70,11 @@ The same two settings can go into `Packages/manifest.json` instead, beside the e
 >
 > It covers both the version-pinned tarball and the stable alias, so it reports `OK` for whichever one you downloaded and `No such file or directory` for the other.
 
-> **Note:** Package Manager's *Install package from git URL...* (git URL) cannot install this package. The native plugin binaries are distributed only inside the released package, so install it from npm or with *Install package from tarball...*.
+> **Note:** Package Manager's *Install package from git URL...* cannot install this package. The native plugin binaries are distributed only inside the released package, so install it from npm or with *Install package from tarball...*.
 
 ---
 
-## 2. Install from Local Source (for Customization)
-
-This method is for when you want to modify the Unity-side C# scripts or work directly with the contents of the package. No Rust environment setup is required.
-
-1. Clone or download the repository.
-   ```sh
-   git clone https://github.com/cri-middleware/SSPlayerForUnity.git
-   ```
-2. Run the setup script in the `scripts/` folder to download and place the native library (`libssruntime`).
-   - **Windows**: `scripts\download-sdk.ps1`
-   - **Mac/Linux**: `./scripts/download-sdk.sh`
-3. Copy the prepared `package/` folder under your Unity project's `Packages/` directory, or add it via **Install package from disk...** in Package Manager by specifying its `package.json`.
-
----
-
-## 3. Full Build from Source (for Plugin Developers)
-
-These are the steps for developing or debugging the Rust core (`libssruntime`) itself.
-Instead of using the setup script, you build the native library directly from source using your local Cargo environment.
-
-1. Clone the repository including submodules.
-   ```sh
-   git clone --recursive https://github.com/cri-middleware/SSPlayerForUnity.git
-   ```
-2. Run `scripts/build-runtime.sh` (or `scripts\build-runtime.ps1` on Windows) to build the Rust core with Cargo and place it in the plugin folder.
-3. For details, see the **[Build Guide](./build.md)**.
+To work on the package itself — its C# scripts or the native core under it — see the [Build Guide](./build.md).
 
 ---
 
