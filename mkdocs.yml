@@ -40,6 +40,7 @@ nav:
   - ⚠️ Limitations & Scope: limitations.md
   - 🛠️ For Player & SDK Developers:
       - Build Guide: setup/build.md
+      - How the Player Is Put Together: development/internals.md
   - ⚖️ License:
       - License: license.md
       - Third-Party Notices: third_party_notices.md
