@@ -1,7 +1,7 @@
 # 🎮 SpriteStudio Player for Unity — Documentation
 
-A high-performance plugin for playing back animations created with [SpriteStudio](https://www.webtech.co.jp/spritestudio/) on [Unity](https://unity.com/).
-Playback is performed through `libssruntime`, the shared Rust core provided by [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK), and combined with Unity's Job System to achieve extreme performance.
+A plugin for playing back animations created with [SpriteStudio](https://www.webtech.co.jp/spritestudio/) on [Unity](https://unity.com/).
+Drop a `.sspj` onto the **SS Importer** window, drag the asset it makes into the Hierarchy, and press Play — no code to reach the first frame.
 
 !!! tip "No SpriteStudio data of your own yet?"
     The [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is — that page is
@@ -33,8 +33,8 @@ This documentation is organized by purpose, as follows.
 This plugin is designed to fully bring out the expressiveness of SpriteStudio on Unity while delivering top-class performance.
 
 *   **Almost Full Feature Support:** Supports the diverse expressions of SpriteStudio out of the box, including bone hierarchies, mesh & deform, particle effects, extended blending, and masks.
-*   **Seamless Integration and a Powerful Asset Pipeline:** Simply bring a `.sspj` file into the Unity editor and it is automatically converted in the background into a ScriptableObject ready to use.
-*   **Ultra-Fast, Zero-Allocation:** By combining a Rust-based core with Unity's Job System (Burst Compiler), per-frame GC allocations are completely eliminated. This delivers an extremely stable, high frame rate even in mobile environments that render many characters.
+*   **An Importer in the Editor:** Drop a `.sspj` onto the SS Importer window (**Window > SpriteStudio > Importer**) and it becomes a `SpriteStudioAnimeAsset`; after editing in SpriteStudio, **Reconvert** brings the change in.
+*   **No Per-Frame Garbage:** Playback allocates nothing on the managed heap each frame, so a scene full of characters does not stutter on garbage collection, on mobile included.
 *   **Smooth Slow Motion:** Supports sub-frame interpolation, enabling smooth, stutter-free playback even on high-refresh-rate monitors and in slow-motion effects.
 *   **Flexible UI and World Rendering:** Supports rendering in ordinary scene space (`SpriteStudioPlayer`) as well as on a uGUI (`SpriteStudioGraphic`) Canvas, and automatically follows Mask and RectMask2D.
 *   **Timeline Integration:** Animations can be controlled directly from Timeline tracks, making cutscenes and complex staging easy to implement.
@@ -61,9 +61,8 @@ graph LR
         SO[[ SpriteStudioAnimeAsset ]]
     end
 
-    subgraph Runtime ["Unity Runtime"]
+    subgraph Runtime ["Your Scene"]
         NODE[[ SpriteStudioPlayer /<br>SpriteStudioGraphic ]]
-        RT(" libssruntime ")
     end
 
     SS -- "Drag & Drop" --> IMP
@@ -71,17 +70,16 @@ graph LR
     IMP -. "Auto Convert" .-> BIN
     CLI -. "Generate" .-> BIN
 
-    BIN -. "ScriptedImporter" .-> SO
+    BIN -. "Imported" .-> SO
     SO -- "Set" --> NODE
-    NODE -. "FFI / Fast Playback" .-> RT
-    NODE -- "Burst Job → Mesh" --> RENDER{{" Screen "}}
+    NODE --> RENDER{{" Screen "}}
 
     classDef generated stroke-dasharray: 5 5;
     class BIN,SO generated;
 ```
 
-- **Editor (at import time)**: Imports a `.sspj`, automatically converts it to `.ssab` / `.ssqb`, and generates a `SpriteStudioAnimeAsset` that bundles textures, materials, animation names, external references, and more. Pre-generation with `ssconverter-cli` is also possible.
-- **Runtime (during playback)**: The player component delegates to the shared core `SpriteStudioPlaybackCore`, `libssruntime` computes the frame data, and a Burst job builds the vertices and uploads them directly to the Mesh.
+- **Editor**: The SS Importer window converts a `.sspj` to `.ssab` / `.ssqb` and generates a `SpriteStudioAnimeAsset` that bundles textures, materials, animation names, external references, and more. `ssconverter-cli` produces the same files in CI.
+- **Runtime**: `SpriteStudioPlayer` draws the asset in the scene, and `SpriteStudioGraphic` on a uGUI Canvas.
 
 ## License
 

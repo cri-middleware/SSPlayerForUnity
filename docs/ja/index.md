@@ -1,6 +1,6 @@
 # 🎮 SpriteStudio Player for Unity — ドキュメント
 
-[SpriteStudio](https://www.webtech.co.jp/spritestudio/) で作成したアニメーションを [Unity](https://unity.com/) 上で再生するためのハイパフォーマンスなプラグインです。再生処理は [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) が提供する共通の Rust コア `libssruntime` を介して行い、Unity の Job System と組み合わせることで極限のパフォーマンスを実現します。
+[SpriteStudio](https://www.webtech.co.jp/spritestudio/) で作成したアニメーションを [Unity](https://unity.com/) 上で再生するためのプラグインです。`.sspj` を **SS Importer** ウィンドウにドロップし、できたアセットを Hierarchy へドラッグして Play を押せば、コードを書かずに再生できます。
 
 !!! tip "SpriteStudio のデータが手元に無くても始められます"
     [公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)がそのまま使えます。キャラクターなら [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo)、エフェクトを含むものなら [パーティクル](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) が手頃です。
@@ -29,8 +29,8 @@
 本プラグインは、Unity 上で SpriteStudio の表現力をフルに引き出しつつ、最高クラスのパフォーマンスを発揮するように設計されています。
 
 *   **ほぼ完全な機能サポート:** ボーン階層、メッシュ＆デフォーム、パーティクルエフェクト、拡張ブレンド、マスクなど、SpriteStudio の多彩な表現を標準でサポートします。
-*   **シームレスな統合と強力なアセットパイプライン:** `.sspj` ファイルを Unity エディタに取り込むだけでバックグラウンドで自動変換され、ScriptableObject としてすぐに扱えます。
-*   **超高速・ゼロアロケーション:** Rust製コアと Unity の Job System (Burst Compiler) の組み合わせにより、毎フレームの GC アロケーションを完全に排除。多数のキャラクターを描画するモバイル環境でも極めて安定した高フレームレートを実現します。
+*   **エディタ内のインポーター:** `.sspj` を SS Importer ウィンドウ（**Window > SpriteStudio > Importer**）にドロップすると `SpriteStudioAnimeAsset` になります。SpriteStudio で編集したら **Reconvert** で取り込み直せます。
+*   **毎フレームのゴミを出さない:** 再生は毎フレームのマネージドヒープへの割り当てを行わないため、キャラクターの多いシーンでもモバイルを含めて GC でカクつきません。
 *   **滑らかなスローモーション:** サブフレーム補間（Sub-frame interpolation）をサポートし、高リフレッシュレートのモニターやスローモーション演出でもカクつかない滑らかな再生が可能です。
 *   **柔軟な UI・ワールド描画:** 通常のシーン空間での描画 (`SpriteStudioPlayer`) はもちろん、uGUI (`SpriteStudioGraphic`) の Canvas 上での描画にも対応し、Mask や RectMask2D にも自動追従します。
 *   **Timeline との連携:** Timeline トラックからアニメーションを直接制御でき、カットシーンや複雑な演出を簡単に実装可能です。
@@ -57,9 +57,8 @@ graph LR
         SO[[ SpriteStudioAnimeAsset ]]
     end
 
-    subgraph Runtime ["Unity ランタイム"]
+    subgraph Runtime ["シーン"]
         NODE[[ SpriteStudioPlayer /<br>SpriteStudioGraphic ]]
-        RT(" libssruntime ")
     end
 
     SS -- "ドラッグ＆ドロップ" --> IMP
@@ -67,17 +66,16 @@ graph LR
     IMP -. "自動変換" .-> BIN
     CLI -. "生成" .-> BIN
 
-    BIN -. "ScriptedImporter" .-> SO
+    BIN -. "インポート" .-> SO
     SO -- "セット" --> NODE
-    NODE -. "FFI / 高速再生" .-> RT
-    NODE -- "Burst Job → Mesh" --> RENDER{{" 画面 "}}
+    NODE --> RENDER{{" 画面 "}}
 
     classDef generated stroke-dasharray: 5 5;
     class BIN,SO generated;
 ```
 
-- **エディタ (インポート時)**: `.sspj` をインポートして自動的に `.ssab` / `.ssqb` へ変換し、テクスチャ・マテリアル・アニメーション名・外部参照などを束ねた `SpriteStudioAnimeAsset` を生成します。`ssconverter-cli` による事前生成も可能です。
-- **ランタイム (再生時)**: プレイヤーコンポーネントが共有コア `SpriteStudioPlaybackCore` に委譲し、`libssruntime` がフレームデータを計算、Burst ジョブが頂点を構築して Mesh に直接アップロードします。
+- **エディタ**: SS Importer ウィンドウが `.sspj` を `.ssab` / `.ssqb` へ変換し、テクスチャ・マテリアル・アニメーション名・外部参照などを束ねた `SpriteStudioAnimeAsset` を生成します。CI では `ssconverter-cli` で同じものを作れます。
+- **ランタイム**: `SpriteStudioPlayer` はシーンに、`SpriteStudioGraphic` は uGUI の Canvas に描画します。
 
 ## ライセンス (License)
 
