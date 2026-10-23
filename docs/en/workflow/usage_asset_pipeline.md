@@ -78,15 +78,14 @@ With just the following operation, your changes are reflected instantly in the g
 
 ## The Generated `SpriteStudioAnimeAsset` (.ssab)
 
-This is the final product of the import (the actual converted `.ssab` data). It holds all the information needed for playback and also serves as a hard reference to prevent stripping (removal of unused assets) at build time.
+This is the final product of the import: it holds the converted `.ssab` data and everything needed to play it, and keeps its textures in the build. Its Inspector shows these fields, in this order:
 
 | Field | Description |
 |---|---|
-| **Ssab Data** | The converted `.ssab` binary itself |
-| **Animation Names** | The list of animation names contained in this asset |
-| **Textures** | Referenced textures (hard references to prevent stripping) |
-| **Materials** | The base materials used for rendering |
+| **Textures** | Referenced textures |
 | **External References** | External animations referenced by Instance parts (a `SpriteStudioAnimeAsset` from another pack) |
+| **Materials** | The base materials used for rendering |
+| **Animation Names** | The list of animation names contained in this asset |
 | **Sounds** | The `AudioClip`s referenced by Audio events |
 
 > [!NOTE]

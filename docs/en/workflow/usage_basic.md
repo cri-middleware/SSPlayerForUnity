@@ -123,12 +123,13 @@ The draw order is the Mesh Renderer's own **Sorting Layer** / **Order in Layer**
 | **Offset** | `(0, 0)` | Shift the drawn animation without moving the Transform (in world units) |
 | **Shader Catalog** | (none) | Your own catalog of per-part custom shaders, looked up before the built-in AddOns (see [Advanced Settings](./tips.md)) |
 | **Part Trackers** | (empty) | Settings that make a Transform follow a specified part (see [Scripting Control and Events](./usage_scripting.md)) |
+| **Cellmap Texture Overrides** | (empty) | Texture replacements by cellmap name, saved with the scene (see [Scripting Control and Events](./usage_scripting.md)) |
 
 > **Pixels Per Unit** is configured outside this Inspector, from the `PixelsPerUnit` script property. Per-part **custom shaders** go in a catalog you assign to **Shader Catalog**. See [Advanced Settings](./tips.md).
 
 ### `SpriteStudioGraphic` (Canvas UI) only
 
-The **Color** / **Material** / **Raycast Target** / **Raycast Padding** / **Maskable** items inherited from uGUI's `Graphic` are shown. **Color** tints the whole animation, as it tints an `Image`, on top of the part colours; a Button's **Color Tint** transition and `CrossFadeColor` / `CrossFadeAlpha` reach it the same way. **Material** left empty draws with the atlas material; a material assigned there is used instead when its shader is built from `SpriteStudio/Canvas`, the only kind that reads the vertex layout the graphic emits. A **Mask** added to the graphic itself clips its children to the animation's shape. The clickable area is the `RectTransform`'s rectangle, which is not tied to how large the animation looks. To widen it, adjust the `RectTransform`'s size or use **Raycast Padding**.
+The **Color** / **Material** / **Raycast Target** / **Raycast Padding** / **Maskable** items inherited from uGUI's `Graphic` are shown. **Color** tints the whole animation, as it tints an `Image`, on top of the part colours; a Button's **Color Tint** transition and `CrossFadeColor` / `CrossFadeAlpha` reach it the same way. **Material** left empty draws with the atlas material; a material assigned there is used instead when its shader is built from `SpriteStudio/Canvas`, the only kind that reads the vertex layout the graphic emits. A **Mask** added to the graphic itself clips its children to the animation's shape. The clickable area is the `RectTransform`'s rectangle, which is not tied to how large the animation looks. To widen it, adjust the `RectTransform`'s size or use **Raycast Padding**. After these comes **Cellmap Texture Overrides**, as on `SpriteStudioPlayer`.
 
 > [!TIP]
 > 

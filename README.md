@@ -57,7 +57,7 @@ This player supports Unity 6.3 LTS and later, and works in both URP and BRP. Pro
                └── …
    ```
 
-3. **Place**: Drag the `SpriteStudioAnimeAsset` (`Ringo.ssab` above) from the Project window into the Hierarchy (or Scene view), and pick `SpriteStudioPlayer` (world space) or `SpriteStudioGraphic` (uGUI Canvas). **Animation Name** starts on the pack's first animation; pick another from its list if you like, and press Play.
+3. **Place**: Drag the `SpriteStudioAnimeAsset` (`Ringo.ssab` above) from the Project window into the Hierarchy (or Scene view), and pick **SpriteStudioPlayer** (world space) or **SpriteStudioGraphic (Canvas UI)**. **Animation Name** starts on the pack's first animation; pick another from its list if you like, and press Play.
 
 No `.sspj` of your own yet? SpriteStudio's [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is — the page is in Japanese, the downloads are not. [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character to start with, and [Particle](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) a good one for effects.
 

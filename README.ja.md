@@ -55,7 +55,7 @@
                └── …
    ```
 
-3. **配置**: `SpriteStudioAnimeAsset`（上の `Ringo.ssab`）を Project ウィンドウから Hierarchy（または Scene ビュー）へドラッグ＆ドロップし、`SpriteStudioPlayer`（ワールド空間）または `SpriteStudioGraphic`（uGUI Canvas）を選びます。**Animation Name** にはパックの最初のアニメーションが入っています。別のものにするならリストから選び、再生します。
+3. **配置**: `SpriteStudioAnimeAsset`（上の `Ringo.ssab`）を Project ウィンドウから Hierarchy（または Scene ビュー）へドラッグ＆ドロップし、**SpriteStudioPlayer**（ワールド空間）または **SpriteStudioGraphic (Canvas UI)** を選びます。**Animation Name** にはパックの最初のアニメーションが入っています。別のものにするならリストから選び、再生します。
 
 SpriteStudio のデータが手元に無くても始められます。[公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)がそのまま使えます。キャラクターなら [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo)、エフェクトを含むものなら [パーティクル](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) が手頃です。
 
