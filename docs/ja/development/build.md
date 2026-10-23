@@ -1,8 +1,8 @@
-# 🛠️ ビルドガイド（開発者向け）
+# 🛠️ ビルドガイド
 
 [← ドキュメント目次へ戻る](../index.md)
 
-通常の利用ではビルド済みのネイティブライブラリがパッケージに含まれているため、本ページの作業は不要です。**プラグイン自体を開発する場合**や、**特定プラットフォーム向けにネイティブライブラリを再ビルドする場合**にのみ必要です。C# だけを変えるならこのページの作業は要りません。[変更したプレイヤーを使う](../development/internals.md#2-変更したプレイヤーを使う)を参照してください。
+通常の利用ではビルド済みのネイティブライブラリがパッケージに含まれているため、本ページの作業は不要です。**プラグイン自体を開発する場合**や、**特定プラットフォーム向けにネイティブライブラリを再ビルドする場合**にのみ必要です。C# だけを変えるならこのページの作業は要りません。[変更したプレイヤーを使う](#変更したプレイヤーを使う)を参照してください。プレイヤーの構成とその理由は[プレイヤーの構成](architecture.md)にあります。
 
 ビルドでは、Rust 製の SDK (`libssruntime` / `libssconverter`) をコンパイルし、Unity パッケージ側の `Plugins` フォルダへ配置します。同時に `csbindgen` が生成した C# FFI バインディングもコピーされます。
 
@@ -92,3 +92,28 @@ SDK 側で `.fbs` スキーマが変更された際は、`package/Runtime/Format
 ## よくある注意点
 
 - **古いネイティブ DLL を Unity が掴み続ける**: Windows 環境では、起動時にロードしたネイティブ DLL をエディタが掴み続けることがあります。ビルドを差し替えても反映されない場合は、**Unity エディタを終了してからビルドし、再起動**してください。
+
+## 変更したプレイヤーを使う
+
+ネイティブライブラリが入っているのはリリースのパッケージだけで、git の URL からパッケージを入れられないのはそのためです（`Plugins/` と `Bindings/` は git にありません）。チェックアウトでは、それをスクリプトで取ってきます。
+
+**C# だけを変えるなら**、Rust は要りません。
+
+1. repo を clone します。
+2. `scripts/download-sdk.sh`（Windows は `.ps1`）を実行します。`scripts/SDK_VERSION.txt` の SDK リリースのネイティブライブラリとそのバインディングが `package/` に入ります。
+3. 自分のプロジェクトを `package/` に向けます。Package Manager の **＋** → **Install package from disk...** で `package/package.json` を選ぶか、`examples/UnityTestProject` のように `Packages/manifest.json` に `file:` の依存を書きます（`"jp.co.cri-mw.spritestudio.ssplayer-unity": "file:../../../package"`）。
+
+これでプロジェクトはチェックアウトをそのまま使うので、C# の変更は次のコンパイルで反映されます。**ネイティブのコアを変えるなら**ビルドガイドの手順です。`build-runtime` が `download-sdk` の置いたものを置き換えます。読み込むにはエディタの再起動が要ります。
+
+## 実際のホストで確かめる
+
+`scripts/run-tests.sh` は、`examples/UnityTestProject` で、そのプロジェクトが指定するエディタの版を使い、EditMode・PlayMode・スタンドアロンのプレイヤーのビルドをヘッドレスで回します。先にエディタを閉じてください。開いている間は batchmode がプロジェクトのロックを取れません。スイートの前に、テスト用のデータを SDK のサブモジュールから変換します。
+
+- **プロジェクトを直接開くと、このマシンに無いネイティブプラグインの `.meta` が消えます。** エラーではなく削除なので、`git status` でしか分かりません。`run-tests.sh` は自分で戻しますが、自分でプロジェクトを開いたあとは `git checkout -- package/Runtime/Plugins package/Editor/Plugins` で戻してください。
+- **エディタは一度読み込んだネイティブプラグインを読み直しません。** `build-runtime` や `download-sdk` のあとは再起動してください。しないと、直したのに直っていないように見えます。
+- **ネイティブプラグインの読み込みは、Play Mode ではなくスタンドアロンのプレイヤーで確かめます。** エディタはプレイヤーよりプラグインを緩く解決します。macOS ではランタイムは `ssruntime.bundle` という名前のフォルダでなければならず、`libssruntime.bundle` はエディタでは読めてもプレイヤーで `DllNotFoundException: ssruntime` になります。それを捕まえるのがプレイヤーのスイートです。
+- macOS 27 では Unity 6000.3.16f1 が起動しません（batchmode は何もせずに exit 0 で終わります）。6000.3.25f1 は起動します。
+
+### Unity の表記の引き方
+
+ガイドでは、エディタのメニューを Unity の表示どおりに書きます。文字列は `Unity.app/Contents/Resources/Scripting/Managed/UnityEngine/UnityEditor.CoreModule.dll` に UTF-16 で入っているので、UTF-16 のバイト列で探してください（Package Manager の **Install package from disk...**・**Install package from tarball...**・**Install package from git URL...** はそこにあります）。uGUI の **GameObject > UI** メニューは、プロジェクトの `Library/PackageCache/com.unity.ugui@*/` の `Editor/UGUI/UI/MenuOptions.cs` です。日本語のページでも、エディタの英語の表記を使います。

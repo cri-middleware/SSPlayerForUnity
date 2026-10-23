@@ -39,8 +39,8 @@ nav:
       - 各種コンバート機能と CI/CD: workflow/import.md
   - ⚠️ 制約と適用範囲: limitations.md
   - 🛠️ Player・SDK 開発者向けガイド:
-      - ビルドガイド: setup/build.md
-      - プレイヤーの構成: development/internals.md
+      - ビルドガイド: development/build.md
+      - プレイヤーの構成: development/architecture.md
   - ⚖️ ライセンス:
       - ライセンス: license.md
       - サードパーティライセンス: third_party_notices.md

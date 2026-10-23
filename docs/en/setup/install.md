@@ -74,7 +74,7 @@ The same two settings can go into `Packages/manifest.json` instead, beside the e
 
 ---
 
-To work on the package itself, see [Using a Changed Player](../development/internals.md#2-using-a-changed-player): its C# scripts need no Rust, and the native core under them is the [Build Guide](./build.md).
+To work on the package itself, see [Using a Changed Player](../development/build.md#using-a-changed-player): its C# scripts need no Rust, and the native core under them is the rest of the [Build Guide](../development/build.md).
 
 ---
 
