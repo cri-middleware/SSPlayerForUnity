@@ -4,7 +4,7 @@
 
 This page explains the **initial procedure for importing (converting) a `.sspj` into a Unity project**, and the workflow for iterating quickly by moving back and forth between SpriteStudio and Unity.
 
-SpriteStudio Player for Unity does not just play back animations; it provides a **powerful asset pipeline that lets you move seamlessly between SpriteStudio and Unity**. This lets you iterate quickly, from editing an animation to reflecting it in your game.
+Besides playing animations, SpriteStudio Player for Unity lets you move between SpriteStudio and Unity as you iterate, from editing an animation to seeing it in your game.
 
 ---
 
@@ -52,7 +52,7 @@ This launches SpriteStudio, opens the original `.sspj` file, and lets you start 
 
 ---
 
-## 3. Powerful Asset Pipeline (Seamless Editor-to-Editor Integration)
+## 3. Reconverting After Saving in SpriteStudio
 
 Once you have edited and saved the animation on the SpriteStudio side, return to the Unity Editor.
 With just the following operation, your changes are reflected instantly in the game (and in the preview in the Editor).
@@ -62,7 +62,7 @@ With just the following operation, your changes are reflected instantly in the g
 
 > [!IMPORTANT]
 > **The shortest "Open" → "Save" → "Reconvert" workflow**
-> With the asset still selected, you can invoke SpriteStudio from the Inspector, and immediately after editing, reflect (reconvert) the latest changes into the `.ssab` in Unity. This **powerful asset pipeline that lets you move seamlessly between SpriteStudio and Unity** dramatically lowers the cost of trial and error when adjusting animations.
+> With the asset still selected, you can invoke SpriteStudio from the Inspector, and immediately after editing, reflect (reconvert) the latest changes into the `.ssab` in Unity.
 
 > [!TIP]
 > You can also reconvert from **Recent SSPJs** in the SS Importer window (click a row, or right-click → "Reconvert").
@@ -100,7 +100,7 @@ When a `.ssab` is imported, a **shared material (`.mat`)** corresponding to the 
 
 ## Limitations and Notes for Team Development
 
-This powerful editor-to-editor integration feature (`Open SSPJ` and `Reconvert`) is very convenient, but by its nature it has some limitations. Be especially careful when doing team development.
+`Open SSPJ` and `Reconvert` have some limitations. Keep them in mind, especially when working in a team.
 
 > [!WARNING]
 > **SpriteStudio must be installed**

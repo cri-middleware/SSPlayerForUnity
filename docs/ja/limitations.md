@@ -21,7 +21,7 @@
 > - **メッシュエフェクトとパーツ単位のシェーダは効きません。** グラフィックは `OnPopulateMesh` を通さずに自らメッシュを渡すため、付けた `Shadow`・`Outline` などの `BaseMeshEffect` は何も変えません。またパーツ単位の AddOn / カスタムシェーダ（セピア・アウトライン・ブラーなど）は Canvas では描画されず、すべてのパーツが 1 つの Canvas 用マテリアルで描画されます。
 > - **Timeline からは制御できません。** `SpriteStudioGraphic` は `ITimeControl` を実装しておらず、Timeline のトラックが結び付けられるのは `SpriteStudioPlayer` だけです。
 
-複雑なブレンドや複数アトラスが必要な場合は、ワールドパス（`SpriteStudioPlayer`）を使用してください。ワールドパスは SS6 由来の「2」付きの種別のうち 2 つを除くすべてのブレンドを描画します。**Mul2** は Mul、**Screen2** は Screen として描画し、パーツの背後の色を必要とする **Div2** と **Overlay2** は、ほかの SpriteStudio Player と同じく MIX として描画します。
+複雑なブレンドや複数アトラスが必要な場合は、ワールドパス（`SpriteStudioPlayer`）を使用してください。ワールドパスは SS6 由来の「2」付きの種別のうち 2 つを除くすべてのブレンドを描画します。**Mul2** は Mul、**Screen2** は Screen として描画し、パーツの背後の色を必要とする **Div2** と **Overlay2** は MIX として描画します。
 
 ## マスク / クリッピング
 

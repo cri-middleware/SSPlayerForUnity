@@ -41,9 +41,6 @@ SpriteStudio 側でアニメーションを修正した際、最新の `.sspj` �
 
 Unity エディタを起動せずにコマンドラインから変換したい場合（CI/CD やビルドパイプラインへの組み込み、大量アセットの一括変換など）は、SpriteStudio-SDK に同梱されている独立したコマンドラインコンバータを使用できます。エディタ内蔵のインポータが裏で利用している `libssconverter` と同じエンジンです。
 
-> [!NOTE]
-> CLI バイナリは **SpriteStudio-SDK のリリース成果物に同梱**されています。本 Unity パッケージには含まれないため、CLI を利用する場合は SDK 側から別途取得してください。
-
 1. [SpriteStudio-SDK の Releases](https://github.com/cri-middleware/SpriteStudio-SDK/releases) から、該当プラットフォーム（Windows / macOS / Linux）向けの CLI コンバータを取得します。
 2. ターミナル（またはコマンドプロンプト）を開き、`.sspj` ファイルへのパスを引数に渡して実行します。
 

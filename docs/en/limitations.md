@@ -21,7 +21,7 @@ Text and 9-slice parts still occupy their place in the draw order, so an animati
 > - **Mesh effects and per-part shaders do not apply.** The graphic uploads its mesh itself rather than through `OnPopulateMesh`, so `Shadow`, `Outline` and other `BaseMeshEffect` components on it change nothing, and the per-part AddOn / custom shaders (sepia, outline, blur, …) are not drawn on a Canvas — every part draws with the one Canvas material.
 > - **No Timeline control.** `SpriteStudioGraphic` implements no `ITimeControl`, and the Timeline track binds `SpriteStudioPlayer` only.
 
-If you need complex blends or multiple atlases, use the world path (`SpriteStudioPlayer`). It draws every blend type but two of the SS6-era "2" variants: **Mul2** draws as Mul and **Screen2** as Screen, while **Div2** and **Overlay2**, which need the colour already behind the part, draw as MIX — as they do on the other SpriteStudio players.
+If you need complex blends or multiple atlases, use the world path (`SpriteStudioPlayer`). It draws every blend type but two of the SS6-era "2" variants: **Mul2** draws as Mul and **Screen2** as Screen, while **Div2** and **Overlay2**, which need the colour already behind the part, draw as MIX.
 
 ## Masking / Clipping
 

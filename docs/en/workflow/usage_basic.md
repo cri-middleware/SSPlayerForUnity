@@ -140,7 +140,7 @@ The **Color** / **Material** / **Raycast Target** / **Raycast Padding** / **Mask
 
 ## Preview in edit mode
 
-Both components also run in edit mode. Place one in a scene and a **static preview of the start frame** appears in the Scene / Game view without entering Play mode. There is no setting to switch this on or off; it is always on.
+Both components also run in edit mode. Place one in a scene and a **static preview of the start frame** appears in the Scene / Game view without entering Play mode. It is always on.
 
 What edit mode shows is a still image, though — playback does not advance. To check the animation's motion, enter **Play mode**.
 
