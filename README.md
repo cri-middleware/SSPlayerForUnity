@@ -34,7 +34,7 @@ For detailed instructions, see the documents in the `docs/` folder — structure
 **Using it in your game?** Read on — install the package, drag a `.sspj` onto the SS Importer, place a component.
 Everything after that (scripting, events, per-part overrides, Timeline) is the same path further in, in the
 [documentation](./docs/en/index.md).
-**Working on the Player, or the Rust runtime under it?** [CONTRIBUTING.md](./CONTRIBUTING.md), the [Build Guide](./docs/en/setup/build.md), and [How the Player Is Put Together](./docs/en/development/internals.md) for the file map, using a changed package in a project, checking in Unity and the reasons that span files.
+**Working on the Player, or the Rust runtime under it?** [CONTRIBUTING.md](./CONTRIBUTING.md), the [Build Guide](./docs/en/development/build.md) — which also covers using a changed package in a project and checking it in Unity — and [How the Player Is Put Together](./docs/en/development/architecture.md) for the layers and the reasons that span files.
 
 This player supports Unity 6.3 LTS and later, and works in both URP and BRP. Projects have to be authored in **SpriteStudio 7.5 or later**.
 

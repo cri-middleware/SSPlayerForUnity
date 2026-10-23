@@ -36,8 +36,9 @@ editor converts `.sspj` to `.ssab` with `libssconverter` (`SpriteStudioConversio
 |---|---|
 | Using it: every API and limitation | the [docs site](./docs/en/) |
 | Install, convert, first frame, where to read next | [README.md](./README.md), per `SpriteStudio-SDK/MAINTAINING_PLAYERS.md` |
-| Constraints, setup, build, test | [CONTRIBUTING.md](./CONTRIBUTING.md), [Build Guide](./docs/en/setup/build.md) |
-| The file map, using a changed package, checking in Unity, reasons that span files | [docs/en/development/internals.md](./docs/en/development/internals.md) |
+| Constraints, setup, build, test | [CONTRIBUTING.md](./CONTRIBUTING.md), [Build Guide](./docs/en/development/build.md) |
+| Using a changed package, checking in Unity | the [Build Guide](./docs/en/development/build.md) |
+| How the player is put together, and the reasons that span files | [docs/en/development/architecture.md](./docs/en/development/architecture.md) |
 | Releases, maintainers only | [RELEASING.md](./RELEASING.md) |
 | Plans and non-goals | [ROADMAP.md](./ROADMAP.md) |
 | What a script takes | its `--help` |
