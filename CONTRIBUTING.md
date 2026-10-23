@@ -54,7 +54,7 @@ If you find a bug, please open a GitHub Issue and include:
 ```bash
 ./scripts/download-sdk.sh          # fetch prebuilt native libraries
 ```
-The FlatBuffers C# runtime under `package/Runtime/FlatBuffers/` is committed; `scripts/download-flatbuffers.sh` re-vendors it, and is run only to change its version.
+The FlatBuffers C# runtime under `package/Runtime/FlatBuffers/` is committed; `scripts/download-flatbuffers.sh` re-vendors it, and is run only to change its version. How the package is put together, and how to use your checkout in a project of your own, are in [docs/en/development/internals.md](./docs/en/development/internals.md).
 
 ### Build from source (optional)
 ```bash
@@ -151,7 +151,7 @@ SSPlayerForUnity への貢献にご関心をお寄せいただきありがとう
 ```bash
 ./scripts/download-sdk.sh          # ビルド済みネイティブライブラリの取得
 ```
-`package/Runtime/FlatBuffers/` の FlatBuffers の C# ランタイムはコミット済みです。`scripts/download-flatbuffers.sh` はそれを取り込み直すもので、版を変えるときだけ実行します。
+`package/Runtime/FlatBuffers/` の FlatBuffers の C# ランタイムはコミット済みです。`scripts/download-flatbuffers.sh` はそれを取り込み直すもので、版を変えるときだけ実行します。パッケージの構成と、チェックアウトを自分のプロジェクトで使う方法は [docs/ja/development/internals.md](./docs/ja/development/internals.md) にあります。
 
 ### ソースからのビルド（任意）
 ```bash
