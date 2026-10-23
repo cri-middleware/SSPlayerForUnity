@@ -26,8 +26,8 @@ This documentation is organized by purpose, as follows.
     - [Conversion Features and CI/CD](./workflow/import.md): Batch conversion and automation with `ssconverter-cli`
 - **[Limitations & Scope](./limitations.md)** — What is not yet implemented, and the constraints to know before shipping
 - **For Player & SDK Developers** — Build the native components from source, and find your way around the player
-    - [Build Guide](./setup/build.md): How to build `libssruntime` / `libssconverter`
-    - [How the Player Is Put Together](./development/internals.md): The file map, using a changed package, checking in Unity, the reasons that span files
+    - [Build Guide](./development/build.md): How to build `libssruntime` / `libssconverter`, use a changed package in a project and check it in Unity
+    - [How the Player Is Put Together](./development/architecture.md): The layers, and why the player is built the way it is
 
 ## Key Features
 
