@@ -41,7 +41,7 @@ namespace SpriteStudio.Editor
             }
 
             EditorGUILayout.HelpBox(
-                "Materials are treated as shared per-texture .mat assets (Spine-Unity style). " +
+                "Materials are treated as shared per-texture .mat assets. " +
                 "Multiple .ssab files referencing the same texture share the same .mat.",
                 MessageType.None);
 
