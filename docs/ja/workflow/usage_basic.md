@@ -36,7 +36,7 @@
 選択すると GameObject が作成され、**Anime Asset には今ドロップしたアセットが自動的に割り当てられます**。**Animation Name** にはそのアセットの最初のアニメーションが入ります。別のアニメーションにするなら **Animation Name** のリストから選んでください。
 
 > [!TIP]
-> - **SpriteStudioGraphic (Canvas UI)** を選んだ際にシーンへ `Canvas` が無い場合は、**GameObject > UI > Canvas** と同じように `Canvas`（およびプロジェクトの入力方式に合った入力モジュール付きの `EventSystem`）が自動的に作成され、その下に設置されます。
+> - **SpriteStudioGraphic (Canvas UI)** を選んだ際にシーンへ `Canvas` が無い場合は、**GameObject > UI (Canvas) > Canvas** と同じように `Canvas`（およびプロジェクトの入力方式に合った入力モジュール付きの `EventSystem`）が自動的に作成され、その下に設置されます。
 > - Hierarchy 上で既存の GameObject の上にドロップすると、その子として設置されます。行と行の間にドロップした場合は、その並びに設置されます。
 > - Prefab Mode では、GameObject メニューと同じく編集中のプリファブの中に設置されます。
 > - 複数のアセットを同時にドロップした場合は、まとめて設置されます。
@@ -123,12 +123,13 @@ public class Sample : MonoBehaviour
 | **Offset** | `(0, 0)` | Transform を動かさずに描画位置だけをずらします（単位はワールド単位） |
 | **Shader Catalog** | （なし） | パーツ単位のカスタムシェーダを登録した自前のカタログ。組み込み AddOn より先に引かれます（[高度な設定](./tips.md) 参照） |
 | **Part Trackers** | （空） | 指定パーツに Transform を追従させる設定（[スクリプト制御とイベント](./usage_scripting.md) 参照） |
+| **Cellmap Texture Overrides** | （空） | セルマップ名ごとのテクスチャ差し替え。シーンに保存されます（[スクリプト制御とイベント](./usage_scripting.md) 参照） |
 
 > **Pixels Per Unit** はこのインスペクタ外で、スクリプトの `PixelsPerUnit` プロパティから設定します。パーツ単位の**カスタムシェーダ**は、**Shader Catalog** に割り当てたカタログに登録します。詳細は [高度な設定](./tips.md) を参照してください。
 
 ### `SpriteStudioGraphic`（Canvas UI）のみ
 
-uGUI の `Graphic` 由来の **Color** / **Material** / **Raycast Target** / **Raycast Padding** / **Maskable** が表示されます。**Color** は `Image` と同じくアニメーション全体をパーツカラーの上から色付けし、Button の **Color Tint** トランジションや `CrossFadeColor` / `CrossFadeAlpha` も同じように効きます。**Material** が空のときはアトラスのマテリアルで描画し、設定したマテリアルはそのシェーダが `SpriteStudio/Canvas` をもとに作られていれば代わりに使われます（グラフィックが出す頂点レイアウトを読めるのはそのシェーダだけです）。グラフィック自身に **Mask** を付けると、子をアニメーションの形でクリップできます。クリック判定の範囲は `RectTransform` の矩形で決まり、アニメーションの見た目の大きさとは連動しません。判定範囲を広げたい場合は `RectTransform` のサイズか **Raycast Padding** で調整してください。
+uGUI の `Graphic` 由来の **Color** / **Material** / **Raycast Target** / **Raycast Padding** / **Maskable** が表示されます。**Color** は `Image` と同じくアニメーション全体をパーツカラーの上から色付けし、Button の **Color Tint** トランジションや `CrossFadeColor` / `CrossFadeAlpha` も同じように効きます。**Material** が空のときはアトラスのマテリアルで描画し、設定したマテリアルはそのシェーダが `SpriteStudio/Canvas` をもとに作られていれば代わりに使われます（グラフィックが出す頂点レイアウトを読めるのはそのシェーダだけです）。グラフィック自身に **Mask** を付けると、子をアニメーションの形でクリップできます。クリック判定の範囲は `RectTransform` の矩形で決まり、アニメーションの見た目の大きさとは連動しません。判定範囲を広げたい場合は `RectTransform` のサイズか **Raycast Padding** で調整してください。その後に `SpriteStudioPlayer` と同じ **Cellmap Texture Overrides** が続きます。
 
 > [!TIP]
 > 
@@ -139,7 +140,7 @@ uGUI の `Graphic` 由来の **Color** / **Material** / **Raycast Target** / **R
 
 ## 編集モードでのプレビュー
 
-両コンポーネントは編集モードでも動作します。シーンに設置すれば、Play モードに入らなくても**開始フレームの静止プレビュー**が Scene / Game ビューにそのまま表示されます。有効・無効を切り替える設定項目はなく、常に有効です。
+両コンポーネントは編集モードでも動作します。シーンに設置すれば、Play モードに入らなくても**開始フレームの静止プレビュー**が Scene / Game ビューにそのまま表示されます。これは常に有効です。
 
 ただし編集モードで表示されるのは静止画で、再生は進みません。アニメーションの動きを確認するには **Play モード**に入ってください。
 

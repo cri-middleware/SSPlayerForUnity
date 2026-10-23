@@ -41,9 +41,6 @@ When you modify an animation on the SpriteStudio side, there are several ways to
 
 If you want to convert from the command line without launching the Unity editor (e.g., integration into CI/CD or build pipelines, or batch conversion of large numbers of assets), you can use the standalone command-line converter bundled with the SpriteStudio-SDK. It is the same engine, `libssconverter`, that the editor's built-in importer uses behind the scenes.
 
-> [!NOTE]
-> The CLI binary is **bundled with the SpriteStudio-SDK release artifacts**. It is not included in this Unity package, so if you want to use the CLI, obtain it separately from the SDK.
-
 1. Get the CLI converter for your platform (Windows / macOS / Linux) from [SpriteStudio-SDK Releases](https://github.com/cri-middleware/SpriteStudio-SDK/releases).
 2. Open a terminal (or command prompt) and run it, passing the path to the `.sspj` file as an argument.
 

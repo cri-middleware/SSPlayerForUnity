@@ -11,7 +11,7 @@ namespace SpriteStudio.Editor
 {
     /// <summary>
     /// Handles drag and drop of a .ssab asset into the Scene view or the Hierarchy view.
-    /// Like Spine-Unity, it lets you choose whether to create a SpriteStudioPlayer or a SpriteStudioGraphic for a Canvas.
+    /// It lets you choose whether to create a SpriteStudioPlayer or a SpriteStudioGraphic for a Canvas.
     /// It takes part in the Editor's drop-handler chain (DragAndDrop.AddDropHandlerV2), so a drag that carries no
     /// SpriteStudio asset goes on to the next handler, the Hierarchy says which row a drop lands on, and what is
     /// created goes into the stage being edited -- a prefab's contents in Prefab Mode -- as the GameObject menu

@@ -14,7 +14,7 @@ namespace SpriteStudio.Editor
     /// Centralizes the parse / path resolution / de-duplication that was duplicated between the
     /// importer and SpriteStudioAssetPostprocessor.
     ///
-    /// Material policy is unchanged: use a per-texture "shared .mat" (Spine-Unity style).
+    /// Material policy is unchanged: use a per-texture "shared .mat".
     /// The importer references an adjacent shared .mat if one exists, otherwise falls back to a
     /// provisional embedded material. Auto-generating the shared .mat itself is handled by
     /// SpriteStudioAssetPostprocessor.

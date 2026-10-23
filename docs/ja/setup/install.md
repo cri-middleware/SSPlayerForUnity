@@ -2,7 +2,7 @@
 
 [← ドキュメント目次へ戻る](../index.md)
 
-本ページでは、SpriteStudio Player for Unity をプロジェクトへ導入する方法を説明します。ご自身の目的に合わせて、3つの導入方法から選んでください。
+本ページでは、SpriteStudio Player for Unity をプロジェクトへ導入する方法を説明します。リリースのパッケージを npm または tarball から導入します。
 
 ## 対応環境
 
@@ -11,7 +11,7 @@
 | Unity バージョン | **Unity 6.3 LTS (6000.3)** 以降 |
 | レンダーパイプライン | Universal (URP) / Built-in (BRP) |
 | 依存パッケージ | Burst / Mathematics / Collections / Timeline / uGUI（Package Manager が自動解決） |
-| 対応プラットフォーム | Windows / macOS / Linux / Android / iOS / WebGL（ネイティブライブラリは [ビルドガイド](./build.md) 参照） |
+| 対応プラットフォーム | Windows / macOS / Linux / Android / iOS / WebGL |
 
 依存パッケージはすべて Unity 標準パッケージのため、本パッケージを追加すると Package Manager が自動的に解決します。
 
@@ -59,7 +59,7 @@
    - [`jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz)
    - 特定バージョンを選びたい場合は、[GitHub Releases](https://github.com/cri-middleware/SSPlayerForUnity/releases) ページから `.tgz` アセットをダウンロードしてください。
 2. Unity メニューから **Window > Package Manager** を開きます。
-3. 左上の **＋** ボタンから **Add package from tarball...** を選び、ダウンロードしたファイルを選択します。
+3. 左上の **＋** ボタンから **Install package from tarball...** を選び、ダウンロードしたファイルを選択します。
 
 > **ダウンロードの検証（任意）:** 各リリースには `SHA256SUMS` も添付されています。本パッケージはネイティブバイナリを含むため、必要に応じてダウンロードした tarball が改変されていないか確認できます。
 >
@@ -70,35 +70,11 @@
 >
 > バージョン付き tarball と安定エイリアスの両方が記載されているため、ダウンロードした側が `OK`、もう一方は `No such file or directory` と表示されます。
 
-> **注意:** Package Manager の *Add package from URL...*（git URL）ではこのパッケージを導入できません。ネイティブプラグインのバイナリはリリースのパッケージにのみ同梱されるため、npm から、または *Add package from tarball...* で追加してください。
+> **注意:** Package Manager の *Install package from git URL...*ではこのパッケージを導入できません。ネイティブプラグインのバイナリはリリースのパッケージにのみ同梱されるため、npm から、または *Install package from tarball...* で追加してください。
 
 ---
 
-## 2. ローカルソースからのインストール（カスタマイズ用）
-
-Unity 側の C# スクリプトを改造したり、パッケージの中身を直接触りたい場合の方法です。Rust 環境の構築は不要です。
-
-1. リポジトリを clone またはダウンロードします。
-   ```sh
-   git clone https://github.com/cri-middleware/SSPlayerForUnity.git
-   ```
-2. ネイティブライブラリ（`libssruntime`）をダウンロード・配置するために、`scripts/` フォルダ内にあるセットアップスクリプトを実行します。
-   - **Windows**: `scripts\download-sdk.ps1`
-   - **Mac/Linux**: `./scripts/download-sdk.sh`
-3. 準備が整った `package/` フォルダを、ご自身の Unity プロジェクトの `Packages/` 配下にコピーするか、Package Manager の **Add package from disk...** から `package.json` を指定して追加します。
-
----
-
-## 3. ソースコードからのフルビルド（プラグイン開発者向け）
-
-Rust コア (`libssruntime`) 自体の開発やデバッグを行う場合の手順です。セットアップスクリプトは使用せず、ローカルの Cargo 環境を使用してソースコードからネイティブライブラリを直接ビルドします。
-
-1. サブモジュールを含めてリポジトリを clone します。
-   ```sh
-   git clone --recursive https://github.com/cri-middleware/SSPlayerForUnity.git
-   ```
-2. `scripts/build-runtime.sh`（Windows の場合は `scripts\build-runtime.ps1` など）を実行して、Cargo で Rust コアをビルドし、プラグインフォルダへ配置します。
-3. 詳細は **[ビルドガイド](./build.md)** を参照してください。
+パッケージそのもの（C# スクリプトやその下のネイティブコア）を改造する場合は、[ビルドガイド](./build.md) を参照してください。
 
 ---
 

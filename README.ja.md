@@ -11,7 +11,7 @@
 - **キャラクターが“生きる”。** 呼吸・まばたき、なびく髪や衣装、斬撃・魔法のエフェクトまで——動きは専用エディタ（SpriteStudio）でボーン・メッシュ変形・パーティクルを使ってビジュアルに作り込みます。アーティストは自分のツールで作業し、Unity はその結果を再生するだけです。
 - **キャラクターだけでなく、エフェクトや UI、シーン全体も。** パーティクルエフェクトはキャラクターと同じタイムライン上で作れるので、別のエフェクトシステムを用意する必要はありません。キャラクター・背景・エフェクト・UI を組み合わせたカットシーンや画面全体の演出も、Unity では 1 つのアニメーションとして再生できます。
 - **シーンにも UI にも。** `SpriteStudioPlayer` はワールド空間に、`SpriteStudioGraphic` は uGUI の Canvas に描画し、Canvas では **Mask** / **RectMask2D** に従います。どちらも C# から操作でき、`SpriteStudioPlayer` は Timeline にも載せられます。
-- **SpriteStudio と Unity をシームレスに往復。** `.sspj` を Unity にドロップすれば、すぐ使えるアセットになります。直したくなったらインスペクタの **Open SSPJ** で SpriteStudio を開いて保存し、**Reconvert** を押すだけ。書き出しの手作業は要りません。アニメーションはシーンの外のアセットに入るので、チーム開発でシーンの Git コンフリクトが起きにくくなります。
+- **SpriteStudio と Unity をシームレスに往復。** `.sspj` を **SS Importer** ウィンドウにドロップすれば、すぐ使えるアセットになります。直したくなったらインスペクタの **Open SSPJ** で SpriteStudio を開いて保存し、**Reconvert** を押すだけ。書き出しの手作業は要りません。アニメーションはシーンの外のアセットに入るので、チーム開発でシーンの Git コンフリクトが起きにくくなります。
 - **パース不要の読み込みと SIMD・Burst で、軽く滑らかに。** `.ssab` は FlatBuffers のバイナリをそのまま読むので、読み込み時のパースがありません。毎フレーム、SIMD で最適化した Rust コアと Burst ジョブがゼロコピーでメッシュを組み立て、GC アロケーションも発生しません。モバイルや大量のキャラクターでも滑らかに動きます。**サブフレーム補間**をオンにすれば、高リフレッシュレートのディスプレイにも追従します。
 
 ## 📚 ドキュメント
@@ -36,7 +36,7 @@
 
 本プレイヤーは Unity 6.3 LTS 以降に対応しており、URP と BRP のいずれでも動作します。対応するのは **SpriteStudio 7.5 以上**で作成されたプロジェクトです。
 
-1. **インストール**: **Project Settings > Package Manager** で `https://registry.npmjs.org` を `jp.co.cri-mw` の scoped registry として追加し、Package Manager の **Install package by name...** で `jp.co.cri-mw.spritestudio.ssplayer-unity` をインストールします（手順は[インストールガイド](./docs/ja/setup/install.md)）。または GitHub Releases からパッケージの tarball（恒久リンク・常に最新リリース）— [`jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz) — をダウンロードし、**Add package from tarball...** で指定します。*(「Add package from URL...」/ git URL では導入できません。ネイティブバイナリはリリースのパッケージにのみ同梱されるためです。)*
+1. **インストール**: **Project Settings > Package Manager** で `https://registry.npmjs.org` を `jp.co.cri-mw` の scoped registry として追加し、Package Manager の **Install package by name...** で `jp.co.cri-mw.spritestudio.ssplayer-unity` をインストールします（手順は[インストールガイド](./docs/ja/setup/install.md)）。または GitHub Releases からパッケージの tarball（恒久リンク・常に最新リリース）— [`jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz) — をダウンロードし、**Install package from tarball...** で指定します。*(「Install package from git URL...」/ git URL では導入できません。ネイティブバイナリはリリースのパッケージにのみ同梱されるためです。)*
 2. **インポート**: Unity メニューから **Window > SpriteStudio > Importer** を開き、エクスプローラーや Finder から `.sspj` をウィンドウへドラッグ＆ドロップします（ドラッグ中は中ほどの枠が光ります）。ウィンドウの **Output Folder**（既定は `Assets/ssab_generated/<sspj の名前>/`）に変換されます。
 
    ```
@@ -55,7 +55,7 @@
                └── …
    ```
 
-3. **配置**: `SpriteStudioAnimeAsset`（上の `Ringo.ssab`）を Project ウィンドウから Hierarchy（または Scene ビュー）へドラッグ＆ドロップし、`SpriteStudioPlayer`（ワールド空間）または `SpriteStudioGraphic`（uGUI Canvas）を選びます。**Animation Name** にはパックの最初のアニメーションが入っています。別のものにするならリストから選び、再生します。
+3. **配置**: `SpriteStudioAnimeAsset`（上の `Ringo.ssab`）を Project ウィンドウから Hierarchy（または Scene ビュー）へドラッグ＆ドロップし、**SpriteStudioPlayer**（ワールド空間）または **SpriteStudioGraphic (Canvas UI)** を選びます。**Animation Name** にはパックの最初のアニメーションが入っています。別のものにするならリストから選び、再生します。
 
 SpriteStudio のデータが手元に無くても始められます。[公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)がそのまま使えます。キャラクターなら [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo)、エフェクトを含むものなら [パーティクル](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) が手頃です。
 
