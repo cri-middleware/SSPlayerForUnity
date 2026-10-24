@@ -431,6 +431,38 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
+        public void SetAnimationSection_EndingBeforeItsStart_IsRefusedOnce_AndChangesNothing()
+        {
+            var player = MakePlayingPlayer();
+            Assume.That(player.TotalFrames, Is.GreaterThan(4), "walk is too short for a 1..3 section");
+            Assert.IsTrue(player.SetAnimationSection(1, 3));
+            float playhead = player.FrameNo;
+
+            int lines = 0;
+            Application.LogCallback count = (message, _, type) =>
+            {
+                if (type == LogType.Warning && message.Contains("(3, 1)")) lines++;
+            };
+            Application.logMessageReceived += count;
+            try
+            {
+                // Both ends inside the animation, the end before the start. A state machine re-stating it
+                // every frame must not fill the Console, so the second call is refused without a line.
+                Assert.IsFalse(player.SetAnimationSection(3, 1));
+                Assert.IsFalse(player.SetAnimationSection(3, 1));
+            }
+            finally
+            {
+                Application.logMessageReceived -= count;
+            }
+
+            Assert.AreEqual(1, lines, "The refusal is reported once, naming the start and the end");
+            Assert.AreEqual(1, player.InternalPlayer.GetAnimationSectionStart(), "The section start stays");
+            Assert.AreEqual(3, player.InternalPlayer.GetAnimationSectionEnd(), "The section end stays");
+            Assert.AreEqual(playhead, player.FrameNo, 0.0001f, "The playhead stays");
+        }
+
+        [Test]
         public void FrameRate_Set_DoesNotThrow()
         {
             var player = MakePlayingPlayer();
@@ -961,6 +993,33 @@ namespace SpriteStudio.Runtime.Tests
                 player.SetAnimationSection(1, end);
                 Assert.AreEqual(1, player.GetAnimationSectionStart(), "The section start should be reflected");
                 Assert.AreEqual(end, player.GetAnimationSectionEnd(), "The section end should be reflected");
+            }
+        }
+
+        [Test]
+        public void Internal_SetAnimationSection_StartingOnTheLastFrame_HoldsIt()
+        {
+            Assert.IsNotNull(_ringo, "Ringo.ssab is required.");
+            using (var player = new SpriteStudioInternalPlayer())
+            {
+                player.LoadSsab(_ringo);
+                Assert.IsTrue(player.SetupAnimation("walk"));
+                int last = player.GetAnimationSectionEnd();
+                Assume.That(last, Is.GreaterThan(0), "walk needs more than one frame");
+
+                // This used to fall back to the whole animation.
+                Assert.IsTrue(player.SetAnimationSection(last, last));
+                Assert.AreEqual(last, player.GetAnimationSectionStart(), "The section starts on the last frame");
+                Assert.AreEqual(last, player.GetAnimationSectionEnd());
+                Assert.IsTrue(player.SetAnimationSection(last, -1), "An end of -1 is the last frame, so this is that frame too");
+                Assert.AreEqual(last, player.GetAnimationSectionStart());
+                Assert.AreEqual(last, player.GetAnimationSectionEnd());
+
+                player.SetLoop(-1);
+                player.Play();
+                player.SetSkipFrames(false);
+                for (int i = 0; i < 5; i++) player.Tick(1f / 60f, false);
+                Assert.AreEqual(last, Mathf.FloorToInt(player.GetFrame()), "Playback holds the one frame");
             }
         }
     }

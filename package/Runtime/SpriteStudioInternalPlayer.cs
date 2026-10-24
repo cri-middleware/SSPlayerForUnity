@@ -851,7 +851,8 @@ internal struct MaskPartData
         public void SetFrameRate(int fps) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_frame_rate(_handle.ptr, fps); } }
         public int GetFrameRate() { unsafe { return _handle.IsValid ? Math.Max(0, NativeMethods.ss_runtime_get_track_frame_rate(_handle.ptr, 0)) : 0; } }
 
-        public void SetAnimationSection(int start, int end) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_animation_section(_handle.ptr, start, end); } }
+        /// <summary>False, with nothing changed, when both ends are inside the animation and the end is before the start.</summary>
+        public bool SetAnimationSection(int start, int end) { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_set_animation_section(_handle.ptr, start, end); } }
         public int GetAnimationSectionStart() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_start_frame(_handle.ptr) : 0; } }
         public int GetAnimationSectionEnd() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_end_frame(_handle.ptr) : 0; } }
 
