@@ -61,7 +61,7 @@ namespace SpriteStudio.Runtime.Tests
                 // Drive the conversion queue until InstancePropagation.ssab appears (or time out).
                 float timeout = 30f;
                 var pollMethod = runnerType?.GetMethod("Poll", BindingFlags.NonPublic | BindingFlags.Static);
-                while (!File.Exists(absoluteParentPath) && timeout > 0f)
+                while ((!File.Exists(absoluteParentPath) || !ConversionRunnerProbe.IsIdle(runnerType)) && timeout > 0f)
                 {
                     pollMethod?.Invoke(null, null);
                     yield return null;

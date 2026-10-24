@@ -43,10 +43,10 @@ namespace SpriteStudio.Runtime.Tests
                     }
                 }
 
-                // Wait for conversion to finish (until the file is generated, or timeout)
+                // Wait for conversion to finish (until the file is generated and the runner is idle, or timeout)
                 float timeout = 10f;
                 var pollMethod = runnerType?.GetMethod("Poll", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-                while (!File.Exists(absoluteSsabPath) && timeout > 0)
+                while ((!File.Exists(absoluteSsabPath) || !ConversionRunnerProbe.IsIdle(runnerType)) && timeout > 0)
                 {
                     pollMethod?.Invoke(null, null);
                     yield return null;

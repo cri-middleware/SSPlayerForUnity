@@ -65,7 +65,7 @@ namespace SpriteStudio.Runtime.Tests
 
             var poll = runnerType?.GetMethod("Poll", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
             float timeout = 60f; // overall.sspj has many packs, so conversion takes time
-            while (!File.Exists(tmpSound) && timeout > 0f)
+            while ((!File.Exists(tmpSound) || !ConversionRunnerProbe.IsIdle(runnerType)) && timeout > 0f)
             {
                 poll?.Invoke(null, null);
                 yield return null;
