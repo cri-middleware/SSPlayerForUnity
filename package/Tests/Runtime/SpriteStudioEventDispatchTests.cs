@@ -72,7 +72,7 @@ namespace SpriteStudio.Runtime.Tests
 
             var poll = runnerType?.GetMethod("Poll", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
             float timeout = 30f;
-            while (!AllConverted(outDir) && timeout > 0f)
+            while ((!AllConverted(outDir) || !ConversionRunnerProbe.IsIdle(runnerType)) && timeout > 0f)
             {
                 poll?.Invoke(null, null);
                 yield return null;

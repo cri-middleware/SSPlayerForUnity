@@ -65,7 +65,7 @@ namespace SpriteStudio.Runtime.Tests
                 // Drive the conversion queue until Mask.ssab appears (or time out).
                 float timeout = 30f;
                 var pollMethod = runnerType?.GetMethod("Poll", BindingFlags.NonPublic | BindingFlags.Static);
-                while (!File.Exists(absoluteSsabPath) && timeout > 0f)
+                while ((!File.Exists(absoluteSsabPath) || !ConversionRunnerProbe.IsIdle(runnerType)) && timeout > 0f)
                 {
                     pollMethod?.Invoke(null, null);
                     yield return null;
