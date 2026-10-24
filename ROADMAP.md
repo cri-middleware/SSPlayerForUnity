@@ -41,22 +41,26 @@ runtime and converter work lives in the
 
 ## UI integration
 
-Behaving like a UI element in the host's UI system, not merely drawing inside one. The vocabulary is shared
-with the sibling Players: `fit` / `align` for placement, a part rect read-out for hit areas, and a UI-state map.
+Behaving like a UI element in the host's UI system, not merely drawing inside one. The names and behaviour are
+shared with the sibling Players: `fit` / `align` for placement, and hit testing, UI states and reduced motion as the
+SDK porting guide's [UI integration page](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/libs/ssruntime/docs/50_features/80_ui_integration.md) defines them. The UI pieces live in an assembly of their own,
+so a project that only plays animations compiles none of them.
 
 - [ ] **Layout-aware `SpriteStudioGraphic`** — fit the animation into the `RectTransform` rect (`fit` =
   `contain` / `cover` / `none`, with `align`), and implement `ILayoutElement` so a `LayoutGroup` or
   `ContentSizeFitter` can size it from the animation's content box. The Canvas path draws at authored pixel
   size in the rect's local space and never reads `rectTransform`, so resizing the rect changes nothing today.
-- [ ] **Part rect read-out** — `TryGetPartRect(part, out Rect)` in player-local space, built from the `PartState`
-  fields the runtime already delivers every frame (`size_x` / `size_y`, `anchor`, `pivot`) and the part
-  transform.
-- [ ] **Per-part hit testing** — `HitTestPart(Vector2)` plus a `Graphic.Raycast` override that answers from part
-  rects rather than the whole `RectTransform`, so an irregularly shaped button stops eating clicks around its
-  artwork and a transparent margin lets the control behind it through.
-- [ ] **UI state binding** — a component that drives the player from `Selectable` state (normal / highlighted /
-  pressed / selected / disabled), each mapped to an animation or a label. Without it every project rewrites
-  the same `IPointerEnterHandler` glue.
+- [ ] **Part outline read-out** — `TryGetPartQuad(part, corners)`, the four corners in player-local space, built as
+  the SDK guide recommends: a cell part's drawn corners, a Mesh part's vertex box, a Shape's size around its pivot.
+- [ ] **Per-part hit testing** — `HitTestPart(Vector2, parts)` plus an `ICanvasRaycastFilter` on a sibling component
+  that answers from the outlines of the parts the scene names (the whole `RectTransform` when it names none), so an
+  irregularly shaped button stops eating clicks around its artwork and a transparent margin lets the control behind
+  it through.
+- [ ] **UI state binding** — a `Button` derivative that overrides `DoStateTransition` and maps `Selectable`'s states
+  (normal / highlighted / pressed / selected / disabled) onto `normal` / `hover` / `pressed` / `focused` /
+  `disabled`, each playing a label section. Without it every project rewrites the same `IPointerEnterHandler` glue.
+- [ ] **Reduced motion** — a `reducedMotion` flag the game sets on that component, holding each state's first frame
+  and playing a `reduced_motion` label in place of `normal`.
 - [ ] **`Nines` and `Text` parts** — the two part kinds authored for UI; `SpriteStudioGeometryBuilder` draws neither.
   Nines is a geometry path and nothing more, since the runtime hands over finished vertices, while Text arrives as a
   batch with no geometry plus the authored string, to map onto TextMeshPro with the string substitutable at runtime
