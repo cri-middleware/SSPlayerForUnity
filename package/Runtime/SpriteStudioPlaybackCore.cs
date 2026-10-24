@@ -83,13 +83,14 @@ namespace SpriteStudio.Runtime
         private void RelayAudio(SpriteStudioAudio audio) => OnAudio?.Invoke(audio);
 
         // The one place a pack reaches the Internal, so the one place the "already reported" memory has to
-        // be dropped: the names that are valid have just changed.
+        // be dropped: the names and frame ranges that are valid have just changed.
         private void LoadAsset(SpriteStudioAnimeAsset asset)
         {
             Internal.LoadSsab(asset.SsabData, asset.ResolveExternalSsab);
             _loadedAsset = asset;
             _loadedSsab = asset.SsabData;
             _reportedMissingAnimation = null;
+            _reportedRefusedSection = null;
         }
 
         public void ReloadAsset(SpriteStudioAnimeAsset asset)
@@ -169,6 +170,36 @@ namespace SpriteStudio.Runtime
                 return false;
             }
             _reportedMissingAnimation = null;
+            return true;
+        }
+
+        // The section already reported refused, keyed on the pair it was given, for the same reason as
+        // _reportedMissingAnimation: a refused section changes nothing, so one re-stated every frame would
+        // warn every frame. Cleared on a section that is taken, and by LoadAsset.
+        private (int start, int end)? _reportedRefusedSection;
+
+        /// <summary>
+        /// Limits playback to [<paramref name="startFrame"/>, <paramref name="endFrame"/>]. Returns false,
+        /// changing neither the section nor the playhead, when the runtime refuses it: both ends inside the
+        /// animation and the end before the start. <paramref name="context"/> is as for SetAnimation.
+        /// </summary>
+        public bool SetAnimationSection(int startFrame, int endFrame, Object context)
+        {
+            if (Internal == null) return false;
+
+            if (!Internal.SetAnimationSection(startFrame, endFrame))
+            {
+                if (_reportedRefusedSection != (startFrame, endFrame))
+                {
+                    _reportedRefusedSection = (startFrame, endFrame);
+                    string who = context != null ? context.GetType().Name : nameof(SpriteStudioPlaybackCore);
+                    Debug.LogWarning(
+                        $"[{who}] Animation section ({startFrame}, {endFrame}) was refused: its end is before its start. " +
+                        "The section and the playhead stay as they were.", context);
+                }
+                return false;
+            }
+            _reportedRefusedSection = null;
             return true;
         }
 

@@ -491,10 +491,13 @@ namespace SpriteStudio.Runtime
             => _core.Internal?.SetPlaybackStyle((int)direction, (int)style);
 
         /// <summary>
-        /// Limits the playback range by frame (frame-based version of SS6's playback-range spec; label
-        /// specification is not supported).
+        /// Limits the playback range by frame, both ends included (frame-based version of SS6's
+        /// playback-range spec; label specification is not supported). An end outside the animation
+        /// (<c>-1</c>, say) is the animation's edge on that side.
+        /// Returns false, changing neither the section nor the playhead, when both ends are inside the
+        /// animation and the end is before the start; the first refusal of a pair logs a warning.
         /// </summary>
-        public void SetAnimationSection(int startFrame, int endFrame) => _core.Internal?.SetAnimationSection(startFrame, endFrame);
+        public bool SetAnimationSection(int startFrame, int endFrame) => _core.SetAnimationSection(startFrame, endFrame, this);
 
         #endregion
 

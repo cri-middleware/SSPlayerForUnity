@@ -47,7 +47,7 @@ Your playback settings hold across the switch: `SpeedScale`, `FrameSkipEnabled`,
 | `FrameRate` | `int` | Playback frame rate (fps). Use `set` to change at runtime. `0` or less is not a value but a **clearing of the override**: the rate falls back to the one the clip was authored at. The getter always reports the effective rate, so writing `0` and reading it back returns the clip's own fps (e.g. `60`) |
 | `PlaybackDirection` | `enum` | The configured heading (`Forward` / `Backward`) |
 | `PlaybackStyle` | `enum` | What the playhead does at the far end (`Normal` / `PingPong`) |
-| `SetAnimationSection(int start, int end)` | Method | Limit the playback range by frame (frame-based; label specification is not supported) |
+| `SetAnimationSection(int start, int end)` | Method | Limit the playback range by frame, both ends included (frame-based; label specification is not supported). An end outside the animation (`-1`, say) is the animation's edge on that side. Returns `false`, changing neither the section nor the playhead, when both ends are inside the animation and the end is before the start; the first refusal of a pair logs a warning |
 
 The players advance and build their meshes early in **LateUpdate** (`DefaultExecutionOrder(-100)`), after every `Update`, the Timeline and the Animator have run. A call made from your `Update` — `SetAnimation`, `Play`, a seek through `FrameNo` — is therefore drawn in the same frame, as a change to an Animator is; one made from your own `LateUpdate` is drawn in the next.
 
