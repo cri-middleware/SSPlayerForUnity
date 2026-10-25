@@ -59,6 +59,8 @@ so a project that only plays animations compiles none of them.
 - [ ] **UI state binding** — a `Button` derivative that overrides `DoStateTransition` and maps `Selectable`'s states
   (normal / highlighted / pressed / selected / disabled) onto `normal` / `hover` / `pressed` / `focused` /
   `disabled`, each playing a label section. Without it every project rewrites the same `IPointerEnterHandler` glue.
+  A `Toggle` derivative adds the guide's selected state: `isOn` plays the `selected_` labels. `Selectable`'s own
+  *selected* is navigation focus and stays `focused`.
 - [ ] **Reduced motion** — a `reducedMotion` flag the game sets on that component, holding each state's first frame
   and playing a `reduced_motion` label in place of `normal`.
 - [ ] **`Nines` and `Text` parts** — the two part kinds authored for UI; `SpriteStudioGeometryBuilder` draws neither.
