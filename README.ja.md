@@ -34,7 +34,7 @@
 **ゲームで使う場合**はこのまま下へ。パッケージを入れる → `.sspj` を SS Importer に D&D → コンポーネントを置く。その先（スクリプト制御、イベント、パーツ単位の上書き、Timeline）も同じ道の続きで、[ドキュメント](./docs/ja/index.md)にあります。
 **Player 自体や、その下の Rust ランタイムを変更する場合**は [CONTRIBUTING.md](./CONTRIBUTING.md) と[ビルドガイド](./docs/ja/development/build.md)へ。変更したパッケージをプロジェクトで使う方法と Unity での確かめ方もビルドガイドに、層とファイルをまたぐ設計の理由は[プレイヤーの構成](./docs/ja/development/architecture.md)にあります。
 
-本プレイヤーは Unity 6.3 LTS 以降に対応しており、URP と BRP のいずれでも動作します。対応するのは **SpriteStudio 7.5 以上**で作成されたプロジェクトです。
+本プレイヤーは Unity 6.3 LTS 以降に対応しており、URP と BRP のいずれでも動作します。対応するのは **SpriteStudio 7.6 以上**で作成されたプロジェクトです。
 
 1. **インストール**: **Project Settings > Package Manager** で `https://registry.npmjs.org` を `jp.co.cri-mw` の scoped registry として追加し、Package Manager の **Install package by name...** で `jp.co.cri-mw.spritestudio.ssplayer-unity` をインストールします（手順は[インストールガイド](./docs/ja/setup/install.md)）。または GitHub Releases からパッケージの tarball（恒久リンク・常に最新リリース）— [`jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz) — をダウンロードし、**Install package from tarball...** で指定します。*(「Install package from git URL...」/ git URL では導入できません。ネイティブバイナリはリリースのパッケージにのみ同梱されるためです。)*
 2. **インポート**: Unity メニューから **Window > SpriteStudio > Importer** を開き、エクスプローラーや Finder から `.sspj` をウィンドウへドラッグ＆ドロップします（ドラッグ中は中ほどの枠が光ります）。ウィンドウの **Output Folder**（既定は `Assets/ssab_generated/<sspj の名前>/`）に変換されます。
