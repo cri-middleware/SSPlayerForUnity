@@ -91,6 +91,7 @@ namespace SpriteStudio.Runtime
             _loadedSsab = asset.SsabData;
             _reportedMissingAnimation = null;
             _reportedRefusedSection = null;
+            _reportedLabelSection = null;
         }
 
         public void ReloadAsset(SpriteStudioAnimeAsset asset)
@@ -155,8 +156,6 @@ namespace SpriteStudio.Runtime
                 if (_reportedMissingAnimation != animationName)
                 {
                     _reportedMissingAnimation = animationName;
-                    string pack = _loadedAsset != null ? _loadedAsset.name : "the loaded pack";
-                    string who = context != null ? context.GetType().Name : nameof(SpriteStudioPlaybackCore);
                     // The runtime's own reason, verbatim. This used to say "has no animation", which is the
                     // common case and not the only one: the same call fails with "SSAB data is not loaded"
                     // on a player still waiting for its asset to finish importing, and telling that reader
@@ -164,7 +163,7 @@ namespace SpriteStudio.Runtime
                     string reason = Internal.LastErrorMessage;
                     string because = reason == null ? "" : $" -- {reason}";
                     Debug.LogWarning(
-                        $"[{who}] '{pack}' could not select animation '{animationName}'{because}. " +
+                        $"[{Who(context)}] '{PackName}' could not select animation '{animationName}'{because}. " +
                         "Check AnimationNames for what it does have.", context);
                 }
                 return false;
@@ -192,9 +191,8 @@ namespace SpriteStudio.Runtime
                 if (_reportedRefusedSection != (startFrame, endFrame))
                 {
                     _reportedRefusedSection = (startFrame, endFrame);
-                    string who = context != null ? context.GetType().Name : nameof(SpriteStudioPlaybackCore);
                     Debug.LogWarning(
-                        $"[{who}] Animation section ({startFrame}, {endFrame}) was refused: its end is before its start. " +
+                        $"[{Who(context)}] Animation section ({startFrame}, {endFrame}) was refused: its end is before its start. " +
                         "The section and the playhead stay as they were.", context);
                 }
                 return false;
@@ -202,6 +200,65 @@ namespace SpriteStudio.Runtime
             _reportedRefusedSection = null;
             return true;
         }
+
+        // The by-label section already reported, keyed on the animation and everything the caller passed, for
+        // the same reason as _reportedRefusedSection. Cleared on a section that is taken, and by LoadAsset.
+        private string _reportedLabelSection;
+
+        /// <summary>
+        /// <see cref="SetAnimationSection"/> with the ends named by labels of the animation set up: from
+        /// <paramref name="startLabel"/>'s frame plus <paramref name="startOffset"/> to
+        /// <paramref name="endLabel"/>'s frame plus <paramref name="endOffset"/>. Returns false, changing
+        /// neither the section nor the playhead, when the animation has no such label or the frames are a
+        /// section the runtime refuses; before an animation is set up it returns false and says nothing.
+        /// <paramref name="context"/> is as for SetAnimation.
+        /// </summary>
+        public bool SetAnimationSectionByLabel(string startLabel, string endLabel, int startOffset, int endOffset, Object context)
+        {
+            var table = Internal?.GetLabelTable();
+            if (table == null) return false;
+
+            string animation = Internal.CurrentAnimationName;
+            string key = $"{animation}\0{startLabel}\0{endLabel}\0{startOffset}\0{endOffset}";
+            bool hasStart = table.TryGetFrame(startLabel, out int start);
+            bool hasEnd = table.TryGetFrame(endLabel, out int end);
+            if (!hasStart || !hasEnd)
+            {
+                if (_reportedLabelSection != key)
+                {
+                    _reportedLabelSection = key;
+                    // Only the labels that are missing: the one that was found is not the mistake.
+                    string missing = !hasStart && !hasEnd && startLabel != endLabel
+                        ? $"'{startLabel}' or '{endLabel}'"
+                        : $"'{(hasStart ? endLabel : startLabel)}'";
+                    Debug.LogWarning(
+                        $"[{Who(context)}] Animation '{animation}' of '{PackName}' has no label {missing}. " +
+                        "The section and the playhead stay as they were.", context);
+                }
+                return false;
+            }
+
+            int from = start + startOffset;
+            int to = end + endOffset;
+            if (!Internal.SetAnimationSection(from, to))
+            {
+                if (_reportedLabelSection != key)
+                {
+                    _reportedLabelSection = key;
+                    Debug.LogWarning(
+                        $"[{Who(context)}] Animation section from label '{startLabel}' to '{endLabel}' lands on frames " +
+                        $"({from}, {to}) and was refused: its end is before its start. " +
+                        "The section and the playhead stay as they were.", context);
+                }
+                return false;
+            }
+            _reportedLabelSection = null;
+            return true;
+        }
+
+        private static string Who(Object context) => context != null ? context.GetType().Name : nameof(SpriteStudioPlaybackCore);
+
+        private string PackName => _loadedAsset != null ? _loadedAsset.name : "the loaded pack";
 
         /// <summary>Starts playing the currently set-up animation from the beginning.</summary>
         public void Play()

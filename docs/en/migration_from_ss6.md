@@ -62,7 +62,7 @@ _player.Play();
 | `KindStylePlay.PINGPONG` | `PlaybackStyle` (enum) | Ping-pong playback |
 | Negative `rateTime` for reverse | `PlaybackDirection` (enum) | **Speed and direction are separated** (see below) |
 | `AnimationPlay(…, framePerSecond)` | `FrameRate` | Playback fps |
-| `labelRangeStart / labelRangeEnd` | `SetAnimationSection(int start, int end)` | **Frames only**; label ranges are not supported |
+| `labelRangeStart / labelRangeEnd` | `SetAnimationSectionByLabel(string startLabel, string endLabel, int startOffset, int endOffset)` | `frameRangeOffsetStart` / `frameRangeOffsetEnd` are the offsets. `SetAnimationSection(int start, int end)` takes frames |
 | `StatusIsPlaying` / `StatusGetPlay(track)` | `IsPlaying` | `true` even while paused |
 | `StatusGetPause(track)` | `IsPausing` | |
 | (none) | `IsPlayingForward` | The actual heading; `false` on a `PlaybackStyle.PingPong` return leg. Use it to gate audio |

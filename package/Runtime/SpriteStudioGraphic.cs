@@ -367,13 +367,34 @@ namespace SpriteStudio.Runtime
             => _core.Internal?.SetPlaybackStyle((int)direction, (int)style);
 
         /// <summary>
-        /// Limits the playback range by frame, both ends included (frame-based version of SS6's
-        /// playback-range spec; label specification is not supported). An end outside the animation
+        /// Limits the playback range by frame, both ends included. An end outside the animation
         /// (<c>-1</c>, say) is the animation's edge on that side.
         /// Returns false, changing neither the section nor the playhead, when both ends are inside the
         /// animation and the end is before the start; the first refusal of a pair logs a warning.
         /// </summary>
         public bool SetAnimationSection(int startFrame, int endFrame) => _core.SetAnimationSection(startFrame, endFrame, this);
+
+        /// <summary>
+        /// <see cref="SetAnimationSection"/> with the ends named by labels of the animation set up: from
+        /// <paramref name="startLabel"/>'s frame plus <paramref name="startOffset"/> to
+        /// <paramref name="endLabel"/>'s frame plus <paramref name="endOffset"/>, as an Instance part's start
+        /// and end labels are. <c>_start</c> and <c>_end</c> name the animation's own first and last frame, as
+        /// they do in SpriteStudio. It does not play, and like any section <see cref="SetAnimation"/> to
+        /// another animation drops it.
+        /// Returns false, changing neither the section nor the playhead, when the animation has no such label
+        /// or the frames it lands on are a section <see cref="SetAnimationSection"/> refuses; the first failure
+        /// logs a warning. Before an animation is set up it returns false and says nothing.
+        /// </summary>
+        public bool SetAnimationSectionByLabel(string startLabel, string endLabel, int startOffset = 0, int endOffset = 0)
+            => _core.SetAnimationSectionByLabel(startLabel, endLabel, startOffset, endOffset, this);
+
+        /// <summary>
+        /// The labels of <paramref name="animationName"/> — the animation set up when omitted — in frame
+        /// order, with the frame range it was authored with. Null when the loaded asset has no such animation,
+        /// or, with the name omitted, before one is set up. Read out of the asset on every call, so hold the
+        /// table rather than calling this every frame.
+        /// </summary>
+        public SpriteStudioLabelTable GetLabelTable(string animationName = null) => _core.Internal?.GetLabelTable(animationName);
 
         #endregion
 
