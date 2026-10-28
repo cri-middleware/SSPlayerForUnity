@@ -856,6 +856,22 @@ internal struct MaskPartData
         public int GetAnimationSectionStart() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_start_frame(_handle.ptr) : 0; } }
         public int GetAnimationSectionEnd() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_end_frame(_handle.ptr) : 0; } }
 
+        /// <summary>
+        /// The labels of <paramref name="animationName"/> in the loaded ssab — the animation set up when it is
+        /// null or empty — in frame order. Null when the pack has no such animation, or, with the name omitted,
+        /// before one is set up. Read out of the pack on every call.
+        /// </summary>
+        public SpriteStudioLabelTable GetLabelTable(string animationName = null)
+        {
+            // CurrentAnimationName, not _currentAnimation alone: a reload clears the name and leaves the
+            // previous pack's animation behind until the next setup.
+            if (string.IsNullOrEmpty(animationName))
+                return CurrentAnimationName != null && _currentAnimation.HasValue
+                    ? SpriteStudioLabelTable.Of(_currentAnimation.Value)
+                    : null;
+            return TryFindAnimation(animationName, out var animation) ? SpriteStudioLabelTable.Of(animation) : null;
+        }
+
         /// <summary>Number of animations in the loaded ssab (0 if none loaded).</summary>
         public int GetAnimationCount() => _ssab.HasValue ? _ssab.Value.AnimationsLength : 0;
 

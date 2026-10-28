@@ -47,7 +47,9 @@ _player.Play();
 | `FrameRate` | `int` | 再生フレームレート (fps)。`set` で実行時変更。`0` 以下は値ではなく**上書きの解除**として扱われ、クリップに設定されたフレームレートへ戻ります。読み出しは常に実効値なので、`0` を書いて読み返すとクリップ本来の fps（例: `60`）が返ります |
 | `PlaybackDirection` | `enum` | 設定した進行方向（`Forward` / `Backward`） |
 | `PlaybackStyle` | `enum` | 終端での挙動（`Normal` / `PingPong`） |
-| `SetAnimationSection(int start, int end)` | メソッド | 再生範囲をフレームで限定（両端を含むフレーム指定。ラベル指定は未対応）。範囲外の値（`-1` など）を渡した側はアニメーションの端になる。両端がアニメーションの範囲内で終わりが始まりより前のときは `false` を返し、区間も再生ヘッドも変えない。そのときの警告は同じ組み合わせにつき最初の 1 回だけ |
+| `SetAnimationSection(int start, int end)` | メソッド | 再生範囲をフレームで限定（両端を含む）。範囲外の値（`-1` など）を渡した側はアニメーションの端になる。両端がアニメーションの範囲内で終わりが始まりより前のときは `false` を返し、区間も再生ヘッドも変えない。そのときの警告は同じ組み合わせにつき最初の 1 回だけ |
+| `SetAnimationSectionByLabel(string startLabel, string endLabel, int startOffset = 0, int endOffset = 0)` | メソッド | 再生範囲を今のアニメーションのラベルで指定する `SetAnimationSection`。`startLabel` のフレームに `startOffset` を足した位置から、`endLabel` のフレームに `endOffset` を足した位置までで、インスタンスパーツの開始・終了ラベルと同じ規則。`_start` と `_end` はアニメーション自身の最初と最後のフレーム。アニメーションにそのラベルが無いとき、または求めたフレームが `SetAnimationSection` の受け付けない区間になったときは `false` を返し、区間も再生ヘッドも変えない。そのときの警告は最初の 1 回だけ |
+| `GetLabelTable(string animationName = null)` | メソッド | アニメーション（省略時は今のアニメーション）のラベルをフレーム順に並べたものと、アニメーション自身の最初と最後のフレーム（`StartFrame` / `EndFrame`）。アセットにそのアニメーションが無いとき、名前を省略してまだ何もセットアップしていないときは `null`。呼ぶたびにアセットから読み出す |
 
 プレイヤーの進行とメッシュの構築は、すべての `Update`・Timeline・Animator が終わった後、**LateUpdate** の早い段階（`DefaultExecutionOrder(-100)`）で行われます。そのため自前の `Update` から呼んだ `SetAnimation`・`Play`・`FrameNo` によるシークは、Animator への変更と同じく同じフレームで描画されます。自前の `LateUpdate` から呼んだものは次のフレームで描画されます。
 
@@ -70,6 +72,8 @@ _player.SetAnimation("attack");
 _player.Play();
 _player.SetAnimationSection(10, 30); // 10〜30 フレームの区間だけ再生
 _player.FrameNo = 10f;          // 区間先頭へシーク
+
+_player.SetAnimationSectionByLabel("loop_start", "loop_end"); // 区間の両端をアニメーションのラベルで指定
 ```
 
 ### 例: 逆再生・ピンポン

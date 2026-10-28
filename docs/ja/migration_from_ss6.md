@@ -62,7 +62,7 @@ _player.Play();
 | `KindStylePlay.PINGPONG` | `PlaybackStyle`（enum） | 往復再生 |
 | `rateTime` を負値にして逆再生 | `PlaybackDirection`（enum） | **速度と方向を分離**（下記参照） |
 | `AnimationPlay(…, framePerSecond)` | `FrameRate` | 再生 fps |
-| `labelRangeStart / labelRangeEnd` | `SetAnimationSection(int start, int end)` | **フレーム指定のみ**。ラベル指定は未対応 |
+| `labelRangeStart / labelRangeEnd` | `SetAnimationSectionByLabel(string startLabel, string endLabel, int startOffset, int endOffset)` | `frameRangeOffsetStart` / `frameRangeOffsetEnd` はオフセットの引数。フレームで指定するのは `SetAnimationSection(int start, int end)` |
 | `StatusIsPlaying` / `StatusGetPlay(track)` | `IsPlaying` | 一時停止中も `true` |
 | `StatusGetPause(track)` | `IsPausing` | |
 | （なし） | `IsPlayingForward` | 実際の進行方向。`PlaybackStyle.PingPong` の戻りの脚では `false`。音声のゲートに使います |

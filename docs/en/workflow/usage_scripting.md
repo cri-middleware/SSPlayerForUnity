@@ -47,7 +47,9 @@ Your playback settings hold across the switch: `SpeedScale`, `FrameSkipEnabled`,
 | `FrameRate` | `int` | Playback frame rate (fps). Use `set` to change at runtime. `0` or less is not a value but a **clearing of the override**: the rate falls back to the one the clip was authored at. The getter always reports the effective rate, so writing `0` and reading it back returns the clip's own fps (e.g. `60`) |
 | `PlaybackDirection` | `enum` | The configured heading (`Forward` / `Backward`) |
 | `PlaybackStyle` | `enum` | What the playhead does at the far end (`Normal` / `PingPong`) |
-| `SetAnimationSection(int start, int end)` | Method | Limit the playback range by frame, both ends included (frame-based; label specification is not supported). An end outside the animation (`-1`, say) is the animation's edge on that side. Returns `false`, changing neither the section nor the playhead, when both ends are inside the animation and the end is before the start; the first refusal of a pair logs a warning |
+| `SetAnimationSection(int start, int end)` | Method | Limit the playback range by frame, both ends included. An end outside the animation (`-1`, say) is the animation's edge on that side. Returns `false`, changing neither the section nor the playhead, when both ends are inside the animation and the end is before the start; the first refusal of a pair logs a warning |
+| `SetAnimationSectionByLabel(string startLabel, string endLabel, int startOffset = 0, int endOffset = 0)` | Method | `SetAnimationSection` with the ends named by labels of the current animation: from `startLabel`'s frame plus `startOffset` to `endLabel`'s frame plus `endOffset`, as an Instance part's start and end labels are. `_start` and `_end` name the animation's own first and last frame. Returns `false`, changing neither the section nor the playhead, when the animation has no such label or the frames it lands on are a section `SetAnimationSection` refuses; the first failure logs a warning |
+| `GetLabelTable(string animationName = null)` | Method | The labels of an animation (the current one when omitted) in frame order, with its own first and last frame (`StartFrame` / `EndFrame`). `null` when the asset has no such animation, or, with the name omitted, before one is set up. Read out of the asset on every call |
 
 The players advance and build their meshes early in **LateUpdate** (`DefaultExecutionOrder(-100)`), after every `Update`, the Timeline and the Animator have run. A call made from your `Update` — `SetAnimation`, `Play`, a seek through `FrameNo` — is therefore drawn in the same frame, as a change to an Animator is; one made from your own `LateUpdate` is drawn in the next.
 
@@ -70,6 +72,8 @@ _player.SetAnimation("attack");
 _player.Play();
 _player.SetAnimationSection(10, 30); // Play only the section from frame 10 to 30
 _player.FrameNo = 10f;          // Seek to the start of the section
+
+_player.SetAnimationSectionByLabel("loop_start", "loop_end"); // Or name the ends by the animation's labels
 ```
 
 ### Example: Reverse and Ping-Pong
