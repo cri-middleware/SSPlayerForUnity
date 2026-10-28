@@ -133,6 +133,8 @@ namespace SpriteStudio.Editor
                     graphic.AnimeAsset = asset;
                     string uiAnimation = GetDefaultAnimationName(asset);
                     if (uiAnimation != null) graphic.CurrentAnimation = uiAnimation;
+                    // The rect starts at the canvas's size, so the animation is drawn at the size it was made.
+                    graphic.SetNativeSize();
                 }
                 else
                 {

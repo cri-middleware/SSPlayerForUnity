@@ -883,6 +883,33 @@ internal struct MaskPartData
             return anim.HasValue ? anim.Value.Name : null;
         }
 
+        /// <summary>
+        /// The authored canvas of <paramref name="animationName"/> — the animation set up when it is null or
+        /// empty — as a box in pixels around the animation's origin, Y up. False when there is no such
+        /// animation. The animation set up is read without decoding a name, so a caller may ask every frame.
+        /// </summary>
+        internal bool TryGetCanvasRect(string animationName, out Rect box)
+        {
+            box = default;
+            ss.format.AnimationData animation;
+            if (string.IsNullOrEmpty(animationName))
+            {
+                // A reload clears the name and leaves the previous pack's animation behind until the next setup.
+                if (CurrentAnimationName == null || !_currentAnimation.HasValue) return false;
+                animation = _currentAnimation.Value;
+            }
+            else if (!TryFindAnimation(animationName, out animation))
+            {
+                return false;
+            }
+            var size = animation.CanvasSize;
+            var pivot = animation.Pivot;
+            if (!size.HasValue) return false;
+            box = SpriteStudioPlacement.CanvasRect(size.Value.V1, size.Value.V2,
+                                                   pivot.HasValue ? pivot.Value.V1 : 0f, pivot.HasValue ? pivot.Value.V2 : 0f);
+            return true;
+        }
+
         // --- Part tracking support ---
 
         /// <summary>Resolve a part name to its index, or -1 if the part is not present in this animation.</summary>

@@ -11,12 +11,14 @@ namespace SpriteStudio.Runtime
     /// Playback logic is delegated to the shared core (SpriteStudioPlaybackCore).
     /// In Play mode the SpriteStudioUpdateManager drives it in bulk; in edit mode (ExecuteAlways) it
     /// updates the preview in its own LateUpdate.
+    /// The animation's canvas is fitted into the RectTransform's rect (<see cref="Fit"/>, <see cref="Align"/>),
+    /// and as an <see cref="ILayoutElement"/> the graphic asks a layout for the canvas's size.
     /// </summary>
     [RequireComponent(typeof(RectTransform))]
     [RequireComponent(typeof(CanvasRenderer))]
     [ExecuteAlways]
     [AddComponentMenu("SpriteStudio/SpriteStudio Graphic")]
-    public class SpriteStudioGraphic : MaskableGraphic, ISpriteStudioRenderable
+    public class SpriteStudioGraphic : MaskableGraphic, ISpriteStudioRenderable, ILayoutElement
     {
         [Header("SpriteStudio Asset")]
         [Tooltip("The converted ssab asset to render")]
@@ -52,6 +54,7 @@ namespace SpriteStudio.Runtime
                 // The cellmap name->hash table belongs to the new asset: re-resolve name-keyed replacements.
                 _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
                 _canvasMaterialDirty = true;
+                SetLayoutDirty();
             }
         }
 
@@ -63,6 +66,32 @@ namespace SpriteStudio.Runtime
         [SerializeField] private float _audioVolume = 1f;
 
         private SpriteStudioAudioController _audioController;
+
+        [Header("Layout")]
+        [Tooltip("How the animation's canvas is scaled into the rect. Contain: whole inside it. Cover: filling it. None: at its authored size, its origin at the rect's centre.")]
+        [SerializeField] private SpriteStudioFit _fit = SpriteStudioFit.Contain;
+        [Tooltip("Which point of the canvas lands on the matching point of the rect.")]
+        [SerializeField] private SpriteStudioAlign _align = SpriteStudioAlign.Center;
+
+        /// <summary>
+        /// How the animation's authored canvas is scaled into the RectTransform's rect: <c>Contain</c> (the
+        /// default) puts all of it inside, <c>Cover</c> fills the rect and lets the canvas overflow, and
+        /// <c>None</c> draws it at its authored size, one SpriteStudio pixel to one unit of the rect, with the
+        /// animation's origin at the rect's centre. The canvas is the one of the animation playing, so a pack
+        /// whose animations have different canvases changes scale when the animation changes.
+        /// </summary>
+        public SpriteStudioFit Fit
+        {
+            get => _fit;
+            set => _fit = value;
+        }
+
+        /// <summary>Which point of the canvas lands on the matching point of the rect. Default <c>Center</c>.</summary>
+        public SpriteStudioAlign Align
+        {
+            get => _align;
+            set => _align = value;
+        }
 
         [Header("Playback Settings")]
         [Tooltip("Animation name to play (e.g. pack name / animation name)")]
@@ -173,7 +202,12 @@ namespace SpriteStudio.Runtime
             // configured `LoopCount = 1` back into looping forever -- silently, and only when the
             // animation was changed at runtime rather than from the inspector. Every sibling Player
             // re-applies it inside its own setAnimation for exactly this reason.
-            if (ok) ApplyPlaybackSettings();
+            if (ok)
+            {
+                ApplyPlaybackSettings();
+                // Another animation may bring another canvas, which is the size a layout asks for.
+                SetLayoutDirty();
+            }
             return ok;
         }
 
@@ -759,6 +793,7 @@ namespace SpriteStudio.Runtime
             var p = _core.Internal;
             _animationName = p.CurrentAnimationName;
             p.SetLoop(_loopCount);
+            SetLayoutDirty();
         }
 
         #endregion
@@ -980,6 +1015,7 @@ namespace SpriteStudio.Runtime
                 _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
                 _canvasMaterialDirty = true;
                 _editPreviewNeedsSetup = true;
+                SetLayoutDirty();
             }
             if (_core.Internal == null || !_core.Internal.HasSsab) return;
             if (_editPreviewNeedsSetup)
@@ -994,6 +1030,7 @@ namespace SpriteStudio.Runtime
                 _core.Internal.SetFrame(_core.Internal.GetAnimationSectionStart());
                 _editPreviewNeedsSetup = false;
             }
+            ApplyFit();
             _core.Internal.ScheduleMeshUpdate(0f); // Static: build the start frame without advancing
             ApplyAndRender();
         }
@@ -1047,6 +1084,8 @@ namespace SpriteStudio.Runtime
         internal void PrepareFrame(float deltaTime, out System.IntPtr handle, out float drawFrame)
         {
             if (_core.Internal == null) { handle = System.IntPtr.Zero; drawFrame = 0f; return; }
+            // Before the frame is prepared: a fit that changed drops the cache that would skip the build.
+            ApplyFit();
             _core.Internal.PrepareFrameData(deltaTime, true, out handle, out drawFrame);
             _core.EndUpdate();
         }
@@ -1258,6 +1297,78 @@ namespace SpriteStudio.Runtime
         {
             return _animeAsset != null ? _animeAsset.GetReplaceableTextureNames() : System.Array.Empty<string>();
         }
+
+        #endregion
+
+        #region Fit and layout
+
+        /// <summary>
+        /// Puts the canvas of the animation set up into the rect as the root transform the geometry is built
+        /// with: a uniform scale and the animation's origin in the rect's local space. Read every frame, so the
+        /// rect can be resized, laid out or animated, and the animation switched, with nothing to notify; it
+        /// reads the animation set up without decoding a name, so it allocates nothing.
+        /// </summary>
+        internal void ApplyFit()
+        {
+            var p = _core.Internal;
+            if (p == null) return;
+            bool hasBox = p.TryGetCanvasRect(null, out Rect box);
+            SpriteStudioPlacement.Resolve(hasBox ? box : (Rect?)null, rectTransform.rect, _fit, _align,
+                                          out Vector2 origin, out float scale);
+            p.VertexScale = scale;
+            p.VertexOffset = origin;
+        }
+
+        // The canvas of the animation drawn: the one set up, or before that the one Start or the edit preview
+        // will set up. A layout can ask before either has run.
+        private bool TryGetCanvasRect(out Rect box)
+        {
+            box = default;
+            var p = _core.Internal;
+            if (p == null) return false;
+            if (p.TryGetCanvasRect(null, out box)) return true;
+            string name = string.IsNullOrEmpty(_animationName) ? p.GetAnimationName(0) : _animationName;
+            return !string.IsNullOrEmpty(name) && p.TryGetCanvasRect(name, out box);
+        }
+
+        /// <summary>
+        /// Sizes the RectTransform to the animation's authored canvas, as <see cref="Image.SetNativeSize"/> sizes
+        /// one to its sprite. Under <see cref="SpriteStudioFit.Contain"/> the animation then draws at its
+        /// authored size.
+        /// </summary>
+        public override void SetNativeSize()
+        {
+            if (!TryGetCanvasRect(out Rect box)) return;
+            rectTransform.anchorMax = rectTransform.anchorMin;
+            rectTransform.sizeDelta = box.size;
+        }
+
+        /// <inheritdoc/>
+        public void CalculateLayoutInputHorizontal() { }
+
+        /// <inheritdoc/>
+        public void CalculateLayoutInputVertical() { }
+
+        /// <inheritdoc/>
+        public float minWidth => 0f;
+
+        /// <summary>The width of the animation's authored canvas, which a layout gives the graphic by preference.</summary>
+        public float preferredWidth => TryGetCanvasRect(out Rect box) ? box.width : 0f;
+
+        /// <inheritdoc/>
+        public float flexibleWidth => -1f;
+
+        /// <inheritdoc/>
+        public float minHeight => 0f;
+
+        /// <summary>The height of the animation's authored canvas, which a layout gives the graphic by preference.</summary>
+        public float preferredHeight => TryGetCanvasRect(out Rect box) ? box.height : 0f;
+
+        /// <inheritdoc/>
+        public float flexibleHeight => -1f;
+
+        /// <inheritdoc/>
+        public int layoutPriority => 0;
 
         #endregion
 

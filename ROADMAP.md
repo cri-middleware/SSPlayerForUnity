@@ -43,10 +43,6 @@ shared with the sibling Players: `fit` / `align` for placement, and hit testing,
 SDK porting guide's [UI integration page](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/libs/ssruntime/docs/50_features/80_ui_integration.md) defines them. The UI pieces live in an assembly of their own,
 so a project that only plays animations compiles none of them.
 
-- [ ] **Layout-aware `SpriteStudioGraphic`** — fit the animation into the `RectTransform` rect (`fit` =
-  `contain` / `cover` / `none`, with `align`), and implement `ILayoutElement` so a `LayoutGroup` or
-  `ContentSizeFitter` can size it from the animation's content box. The Canvas path draws at authored pixel
-  size in the rect's local space and never reads `rectTransform`, so resizing the rect changes nothing today.
 - [ ] **Per-part hit testing** — an `ICanvasRaycastFilter` on a sibling component that answers from the
   `HitTestPart` outlines of the parts the scene names (the whole `RectTransform` when it names none), so an
   irregularly shaped button stops eating clicks around its artwork and a transparent margin lets the control behind

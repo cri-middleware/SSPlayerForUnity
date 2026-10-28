@@ -11,7 +11,7 @@ The **Pixels Per Unit (PPU)** of `SpriteStudioPlayer` (world) is the factor that
 - Default value `1` … pixel-to-unit 1:1 (SS pixel coordinates map directly to world units).
 - `100`, etc. … set this when you want to match Unity's sprite convention (1 unit = 100 px).
 
-> Canvas (`SpriteStudioGraphic`) is drawn in the RectTransform coordinate system, so it has no PPU setting.
+> Canvas (`SpriteStudioGraphic`) has no PPU setting: the animation's canvas is fitted into the `RectTransform`'s rect (**Fit** / **Align**, see [Basic Usage](./usage_basic.md)).
 
 ## Frame Progression: Frame Skipping (Real-Time Tracking)
 

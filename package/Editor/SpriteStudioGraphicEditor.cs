@@ -19,6 +19,8 @@ namespace SpriteStudio.Editor
         private SerializedProperty _cellmapTextureOverridesProp;
         private SerializedProperty _playAudioProp;
         private SerializedProperty _audioVolumeProp;
+        private SerializedProperty _fitProp;
+        private SerializedProperty _alignProp;
 
         private SerializedProperty _onAnimationStartedEventProp;
         private SerializedProperty _onAnimationFinishedEventProp;
@@ -45,6 +47,9 @@ namespace SpriteStudio.Editor
             _cellmapTextureOverridesProp = serializedObject.FindProperty("_cellmapTextureOverrides");
             _playAudioProp = serializedObject.FindProperty("_playAudio");
             _audioVolumeProp = serializedObject.FindProperty("_audioVolume");
+            _fitProp = serializedObject.FindProperty("_fit");
+            _alignProp = serializedObject.FindProperty("_align");
+            SetShowNativeSize(true, true);
 
             _onAnimationStartedEventProp = serializedObject.FindProperty("OnAnimationStartedEvent");
             _onAnimationFinishedEventProp = serializedObject.FindProperty("OnAnimationFinishedEvent");
@@ -67,6 +72,11 @@ namespace SpriteStudio.Editor
             // Order: Frame Skipping (real-time tracking) → Sub-Frame Interpolation (inter-frame interpolation).
             EditorGUILayout.PropertyField(_skipFramesProp, _frameSkippingLabel);
             EditorGUILayout.PropertyField(_subFrameEnabledProp, _subFrameInterpolationLabel);
+
+            EditorGUILayout.Space();
+            EditorGUILayout.PropertyField(_fitProp);   // The [Header("Layout")] on the field renders the section label.
+            EditorGUILayout.PropertyField(_alignProp);
+            NativeSizeButtonGUI();
 
             EditorGUILayout.Space();
             AppearanceControlsGUI();

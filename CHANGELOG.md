@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Initial public release.** A Unity player for SpriteStudio animations (`.ssab`), driving the SpriteStudio-SDK Rust runtime (`libssruntime`) over csbindgen-generated FFI, with per-frame geometry built in Burst jobs.
-- **Rendering**: world rendering (`SpriteStudioPlayer`, `MeshRenderer`) and uGUI rendering (`SpriteStudioGraphic`, Canvas), including Mask / RectMask2D support on Canvas. Universal (URP) and Built-in (BRP) render pipelines, in Gamma and Linear color space.
+- **Rendering**: world rendering (`SpriteStudioPlayer`, `MeshRenderer`) and uGUI rendering (`SpriteStudioGraphic`, Canvas), including Mask / RectMask2D support on Canvas. The graphic fits the animation's canvas into its `RectTransform` (`Fit` / `Align`) and gives uGUI layout the canvas's size. Universal (URP) and Built-in (BRP) render pipelines, in Gamma and Linear color space.
 - **Feature coverage**: bone hierarchies, mesh & deform, particle effects, extended blending, and masks.
 - **AddOn and custom shaders** (`SpriteStudioPlayer`): all 13 SpriteStudio AddOns (sepia, hsb, outline, blur, …) draw per part with no setup, and a **Shader Catalog** asset maps a part's shader id to a shader of your own.
 - **Asset pipeline**: `.sspj` is converted to `.ssab` / `.ssqb` at import time by the bundled `libssconverter`, driven from a `ScriptedImporter`, and packaged as a `SpriteStudioAnimeAsset` (textures, materials, animation names, external references). Batch conversion with `ssconverter-cli` is supported for CI/CD.
