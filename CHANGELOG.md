@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Runtime texture replacement**: `SetCellmapTexture()` swaps the texture bound for a cellmap on one player at runtime, for outfits and color variations without an asset per variant.
 - **Flip & offset** (`SpriteStudioPlayer`): mirror or shift what the player draws without moving its `Transform`, so children and colliders stay put. Part tracking follows the mirrored pose.
 - **Part tracking**: any GameObject can follow a specified part, with position, rotation and scale each switchable.
+- **Part outlines and hit testing**: `TryGetPartQuad` reads the outline a part is drawn with, and `HitTestPart` the front-most part under a point, on both components.
 - **Sub-frame interpolation** for smooth playback on high-refresh-rate displays and in slow motion.
 - **Zero-allocation playback loop**: geometry is built in Burst jobs and uploaded via `SetVertexBufferData`, with no per-frame GC allocations. Players are evaluated in parallel on worker threads, and players of one `.ssab` share its parsed resource.
 - **Distribution**: install from npm or a tarball, with native libraries for Windows, macOS, Linux, Android, iOS and WebGL.

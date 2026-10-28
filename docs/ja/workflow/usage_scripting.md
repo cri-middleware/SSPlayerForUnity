@@ -351,6 +351,40 @@ player.UnregisterPartTracker(weapon.transform);
 - `AnimeAsset` を差し替えるとパーツ名は自動で再解決されるため、トラッカーを登録し直す必要はありません。
 - 編集モードでも、開始フレームの静止プレビューが構築されるタイミングでトラッカーが一度反映されます。ただし編集モードではターゲットを動かすだけで、アクティブ状態は変えません。
 
+## パーツの輪郭と当たり判定
+
+`TryGetPartQuad` はパーツを描いている輪郭を、`HitTestPart` は点の下にある一番手前のパーツを返します。どちらも `SpriteStudioPlayer` と `SpriteStudioGraphic` にあります。プレイヤーが最後に組み立てたフレームを読み、新しく組み立てはしないので、返るのは画面に出ているものです。座標はコンポーネントが描く空間で、`SpriteStudioPlayer` は GameObject のローカル空間（Pixels Per Unit・反転・オフセット込み）、`SpriteStudioGraphic` は `RectTransform` のローカル空間です。
+
+| メンバー | 説明 |
+|---|---|
+| `TryGetPartQuad(string partName, out SpriteStudioPartQuad quad)` | パーツの輪郭を 4 つの角 `TopLeft` / `TopRight` / `BottomLeft` / `BottomRight` で返します。角はセル自身の角で、ポーズが置いた場所にあります。セルのあるパーツは描いた四隅（スキューと頂点変形を含む）、メッシュパーツは頂点を囲む軸平行の矩形、シェイプはサイズをピボットの周りに取った矩形です。シェイプの頂点変形でサイズの外へ出た角は追いません。非表示のパーツ、自分では何も描かないパーツ（ヌル・ボーン・インスタンス・エフェクト）、最初のフレームを組み立てる前は `false`。アルファ 0 で描いているパーツには輪郭があります。名前の代わりにパーツのインデックスも渡せます |
+| `HitTestPart(Vector2 point)` | 輪郭が `point` を含むパーツのうち一番手前のもののインデックス。無ければ `-1` |
+| `HitTestPart(Vector2 point, IReadOnlyList<string> parts)` | 名前を挙げたパーツの中で同じことをします。アセットに無い名前は飛ばします。パーツのインデックスのリストも渡せます |
+| `SpriteStudioPartQuad.Contains(Vector2 point)` | `point` が輪郭の内側にあるか |
+
+### 例: クリックしたパーツを知る
+
+```csharp
+using UnityEngine;
+using UnityEngine.EventSystems;
+using SpriteStudio.Runtime;
+
+public class PartClick : MonoBehaviour, IPointerClickHandler
+{
+    [SerializeField] private SpriteStudioGraphic _graphic;
+
+    public void OnPointerClick(PointerEventData e)
+    {
+        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                _graphic.rectTransform, e.position, e.pressEventCamera, out Vector2 local)) return;
+        int part = _graphic.HitTestPart(local, new[] { "head", "body" });
+        if (part >= 0) Debug.Log($"clicked {_graphic.GetPartNames()[part]}");
+    }
+}
+```
+
+`SpriteStudioPlayer` では、先に `transform.InverseTransformPoint` でワールド座標をプレイヤーのローカル空間に変えてください。
+
 ## パーツオーバーライド（パーツカラー / セル / 表示指定）
 
 パーツ単位のランタイムオーバーライドは、「このパーツを**今**この色に / このセルに / 非表示に」とスクリプトから指示する機能です。オーバーライドはキーフレームやアニメーションのブレンドよりも優先されるので、アニメーションと取り合いになりません。`SpriteStudioPlayer` / `SpriteStudioGraphic` の両方で使えます。
