@@ -65,6 +65,7 @@
 1. **Canvas** 下に空の GameObject を作成します。
 2. **Add Component** から **SpriteStudio Graphic** を追加します（`RectTransform` / `CanvasRenderer` は自動で付与されます）。
 3. **Anime Asset** と **Animation Name** を上記と同様に設定します。
+4. **Set Native Size** を押して `RectTransform` をアニメーションのキャンバスの大きさにするか、自分で大きさを決めます。アニメーションはその矩形に収まります。
 
 ## 3. 再生する
 
@@ -129,7 +130,14 @@ public class Sample : MonoBehaviour
 
 ### `SpriteStudioGraphic`（Canvas UI）のみ
 
-uGUI の `Graphic` 由来の **Color** / **Material** / **Raycast Target** / **Raycast Padding** / **Maskable** が表示されます。**Color** は `Image` と同じくアニメーション全体をパーツカラーの上から色付けし、Button の **Color Tint** トランジションや `CrossFadeColor` / `CrossFadeAlpha` も同じように効きます。**Material** が空のときはアトラスのマテリアルで描画し、設定したマテリアルはそのシェーダが `SpriteStudio/Canvas` をもとに作られていれば代わりに使われます（グラフィックが出す頂点レイアウトを読めるのはそのシェーダだけです）。グラフィック自身に **Mask** を付けると、子をアニメーションの形でクリップできます。クリック判定の範囲は `RectTransform` の矩形で決まり、アニメーションの見た目の大きさとは連動しません。判定範囲を広げたい場合は `RectTransform` のサイズか **Raycast Padding** で調整してください。その後に `SpriteStudioPlayer` と同じ **Cellmap Texture Overrides** が続きます。
+| 項目 | 既定値 | 説明 |
+|---|---|---|
+| **Fit** | `Contain` | アニメーションのキャンバス（SpriteStudio で設定した大きさと原点）を `RectTransform` の矩形へどう拡大縮小するか。`Contain` は全体を矩形の中に収め、`Cover` は矩形を埋めてキャンバスをはみ出させ、`None` は作った大きさのまま（SpriteStudio の 1 ピクセルが矩形の 1 単位）、アニメーションの原点を矩形の中心に置いて描きます |
+| **Align** | `Center` | キャンバスのどの点を矩形の対応する点に合わせるか（`TopLeft`、`Bottom` など） |
+
+その下の **Set Native Size** は、`Image` をスプライトの大きさにするのと同じく、矩形をキャンバスの大きさにします。Canvas にアセットをドロップしたときは自動で行われます。レイアウトグループの中や、**Preferred Size** にした **Content Size Fitter** と組み合わせると、グラフィックはキャンバスの大きさを求めます。キャンバスは再生中のアニメーションのものなので、アニメーションごとにキャンバスが違うパックでは、アニメーションが変わると拡大率も変わります。
+
+uGUI の `Graphic` 由来の **Color** / **Material** / **Raycast Target** / **Raycast Padding** / **Maskable** が表示されます。**Color** は `Image` と同じくアニメーション全体をパーツカラーの上から色付けし、Button の **Color Tint** トランジションや `CrossFadeColor` / `CrossFadeAlpha` も同じように効きます。**Material** が空のときはアトラスのマテリアルで描画し、設定したマテリアルはそのシェーダが `SpriteStudio/Canvas` をもとに作られていれば代わりに使われます（グラフィックが出す頂点レイアウトを読めるのはそのシェーダだけです）。グラフィック自身に **Mask** を付けると、子をアニメーションの形でクリップできます。クリック判定の範囲は、透明な余白も含めた `RectTransform` の矩形全体です。アニメーションの大きさを変えずに判定範囲を広げたい場合は **Raycast Padding** で調整してください。絵の上だけに絞るには **SpriteStudio Raycast Filter** を付けます（[ボタンと UI 状態](./ui_buttons.md) を参照）。その後に `SpriteStudioPlayer` と同じ **Cellmap Texture Overrides** が続きます。
 
 > [!TIP]
 > 

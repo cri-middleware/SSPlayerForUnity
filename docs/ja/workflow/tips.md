@@ -11,7 +11,7 @@
 - 既定値 `1` … ピクセル等倍（SS のピクセル座標がそのままワールド単位）。
 - `100` など … Unity のスプライト慣習（1 ユニット = 100 px）に合わせたい場合に設定。
 
-> Canvas (`SpriteStudioGraphic`) は RectTransform 座標系で描画されるため、PPU 設定はありません。
+> Canvas (`SpriteStudioGraphic`) に PPU 設定はありません。アニメーションのキャンバスを `RectTransform` の矩形に収めて描きます（**Fit** / **Align**。[基本的な使い方](./usage_basic.md) を参照）。
 
 ## フレーム進行: Frame Skipping（実時間追従）
 

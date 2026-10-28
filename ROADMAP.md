@@ -38,32 +38,14 @@ runtime and converter work lives in the
 
 ## UI integration
 
-Behaving like a UI element in the host's UI system, not merely drawing inside one. The names and behaviour are
-shared with the sibling Players: `fit` / `align` for placement, and hit testing, UI states and reduced motion as the
-SDK porting guide's [UI integration page](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/libs/ssruntime/docs/50_features/80_ui_integration.md) defines them. The UI pieces live in an assembly of their own,
-so a project that only plays animations compiles none of them.
+Behaving like a UI element in the host's UI system, not merely drawing inside one.
 
-- [ ] **Layout-aware `SpriteStudioGraphic`** — fit the animation into the `RectTransform` rect (`fit` =
-  `contain` / `cover` / `none`, with `align`), and implement `ILayoutElement` so a `LayoutGroup` or
-  `ContentSizeFitter` can size it from the animation's content box. The Canvas path draws at authored pixel
-  size in the rect's local space and never reads `rectTransform`, so resizing the rect changes nothing today.
-- [ ] **Per-part hit testing** — an `ICanvasRaycastFilter` on a sibling component that answers from the
-  `HitTestPart` outlines of the parts the scene names (the whole `RectTransform` when it names none), so an
-  irregularly shaped button stops eating clicks around its artwork and a transparent margin lets the control behind
-  it through.
-- [ ] **UI state binding** — a `Button` derivative that overrides `DoStateTransition` and maps `Selectable`'s states
-  (normal / highlighted / pressed / selected / disabled) onto `normal` / `hover` / `pressed` / `focused` /
-  `disabled`, each playing a label section. Without it every project rewrites the same `IPointerEnterHandler` glue.
-  A `Toggle` derivative adds the guide's selected state: `isOn` plays the `selected_` labels. `Selectable`'s own
-  *selected* is navigation focus and stays `focused`.
-- [ ] **Reduced motion** — a `reducedMotion` flag the game sets on that component, holding each state's first frame
-  and playing a `reduced_motion` label in place of `normal`.
 - [ ] **`Nines` and `Text` parts** — the two part kinds authored for UI; `SpriteStudioGeometryBuilder` draws neither.
   Nines is a geometry path and nothing more, since the runtime hands over finished vertices, while Text arrives as a
   batch with no geometry plus the authored string, to map onto TextMeshPro with the string substitutable at runtime
   so a UI label can be localized.
-- [ ] **`SpriteStudioVisualElement` for UI Toolkit** — uGUI and UI Toolkit are separate systems, and everything
-  above reaches only the former.
+- [ ] **`SpriteStudioVisualElement` for UI Toolkit** — uGUI and UI Toolkit are separate systems, and the graphic and
+  the `SpriteStudio.UI` button, toggle and raycast filter reach only the former.
 - [ ] **Multi-atlas on the Canvas path** — one `CanvasRenderer` is one mesh and one material, so the graphic draws
   the first atlas only and warns. A UI screen is exactly where several atlases meet.
 

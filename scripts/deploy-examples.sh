@@ -3,9 +3,9 @@ set -e
 
 # Builds the sample assets the example projects need. Nothing it writes is committed.
 #
-# Two projects carry Ringo: examples/SampleProject, and examples/Override_Ringo, whose demo drives
-# the part overrides against that same asset. Both get the identical conversion, so a Ringo change
-# cannot land in one and go stale in the other.
+# Three projects carry Ringo: examples/SampleProject, examples/Override_Ringo, whose demo drives
+# the part overrides against that same asset, and examples/UI_Ringo, whose buttons are Ringo. All
+# get the identical conversion, so a Ringo change cannot land in one and go stale in another.
 #
 # Run it after cloning, and again whenever SpriteStudio-SDK/tests/Ringo changes - and run it
 # BEFORE opening either project in Unity. It writes only the payloads; the .mat and every .meta
@@ -45,6 +45,7 @@ SSPJ=${SDK_DIR}/tests/Ringo/Ringo.sspj
 OUT_DIRS=(
     ${ROOTDIR}/examples/SampleProject/Assets/ssab_generated/Ringo
     ${ROOTDIR}/examples/Override_Ringo/Assets/ssab_generated/Ringo
+    ${ROOTDIR}/examples/UI_Ringo/Assets/ssab_generated/Ringo
 )
 
 if [ ! -f "${SSPJ}" ]; then
@@ -62,4 +63,4 @@ for OUT_DIR in ${OUT_DIRS[@]}; do
 done
 popd > /dev/null
 
-echo "Done. Open either example project in Unity; it imports what was just written on first open."
+echo "Done. Open any example project in Unity; it imports what was just written on first open."

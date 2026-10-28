@@ -1612,7 +1612,7 @@ package/Tests/Runtime/Resources.meta
 # ignored, which is what the rule at the top of this file is about.
 !examples/SampleProject/ProjectSettings/SpriteStudioSourceMap.json
 
-# No converter output is committed. scripts/deploy-examples.sh regenerates what the two sample
+# No converter output is committed. scripts/deploy-examples.sh regenerates what the sample
 # projects need - the .ssab, the .ssqb and the .png copied out of the cellmap - from
 # SpriteStudio-SDK/tests/Ringo, which the submodule already carries; committing it too would put
 # the same binaries in the repository twice and take a binary diff every time the SDK's test
@@ -1645,11 +1645,20 @@ examples/Override_Ringo/Assets/ssab_generated/**
 !examples/Override_Ringo/Assets/ssab_generated/Ringo/*.meta
 !examples/Override_Ringo/Assets/ssab_generated/Ringo/Ringo.mat
 
+# examples/UI_Ringo is the third, a copy of Override_Ringo's URP template with a Canvas scene in it.
+!examples/UI_Ringo/Assets/**/*.meta
+examples/UI_Ringo/Assets/ssab_generated/**
+!examples/UI_Ringo/Assets/ssab_generated/**/
+!examples/UI_Ringo/Assets/ssab_generated/Ringo.meta
+!examples/UI_Ringo/Assets/ssab_generated/Ringo/*.meta
+!examples/UI_Ringo/Assets/ssab_generated/Ringo/Ringo.mat
+
 # The "_" prefix at the top of this file means local-only, and the .meta re-includes above would
-# otherwise outrank it inside these two Assets trees - a scratch folder there would leave its
-# .meta showing as untracked.
+# otherwise outrank it inside these Assets trees - a scratch folder there would leave its .meta
+# showing as untracked.
 examples/SampleProject/Assets/**/_*
 examples/Override_Ringo/Assets/**/_*
+examples/UI_Ringo/Assets/**/_*
 
 # examples/UnityTestProject is the scratch project, so whatever it converts is that developer's,
 # not the repository's - nothing under its Assets/ is committed but .gitkeep and the one Editor

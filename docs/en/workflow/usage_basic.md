@@ -65,6 +65,7 @@ This method uses an empty GameObject to which you add the component yourself.
 1. Create an empty GameObject under a **Canvas**.
 2. From **Add Component**, add **SpriteStudio Graphic** (`RectTransform` / `CanvasRenderer` are added automatically).
 3. Set **Anime Asset** and **Animation Name** the same way as above.
+4. Press **Set Native Size** to size the `RectTransform` to the animation's canvas, or size it yourself: the animation is fitted into it.
 
 ## 3. Play back
 
@@ -129,7 +130,14 @@ The draw order is the Mesh Renderer's own **Sorting Layer** / **Order in Layer**
 
 ### `SpriteStudioGraphic` (Canvas UI) only
 
-The **Color** / **Material** / **Raycast Target** / **Raycast Padding** / **Maskable** items inherited from uGUI's `Graphic` are shown. **Color** tints the whole animation, as it tints an `Image`, on top of the part colours; a Button's **Color Tint** transition and `CrossFadeColor` / `CrossFadeAlpha` reach it the same way. **Material** left empty draws with the atlas material; a material assigned there is used instead when its shader is built from `SpriteStudio/Canvas`, the only kind that reads the vertex layout the graphic emits. A **Mask** added to the graphic itself clips its children to the animation's shape. The clickable area is the `RectTransform`'s rectangle, which is not tied to how large the animation looks. To widen it, adjust the `RectTransform`'s size or use **Raycast Padding**. After these comes **Cellmap Texture Overrides**, as on `SpriteStudioPlayer`.
+| Item | Default | Description |
+|---|---|---|
+| **Fit** | `Contain` | How the animation's canvas (the size and pivot set in SpriteStudio) is scaled into the `RectTransform`'s rect. `Contain` puts all of it inside, `Cover` fills the rect and lets the canvas overflow, and `None` draws it at its authored size, one SpriteStudio pixel to one unit of the rect, with the animation's origin at the rect's centre |
+| **Align** | `Center` | Which point of the canvas lands on the matching point of the rect (`TopLeft`, `Bottom`, …) |
+
+**Set Native Size**, below them, sizes the rect to the canvas, as it sizes an `Image` to its sprite; dropping an asset onto a Canvas does it for you. In a layout group, or with a **Content Size Fitter** set to **Preferred Size**, the graphic asks for the canvas's size. The canvas is the one of the animation playing, so in a pack whose animations have different canvases the scale changes with the animation.
+
+The **Color** / **Material** / **Raycast Target** / **Raycast Padding** / **Maskable** items inherited from uGUI's `Graphic` are shown. **Color** tints the whole animation, as it tints an `Image`, on top of the part colours; a Button's **Color Tint** transition and `CrossFadeColor` / `CrossFadeAlpha` reach it the same way. **Material** left empty draws with the atlas material; a material assigned there is used instead when its shader is built from `SpriteStudio/Canvas`, the only kind that reads the vertex layout the graphic emits. A **Mask** added to the graphic itself clips its children to the animation's shape. The clickable area is the `RectTransform`'s whole rectangle, transparent margins included. To widen it without resizing the animation, use **Raycast Padding**; to narrow it to the artwork, add **SpriteStudio Raycast Filter** (see [Buttons & UI States](./ui_buttons.md)). After these comes **Cellmap Texture Overrides**, as on `SpriteStudioPlayer`.
 
 > [!TIP]
 > 

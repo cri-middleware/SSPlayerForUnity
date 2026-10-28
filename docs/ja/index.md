@@ -16,6 +16,7 @@
     - [生成アセットの構成と AssetBundle](./workflow/generated_assets.md): ファイルごとの役割・依存関係とバンドル分割
     - [スクリプト制御とイベント](./workflow/usage_scripting.md): C# / Timeline からの制御とイベント受信
     - [モーションブレンド](./workflow/motion_blending.md): トラックへのアニメーションの重ね合わせとクロスフェード
+    - [ボタンと UI 状態](./workflow/ui_buttons.md): 状態を見せる uGUI のボタンとトグル、絵の上だけでポインタを受ける
     - [パフォーマンスチューニングと高度な設定](./workflow/tips.md): 大量描画・最適化のための設定
     - [SS6Player からのマイグレーション](./migration_from_ss6.md): 旧 SS6Player for Unity からの移行ガイド
 - **カスタマイズ・自動化ガイド** — CLI や CI/CD に組み込む
