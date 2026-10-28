@@ -976,6 +976,60 @@ internal struct MaskPartData
         }
 
         /// <summary>
+        /// The outline the part is drawn with on the last built frame, in the space
+        /// <see cref="TryGetPartTransform"/> reports, root transform included. False when nothing has been
+        /// built yet, the index is out of range, the part is hidden, or it draws nothing of its own (null,
+        /// bone, instance and effect parts). It builds nothing.
+        /// </summary>
+        public bool TryGetPartQuad(int partIndex, out SpriteStudioPartQuad quad)
+        {
+            quad = default;
+            return _geometryBuilder != null && _geometryBuilder.TryGetPartQuad(partIndex, out quad);
+        }
+
+        /// <summary>
+        /// The index of the front-most part whose <see cref="TryGetPartQuad"/> outline holds
+        /// <paramref name="point"/>, on the last built frame, or -1 when none does. The point is in the space
+        /// <see cref="TryGetPartTransform"/> reports.
+        /// </summary>
+        public int HitTestPart(Vector2 point) => _geometryBuilder?.HitTestPart(point, null, 0) ?? -1;
+
+        /// <inheritdoc cref="HitTestPart(Vector2)"/>
+        /// <remarks>Only <paramref name="parts"/> are tested; an index out of range is never hit.</remarks>
+        public int HitTestPart(Vector2 point, IReadOnlyList<int> parts)
+        {
+            if (_geometryBuilder == null || parts == null) return -1;
+            int n = ResizeHitTargets(parts.Count);
+            for (int i = 0; i < n; i++) _hitTargets[i] = parts[i];
+            return _geometryBuilder.HitTestPart(point, _hitTargets, n);
+        }
+
+        /// <inheritdoc cref="HitTestPart(Vector2)"/>
+        /// <remarks>Only the parts named are tested; a name the asset does not have is skipped.</remarks>
+        public int HitTestPart(Vector2 point, IReadOnlyList<string> parts)
+        {
+            if (_geometryBuilder == null || parts == null) return -1;
+            ResizeHitTargets(parts.Count);
+            int n = 0;
+            for (int i = 0; i < parts.Count; i++)
+            {
+                int index = FindPartIndex(parts[i]);
+                if (index >= 0) _hitTargets[n++] = index;
+            }
+            return _geometryBuilder.HitTestPart(point, _hitTargets, n);
+        }
+
+        // The part indices a hit test is limited to. Grow-only, so a raycast filter asking on every pointer
+        // event allocates nothing.
+        private int[] _hitTargets;
+
+        private int ResizeHitTargets(int count)
+        {
+            if (_hitTargets == null || _hitTargets.Length < count) _hitTargets = new int[Math.Max(count, 8)];
+            return count;
+        }
+
+        /// <summary>
         /// Per-part hide / localScale for the current frame (for part tracking). False if unavailable;
         /// outputs default to visible / unit scale.
         /// </summary>

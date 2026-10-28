@@ -1440,6 +1440,47 @@ namespace SpriteStudio.Runtime
             return idx >= 0 && _core.Internal.TryGetPartTransform(idx, out matrix);
         }
 
+        /// <summary>
+        /// The outline <paramref name="partName"/> is drawn with on the last frame built, in the player's local
+        /// space as <see cref="TryGetPartTransform"/> reports it (Pixels Per Unit, flip and offset folded in).
+        /// A part with a cell is its four drawn corners, skew and vertex deform included; a Mesh part is the
+        /// axis-aligned box around its vertices; a Shape is its size around its pivot. False when the part is
+        /// unknown or hidden, draws nothing of its own (null, bone, instance and effect parts), or no frame has
+        /// been built; a part drawn at alpha 0 still has an outline. It builds nothing.
+        /// </summary>
+        public bool TryGetPartQuad(string partName, out SpriteStudioPartQuad quad)
+        {
+            quad = default;
+            if (_core.Internal == null) return false;
+            int idx = _core.Internal.FindPartIndex(partName);
+            return idx >= 0 && _core.Internal.TryGetPartQuad(idx, out quad);
+        }
+
+        /// <inheritdoc cref="TryGetPartQuad(string, out SpriteStudioPartQuad)"/>
+        public bool TryGetPartQuad(int partIndex, out SpriteStudioPartQuad quad)
+        {
+            quad = default;
+            return _core.Internal != null && _core.Internal.TryGetPartQuad(partIndex, out quad);
+        }
+
+        /// <summary>
+        /// The index of the front-most part whose <see cref="TryGetPartQuad(string, out SpriteStudioPartQuad)"/>
+        /// outline holds <paramref name="point"/> on the last frame built, or -1 when none does — what
+        /// <see cref="FindPartIndex"/> answers for a part that is not there. The point is in the player's local
+        /// space. Parts drawn in front win.
+        /// </summary>
+        public int HitTestPart(Vector2 point) => _core.Internal?.HitTestPart(point) ?? -1;
+
+        /// <inheritdoc cref="HitTestPart(Vector2)"/>
+        /// <remarks>Only the parts named are tested; a name the asset does not have is skipped.</remarks>
+        public int HitTestPart(Vector2 point, System.Collections.Generic.IReadOnlyList<string> parts)
+            => _core.Internal?.HitTestPart(point, parts) ?? -1;
+
+        /// <inheritdoc cref="HitTestPart(Vector2)"/>
+        /// <remarks>Only the parts at these indices are tested.</remarks>
+        public int HitTestPart(Vector2 point, System.Collections.Generic.IReadOnlyList<int> parts)
+            => _core.Internal?.HitTestPart(point, parts) ?? -1;
+
         /// <summary>Force part trackers to re-resolve their part index (call after the asset/part set changes).</summary>
         private void MarkPartTrackersDirty()
         {

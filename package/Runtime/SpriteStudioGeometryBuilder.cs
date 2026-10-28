@@ -193,6 +193,120 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         }
 
         /// <summary>
+        /// The outline a part is drawn with on the last consumed frame, in player-local space, root transform
+        /// included. False when no frame has been consumed, the index is out of range, the part is hidden, or
+        /// it draws nothing of its own. Reads that frame and builds nothing.
+        /// </summary>
+        internal bool TryGetPartQuad(int partIndex, out SpriteStudioPartQuad quad)
+        {
+            quad = default;
+            if (!_hasFrameData || partIndex < 0 || partIndex >= _lastFrameData.PartsLength) return false;
+            var p = _lastFrameData.Parts(partIndex);
+            return p.HasValue && !p.Value.Hide && PartQuadOf(partIndex, p.Value, out quad);
+        }
+
+        /// <summary>
+        /// The front-most part whose outline holds <paramref name="point"/> (player-local space), among
+        /// <paramref name="targets"/> (every part when null), on the last consumed frame; -1 when none does.
+        /// </summary>
+        internal int HitTestPart(Vector2 point, int[] targets, int targetCount)
+        {
+            if (!_hasFrameData) return -1;
+            int count = _lastFrameData.PartsLength;
+            // Back to front; the runtime leaves hidden parts out of the order unless they draw as a mask.
+            for (int rank = _lastFrameData.DrawOrderLength - 1; rank >= 0; rank--)
+            {
+                int index = _lastFrameData.DrawOrder(rank);
+                if (index >= count) continue;
+                if (targets != null && System.Array.IndexOf(targets, index, 0, targetCount) < 0) continue;
+                var p = _lastFrameData.Parts(index);
+                if (!p.HasValue || p.Value.Hide) continue;
+                if (PartQuadOf(index, p.Value, out var quad) && quad.Contains(point)) return index;
+            }
+            return -1;
+        }
+
+        // A Mesh part is the box around its vertices: they come in world space, and a skinned mesh's own
+        // matrix sits near the root rather than on the art. A part with a cell is its four drawn corners, skew
+        // and vertex deform included. A part with a size and no cell (a Shape) is that size around its pivot;
+        // a vertex deform that carries a Shape's corners past its size is not followed. Anything else (null,
+        // bone, instance, effect) has no size and no outline.
+        private unsafe bool PartQuadOf(int part, in ss.runtime.PartState state, out SpriteStudioPartQuad quad)
+        {
+            quad = default;
+            if (!_player._handle.IsValid) return false;
+            void* h = _player._handle.ptr;
+            float* w = null;
+            nuint wLen = 0;
+            NativeMethods.ss_runtime_get_world_matrices(h, &w, &wLen);
+            long m = (long)part * 16;
+            if (w == null || m + 16 > (long)wLen) return false;
+            w += m;
+
+            Vector2 lt, rt, lb, rb;
+            uint* meshAt = null;
+            nuint meshAtLen = 0;
+            NativeMethods.ss_runtime_get_mesh_vertex_offsets(h, &meshAt, &meshAtLen);
+            if (meshAt != null && (ulong)part + 1 < meshAtLen && meshAt[part + 1] > meshAt[part])
+            {
+                float* xs = null, ys = null;
+                nuint xLen = 0, yLen = 0;
+                NativeMethods.ss_runtime_get_mesh_vertices_x(h, &xs, &xLen);
+                NativeMethods.ss_runtime_get_mesh_vertices_y(h, &ys, &yLen);
+                uint end = meshAt[part + 1];
+                if (xs == null || ys == null || end > xLen || end > yLen) return false;
+                float l = float.PositiveInfinity, b = float.PositiveInfinity;
+                float r = float.NegativeInfinity, t = float.NegativeInfinity;
+                for (uint v = meshAt[part]; v < end; v++)
+                {
+                    l = Mathf.Min(l, xs[v]);
+                    r = Mathf.Max(r, xs[v]);
+                    b = Mathf.Min(b, ys[v]);
+                    t = Mathf.Max(t, ys[v]);
+                }
+                lt = new Vector2(l, t);
+                rt = new Vector2(r, t);
+                lb = new Vector2(l, b);
+                rb = new Vector2(r, b);
+            }
+            else if (state.Cell >= 0)
+            {
+                float* local = null;
+                nuint localLen = 0;
+                NativeMethods.ss_runtime_get_local_vertices(h, &local, &localLen);
+                long v = (long)part * 10; // four corners and the centre, x and y each
+                if (local == null || v + 8 > (long)localLen) return false;
+                local += v;
+                lt = Place(w, local[0], local[1]);
+                rt = Place(w, local[2], local[3]);
+                lb = Place(w, local[4], local[5]);
+                rb = Place(w, local[6], local[7]);
+            }
+            else
+            {
+                float width = state.SizeX, height = state.SizeY;
+                if (!(width > 0f && height > 0f)) return false;
+                // Y up, as the runtime is asked for: the same four corners a Y-down player gets.
+                float l = -(0.5f + state.PivotX) * width;
+                float b = -(0.5f + state.PivotY) * height;
+                lt = Place(w, l, b + height);
+                rt = Place(w, l + width, b + height);
+                lb = Place(w, l, b);
+                rb = Place(w, l + width, b);
+            }
+
+            // The root transform the mesh job folds into every vertex.
+            Vector2 s = _player.RootScale;
+            Vector2 o = _player.VertexOffset;
+            quad = new SpriteStudioPartQuad(Vector2.Scale(lt, s) + o, Vector2.Scale(rt, s) + o,
+                                            Vector2.Scale(lb, s) + o, Vector2.Scale(rb, s) + o);
+            return true;
+        }
+
+        private static unsafe Vector2 Place(float* m, float x, float y)
+            => new Vector2(m[0] * x + m[4] * y + m[12], m[1] * x + m[5] * y + m[13]);
+
+        /// <summary>
         /// Wait for the previous frame's Job to complete, advance by one frame when advance is set, and
         /// finalize the draw frame number and frame-skip. When the out handle is Zero, this player is
         /// excluded from the parallel get_frame_data / ConsumeFrameData pass this frame (invalid handle, or skip).

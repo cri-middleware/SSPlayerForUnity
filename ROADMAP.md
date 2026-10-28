@@ -47,10 +47,8 @@ so a project that only plays animations compiles none of them.
   `contain` / `cover` / `none`, with `align`), and implement `ILayoutElement` so a `LayoutGroup` or
   `ContentSizeFitter` can size it from the animation's content box. The Canvas path draws at authored pixel
   size in the rect's local space and never reads `rectTransform`, so resizing the rect changes nothing today.
-- [ ] **Part outline read-out** — `TryGetPartQuad(part, corners)`, the four corners in player-local space, built as
-  the SDK guide recommends: a cell part's drawn corners, a Mesh part's vertex box, a Shape's size around its pivot.
-- [ ] **Per-part hit testing** — `HitTestPart(Vector2, parts)` plus an `ICanvasRaycastFilter` on a sibling component
-  that answers from the outlines of the parts the scene names (the whole `RectTransform` when it names none), so an
+- [ ] **Per-part hit testing** — an `ICanvasRaycastFilter` on a sibling component that answers from the
+  `HitTestPart` outlines of the parts the scene names (the whole `RectTransform` when it names none), so an
   irregularly shaped button stops eating clicks around its artwork and a transparent margin lets the control behind
   it through.
 - [ ] **UI state binding** — a `Button` derivative that overrides `DoStateTransition` and maps `Selectable`'s states

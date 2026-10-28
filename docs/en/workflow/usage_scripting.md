@@ -361,6 +361,40 @@ When `Drive Scale` is ON, only the **inherited** scale is reflected; the part's 
 - Swapping `AnimeAsset` re-resolves part names automatically, so trackers do not need to be registered again.
 - In edit mode, trackers are applied once as well, when the static start-frame preview is built. They move the target but never change its active state there.
 
+## Part Outlines and Hit Testing
+
+`TryGetPartQuad` reads the outline a part is drawn with, and `HitTestPart` the front-most part under a point. Both are on `SpriteStudioPlayer` and `SpriteStudioGraphic`. They read the frame the player last built and build nothing, so what they report is what is on screen. They answer in the space the component draws in: the GameObject's local space for `SpriteStudioPlayer` (Pixels Per Unit, flip and offset included), and the `RectTransform`'s local space for `SpriteStudioGraphic`.
+
+| Member | Description |
+|---|---|
+| `TryGetPartQuad(string partName, out SpriteStudioPartQuad quad)` | The part's outline as four corners, `TopLeft` / `TopRight` / `BottomLeft` / `BottomRight`. They are the cell's own corners, wherever the pose put them. A part with a cell is its four drawn corners, skew and vertex deform included. A Mesh part is the axis-aligned box around its vertices. A Shape is its size around its pivot; a vertex deform that drags a corner outside that size is not followed. Returns `false` for a part that is hidden or draws nothing of its own (null, bone, instance and effect parts), and before the first frame is built. A part drawn at alpha 0 still has an outline. A part index works in place of the name |
+| `HitTestPart(Vector2 point)` | The index of the front-most part whose outline holds `point`, or `-1` |
+| `HitTestPart(Vector2 point, IReadOnlyList<string> parts)` | The same among the parts named. A name the asset does not have is skipped. A list of part indices works too |
+| `SpriteStudioPartQuad.Contains(Vector2 point)` | Whether `point` lies inside the outline |
+
+### Example: Which Part a Click Landed On
+
+```csharp
+using UnityEngine;
+using UnityEngine.EventSystems;
+using SpriteStudio.Runtime;
+
+public class PartClick : MonoBehaviour, IPointerClickHandler
+{
+    [SerializeField] private SpriteStudioGraphic _graphic;
+
+    public void OnPointerClick(PointerEventData e)
+    {
+        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                _graphic.rectTransform, e.position, e.pressEventCamera, out Vector2 local)) return;
+        int part = _graphic.HitTestPart(local, new[] { "head", "body" });
+        if (part >= 0) Debug.Log($"clicked {_graphic.GetPartNames()[part]}");
+    }
+}
+```
+
+For `SpriteStudioPlayer`, turn a world position into the player's local space with `transform.InverseTransformPoint` first.
+
 ## Part Overrides (Part Color / Cell / Visibility)
 
 Per-part runtime overrides let a script say "make this part this color / this cell / hidden **now**". An override wins over both the keyframe and any animation blending, so it does not have to fight the animation. Available on both `SpriteStudioPlayer` and `SpriteStudioGraphic`.
