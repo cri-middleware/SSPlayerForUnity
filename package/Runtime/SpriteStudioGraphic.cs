@@ -1312,18 +1312,40 @@ namespace SpriteStudio.Runtime
         {
             var p = _core.Internal;
             if (p == null) return;
-            bool hasBox = p.TryGetCanvasRect(null, out Rect box);
-            SpriteStudioPlacement.Resolve(hasBox ? box : (Rect?)null, rectTransform.rect, _fit, _align,
-                                          out Vector2 origin, out float scale);
+            Rect? box = _fitBox;
+            if (!box.HasValue && p.TryGetCanvasRect(null, out Rect current)) box = current;
+            SpriteStudioPlacement.Resolve(box, rectTransform.rect, _fit, _align, out Vector2 origin, out float scale);
             p.VertexScale = scale;
             p.VertexOffset = origin;
         }
+
+        /// <summary>
+        /// The box fitted in place of the canvas of the animation set up, or null for that canvas. A UI state
+        /// adapter that plays several animations sets it to the canvas of the one its states are read from, so
+        /// the artwork keeps its size when a state plays another animation.
+        /// </summary>
+        internal Rect? FitBox
+        {
+            get => _fitBox;
+            set
+            {
+                if (_fitBox == value) return;
+                _fitBox = value;
+                SetLayoutDirty();
+            }
+        }
+        private Rect? _fitBox;
 
         // The canvas of the animation drawn: the one set up, or before that the one Start or the edit preview
         // will set up. A layout can ask before either has run.
         private bool TryGetCanvasRect(out Rect box)
         {
             box = default;
+            if (_fitBox.HasValue)
+            {
+                box = _fitBox.Value;
+                return true;
+            }
             var p = _core.Internal;
             if (p == null) return false;
             if (p.TryGetCanvasRect(null, out box)) return true;

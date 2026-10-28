@@ -32,7 +32,8 @@ $sdkDirectory = Join-Path $rootDirectory "SpriteStudio-SDK"
 $sspj = Join-Path $sdkDirectory "tests/Ringo/Ringo.sspj"
 $outDirectories = @(
     (Join-Path $rootDirectory "examples/SampleProject/Assets/ssab_generated/Ringo"),
-    (Join-Path $rootDirectory "examples/Override_Ringo/Assets/ssab_generated/Ringo")
+    (Join-Path $rootDirectory "examples/Override_Ringo/Assets/ssab_generated/Ringo"),
+    (Join-Path $rootDirectory "examples/UI_Ringo/Assets/ssab_generated/Ringo")
 )
 
 if (-not (Test-Path $sspj)) {

@@ -5,6 +5,7 @@
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "SpriteStudio.Runtime",
+        "SpriteStudio.UI",
         "Unity.Collections",
         "Unity.Burst",
         "Unity.Mathematics"

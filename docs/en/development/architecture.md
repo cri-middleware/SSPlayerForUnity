@@ -36,6 +36,14 @@ bindings that csbindgen generates, builds each frame's geometry in Burst jobs an
   their `.meta` are. The `.ssab` readers (flatc output) and the FlatBuffers C# runtime are
   committed.
 
+**The UI adapter** (`package/Runtime/UI/`, assembly `SpriteStudio.UI`): `SpriteStudioButton` and
+`SpriteStudioToggle`, which play a section of the graphic's animation for each UI state, and
+`SpriteStudioRaycastFilter`, which answers uGUI's raycast from the parts' outlines. The state rules
+are pure functions, and a driver applies them to the graphic. The core never calls into it; the
+adapter reads the runtime's set-up animation and section through `InternalsVisibleTo`, to notice a
+reload or another script changing what the graphic plays. Its inspectors are in
+`package/Editor/UI/`.
+
 **The editor** (`package/Editor/`): the Importer window (**Window > SpriteStudio > Importer**),
 which collects the `.sspj` under what was dropped and queues their conversion; an
 `AssetPostprocessor` that converts a `.sspj` landing in `Assets/`, makes each texture's shared
@@ -46,8 +54,8 @@ inspectors.
 
 **Around it:** `package/Tests/` holds the EditMode, PlayMode and player tests;
 `examples/UnityTestProject` is the project they run in, with the package linked as
-`file:../../../package`; `examples/SampleProject` and `examples/Override_Ringo` are the samples,
-filled by `deploy-examples`.
+`file:../../../package`; `examples/SampleProject`, `examples/Override_Ringo` and `examples/UI_Ringo`
+are the samples, filled by `deploy-examples`.
 
 ## Why It Is Built the Way It Is
 

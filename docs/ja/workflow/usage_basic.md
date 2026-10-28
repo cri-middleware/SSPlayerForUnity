@@ -137,7 +137,7 @@ public class Sample : MonoBehaviour
 
 その下の **Set Native Size** は、`Image` をスプライトの大きさにするのと同じく、矩形をキャンバスの大きさにします。Canvas にアセットをドロップしたときは自動で行われます。レイアウトグループの中や、**Preferred Size** にした **Content Size Fitter** と組み合わせると、グラフィックはキャンバスの大きさを求めます。キャンバスは再生中のアニメーションのものなので、アニメーションごとにキャンバスが違うパックでは、アニメーションが変わると拡大率も変わります。
 
-uGUI の `Graphic` 由来の **Color** / **Material** / **Raycast Target** / **Raycast Padding** / **Maskable** が表示されます。**Color** は `Image` と同じくアニメーション全体をパーツカラーの上から色付けし、Button の **Color Tint** トランジションや `CrossFadeColor` / `CrossFadeAlpha` も同じように効きます。**Material** が空のときはアトラスのマテリアルで描画し、設定したマテリアルはそのシェーダが `SpriteStudio/Canvas` をもとに作られていれば代わりに使われます（グラフィックが出す頂点レイアウトを読めるのはそのシェーダだけです）。グラフィック自身に **Mask** を付けると、子をアニメーションの形でクリップできます。クリック判定の範囲は、透明な余白も含めた `RectTransform` の矩形全体です。アニメーションの大きさを変えずに判定範囲を広げたい場合は **Raycast Padding** で調整してください。その後に `SpriteStudioPlayer` と同じ **Cellmap Texture Overrides** が続きます。
+uGUI の `Graphic` 由来の **Color** / **Material** / **Raycast Target** / **Raycast Padding** / **Maskable** が表示されます。**Color** は `Image` と同じくアニメーション全体をパーツカラーの上から色付けし、Button の **Color Tint** トランジションや `CrossFadeColor` / `CrossFadeAlpha` も同じように効きます。**Material** が空のときはアトラスのマテリアルで描画し、設定したマテリアルはそのシェーダが `SpriteStudio/Canvas` をもとに作られていれば代わりに使われます（グラフィックが出す頂点レイアウトを読めるのはそのシェーダだけです）。グラフィック自身に **Mask** を付けると、子をアニメーションの形でクリップできます。クリック判定の範囲は、透明な余白も含めた `RectTransform` の矩形全体です。アニメーションの大きさを変えずに判定範囲を広げたい場合は **Raycast Padding** で調整してください。絵の上だけに絞るには **SpriteStudio Raycast Filter** を付けます（[ボタンと UI 状態](./ui_buttons.md) を参照）。その後に `SpriteStudioPlayer` と同じ **Cellmap Texture Overrides** が続きます。
 
 > [!TIP]
 > 

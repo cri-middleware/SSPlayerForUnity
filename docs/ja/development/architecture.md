@@ -19,9 +19,11 @@ SpriteStudio の Player に共通すること（再生・モーションブレ�
 - インポートしたアセットは `SpriteStudioAnimeAsset` と `SpriteStudioSequenceAsset` です。
 - FFI バインディングとネイティブライブラリは生成またはダウンロードするもので、git には無く、`.meta` だけがあります。`.ssab` の読み取り（flatc の出力）と FlatBuffers の C# ランタイムはコミット済みです。
 
+**UI アダプタ**（`package/Runtime/UI/`、アセンブリ `SpriteStudio.UI`）: UI の状態ごとにグラフィックのアニメーションの区間を流す `SpriteStudioButton` と `SpriteStudioToggle`、パーツの輪郭で uGUI の raycast に答える `SpriteStudioRaycastFilter` です。状態の規則は純粋な関数で、ドライバがそれをグラフィックに当てます。コアからは呼びません。アダプタは、読み込み直しやほかのスクリプトによる再生の変更に気づくため、ランタイムがセットアップしたアニメーションと区間を `InternalsVisibleTo` で読みます。インスペクタは `package/Editor/UI/` にあります。
+
 **エディタ**（`package/Editor/`）: ドロップされたものの下の `.sspj` を集めて変換をキューに入れる Importer ウィンドウ（**Window > SpriteStudio > Importer**）、`Assets/` に入った `.sspj` を変換し、テクスチャごとの共有マテリアルを作り、ネイティブプラグインのインポート設定を整える `AssetPostprocessor`、`.ssab` を `SpriteStudioAnimeAsset` に、`.ssqb` を `SpriteStudioSequenceAsset` にする `ScriptedImporter`、Project ウィンドウからの Reconvert、Scene・Hierarchy への `.ssab` のドロップ、インスペクタです。
 
-**周辺:** `package/Tests/` に EditMode・PlayMode・プレイヤーのテストがあります。`examples/UnityTestProject` はテストを回すプロジェクトで、パッケージは `file:../../../package` でつないであります。`examples/SampleProject` と `examples/Override_Ringo` はサンプルで、`deploy-examples` が中身を入れます。
+**周辺:** `package/Tests/` に EditMode・PlayMode・プレイヤーのテストがあります。`examples/UnityTestProject` はテストを回すプロジェクトで、パッケージは `file:../../../package` でつないであります。`examples/SampleProject`・`examples/Override_Ringo`・`examples/UI_Ringo` はサンプルで、`deploy-examples` が中身を入れます。
 
 ## この作りになっている理由
 
