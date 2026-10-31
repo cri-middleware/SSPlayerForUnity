@@ -47,7 +47,7 @@
 > <video autoplay loop muted playsinline width="100%">
 >   <source src="../assets/3-setup_drag_and_drop.webm" type="video/webm">
 > </video>
-> <img src="../assets/3-setup_drag_and_drop.webp" width="100%" style="display: none;">
+> <img src="../assets/3-setup_drag_and_drop.webp" width="100%" style="display: none;" loading="lazy">
 
 ### 方法 B: コンポーネントを手動で追加する
 
@@ -144,7 +144,7 @@ uGUI の `Graphic` 由来の **Color** / **Material** / **Raycast Target** / **R
 > <video autoplay loop muted playsinline width="100%">
 >   <source src="../assets/4-inspector_preview.webm" type="video/webm">
 > </video>
-> <img src="../assets/4-inspector_preview.webp" width="100%" style="display: none;">
+> <img src="../assets/4-inspector_preview.webp" width="100%" style="display: none;" loading="lazy">
 
 ## 編集モードでのプレビュー
 
@@ -166,4 +166,4 @@ uGUI の `Graphic` 由来の **Color** / **Material** / **Raycast Target** / **R
 > <video autoplay loop muted playsinline width="100%">
 >   <source src="../assets/6-mask.webm" type="video/webm">
 > </video>
-> <img src="../assets/6-mask.webp" width="100%" style="display: none;">
+> <img src="../assets/6-mask.webp" width="100%" style="display: none;" loading="lazy">

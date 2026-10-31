@@ -27,7 +27,7 @@ Drag and drop the generated asset onto the Hierarchy window or Scene view to pla
 > <video autoplay loop muted playsinline width="100%">
 >   <source src="../assets/1-sspj_import.webm" type="video/webm">
 > </video>
-> <img src="../assets/1-sspj_import.webp" width="100%" style="display: none;">
+> <img src="../assets/1-sspj_import.webp" width="100%" style="display: none;" loading="lazy">
 
 > [!TIP]
 > If you drop a whole folder, the `.sspj` files inside it are recursively batch-converted to `.ssab`. See [Conversion Features and CI/CD](./import.md) for details.
@@ -72,7 +72,7 @@ With just the following operation, your changes are reflected instantly in the g
 > <video autoplay loop muted playsinline width="100%">
 >   <source src="../assets/2-fast_iteration_inspector.webm" type="video/webm">
 > </video>
-> <img src="../assets/2-fast_iteration_inspector.webp" width="100%" style="display: none;">
+> <img src="../assets/2-fast_iteration_inspector.webp" width="100%" style="display: none;" loading="lazy">
 
 ---
 
