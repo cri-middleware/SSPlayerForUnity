@@ -75,10 +75,10 @@ Then dispatch the release workflow from the branch. A run from a branch fetches 
 ```bash
 BRANCH=$(git branch --show-current | grep '^release/')
 git push origin "${BRANCH:?}" &&
-  RUN=$(gh workflow run release.yml --ref "${BRANCH:?}" | sed 's|.*/||')
-gh run watch "${RUN:?}" --exit-status
-gh run download "${RUN:?}" -n ssplayer-unity-release-dist -D "qa/$RUN"
-! gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # must print nothing
+  RUN=$(gh workflow run release.yml --ref "${BRANCH:?}" | sed 's|.*/||') &&
+  gh run watch "${RUN:?}" --exit-status &&
+  gh run download "${RUN:?}" -n ssplayer-unity-release-dist -D "qa/$RUN" &&
+  ! gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # must print nothing
 ```
 
 A missing signing secret does not fail the run: it packs the tarball unsigned, says so in the log, and passes, and Unity 6.3 then warns whoever installs it. The block's last command looks for that, here and in step 5, and must print nothing. If it prints anything, no change on the branch fixes it: the signing secrets, `UNITY_ORGANIZATION_ID` and the UPM service account's key, are not reaching this repository. An admin of the repository or the organization provides them, and on GitHub Free organization secrets cannot reach a private repository. Dispatch again once they do; in step 5, delete the draft first.
@@ -131,9 +131,9 @@ Dispatch from the tag on `main`. The run builds again and creates a **draft** Re
 ```bash
 git fetch origin --tags
 TAG=$(git describe --exact-match --tags --match 'v[0-9]*' origin/main)
-RUN=$(gh workflow run release.yml --ref "${TAG:?}" -f upload_release=true | sed 's|.*/||')
-gh run watch "${RUN:?}" --exit-status
-! gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # must print nothing
+RUN=$(gh workflow run release.yml --ref "${TAG:?}" -f upload_release=true | sed 's|.*/||') &&
+  gh run watch "${RUN:?}" --exit-status &&
+  ! gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # must print nothing
 ```
 
 ### 6. Publish to npm
@@ -200,9 +200,9 @@ git pull --ff-only origin "${BRANCH:?}" &&
 ```bash
 git fetch origin --tags
 TAG=$(git describe --exact-match --tags --match 'v[0-9]*' HEAD)
-RUN=$(gh workflow run release.yml --ref "${TAG:?}" -f upload_release=true | sed 's|.*/||')
-gh run watch "${RUN:?}" --exit-status
-! gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # must print nothing
+RUN=$(gh workflow run release.yml --ref "${TAG:?}" -f upload_release=true | sed 's|.*/||') &&
+  gh run watch "${RUN:?}" --exit-status &&
+  ! gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # must print nothing
 ```
 
 ```bash
@@ -344,10 +344,10 @@ gh pr create -B main -H "${BRANCH:?}" --title "Release v$(scripts/release-versio
 ```bash
 BRANCH=$(git branch --show-current | grep '^release/')
 git push origin "${BRANCH:?}" &&
-  RUN=$(gh workflow run release.yml --ref "${BRANCH:?}" | sed 's|.*/||')
-gh run watch "${RUN:?}" --exit-status
-gh run download "${RUN:?}" -n ssplayer-unity-release-dist -D "qa/$RUN"
-! gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # 何も出力されないこと
+  RUN=$(gh workflow run release.yml --ref "${BRANCH:?}" | sed 's|.*/||') &&
+  gh run watch "${RUN:?}" --exit-status &&
+  gh run download "${RUN:?}" -n ssplayer-unity-release-dist -D "qa/$RUN" &&
+  ! gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # 何も出力されないこと
 ```
 
 署名の Secret が欠けていても、この run は失敗しません。tarball を署名なしで作り、その旨をログに出して成功します。署名の無い tarball は、Unity 6.3 がインストールする人に警告します。ブロックの最後のコマンドはそれを探すもので、ここでも手順 5 でも何も出力されてはいけません。何か出力されたら、ブランチをどう変えても直りません。署名用の Secret（`UNITY_ORGANIZATION_ID` と UPM のサービスアカウントのキー）がこのリポジトリに届いていません。届けるのはリポジトリか組織の admin で、GitHub Free では組織の Secret は private のリポジトリに届けられません。届くようになったら実行し直してください。手順 5 では先に下書きを消します。
@@ -400,9 +400,9 @@ git switch main && git pull --ff-only &&
 ```bash
 git fetch origin --tags
 TAG=$(git describe --exact-match --tags --match 'v[0-9]*' origin/main)
-RUN=$(gh workflow run release.yml --ref "${TAG:?}" -f upload_release=true | sed 's|.*/||')
-gh run watch "${RUN:?}" --exit-status
-! gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # 何も出力されないこと
+RUN=$(gh workflow run release.yml --ref "${TAG:?}" -f upload_release=true | sed 's|.*/||') &&
+  gh run watch "${RUN:?}" --exit-status &&
+  ! gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # 何も出力されないこと
 ```
 
 ### 6. npm への公開
@@ -469,9 +469,9 @@ git pull --ff-only origin "${BRANCH:?}" &&
 ```bash
 git fetch origin --tags
 TAG=$(git describe --exact-match --tags --match 'v[0-9]*' HEAD)
-RUN=$(gh workflow run release.yml --ref "${TAG:?}" -f upload_release=true | sed 's|.*/||')
-gh run watch "${RUN:?}" --exit-status
-! gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # 何も出力されないこと
+RUN=$(gh workflow run release.yml --ref "${TAG:?}" -f upload_release=true | sed 's|.*/||') &&
+  gh run watch "${RUN:?}" --exit-status &&
+  ! gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # 何も出力されないこと
 ```
 
 ```bash
