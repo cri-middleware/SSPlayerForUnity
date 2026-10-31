@@ -47,7 +47,7 @@ Once selected, a GameObject is created, and **the asset you just dropped is auto
 > <video autoplay loop muted playsinline width="100%">
 >   <source src="../assets/3-setup_drag_and_drop.webm" type="video/webm">
 > </video>
-> <img src="../assets/3-setup_drag_and_drop.webp" width="100%" style="display: none;">
+> <img src="../assets/3-setup_drag_and_drop.webp" width="100%" style="display: none;" loading="lazy">
 
 ### Method B: Add the component manually
 
@@ -144,7 +144,7 @@ The **Color** / **Material** / **Raycast Target** / **Raycast Padding** / **Mask
 > <video autoplay loop muted playsinline width="100%">
 >   <source src="../assets/4-inspector_preview.webm" type="video/webm">
 > </video>
-> <img src="../assets/4-inspector_preview.webp" width="100%" style="display: none;">
+> <img src="../assets/4-inspector_preview.webp" width="100%" style="display: none;" loading="lazy">
 
 ## Preview in edit mode
 
@@ -166,4 +166,4 @@ For details, see [Performance Tuning and Advanced Settings](./tips.md#masking-an
 > <video autoplay loop muted playsinline width="100%">
 >   <source src="../assets/6-mask.webm" type="video/webm">
 > </video>
-> <img src="../assets/6-mask.webp" width="100%" style="display: none;">
+> <img src="../assets/6-mask.webp" width="100%" style="display: none;" loading="lazy">
