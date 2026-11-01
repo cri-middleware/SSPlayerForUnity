@@ -16,18 +16,49 @@ tracking behave — is written once, in the SDK's
 
 The package is `package/`. A thin C# layer drives the Rust runtime, `libssruntime`, over FFI
 bindings that csbindgen generates, builds each frame's geometry in Burst jobs and uploads it to a
-`Mesh`. The editor converts `.sspj` with `libssconverter`.
+`Mesh`. The editor converts `.sspj` with `libssconverter`. An arrow is a call:
+
+```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 400
+---
+flowchart TD
+    subgraph pkg ["package/"]
+        uiad["UI adapter<br/>Button · Toggle · RaycastFilter"]
+        mgr["Update manager<br/>two passes a frame"]
+        subgraph comps ["Components"]
+            world["SpriteStudioPlayer<br/>world space · MeshRenderer"]
+            canvas["SpriteStudioGraphic<br/>uGUI · CanvasRenderer"]
+        end
+        core["Playback core<br/>shared by both"]
+        native["Native handles · tick<br/>one per player"]
+        geo["Geometry stage<br/>Burst jobs → Mesh"]
+        ffi["FFI bindings<br/>csbindgen"]
+        subgraph ed ["Editor"]
+            imp["Importer window<br/>AssetPostprocessor"]
+            si["ScriptedImporters<br/>.ssab · .ssqb → assets"]
+        end
+    end
+    Brain["Brain · libssruntime"]
+    conv["libssconverter"]
+    uiad --> canvas
+    mgr --> world
+    mgr --> canvas
+    world --> core
+    canvas --> core
+    core --> native
+    native --> geo
+    native --> ffi --> Brain
+    imp --> conv
+```
 
 **Playback** (`package/Runtime/`):
 
-- Two components: `SpriteStudioPlayer` for world space, drawn by a `MeshRenderer`, and
-  `SpriteStudioGraphic` for a uGUI Canvas, fed straight to the `CanvasRenderer`. Both hold one
-  shared playback core and hand it the work.
-- An update manager drives every player each frame in two passes — every player's work scheduled
-  first, then every result applied.
-- Under each player is the layer that owns its native handles and its tick, and the geometry stage
-  that turns a frame's draw data into batches, submeshes, mask steps and effect quads, writes the
-  vertices in a Burst job and uploads them, re-sending indices only when the topology changes.
+- The geometry stage turns a frame's draw data into batches, submeshes, mask steps and effect
+  quads, writes the vertices in a Burst job and uploads them, re-sending indices only when the
+  topology changes.
 - Materials are kept per texture and blend; `SpriteStudioShaderCatalog` maps per-part shaders.
   Built-in sound, the events, part following (`SpriteStudioPartTracker`), per-part and texture
   overrides, and a Timeline track sit beside them.

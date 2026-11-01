@@ -8,13 +8,47 @@ SpriteStudio の Player に共通すること（再生・モーションブレ�
 
 ## 層
 
-パッケージは `package/` です。薄い C# の層が、csbindgen が生成する FFI バインディングで Rust のランタイム `libssruntime` を動かし、各フレームのジオメトリを Burst のジョブで組み立てて `Mesh` にアップロードします。エディタは `libssconverter` で `.sspj` を変換します。
+パッケージは `package/` です。薄い C# の層が、csbindgen が生成する FFI バインディングで Rust のランタイム `libssruntime` を動かし、各フレームのジオメトリを Burst のジョブで組み立てて `Mesh` にアップロードします。エディタは `libssconverter` で `.sspj` を変換します。矢印は呼び出しです。
+
+```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 400
+---
+flowchart TD
+    subgraph pkg ["package/"]
+        uiad["UI アダプタ<br/>Button · Toggle · RaycastFilter"]
+        mgr["アップデートマネージャー<br/>毎フレーム 2 段"]
+        subgraph comps ["コンポーネント"]
+            world["SpriteStudioPlayer<br/>ワールド空間 · MeshRenderer"]
+            canvas["SpriteStudioGraphic<br/>uGUI · CanvasRenderer"]
+        end
+        core["再生コア<br/>2 つで共有"]
+        native["ネイティブのハンドル · tick<br/>プレイヤーごと"]
+        geo["ジオメトリの段<br/>Burst のジョブ → Mesh"]
+        ffi["FFI バインディング<br/>csbindgen"]
+        subgraph ed ["エディタ"]
+            imp["Importer ウィンドウ<br/>AssetPostprocessor"]
+            si["ScriptedImporter<br/>.ssab · .ssqb → アセット"]
+        end
+    end
+    Brain["Brain · libssruntime"]
+    conv["libssconverter"]
+    uiad --> canvas
+    mgr --> world
+    mgr --> canvas
+    world --> core
+    canvas --> core
+    core --> native
+    native --> geo
+    native --> ffi --> Brain
+    imp --> conv
+```
 
 **再生**（`package/Runtime/`）:
 
-- コンポーネントは 2 つです。ワールド空間用の `SpriteStudioPlayer`（`MeshRenderer` で描く）と、uGUI の Canvas 用の `SpriteStudioGraphic`（`CanvasRenderer` に直接渡す）です。どちらも共有の再生コアを 1 つ持ち、処理を任せます。
-- アップデートマネージャーが、毎フレーム、すべてのプレイヤーを 2 段で動かします。先に全員の仕事をスケジュールし、そのあと全員の結果を反映します。
-- 各プレイヤーの下には、ネイティブのハンドルと tick を持つ層と、ジオメトリの段があります。ジオメトリの段は 1 フレームの描画データをバッチ・サブメッシュ・マスクの手順・エフェクトの四角形に変え、Burst のジョブで頂点を書いてアップロードします。インデックスはトポロジーが変わったときだけ送り直します。
+- ジオメトリの段は 1 フレームの描画データをバッチ・サブメッシュ・マスクの手順・エフェクトの四角形に変え、Burst のジョブで頂点を書いてアップロードします。インデックスはトポロジーが変わったときだけ送り直します。
 - マテリアルはテクスチャとブレンドごとに持ち、パーツ単位のシェーダーは `SpriteStudioShaderCatalog` が対応付けます。組み込みのサウンド、イベント、パーツへの追従（`SpriteStudioPartTracker`）、パーツ単位とテクスチャの上書き、Timeline のトラックがその横にあります。
 - インポートしたアセットは `SpriteStudioAnimeAsset` と `SpriteStudioSequenceAsset` です。
 - FFI バインディングとネイティブライブラリは生成またはダウンロードするもので、git には無く、`.meta` だけがあります。`.ssab` の読み取り（flatc の出力）と FlatBuffers の C# ランタイムはコミット済みです。
