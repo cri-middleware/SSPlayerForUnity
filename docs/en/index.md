@@ -32,18 +32,11 @@ This documentation is organized by purpose, as follows.
 
 ## Key Features
 
-This plugin is designed to fully bring out the expressiveness of SpriteStudio on Unity while delivering top-class performance.
-
-*   **Almost Full Feature Support:** Supports the diverse expressions of SpriteStudio out of the box, including bone hierarchies, mesh & deform, particle effects, extended blending, and masks.
-*   **An Importer in the Editor:** Drop a `.sspj` onto the SS Importer window (**Window > SpriteStudio > Importer**) and it becomes a `SpriteStudioAnimeAsset`; after editing in SpriteStudio, **Reconvert** brings the change in.
-*   **No Per-Frame Garbage:** Playback allocates nothing on the managed heap each frame, so a scene full of characters does not stutter on garbage collection, on mobile included.
-*   **Smooth Slow Motion:** Supports sub-frame interpolation, enabling smooth, stutter-free playback even on high-refresh-rate monitors and in slow-motion effects.
-*   **Flexible UI and World Rendering:** Supports rendering in ordinary scene space (`SpriteStudioPlayer`) as well as on a uGUI (`SpriteStudioGraphic`) Canvas, and automatically follows Mask and RectMask2D.
-*   **Timeline Integration:** Animations can be controlled directly from Timeline tracks, making cutscenes and complex staging easy to implement.
-*   **Signals and Events:** Receive "user data" and "signals" set on the timeline as Unity events, allowing you to trigger SE playback and scripts with precise timing.
-*   **Motion Blending:** Lay animations over one another on tracks and cross-fade between them, so a character slides from one motion into the next instead of cutting. See [Motion Blending](./workflow/motion_blending.md).
-*   **Dynamic Part Following:** Any GameObject can follow (Constraint) a specific part of a character, making it easy to swap weapons or attach effects.
-*   **Dynamic Texture Replacement (Avatar Customization / CellMap Overrides):** Swap a cellmap's texture at runtime, per player, to implement color variations or costume / equipment changes for a character.
+- **Bring your characters to life.** Breathing and blinking, swaying hair and clothes, flashy slash and magic effects — the motion is built visually in a dedicated editor (SpriteStudio) with bone rigs, mesh deformation and particles. Artists work in their own tool, and Unity just plays the result. Animations crossfade and layer on tracks at runtime, so a walk eases into a run instead of snapping ([Motion Blending](./workflow/motion_blending.md)).
+- **Not just characters — effects, UI and whole scenes.** Particle effects sit on the same timeline as the character, so there is no separate effect system to set up. Combine characters, backgrounds, effects and UI into a cutscene or a full-screen sequence, and play it in Unity as a single animation.
+- **In your scene or on your UI.** `SpriteStudioPlayer` draws in the world and `SpriteStudioGraphic` on a uGUI Canvas, where it fits its `RectTransform` and follows **Mask** / **RectMask2D**, and can be a button or a toggle that plays a section for each state ([Buttons & UI States](./workflow/ui_buttons.md)). Both are controlled from C# — with per-part overrides, part following, cellmap texture swaps, and callbacks from the artist's user-data, signal and audio keys ([Script Control and Events](./workflow/usage_scripting.md)) — and `SpriteStudioPlayer` can be sequenced on Timeline.
+- **A seamless SpriteStudio ⇄ Unity round trip.** Drop a `.sspj` onto the **SS Importer** window and it becomes a ready-to-use asset ([Asset Import and Editor Integration](./workflow/usage_asset_pipeline.md)). To tweak it, click **Open SSPJ** in the Inspector, save in SpriteStudio, then click **Reconvert** — no manual export step. The animation lives in its own asset rather than the scene, so teammates don't collide over scene merges in Git.
+- **Zero-parse loading, SIMD and Burst playback.** `.ssab` is a FlatBuffers binary read in place, so loading involves no parsing. Each frame, a SIMD-optimised Rust core and Burst jobs build the meshes zero-copy, with no per-frame GC allocations — light enough for mobile and for scenes with many characters. Turn on **sub-frame interpolation** and motion follows high-refresh-rate displays.
 
 ## Overview
 
