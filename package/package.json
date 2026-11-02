@@ -8,6 +8,10 @@
   "changelogUrl": "https://github.com/cri-middleware/SSPlayerForUnity/blob/main/CHANGELOG.md",
   "licensesUrl": "https://github.com/cri-middleware/SSPlayerForUnity/blob/main/LICENSE.md",
   "license": "BSD-3-Clause",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cri-middleware/SSPlayerForUnity.git"
+  },
   "dependencies": {
     "com.unity.burst": "1.8.29",
     "com.unity.collections": "2.6.6",
