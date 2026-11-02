@@ -10,7 +10,7 @@ A release is a tag on `main`, pushed first and built second. The version is writ
 
 Unity 6.3's Package Manager checks every package for a signature, so a release's tarball is signed, and only `release.yml` can sign it: the credentials, `UNITY_ORGANIZATION_ID` and the UPM service account's key, exist only as this repository's GitHub Actions secrets. A release is therefore made on GitHub Actions and on no one's machine. A local build is unsigned, and serves to debug the release build — see the last section.
 
-Every block runs as written in a new shell: it works out what it needs from the checkout, git and GitHub. Two values are set by hand: the version being released, written `<version>` in steps 1 and 2 — fill it in, as in `7.0.1` — and the SpriteStudio-SDK release it ships, written `<sdk-tag>` in step 2, as in `v7.0.0`. Left as they are, the line stops with a syntax error. A value that would not stop a command by itself when empty is read as `${VAR:?}`: an empty `RUN` would let the signing check in step 3 print nothing and pass.
+Every block runs as written in a new shell: it works out what it needs from the checkout, git and GitHub. One value is set by hand: the version being released, written `<version>` in steps 1 and 2 — fill it in, as in `7.0.1`. Left as it is, the line stops with a syntax error. A value that would not stop a command by itself when empty is read as `${VAR:?}`: an empty `RUN` would let the signing check in step 3 print nothing and pass.
 
 An agent can run every block, but five things are a person's: sorting the scan's summary in step 3; the checks in Unity in step 3, which no CI can run; the merge in step 4, which puts the release on `main`; step 6, which puts the version on npm for good; and step 7, which publishes the Release for good.
 
@@ -37,14 +37,14 @@ BASE=$(git -c versionsort.suffix=- tag --list "v${BRANCH#release/}.*" --sort=-v:
 git switch -C "$BRANCH" "${BASE:?}"
 ```
 
-### 2. SDK, version and changelog
+Either way, the release ships the SpriteStudio-SDK release that `scripts/SDK_VERSION.txt` names on the branch; `cat scripts/SDK_VERSION.txt` prints it. To ship another, change the file in a commit of its own on the branch: step 3's QA build fetches the native libraries and FFI bindings by it. When the new release's platforms changed, the native plugins need new `.meta` first — see below.
 
-In one commit. Pin the SpriteStudio-SDK release this one ships in `scripts/SDK_VERSION.txt`, the tag `download-sdk` fetches the native libraries and FFI bindings by. When the SDK's platforms changed, the native plugins need new `.meta` first — see below. `<version>` is the one from step 1.
+### 2. Version and changelog
+
+In one commit. `<version>` is the one from step 1.
 
 ```bash
 VERSION=<version>
-SDK_TAG=<sdk-tag>
-printf '%s\n' "${SDK_TAG:?}" >| scripts/SDK_VERSION.txt
 (cd package && npm version "${VERSION:?}" --no-git-tag-version --allow-same-version)
 scripts/release-version.sh                       # must print the version
 ```
@@ -52,7 +52,7 @@ scripts/release-version.sh                       # must print the version
 Then date the version's heading in `CHANGELOG.md` as `## [X.Y.Z] - YYYY-MM-DD` and point its link line at the tag, adding both if the version has none yet. The changelog ships inside the package, as Package Manager's Changelog tab. Commit:
 
 ```bash
-git add scripts/SDK_VERSION.txt package/package.json CHANGELOG.md
+git add package/package.json CHANGELOG.md
 git commit -m "chore(release): v$(scripts/release-version.sh)"
 ```
 
@@ -275,7 +275,7 @@ It checks twice, for different failures. **Before packing:** every plugin direct
 
 Unity 6.3 の Package Manager はすべてのパッケージの署名を確かめるので、リリースの tarball は署名します。署名できるのは `release.yml` だけです。資格情報（`UNITY_ORGANIZATION_ID` と UPM のサービスアカウントのキー）は、このリポジトリの GitHub Actions の Secret にしか無いためです。したがってリリースは GitHub Actions で行い、誰の手元でも行いません。ローカルのビルドは署名なしで、リリースビルドのデバッグに使います（最後の節を参照）。
 
-どのブロックも、新しいシェルで書かれたとおりに実行できます。必要なものはチェックアウト・git・GitHub から求めます。手で設定する値は 2 つで、リリースするバージョンが手順 1 と 2 の `<version>`（`7.0.1` のように埋めます）、同梱する SpriteStudio-SDK のリリースが手順 2 の `<sdk-tag>`（`v7.0.0` のように埋めます）です。埋めずに実行すると、その行は構文エラーで止まります。空でもそれだけでは止まらない値は `${VAR:?}` で読みます。`RUN` が空だと、手順 3 の署名の確認が何も出力せずに通ってしまうためです。
+どのブロックも、新しいシェルで書かれたとおりに実行できます。必要なものはチェックアウト・git・GitHub から求めます。手で設定する値は 1 つで、リリースするバージョンを手順 1 と 2 の `<version>` に `7.0.1` のように埋めます。埋めずに実行すると、その行は構文エラーで止まります。空でもそれだけでは止まらない値は `${VAR:?}` で読みます。`RUN` が空だと、手順 3 の署名の確認が何も出力せずに通ってしまうためです。
 
 どのブロックもエージェントに実行させられますが、5 つのことは人が行います。手順 3 の検査の一覧の仕分け、どの CI でも実行できない手順 3 の Unity での確認、リリースを `main` に入れる手順 4 のマージ、取り消せない npm への公開を行う手順 6、同じく取り消せない Release の公開を行う手順 7 です。
 
@@ -302,14 +302,14 @@ BASE=$(git -c versionsort.suffix=- tag --list "v${BRANCH#release/}.*" --sort=-v:
 git switch -C "$BRANCH" "${BASE:?}"
 ```
 
-### 2. SDK、バージョン、CHANGELOG
+どちらの場合も、リリースが同梱するのは、ブランチの `scripts/SDK_VERSION.txt` が指す SpriteStudio-SDK のリリースです。`cat scripts/SDK_VERSION.txt` で出力できます。別のリリースを同梱するときは、ブランチ上でこのファイルを書き換えて単独のコミットにします。手順 3 の QA ビルドが、そのタグでネイティブライブラリと FFI バインディングを取得します。新しいリリースでプラットフォーム構成が変わったときは、先にネイティブプラグインの `.meta` を作る必要があります（後述）。
 
-1 コミットで行います。同梱する SpriteStudio-SDK のリリースを `scripts/SDK_VERSION.txt` で固定します。`download-sdk` がネイティブライブラリと FFI バインディングを取得するときに使うタグです。SDK のプラットフォーム構成が変わったときは、先にネイティブプラグインの `.meta` を作る必要があります（後述）。`<version>` は手順 1 と同じものです。
+### 2. バージョン、CHANGELOG
+
+1 コミットで行います。`<version>` は手順 1 と同じものです。
 
 ```bash
 VERSION=<version>
-SDK_TAG=<sdk-tag>
-printf '%s\n' "${SDK_TAG:?}" >| scripts/SDK_VERSION.txt
 (cd package && npm version "${VERSION:?}" --no-git-tag-version --allow-same-version)
 scripts/release-version.sh                       # バージョンが出力されること
 ```
@@ -317,7 +317,7 @@ scripts/release-version.sh                       # バージョンが出力さ�
 続けて `CHANGELOG.md` のそのバージョンの見出しに日付を入れて `## [X.Y.Z] - YYYY-MM-DD` とし、リンク行をタグへ向けます。そのバージョンの見出しとリンク行がまだ無ければ足します。CHANGELOG はパッケージに同梱され、Package Manager の Changelog タブにそのまま表示されます。そのあとコミットします。
 
 ```bash
-git add scripts/SDK_VERSION.txt package/package.json CHANGELOG.md
+git add package/package.json CHANGELOG.md
 git commit -m "chore(release): v$(scripts/release-version.sh)"
 ```
 
