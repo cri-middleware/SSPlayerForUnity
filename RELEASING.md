@@ -39,24 +39,20 @@ git switch -C "$BRANCH" "${BASE:?}"
 
 ### 2. SDK, version and changelog
 
-In one commit. Pin the SpriteStudio-SDK release this one ships, in both places it is read from: `scripts/SDK_VERSION.txt`, the tag `download-sdk` fetches the native libraries and FFI bindings by, and the `SpriteStudio-SDK` submodule. When the SDK's `.fbs` schemas changed, regenerate the C# bindings with `scripts/generate-fbs-code.sh` (`flatc` required); the block's last command lists those changes. When its platforms changed, the native plugins need new `.meta` first — see below. `<version>` is the one from step 1.
+In one commit. Pin the SpriteStudio-SDK release this one ships in `scripts/SDK_VERSION.txt`, the tag `download-sdk` fetches the native libraries and FFI bindings by. When the SDK's platforms changed, the native plugins need new `.meta` first — see below. `<version>` is the one from step 1.
 
 ```bash
 VERSION=<version>
 SDK_TAG=<sdk-tag>
-OLD_SDK=$(cat scripts/SDK_VERSION.txt)
-git submodule update --init SpriteStudio-SDK
-git -C SpriteStudio-SDK fetch --tags origin && git -C SpriteStudio-SDK checkout "${SDK_TAG:?}"
 printf '%s\n' "${SDK_TAG:?}" >| scripts/SDK_VERSION.txt
 (cd package && npm version "${VERSION:?}" --no-git-tag-version --allow-same-version)
 scripts/release-version.sh                       # must print the version
-git -C SpriteStudio-SDK diff --stat "${OLD_SDK:?}" "$SDK_TAG" -- libs/ssruntime/fbs libs/ssab/fbs   # any output: run scripts/generate-fbs-code.sh
 ```
 
 Then date the version's heading in `CHANGELOG.md` as `## [X.Y.Z] - YYYY-MM-DD` and point its link line at the tag, adding both if the version has none yet. The changelog ships inside the package, as Package Manager's Changelog tab. Commit:
 
 ```bash
-git add scripts/SDK_VERSION.txt SpriteStudio-SDK package/Runtime/Format package/package.json CHANGELOG.md
+git add scripts/SDK_VERSION.txt package/package.json CHANGELOG.md
 git commit -m "chore(release): v$(scripts/release-version.sh)"
 ```
 
@@ -308,24 +304,20 @@ git switch -C "$BRANCH" "${BASE:?}"
 
 ### 2. SDK、バージョン、CHANGELOG
 
-1 コミットで行います。同梱する SpriteStudio-SDK のリリースを、読まれる 2 か所の両方で固定します。`download-sdk` がネイティブライブラリと FFI バインディングを取得するときに使うタグ `scripts/SDK_VERSION.txt` と、`SpriteStudio-SDK` submodule です。SDK の `.fbs` スキーマが変わったときは、`scripts/generate-fbs-code.sh` で C# のバインディングを生成し直します（`flatc` が必要です）。ブロックの最後のコマンドがその変更を一覧します。SDK のプラットフォーム構成が変わったときは、先にネイティブプラグインの `.meta` を作る必要があります（後述）。`<version>` は手順 1 と同じものです。
+1 コミットで行います。同梱する SpriteStudio-SDK のリリースを `scripts/SDK_VERSION.txt` で固定します。`download-sdk` がネイティブライブラリと FFI バインディングを取得するときに使うタグです。SDK のプラットフォーム構成が変わったときは、先にネイティブプラグインの `.meta` を作る必要があります（後述）。`<version>` は手順 1 と同じものです。
 
 ```bash
 VERSION=<version>
 SDK_TAG=<sdk-tag>
-OLD_SDK=$(cat scripts/SDK_VERSION.txt)
-git submodule update --init SpriteStudio-SDK
-git -C SpriteStudio-SDK fetch --tags origin && git -C SpriteStudio-SDK checkout "${SDK_TAG:?}"
 printf '%s\n' "${SDK_TAG:?}" >| scripts/SDK_VERSION.txt
 (cd package && npm version "${VERSION:?}" --no-git-tag-version --allow-same-version)
 scripts/release-version.sh                       # バージョンが出力されること
-git -C SpriteStudio-SDK diff --stat "${OLD_SDK:?}" "$SDK_TAG" -- libs/ssruntime/fbs libs/ssab/fbs   # 何か出力されたら scripts/generate-fbs-code.sh を実行する
 ```
 
 続けて `CHANGELOG.md` のそのバージョンの見出しに日付を入れて `## [X.Y.Z] - YYYY-MM-DD` とし、リンク行をタグへ向けます。そのバージョンの見出しとリンク行がまだ無ければ足します。CHANGELOG はパッケージに同梱され、Package Manager の Changelog タブにそのまま表示されます。そのあとコミットします。
 
 ```bash
-git add scripts/SDK_VERSION.txt SpriteStudio-SDK package/Runtime/Format package/package.json CHANGELOG.md
+git add scripts/SDK_VERSION.txt package/package.json CHANGELOG.md
 git commit -m "chore(release): v$(scripts/release-version.sh)"
 ```
 
