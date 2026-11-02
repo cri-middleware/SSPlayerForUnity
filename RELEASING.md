@@ -77,7 +77,7 @@ git push origin "${BRANCH:?}" &&
   ! gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # must print nothing
 ```
 
-A missing signing secret does not fail the run: it packs the tarball unsigned, says so in the log, and passes, and Unity 6.3 then warns whoever installs it. The block's last command looks for that, here and in step 5, and must print nothing. If it prints anything, no change on the branch fixes it: the signing secrets, `UNITY_ORGANIZATION_ID` and the UPM service account's key, are not reaching this repository. An admin of the repository or the organization provides them, and on GitHub Free organization secrets cannot reach a private repository. Dispatch again once they do; in step 5, delete the draft first.
+A missing signing secret fails the run at its first step, which names the secret, here and in step 5. No change on the branch fixes that: the signing secrets, `UNITY_ORGANIZATION_ID` and the UPM service account's key, are not reaching this repository. An admin of the repository or the organization provides them, and on GitHub Free organization secrets cannot reach a private repository. Dispatch again once they do. The block's last command also reads the log for a tarball packed unsigned, here and in step 5, and must print nothing.
 
 **A person runs these two checks**, on the branch, since no CI has Unity: the test suite (`scripts/run-tests.sh`, as [CONTRIBUTING.md](./CONTRIBUTING.md) describes), and installing the QA tarball from `qa/<run-id>/` into a project through **Window > Package Manager > + > Install package from tarball...**.
 
@@ -342,7 +342,7 @@ git push origin "${BRANCH:?}" &&
   ! gh run view "${RUN:?}" --log | grep -E 'not set|Skipping' | grep -v 'echo '   # 何も出力されないこと
 ```
 
-署名の Secret が欠けていても、この run は失敗しません。tarball を署名なしで作り、その旨をログに出して成功します。署名の無い tarball は、Unity 6.3 がインストールする人に警告します。ブロックの最後のコマンドはそれを探すもので、ここでも手順 5 でも何も出力されてはいけません。何か出力されたら、ブランチをどう変えても直りません。署名用の Secret（`UNITY_ORGANIZATION_ID` と UPM のサービスアカウントのキー）がこのリポジトリに届いていません。届けるのはリポジトリか組織の admin で、GitHub Free では組織の Secret は private のリポジトリに届けられません。届くようになったら実行し直してください。手順 5 では先に下書きを消します。
+署名の Secret が欠けていると、この run も手順 5 の run も、最初のステップで欠けている Secret の名前を出して失敗します。ブランチをどう変えても直りません。署名用の Secret（`UNITY_ORGANIZATION_ID` と UPM のサービスアカウントのキー）がこのリポジトリに届いていません。届けるのはリポジトリか組織の admin で、GitHub Free では組織の Secret は private のリポジトリに届けられません。届くようになったら実行し直してください。ブロックの最後のコマンドも、tarball が署名なしで作られていないかをログで確かめるもので、ここでも手順 5 でも何も出力されてはいけません。
 
 **この 2 つの確認は人が行います。** どの CI にも Unity が無いためです。ブランチ上で、テストスイート（[CONTRIBUTING.md](./CONTRIBUTING.md) にある `scripts/run-tests.sh`）を実行し、`qa/<run-id>/` の tarball を **Window > Package Manager > + > Install package from tarball...** からプロジェクトに入れます。
 

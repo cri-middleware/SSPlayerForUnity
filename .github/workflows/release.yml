@@ -40,6 +40,25 @@ jobs:
       # do a release is signed with no change here.
       UNITY_ORGANIZATION_ID: ${{ secrets.UNITY_ORGANIZATION_ID }}
     steps:
+      # A run from a release/ branch or a v* tag is the release or its QA build
+      # (RELEASING.md steps 3 and 5). The build below packs unsigned when a
+      # secret is absent, and passes; for those runs a missing secret fails here
+      # instead, as in SpriteStudio-SDK's release.yml.
+      - name: Require the signing secrets
+        if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/heads/release/')
+        env:
+          UPM_SERVICE_ACCOUNT_KEY_ID: ${{ secrets.UPM_SERVICE_ACCOUNT_KEY_ID }}
+          UPM_SERVICE_ACCOUNT_KEY_SECRET: ${{ secrets.UPM_SERVICE_ACCOUNT_KEY_SECRET }}
+        run: |
+          missing=""
+          for name in UNITY_ORGANIZATION_ID UPM_SERVICE_ACCOUNT_KEY_ID UPM_SERVICE_ACCOUNT_KEY_SECRET; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::a run from $GITHUB_REF_NAME ships signed, and these secrets are not set:$missing"
+            exit 1
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-tags: true
