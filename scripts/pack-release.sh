@@ -77,8 +77,9 @@ done
 # npm pack applies the "files" allowlist in package.json and produces a tarball with
 # the `package/` root folder structure UPM expects; a tar fallback would honour neither
 # and sweep in Tests/ and other dev-only content, so refuse to produce a tarball at all
-# rather than a subtly broken one. build-release.sh checks the finished archive either
-# way, which is what establishes that upm pack applied the allowlist too.
+# rather than a subtly broken one. upm pack does not read "files": it packs what
+# package/.npmignore leaves, so that file lists what the allowlist leaves out.
+# build-release.sh checks the finished archive either way.
 #
 # --- Package signature (opt-in via env) -------------------------------------
 # Unity 6.3's Package Manager checks every tarball for a signature and tells whoever

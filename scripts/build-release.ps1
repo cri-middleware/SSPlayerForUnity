@@ -316,11 +316,13 @@ if ($verify -eq "yes") {
     & git -C $rootFull rev-parse --git-dir *> $null
     if ($LASTEXITCODE -eq 0) {
         $tracked = @(& git -C $rootFull ls-files package/)
+        # Names starting with a dot, such as package/.npmignore, Unity does not import.
+        $imported = @($tracked | Where-Object { $_ -notmatch '/\.' })
         $needMeta = [System.Collections.Generic.List[string]]::new()
-        foreach ($entry in $tracked) {
+        foreach ($entry in $imported) {
             if ($entry -notlike '*.meta') { $needMeta.Add($entry) }
         }
-        foreach ($directory in ($tracked | ForEach-Object { Split-Path $_ -Parent } |
+        foreach ($directory in ($imported | ForEach-Object { Split-Path $_ -Parent } |
                                 ForEach-Object { $_ -replace '\\', '/' } |
                                 Sort-Object -Unique)) {
             if ($directory -and $directory -ne 'package') { $needMeta.Add($directory) }
@@ -422,6 +424,12 @@ if ($verify -eq "yes") {
     # The native libraries survived the allowlist, in both plugin trees.
     foreach ($tree in @("Runtime/Plugins", "Editor/Plugins")) {
         if (-not (Test-EntryPrefix "$tree/")) { $failed.Add("$versioned contains nothing under $tree/") }
+    }
+
+    # What the allowlist keeps out stayed out. upm pack ignores "files" and reads
+    # package/.npmignore instead, so the two lists must agree.
+    foreach ($dev in @("Tests/", "Tests.meta", "Runtime/Resources/Shaders/AddOns/SpriteStudioTestStub.shader")) {
+        if (Test-EntryPrefix $dev) { $failed.Add("$versioned contains $dev, which the package must not ship") }
     }
 
     # And every native plugin in the archive still has its .meta beside it. The

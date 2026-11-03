@@ -268,10 +268,11 @@ native_libs () {
 # is the whole point: Unity writes a .meta the moment the asset appears locally,
 # so the file is right in front of whoever added it and missing for everyone who
 # installs the tarball. Directories count -- Unity needs a .meta for those too.
+# Names starting with a dot, such as package/.npmignore, Unity does not import.
 assets_without_meta () {
   {
-    git -C "$ROOT_DIR" ls-files package/ | grep -v '\.meta$'
-    git -C "$ROOT_DIR" ls-files package/ | xargs -n1 dirname | sort -u | grep -v '^package$'
+    git -C "$ROOT_DIR" ls-files package/ | grep -v -e '\.meta$' -e '/\.'
+    git -C "$ROOT_DIR" ls-files package/ | grep -v '/\.' | xargs -n1 dirname | sort -u | grep -v '^package$'
   } | while IFS= read -r path; do
     [ -n "$path" ] || continue
     git -C "$ROOT_DIR" ls-files --error-unmatch "$path.meta" >/dev/null 2>&1 || echo "$path"
@@ -431,6 +432,12 @@ if [ "$VERIFY" = "yes" ]; then
   # The native libraries survived the allowlist, in both plugin trees.
   for tree in "Runtime/Plugins" "Editor/Plugins"; do
     has_any "$tree/" || fail "$VERSIONED contains nothing under $tree/"
+  done
+
+  # What the allowlist keeps out stayed out. upm pack ignores "files" and reads
+  # package/.npmignore instead, so the two lists must agree.
+  for dev in "Tests/" "Tests.meta" "Runtime/Resources/Shaders/AddOns/SpriteStudioTestStub.shader"; do
+    if has_any "$dev"; then fail "$VERSIONED contains $dev, which the package must not ship"; fi
   done
 
   # And every native plugin in the archive still has its .meta beside it. The
