@@ -14,7 +14,7 @@ tracking behave — is written once, in the SDK's
 
 ## Layers
 
-The package is `package/`. A thin C# layer drives the Rust runtime, `libssruntime`, over FFI
+The package is `package/`. A thin C# layer drives the Rust runtime, `libssruntime` (the "Brain" in the diagram), over FFI
 bindings that csbindgen generates, builds each frame's geometry in Burst jobs and uploads it to a
 `Mesh`. The editor converts `.sspj` with `libssconverter`. An arrow is a call:
 
@@ -59,7 +59,7 @@ flowchart TD
 - The geometry stage turns a frame's draw data into batches, submeshes, mask steps and effect
   quads, writes the vertices in a Burst job and uploads them, re-sending indices only when the
   topology changes.
-- Materials are kept per texture and blend; `SpriteStudioShaderCatalog` maps per-part shaders.
+- Materials are kept per texture and blend; `SpriteStudioShaderCatalog` maps per-part shaders. Each AddOn part gets a material instance of its own instead of a `MaterialPropertyBlock`, so the SRP Batcher keeps batching: the player rebuilds it when its submeshes, asset, Shader Catalog or texture overrides change, and sets its parameters every frame.
   Built-in sound, the events, part following (`SpriteStudioPartTracker`), per-part and texture
   overrides, and a Timeline track sit beside them.
 - `SpriteStudioAnimeAsset` and `SpriteStudioSequenceAsset` are the imported assets.
@@ -112,7 +112,7 @@ player owns the runtime's pointers, and `JobHandle.Complete()` runs before anyth
 because a Burst job still reading freed memory crashes the process.
 
 **Conversion never blocks the Editor.** The scan of a dropped folder runs on another thread, and
-conversions run from a queue capped at the CPU count and polled from `EditorApplication.update`,
+conversions run from a queue capped at one fewer than the CPU count (1 to 8) and polled from `EditorApplication.update`,
 with progress in the status bar. A `.sspj` can live anywhere on disk;
 `ProjectSettings/SpriteStudioSourceMap.json` records which one each `.ssab` came from, which is
 what Reconvert reads. The output folder and the recent files are per user (`UserSettings/`).
@@ -121,8 +121,8 @@ what Reconvert reads. The output folder and the recent files are per user (`User
 `.ssab` bytes and references every texture they name, so a build strips nothing an animation draws
 and an AssetBundle carries what it needs.
 
-**The SDK submodule is the record of which runtime this repository builds.** `Plugins/` and
-`Bindings/` are not in git, so the submodule's pointer is the only thing that says which
-`libssruntime` a checkout is meant to run. A change that depends on runtime behaviour bumps the
+**Two pins say which runtime a checkout runs.** `Plugins/` and `Bindings/` are not in git, so
+`scripts/SDK_VERSION.txt` names the SDK release `download-sdk` installs, and the SDK submodule's
+pointer names the source `build-runtime` compiles. A change that depends on runtime behaviour bumps the
 submodule in the same pull request, so a reviewer who builds what the branch records gets what the
 pull request claims.

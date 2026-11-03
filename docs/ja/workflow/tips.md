@@ -42,17 +42,17 @@
 
 ## ゼロアロケーションについて
 
-本プラグインの Tick / メッシュ構築ループは GC アロケーションを発生させません（`NativeArray` の再利用と `Mesh.SetVertexBufferData` への直接書き込み）。
+本プラグインの Tick / メッシュ構築ループは GC アロケーションを発生させません。
 
 **イベント通知**は避けられない箇所のみ確保します。Signal のコマンドパラメータは再利用される型付きバッファに展開され（`SpriteStudioSignal.GetParam` / `TryGetParam` で取得）、数値パラメータは一切確保しません。残るのはパーツ名・コマンド ID・文字列パラメータのマネージド文字列生成のみ（不可避）で、Signal の数とバーストに比例します。そのため Signal を大量・高頻度に発火するアニメーションでは、モバイル / WebGL で軽微なヒッチの原因になり得ます。
 
 ## カスタムシェーダ / AddOn（パーツ単位）
 
-SpriteStudio のパーツに設定された AddOn（sepia / hsb / outline / blur / pixelate / noise / wave など）に対応します。
+ワールド経路（`SpriteStudioPlayer`）では、SpriteStudio のパーツに設定された AddOn（sepia / hsb / outline / blur / pixelate / noise / wave など）に対応します。`SpriteStudioGraphic` はすべてのパーツを 1 つの Canvas 用マテリアルで描画するため、Canvas では AddOn もカスタムシェーダも効きません。
 
 - 組み込み AddOn は設定不要で動作します。パッケージには既定カタログ `Runtime/Resources/SpriteStudioAddOnCatalog.asset` が同梱されており、これが自動的に解決します。
 - 独自のカスタムシェーダを追加するには、プロジェクトにカタログを作ってプレイヤーに持たせます。**Assets > Create > SpriteStudio > Shader Catalog** でカタログを作り、SpriteStudio エディタでパーツに設定したシェーダ ID と一致する **Id Name** と、AddOn 契約（`SpriteStudioAddOn.hlsl`）に従う **Shader** を持つエントリを追加して、プレイヤーの **Shader Catalog** に割り当ててください。プレイヤーは ID をまずこのカタログで引き、載っていないものは組み込み AddOn に回します。既定カタログはインストールされたパッケージの一部なので編集できません。
-- `MaterialPropertyBlock` は使用せず、AddOn パーツごとに専用のマテリアルインスタンスで描画します（プレイヤーは、サブメッシュ・アセット・Shader Catalog・テクスチャの差し替えのいずれかが変わるたびに作り直し、パーツのパラメータを毎フレーム設定します）。そのため **SRP Batcher を阻害しません**。
+- AddOn パーツは `MaterialPropertyBlock` を使わず、パーツごとに専用のマテリアルで描画します。そのため **SRP Batcher を阻害しません**。
 
 > AddOn 経路は URP / Built-in の両方に対応しています。
 
@@ -61,13 +61,9 @@ SpriteStudio のパーツに設定された AddOn（sepia / hsb / outline / blur
 SpriteStudio のマスク / クリッピング（パーツ単位）に、ステンシルバッファを用いて対応します。
 
 - **ワールド経路（`SpriteStudioPlayer`）**: SpriteStudio 内部のマスク機構を用いてステンシルで描画します。URP では SSAO / Deferred / Decal と併用してもマスクが破綻しないよう、使用するステンシルビットを限定しています。
-- **Canvas 経路（`SpriteStudioGraphic`）**: SpriteStudio 内部のマスクは抑止し、代わりに uGUI の **Mask** / **RectMask2D** に追従します（親にマスクを置くと、このグラフィックがクリップされます。グラフィック自身に **Mask** を置くと、その子がクリップされます）。
+- **Canvas 経路（`SpriteStudioGraphic`）**: SpriteStudio 内部のマスクは抑止し、代わりに uGUI の **Mask** / **Rect Mask 2D** に追従します（親にマスクを置くと、このグラフィックがクリップされます。グラフィック自身に **Mask** を置くと、その子がクリップされます）。
 
-ワールド経路では、SpriteStudio 7.5 の描画と同じ規則でマスクを解決します。
-
-- **マスクの内側に描く設定のパーツは、覆うマスクが無いところでは描かれません。** アニメーションにマスクが 1 つも無い場合や、マスクがすべて非表示・マスク値 0 の場合も同じです。マスクするものが無いからといって、判定を省いて描くことはしません。
-- **インスタンスパーツのマスクの設定は、サブアニメーションのパーツと 1 段だけ合成されます。** サブアニメーションのパーツは、自分とインスタンスパーツの両方で「マスク影響」がオンのときだけマスクを受け、どちらかが内側に描くよう指定していれば内側に描きます。効くのはそのサブアニメーションを描くインスタンスパーツだけで、さらに上のインスタンスパーツは 2 段下のパーツには届きません。
-- **インスタンスの中のマスクはサブアニメーション自身のパーツに効き、その中のクリッピングは外にも続きます。** 呼び出し側のアニメーションのうちインスタンスより後に描かれるパーツも、アニメーション全体の描画の最後まで切り取ります。
+ワールド経路では、SpriteStudio 7.5 の描画と同じ規則でマスクを解決します。マスクの内側に描く設定のパーツは、アニメーションにマスクが 1 つも無い場合でも、覆うマスクが無いところでは描かれません。インスタンスパーツの中のマスクの規則は、ランタイムの [マスクのガイド](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/libs/ssruntime/docs/40_parts/40_mask.ja.md) にあります。
 
 ## Canvas (uGUI) 経路の制約
 
@@ -76,6 +72,7 @@ SpriteStudio のマスク / クリッピング（パーツ単位）に、ステ�
 - **単一アトラス前提**: 複数アトラスを使うアニメーションでは、最初のアトラスのみが描画され、他アトラスのパーツは正しいテクスチャをサンプリングできません（警告がログに出ます）。**1 つのアトラスへまとめる**か、**ワールド経路（`SpriteStudioPlayer`）を使用**してください。
 - **パーツの描画モード**: MIX（ミックス） / ADD（加算） はシェーダ内で頂点単位に振り分けます。それ以外のブレンドは MIX に集約されます。
 - **TexCoord1 / TexCoord2 の有効化**: パーツカラー用のデータを TEXCOORD1 と TEXCOORD2 で渡すため、対象 Canvas の `additionalShaderChannels` に `TexCoord1` と `TexCoord2` を自動付与します。頂点カラーは uGUI に任せており、`Image` と同じくグラフィックの **Color** を運びます。
+- **パーツ単位のシェーダとメッシュエフェクトは効きません**: グラフィックは自らメッシュを渡すため、付けた `Shadow`・`Outline` などの `BaseMeshEffect` は何も変えず、パーツ単位の AddOn / カスタムシェーダも描画されません。これらが要るときはワールド経路（`SpriteStudioPlayer`）を使ってください。
 
 複雑なブレンドや複数アトラスを正しく使いたい場合は、ワールド経路（`SpriteStudioPlayer`）の利用を推奨します。ワールド経路は Mul2 を Mul、Screen2 を Screen として描画し、Div2 / Overlay2 は MIX として描画します（[制限事項](../limitations.md) 参照）。
 

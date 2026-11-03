@@ -22,6 +22,8 @@ Two numbers adjust a stack, and **which one you reach for matters**:
 | **alpha** (`SetTrackAlpha`) | How much of the track lays over what is below. **This is the strength control.** | track |
 | **weight** (`SetSourceWeight`) | The proportions between several animations sharing **one** track | source |
 
+A source's weight alone does not set strength: when only one animation keys an attribute there is nothing to compare it with, so the attribute takes that animation's value however small its weight. Use `weight` only to mix animations on one track, and `alpha` for everything else.
+
 A track only acts on what its animation keys. An overlay that keys only the head leaves the legs alone, with no mask to set up — so **an overlay reaches exactly as far as it was animated**.
 
 Track 0 carries the **structure**: cells, part colour, shaders, flips, hide, draw priority and textures all come from track 0's main animation, as do the events by default. Overlays blend the continuous attributes (position, rotation, scale, alpha and the rest).
@@ -29,6 +31,8 @@ Track 0 carries the **structure**: cells, part colour, shaders, flips, hide, dra
 ## Laying an overlay
 
 ```csharp
+using SpriteStudio.Runtime;
+
 [SerializeField] SpriteStudioPlayer _player;
 
 void Start()
@@ -40,7 +44,9 @@ void Start()
 }
 ```
 
-Tracks are created as needed: setting track 3 creates tracks 1 and 2 empty. `alpha` is not clamped to 0–1; above 1 it extrapolates.
+Set **Animation Name** to the track 0 animation in the Inspector: the player's own start selects it, and if that runs after your `Start()` with another name, it switches track 0 and folds the overlays.
+
+Laying an animation (`SetTrackAnimation`, `Crossfade`, `AddTrackSource`) creates a track that does not exist yet: laying on track 3 creates tracks 1 and 2 empty. `SetTrackAlpha`, `SetTrackBlend` and `FadeTrack` do not create one and return `false` for a track that does not exist, so lay the animation first. `alpha` is not clamped to 0–1; above 1 it extrapolates.
 
 ### Additive tracks
 
@@ -68,7 +74,8 @@ _player.Crossfade(0, "run", 0.3f);
 | Case | What happens |
 |---|---|
 | A track playing nothing | No fade: the animation starts at once |
-| A track already fading | The fade in flight is taken over as it stands, so the pose does not jump |
+| A track already crossfading | The fade in flight is taken over as it stands, so the pose does not jump |
+| A track running a `FadeTrack` fade | `Crossfade()` replaces it; alpha stops where it is |
 | A track mixing several sources, or left part-way by `CancelTrackFade` | Everything on it fades out together |
 | `duration` of 0 or less, or a name the asset does not have | Refused: `false` |
 | Stopping a fade part-way | `CancelTrackFade(track)` — alpha and weight stay where they are |
@@ -81,13 +88,15 @@ _player.Crossfade(0, "run", 0.3f);
 _player.FadeTrack(1, 0f, 0.2f);                 // fade the overlay out over 0.2 s
 ```
 
+A track has a single fade: `FadeTrack()` on a track that is crossfading replaces the crossfade, as `CancelTrackFade()` would. Alpha belongs to the track and is not reset when another animation is laid on it, so after fading an overlay out, call `SetTrackAlpha(track, 1f)` before laying the next one.
+
 ### What a crossfade on track 0 changes, and when
 
 The incoming animation takes track 0 over **when the fade begins**, not when it ends:
 
 - `CurrentAnimation` — and the inspector's **Animation Name** — name it straight after the call. `OnAnimationStarted` is not raised: the switch carries on track 0's play state. `SetAnimation()` with the name the fade left behind switches back; with the incoming name it changes nothing, and the fade carries on.
 - Its cells, hide and the other values that cannot be blended show from the first frame of the fade. `IsPlaying`, `IsFinished`, `JustLooped`, `FrameNo` and `OnAnimationFinished` / `OnAnimationLooped` report it: the outgoing animation running out during the fade does not finish the character.
-- It plays with the player's `SpeedScale`, `FrameRate`, `FrameSkipEnabled`, playback direction and `LoopCount`, as if `SetAnimation()` had switched to it. Its section is its own whole length.
+- It plays with the player's `SpeedScale`, `FrameRate`, `FrameSkipEnabled`, playback direction and `LoopCount`, as if `SetAnimation()` had switched to it. Its [section](./usage_scripting.md#example-seek-and-section-playback) is its own whole length.
 - Its events fire from the start of the fade, and the outgoing animation's stop — see [Events](#events) below.
 
 `SetTrackAnimation(0, ...)` switches track 0 the same way, without the fade.
@@ -108,7 +117,7 @@ void Update()
 }
 ```
 
-Each animation on a track is a **source**, named by an integer handle (`-1` for none; `0` is a valid handle). A handle stays valid until its source is released — a crossfade completing, `ClearTrack()`, or `SetAnimation()` to another animation — and is then reused, so do not keep one past its source. Weights are ratios: `(0.7, 0.3)` and `(7, 3)` mix the same.
+Each animation on a track is a **source**, named by an integer handle (`-1` for none; `0` is a valid handle). A handle stays valid until its source is released — a crossfade completing, `SetTrackAnimation()` on its track (which releases every source on the track, those added with `AddTrackSource()` included), `ClearTrack()`, or `SetAnimation()` to another animation — and is then reused, so do not keep one past its source. Weights are ratios: `(0.7, 0.3)` and `(7, 3)` mix the same. Sources of different lengths do not stay in phase. To start one in step with track 0, set `SpriteStudioTrackSync.Start` on the track before `AddTrackSource()` (next section); it aligns once, so a walk and a run of different lengths still drift apart afterwards.
 
 ## Starting in phase (`trackSync`)
 
@@ -167,7 +176,7 @@ Track 0's loop count is `LoopCount` (`SetTrackLoopCount(0, ...)` writes the same
 
 ## SetAnimation() folds the stack
 
-`SetAnimation()` to a **different** animation puts the stack back to track 0 alone: every overlay, every source and every track setting (alpha, blend, sync, and the playback settings of the tracks above 0) goes with it. Lay the overlays again after switching. Selecting the animation already playing changes nothing. Editing **Animation Name** in the inspector during Play mode is a `SetAnimation()`, so it folds the stack too.
+`SetAnimation()` to a **different** animation puts the stack back to track 0 alone: every overlay, every source and every track setting (alpha, blend, sync, and the playback settings of the tracks above 0) goes with it. Lay the overlays again after switching. Selecting the animation already playing changes nothing. On `SpriteStudioPlayer`, editing **Animation Name** in the inspector during Play mode is a `SetAnimation()` followed by `Play()`, so it folds the stack too; `SpriteStudioGraphic` does not apply an inspector edit of it while playing, so switch it with `SetAnimation()`.
 
 ## Events
 
@@ -178,6 +187,8 @@ int overlay = _player.GetTrackMainSource(1);
 _player.SetSourceEventThreshold(overlay, 1f);   // fires while its weight is 1 or more
 ```
 
+A source's threshold belongs to the source. The animation that `SetTrackAnimation()` or `Crossfade()` lays on a track above 0 is a new source and starts at `+Infinity` again, so set the threshold again after every change of animation.
+
 Every event carries the handle of the source that fired it in `Source` (`SpriteStudioUserData.Source`, `SpriteStudioSignal.Source`, `SpriteStudioAudio.Source`), so events from two sources can be told apart.
 
 From the moment a crossfade on track 0 begins, the incoming animation is the one that fires, and the outgoing side falls silent. To keep the outgoing side firing for part of the fade, give the track an outgoing event threshold: the outgoing side fires while its share of the track, `1 - progress`, is at least the threshold.
@@ -186,11 +197,11 @@ From the moment a crossfade on track 0 begins, the incoming animation is the one
 _player.SetTrackOutgoingEventThreshold(0, 0.5f);   // the outgoing side fires for the first half
 ```
 
-The threshold is the track's setting and stays set. Its default, `+Infinity`, silences the outgoing side as the fade begins. **If you count events**, note that a crossfade therefore stops the outgoing animation's events at once.
+The **outgoing** threshold is the track's setting and stays set. Its default, `+Infinity`, silences the outgoing side as the fade begins. **If you count events**, note that a crossfade therefore stops the outgoing animation's events at once.
 
 ## Timeline
 
-While a Timeline drives the player, the clip decides track 0: it seeks the player rather than advancing it, so fades and overlays do not move, and a switch of track 0 made from a script is undone at the clip's next evaluation. Use motion blending from scripts on a player the Timeline is not driving.
+While a Timeline drives the player, the clip decides track 0: it seeks the player rather than advancing it, so fades and overlays do not move, and, under a SpriteStudio Track clip, a switch of track 0 made from a script is undone at the clip's next evaluation. Use motion blending from scripts on a player the Timeline is not driving.
 
 ## Limits
 
