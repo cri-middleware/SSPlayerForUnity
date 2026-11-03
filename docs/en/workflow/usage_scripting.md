@@ -224,7 +224,7 @@ struct SpriteStudioAudio
 >
 > A sound that has started **outlives the playback that triggered it**. `Pause()`, `Resume()`, `Stop()`, a `SetAnimation()` switch and the end of the animation all leave it running, and a key crossed again while its sound still plays starts another voice rather than cutting the first. Only disabling or destroying the component, setting `AnimeAsset` to `null`, or `StopAllSounds()` stops one. SpriteStudio has no infinite loop — `loop_num` is a play count — so every sound ends on its own. If one outlasts its animation, that is the animation data's business, not the component's.
 >
-> Sounds play for the keys the playhead crosses. A seek — setting `FrameNo`, playing or not — does not sound the keys on the frame it lands on, though their `OnAudio` events still fire; the start frame's keys do sound after `Play()`.
+> Sounds play for the keys the playhead crosses. A seek — setting `FrameNo` or `SetTrackFrame(0, …)`, playing or not — does not sound the keys on the frame it lands on, though their `OnAudio` events still fire; the start frame's keys do sound after `Play()`.
 
 ### Implementation Example: Continuous Animation Playback
 

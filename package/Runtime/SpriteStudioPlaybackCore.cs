@@ -294,6 +294,19 @@ namespace SpriteStudio.Runtime
             _seekLandingFrame = Mathf.FloorToInt(p.GetFrame());
         }
 
+        /// <summary>Moves a track's playhead. Track 0's is the character's, so moving it is a seek.</summary>
+        public bool SetTrackFrame(int track, float frame)
+        {
+            var p = Internal;
+            if (p == null || !p.SetTrackFrame(track, frame)) return false;
+            if (track == 0)
+            {
+                _seekPending = true;
+                _seekLandingFrame = Mathf.FloorToInt(p.GetFrame());
+            }
+            return true;
+        }
+
         /// <summary>Whether an audio key on <paramref name="frameNo"/> is a seek's landing frame, not one crossed.</summary>
         public bool IsSeekLanding(int frameNo) => _seekPending && frameNo == _seekLandingFrame;
 
