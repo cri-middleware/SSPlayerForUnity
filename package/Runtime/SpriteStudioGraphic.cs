@@ -658,7 +658,7 @@ namespace SpriteStudio.Runtime
         public SpriteStudioTrackSync GetTrackSync(int track) => _core.Internal?.GetTrackSync(track) ?? SpriteStudioTrackSync.Free;
 
         /// <summary>Moves a track's playhead.</summary>
-        public bool SetTrackFrame(int track, float frameNo) => _core.Internal?.SetTrackFrame(track, frameNo) ?? false;
+        public bool SetTrackFrame(int track, float frameNo) => _core.SetTrackFrame(track, frameNo);
 
         /// <inheritdoc cref="SetTrackFrame"/>
         public float GetTrackFrame(int track) => _core.Internal?.GetTrackFrame(track) ?? 0f;

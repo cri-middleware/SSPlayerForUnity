@@ -214,6 +214,26 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
+        public void TrackZeroFrame_IsASeek_NotifiesTheLandingFramesKey_ButDoesNotPlayIt()
+        {
+            if (!Application.isPlaying) Assert.Ignore("The built-in playback runs in Play mode only.");
+            var player = MakePlayingSoundPlayer(out int keyFrame);
+            try
+            {
+                int notified = 0;
+                player.OnAudio += a => { if (a.FrameNo == keyFrame) notified++; };
+
+                player.Stop();
+                Assert.IsTrue(player.SetTrackFrame(0, keyFrame));
+                player.PrepareFrame(1f / 60f, out _, out _);
+
+                Assert.Greater(notified, 0, "The landing frame's key is still notified");
+                Assert.IsNull(player.GetComponent<AudioSource>(), "but moving track 0's playhead is a seek, so it does not sound");
+            }
+            finally { Object.DestroyImmediate(player.gameObject); }
+        }
+
+        [Test]
         public void PlayAfterASeek_SoundsTheStartFramesKey()
         {
             if (!Application.isPlaying) Assert.Ignore("The built-in playback runs in Play mode only.");
