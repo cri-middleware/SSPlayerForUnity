@@ -18,7 +18,7 @@ namespace SpriteStudio.UI
     public class SpriteStudioRaycastFilter : MonoBehaviour, ICanvasRaycastFilter
     {
         [Tooltip("The parts whose outlines take the pointer. Empty: every part's.")]
-        [SerializeField] private List<string> _parts = new List<string>();
+        [SerializeField, SpriteStudioPartName] private List<string> _parts = new List<string>();
 
         private SpriteStudioGraphic _graphic;
 
@@ -37,5 +37,9 @@ namespace SpriteStudio.UI
             int part = _parts.Count == 0 ? _graphic.HitTestPart(local) : _graphic.HitTestPart(local, _parts);
             return part >= 0;
         }
+    }
+
+    internal sealed class SpriteStudioPartNameAttribute : PropertyAttribute
+    {
     }
 }
