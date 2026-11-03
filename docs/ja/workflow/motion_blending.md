@@ -176,7 +176,7 @@ track 0 のループ回数は `LoopCount` です（`SetTrackLoopCount(0, ...)` �
 
 ## SetAnimation() でスタックは畳まれる
 
-**別の** アニメーションへの `SetAnimation()` は、スタックを track 0 だけに戻します。重ねたトラック・ソース・トラックの設定（alpha・blend・sync と、track 1 以降の再生設定）はすべてなくなるので、切り替えた後で重ね直してください。いま再生中のアニメーションをもう一度選んでも、何も変わりません。`SpriteStudioPlayer` では、Play モード中にインスペクタで **Animation Name** を書き換えると `SetAnimation()` に続けて `Play()` が呼ばれるので、同じくスタックは畳まれます。`SpriteStudioGraphic` は再生中のインスペクタでの書き換えを反映しないので、切り替えは `SetAnimation()` で行ってください。
+**別の** アニメーションへの `SetAnimation()` は、スタックを track 0 だけに戻します。重ねたトラック・ソース・トラックの設定（alpha・blend・sync と、track 1 以降の再生設定）はすべてなくなるので、切り替えた後で重ね直してください。いま再生中のアニメーションをもう一度選んでも、何も変わりません。Play モード中にインスペクタで **Animation Name** を書き換えると `SetAnimation()` に続けて `Play()` が呼ばれるので、同じくスタックは畳まれます。
 
 ## イベント
 

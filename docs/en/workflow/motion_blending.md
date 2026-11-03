@@ -176,7 +176,7 @@ Track 0's loop count is `LoopCount` (`SetTrackLoopCount(0, ...)` writes the same
 
 ## SetAnimation() folds the stack
 
-`SetAnimation()` to a **different** animation puts the stack back to track 0 alone: every overlay, every source and every track setting (alpha, blend, sync, and the playback settings of the tracks above 0) goes with it. Lay the overlays again after switching. Selecting the animation already playing changes nothing. On `SpriteStudioPlayer`, editing **Animation Name** in the inspector during Play mode is a `SetAnimation()` followed by `Play()`, so it folds the stack too; `SpriteStudioGraphic` does not apply an inspector edit of it while playing, so switch it with `SetAnimation()`.
+`SetAnimation()` to a **different** animation puts the stack back to track 0 alone: every overlay, every source and every track setting (alpha, blend, sync, and the playback settings of the tracks above 0) goes with it. Lay the overlays again after switching. Selecting the animation already playing changes nothing. Editing **Animation Name** in the inspector during Play mode is a `SetAnimation()` followed by `Play()`, so it folds the stack too.
 
 ## Events
 
