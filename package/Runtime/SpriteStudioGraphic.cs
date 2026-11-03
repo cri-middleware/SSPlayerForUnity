@@ -19,6 +19,9 @@ namespace SpriteStudio.Runtime
     [ExecuteAlways]
     [AddComponentMenu("SpriteStudio/SpriteStudio Graphic")]
     public class SpriteStudioGraphic : MaskableGraphic, ISpriteStudioRenderable, ILayoutElement
+#if UNITY_EDITOR
+        , ISpriteStudioEditPreview
+#endif
     {
         [Header("SpriteStudio Asset")]
         [Tooltip("The converted ssab asset to render")]
@@ -1034,7 +1037,15 @@ namespace SpriteStudio.Runtime
                 _editPreviewNeedsSetup = true;
                 SetLayoutDirty();
             }
-            if (_core.Internal == null || !_core.Internal.HasSsab) return;
+            if (!SetUpEditPreview()) return;
+            ApplyFit();
+            _core.Internal.ScheduleMeshUpdate(0f); // Build the frame the runtime is on without advancing
+            ApplyAndRender();
+        }
+
+        private bool SetUpEditPreview()
+        {
+            if (_core.Internal == null || !_core.Internal.HasSsab) return false;
             if (_editPreviewNeedsSetup)
             {
                 // Same fallback as the world player's edit preview: with no animation chosen yet, preview
@@ -1043,14 +1054,42 @@ namespace SpriteStudio.Runtime
                 string previewAnimation = string.IsNullOrEmpty(_animationName)
                     ? _core.Internal.GetAnimationName(0)
                     : _animationName;
-                if (string.IsNullOrEmpty(previewAnimation) || !_core.Internal.SetupAnimation(previewAnimation)) return;
+                if (string.IsNullOrEmpty(previewAnimation) || !_core.Internal.SetupAnimation(previewAnimation)) return false;
                 _core.Internal.SetFrame(_core.Internal.GetAnimationSectionStart());
                 _editPreviewNeedsSetup = false;
             }
-            ApplyFit();
-            _core.Internal.ScheduleMeshUpdate(0f); // Static: build the start frame without advancing
-            ApplyAndRender();
+            return true;
         }
+
+#if UNITY_EDITOR
+        bool ISpriteStudioEditPreview.TryGetEditPreviewSection(out int start, out int end, out int fps)
+        {
+            start = end = 0;
+            fps = 60;
+            if (!SetUpEditPreview()) return false;
+            start = _core.Internal.GetAnimationSectionStart();
+            end = _core.Internal.GetAnimationSectionEnd();
+            int rate = _core.Internal.GetFrameRate();
+            if (rate > 0) fps = rate;
+            return true;
+        }
+
+        // LateUpdate rebuilds the frame the runtime is on every editor frame, so seeking is enough.
+        void ISpriteStudioEditPreview.ShowEditPreviewFrame(float frame)
+        {
+            if (Application.isPlaying || !SetUpEditPreview()) return;
+            _core.Internal.SetFrame(frame);
+        }
+
+        void ISpriteStudioEditPreview.EndEditPreview()
+        {
+            if (!Application.isPlaying) _editPreviewNeedsSetup = true;
+        }
+
+        float ISpriteStudioEditPreview.EditPreviewSpeedScale => _speedScale;
+        bool ISpriteStudioEditPreview.EditPreviewSubFrame => _subFrameEnabled;
+        bool ISpriteStudioEditPreview.EditPreviewBlocked => false;
+#endif
 
         // An Animator, or a Timeline Animation Track, writes keyed fields straight into the component -- as the
         // Inspector does, bypassing the property setters -- and calls this after each evaluation. Graphic's own

@@ -65,6 +65,7 @@ namespace SpriteStudio.Editor
 
             SpriteStudioAnimationNameField.DrawAsset(_animeAssetProp, _animationNameProp);
             SpriteStudioAnimationNameField.DrawName(_animeAssetProp, _animationNameProp);
+            SpriteStudioEditModePreviewGUI.Draw(this);
 
             EditorGUILayout.PropertyField(_autoPlayProp);
             EditorGUILayout.PropertyField(_loopProp);

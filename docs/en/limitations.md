@@ -50,7 +50,6 @@ Part Tracking (making a `Transform` follow a part) is a `SpriteStudioPlayer` (wo
 > - **`Open SSPJ` needs SpriteStudio on the machine.** The button launches the editor through the OS file association, so [SpriteStudio](https://www.webtech.co.jp/spritestudio/) must be installed on the PC you are working on. The `.ssab` ↔ `.sspj` binding itself travels with the project as a relative path in `ProjectSettings/SpriteStudioSourceMap.json` — see [Asset Import and Editor Integration](./workflow/usage_asset_pipeline.md).
 
 > [!NOTE]
-> - **Edit mode shows a static preview of the start frame only.** Check behavior in Play mode.
 > - **The Mesh Renderer's Materials belong to the player.** It sets the list itself, one material per draw batch, whenever what it draws changes, so a material dropped into the list is replaced. To change how the animation draws, edit the shared `.mat` next to the atlas texture, or give the player a **Shader Catalog** for per-part shaders — see [Performance Tuning and Advanced Settings](./workflow/tips.md).
 
 ## Scripting API
@@ -74,7 +73,6 @@ A `SpriteStudioTrack` or a Control Track drives `SpriteStudioPlayer` by seeking 
 > - **No events and no sound.** While a clip drives the player, no `UserData` / `Signal` / `Audio` event fires and no built-in sound plays, in Play mode too; neither do `OnAnimationFinished` and `OnAnimationLooped`.
 > - **Loops, ping-pong and reverse do not apply.** The clip's time becomes a frame held inside the animation's section, so a looping animation under a clip plays once and holds its last frame.
 > - **A `SpriteStudioTrack` clip does not know its animation's length.** It starts at Timeline's default length rather than the animation's, so Match Content has nothing to snap to; Clip In, Speed Multiplier and Looping are off; and **Animation Name** is free text.
-> - **Scrubbing in Edit mode moves nothing.** The edit-mode preview holds the start frame, so check a cutscene in Play mode.
 
 ## Effects
 

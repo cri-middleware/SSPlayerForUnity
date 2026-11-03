@@ -21,6 +21,9 @@ namespace SpriteStudio.Runtime
     [ExecuteAlways]
     [AddComponentMenu("SpriteStudio/SpriteStudio Player")]
     public class SpriteStudioPlayer : MonoBehaviour, ITimeControl, ISpriteStudioRenderable
+#if UNITY_EDITOR
+        , ISpriteStudioEditPreview
+#endif
     {
         [Header("SpriteStudio Asset")]
         [Tooltip("The converted ssab asset to render")]
@@ -1140,7 +1143,8 @@ namespace SpriteStudio.Runtime
         [System.NonSerialized] private bool _unloadPending;
 
         // Edit-mode static preview. With [ExecuteAlways], LateUpdate is called every editor frame, but only
-        // when _editPreviewDirty is set does it "build the start frame once" and hold it static (does not play).
+        // when _editPreviewDirty is set does it "build the start frame once" and hold it. Other frames are drawn
+        // on demand, by the inspector's preview and a Timeline scrub, which set it again when they let go.
         // In Play mode the SpriteStudioUpdateManager drives it, so this does nothing.
         private bool _editPreviewDirty;
 
@@ -1186,12 +1190,69 @@ namespace SpriteStudio.Runtime
                 ? _core.Internal.GetAnimationName(0)
                 : _animationName;
             if (string.IsNullOrEmpty(previewAnimation)) return;
+            _editPreviewAnimation = null;
+            // The setup replaces whatever animation a Timeline clip set up.
+            _timelineCurrentAnim = null;
             if (!_core.Internal.SetupAnimation(previewAnimation)) return;
+            _editPreviewAnimation = previewAnimation;
             // Pin to the start frame and synchronously build just one frame without advancing (ScheduleMeshUpdate is advance=false).
             _core.Internal.SetFrame(_core.Internal.GetAnimationSectionStart());
+            DrawEditFrame();
+        }
+
+        // Builds the frame the runtime is on, without advancing: no event fires and no sound plays.
+        private void DrawEditFrame()
+        {
+            if (!_core.Internal.HasSsab) return;
             _core.Internal.ScheduleMeshUpdate(0f);
             ApplyAndRender();
         }
+
+        // The animation the edit preview has set up, so drawing another frame does not set it up again. Cleared
+        // by anything else that sets an animation up.
+        private string _editPreviewAnimation;
+
+        private bool SetUpEditPreview()
+        {
+            if (_core.Internal == null || _animeAsset == null || !_core.Internal.HasSsab) return false;
+            string previewAnimation = string.IsNullOrEmpty(_animationName)
+                ? _core.Internal.GetAnimationName(0)
+                : _animationName;
+            if (string.IsNullOrEmpty(previewAnimation)) return false;
+            if (previewAnimation == _editPreviewAnimation) return true;
+            _timelineCurrentAnim = null;
+            if (!_core.Internal.SetupAnimation(previewAnimation)) return false;
+            _editPreviewAnimation = previewAnimation;
+            return true;
+        }
+
+        bool ISpriteStudioEditPreview.TryGetEditPreviewSection(out int start, out int end, out int fps)
+        {
+            start = end = 0;
+            fps = 60;
+            if (!SetUpEditPreview()) return false;
+            start = _core.Internal.GetAnimationSectionStart();
+            end = _core.Internal.GetAnimationSectionEnd();
+            int rate = _core.Internal.GetFrameRate();
+            if (rate > 0) fps = rate;
+            return true;
+        }
+
+        void ISpriteStudioEditPreview.ShowEditPreviewFrame(float frame)
+        {
+            if (Application.isPlaying || _timelineControlled || !SetUpEditPreview()) return;
+            _core.Internal.SetFrame(frame);
+            DrawEditFrame();
+        }
+
+        void ISpriteStudioEditPreview.EndEditPreview()
+        {
+            if (!Application.isPlaying) _editPreviewDirty = true;
+        }
+
+        float ISpriteStudioEditPreview.EditPreviewSpeedScale => _speedScale;
+        bool ISpriteStudioEditPreview.EditPreviewSubFrame => _subFrameEnabled;
+        bool ISpriteStudioEditPreview.EditPreviewBlocked => _timelineControlled;
 #endif
 
         // --- ISpriteStudioRenderable (driven by SpriteStudioUpdateManager) ---
@@ -1768,6 +1829,9 @@ namespace SpriteStudio.Runtime
             // Seek via Timeline: convert clip-local time (seconds) to a frame number and set it
             if (_core.Internal == null) return;
             SeekForTimeline(time);
+#if UNITY_EDITOR
+            if (!Application.isPlaying) DrawEditFrame();
+#endif
         }
 
         // The Timeline sets the animation up itself rather than through SetAnimation, which would write the
@@ -1776,6 +1840,9 @@ namespace SpriteStudio.Runtime
         // cutscene would otherwise loop forever.
         private bool SetUpForTimeline(string animationName)
         {
+#if UNITY_EDITOR
+            _editPreviewAnimation = null;
+#endif
             if (!_core.Internal.SetupAnimation(animationName)) return false;
             ApplyPlaybackSettings();
             return true;
@@ -1792,6 +1859,9 @@ namespace SpriteStudio.Runtime
         public void OnControlTimeStop()
         {
             _timelineControlled = false;
+#if UNITY_EDITOR
+            if (!Application.isPlaying) _editPreviewDirty = true;
+#endif
         }
 
         #endregion
@@ -1806,8 +1876,8 @@ namespace SpriteStudio.Runtime
         /// (only when it changes) and seeks to the frame for the clip-local time (seconds). State is computed
         /// in bulk by Rust based on the time, so no matter how far the seek bar is scrubbed back and forth it
         /// stays deterministic and does not break.
-        /// NOTE: drawn in Play mode only. The UpdateManager, which renders what this seeks, runs in Play mode,
-        /// and the edit-mode preview holds the start frame.
+        /// In Play mode the UpdateManager renders what this seeks; in Edit Mode it is drawn here, so scrubbing
+        /// the Timeline window moves the player.
         /// </summary>
         internal void EvaluateTimelineClip(string animationName, double clipLocalTime)
         {
@@ -1822,6 +1892,9 @@ namespace SpriteStudio.Runtime
 
             SeekForTimeline(clipLocalTime);
             // Rendering is done by the UpdateManager via PrepareFrame(advance=false) -> ApplyAndRender (same path as SetTime).
+#if UNITY_EDITOR
+            if (!Application.isPlaying) DrawEditFrame();
+#endif
         }
 
         /// <summary>Releases Timeline control (on mixer graph teardown / track deactivation).</summary>
@@ -1829,6 +1902,9 @@ namespace SpriteStudio.Runtime
         {
             _timelineControlled = false;
             _timelineCurrentAnim = null;
+#if UNITY_EDITOR
+            if (!Application.isPlaying) _editPreviewDirty = true;
+#endif
         }
 
         #endregion
