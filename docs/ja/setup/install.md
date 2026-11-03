@@ -12,6 +12,8 @@
 | レンダーパイプライン | Universal (URP) / Built-in (BRP) |
 | 依存パッケージ | Burst / Mathematics / Collections / Timeline / uGUI（Package Manager が自動解決） |
 | 対応プラットフォーム | Windows / macOS / Linux / Android / iOS / WebGL |
+| Unity エディタ | Windows / macOS / Linux。SS Importer ウィンドウでの変換は Windows と macOS のみです。Linux では `ssconverter-cli` で変換し（[各種コンバート機能と CI/CD](../workflow/import.md)）、出力フォルダをプロジェクトへコピーしてください |
+| SpriteStudio プロジェクト | **SpriteStudio 7.6** 以上で作成したもの |
 
 依存パッケージはすべて Unity 標準パッケージのため、本パッケージを追加すると Package Manager が自動的に解決します。
 
@@ -21,7 +23,7 @@
 
 ---
 
-## 1. リリースのパッケージからのインストール（推奨）
+## リリースのパッケージからのインストール
 
 最も簡単で確実な方法です。各リリースが公開するコンパイル済みのパッケージを使います。npm と GitHub Releases の tarball の 2 か所にあり、中身は同じです。npm なら Package Manager が名前で取得でき、tarball なら設定が要りません。
 
@@ -70,7 +72,7 @@
 >
 > バージョン付き tarball と安定エイリアスの両方が記載されているため、ダウンロードした側が `OK`、もう一方は `No such file or directory` と表示されます。
 
-> **注意:** Package Manager の *Install package from git URL...*ではこのパッケージを導入できません。ネイティブプラグインのバイナリはリリースのパッケージにのみ同梱されるため、npm から、または *Install package from tarball...* で追加してください。
+> **注意:** Package Manager の *Install package from git URL...* ではこのパッケージを導入できません。ネイティブプラグインのバイナリはリリースのパッケージにのみ同梱されるため、npm から、または *Install package from tarball...* で追加してください。
 
 ---
 

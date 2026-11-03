@@ -20,6 +20,7 @@ If no `.ssab` yet exists in the Unity project, perform the initial conversion wi
 3. From Explorer or Finder, **drag and drop the target `.sspj` file onto the SS Importer window** — the box in the middle lights up while you drag.
 
 That alone runs the conversion, generating a `SpriteStudioAnimeAsset` (a ScriptableObject containing the `.ssab`) at the specified output destination.
+The result is `Assets/ssab_generated/<sspj name>/`; the file to drag is the `.ssab` (the one with the SpriteStudio icon, for example `Ringo.ssab`).
 Drag and drop the generated asset onto the Hierarchy window or Scene view to place a `SpriteStudioPlayer` / `SpriteStudioGraphic` (see [Basic Usage](./usage_basic.md) for details).
 
 > [!TIP]
@@ -39,7 +40,7 @@ Drag and drop the generated asset onto the Hierarchy window or Scene view to pla
 If, while working in Unity, you think "I'd like to fine-tune the animation a bit more," there is no need to launch SpriteStudio separately and hunt for the project.
 
 1. In the Project window, **select the `SpriteStudioAnimeAsset`** you want to edit.
-2. At the top of the Inspector, **"Source SSPJ"** shows the path to the original `.sspj`.
+2. In the Inspector, under **Imported Object**, **"Source SSPJ"** shows the path to the original `.sspj`.
 3. Click the **"Open SSPJ" button** below it.
 
 This launches SpriteStudio, opens the original `.sspj` file, and lets you start editing right away.
@@ -62,6 +63,7 @@ With just the following operation, your changes are reflected instantly in the g
 
 > [!IMPORTANT]
 > **The shortest "Open" → "Save" → "Reconvert" workflow**
+>
 > With the asset still selected, you can invoke SpriteStudio from the Inspector, and immediately after editing, reflect (reconvert) the latest changes into the `.ssab` in Unity.
 
 > [!TIP]
@@ -91,7 +93,7 @@ This is the final product of the import: it holds the converted `.ssab` data and
 > [!NOTE]
 > When an animation references another animation (an Instance part), that reference is resolved into **External References**. At runtime it simply follows the hard reference without loading a file, so it works safely with Resources, AssetBundle, or Addressables.
 
-When a `.ssab` is imported, a **shared material (`.mat`)** corresponding to the referenced texture is automatically generated in an adjacent location and bundled into the asset. In addition, textures in the same folder as the `.sspj` / `.ssab` automatically have import settings suited to 2D animation applied (uncompressed, Clamp, Mipmap disabled, and so on).
+When a `.ssab` is imported, a **shared material (`.mat`)** corresponding to the referenced texture is automatically generated in an adjacent location and bundled into the asset. In addition, textures in the same folder as the `.ssab` automatically have import settings suited to 2D animation applied (uncompressed, Clamp, Mipmap disabled, and so on).
 
 > [!TIP]
 > [Generated Assets and AssetBundle](./generated_assets.md) covers what each generated file is responsible for, how they depend on each other, what changes in the game when you update one, and how to split them across AssetBundles / Addressables.
@@ -104,6 +106,7 @@ When a `.ssab` is imported, a **shared material (`.mat`)** corresponding to the 
 
 > [!WARNING]
 > **SpriteStudio must be installed**
+>
 > Pressing the `Open SSPJ` button launches SpriteStudio via the OS file association. Therefore, [SpriteStudio](https://www.webtech.co.jp/spritestudio/) must be installed on the PC you are operating.
 
 > [!TIP]
@@ -111,6 +114,6 @@ When a `.ssab` is imported, a **shared material (`.mat`)** corresponding to the 
 >
 > The integration information from importing via the SS Importer window (the `.ssab` ↔ `.sspj` binding) is saved as a **relative path** in `ProjectSettings/SpriteStudioSourceMap.json` directly under the Unity project.
 >
-> By sharing this file through a version control system such as Git, the path integration is maintained even when another team member does `git clone` on their PC, and they can use `Open SSPJ` and `Reconvert` as-is.
+> By sharing this file through a version control system such as Git, the path integration is maintained when another team member does `git clone` and has the `.sspj` at the same relative location from the Unity project, and they can use `Open SSPJ` and `Reconvert` as-is.
 >
 > Even if the link to a `.sspj` breaks—for example, due to a change in folder structure—it is easy to repair. Pressing the **"Relink SSPJ..."** button shown in the `SpriteStudioAnimeAsset` Inspector opens a dialog asking for the new location of the `.sspj`. Simply relinking a single file here also **smart-relinks and reconverts, all at once,** the other related `.ssab` files in the same output folder, so repair takes little effort.

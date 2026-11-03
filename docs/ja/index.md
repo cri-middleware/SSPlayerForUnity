@@ -1,6 +1,6 @@
 # 🎮 SpriteStudio Player for Unity — ドキュメント
 
-[SpriteStudio](https://www.webtech.co.jp/spritestudio/) で作成したアニメーションを [Unity](https://unity.com/) 上で再生するためのプラグインです。`.sspj` を **SS Importer** ウィンドウにドロップし、できたアセットを Hierarchy へドラッグして Play を押せば、コードを書かずに再生できます。
+[SpriteStudio](https://www.webtech.co.jp/spritestudio/) で作成したアニメーションを [Unity](https://unity.com/) 上で再生するためのプラグインです。`.sspj` を **SS Importer** ウィンドウ（**Window > SpriteStudio > Importer**）にドロップし、できたアセットを Hierarchy へドラッグして Play を押せば、コードを書かずに再生できます。
 
 !!! tip "SpriteStudio のデータが手元に無くても始められます"
     [公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)がそのまま使えます。キャラクターなら [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo)、エフェクトを含むものなら [パーティクル](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) が手頃です。
@@ -17,7 +17,7 @@
     - [スクリプト制御とイベント](./workflow/usage_scripting.md): C# / Timeline からの制御とイベント受信
     - [モーションブレンド](./workflow/motion_blending.md): トラックへのアニメーションの重ね合わせとクロスフェード
     - [ボタンと UI 状態](./workflow/ui_buttons.md): 状態を見せる uGUI のボタンとトグル、絵の上だけでポインタを受ける
-    - [パフォーマンスチューニングと高度な設定](./workflow/tips.md): 大量描画・最適化のための設定
+    - [パフォーマンスチューニングと高度な設定](./workflow/tips.md): 座標スケール・フレームスキップ・パーツ単位のシェーダ・マスク・Canvas 経路の制約
     - [SS6Player からのマイグレーション](./migration_from_ss6.md): 旧 SS6Player for Unity からの移行ガイド
 - **カスタマイズ・自動化ガイド** — CLI や CI/CD に組み込む
     - [各種コンバート機能と CI/CD](./workflow/import.md): `ssconverter-cli` によるバッチ変換・自動化
@@ -30,9 +30,9 @@
 
 - **キャラクターが“生きる”。** 呼吸・まばたき、なびく髪や衣装、斬撃・魔法のエフェクトまで——動きは専用エディタ（SpriteStudio）でボーン・メッシュ変形・パーティクルを使ってビジュアルに作り込みます。アーティストは自分のツールで作業し、Unity はその結果を再生するだけです。再生中のアニメーションはトラックに重ねたりクロスフェードしたりでき、歩きから走りへも飛ばずになめらかにつながります（[モーションブレンド](./workflow/motion_blending.md)）。
 - **キャラクターだけでなく、エフェクトや UI、シーン全体も。** パーティクルエフェクトはキャラクターと同じタイムライン上で作れるので、別のエフェクトシステムを用意する必要はありません。キャラクター・背景・エフェクト・UI を組み合わせたカットシーンや画面全体の演出も、Unity では 1 つのアニメーションとして再生できます。
-- **シーンにも UI にも。** `SpriteStudioPlayer` はワールド空間に、`SpriteStudioGraphic` は uGUI の Canvas に描画します。Canvas では `RectTransform` に収まり、**Mask** / **RectMask2D** に従い、状態ごとに区間を流すボタンやトグルにもなります（[ボタンと UI 状態](./workflow/ui_buttons.md)）。どちらも C# から操作でき（パーツ単位の上書き、パーツへの GameObject 追従、セルマップのテクスチャ差し替え、ユーザーデータ・シグナル・オーディオのキー通知に対応 — [スクリプト制御とイベント](./workflow/usage_scripting.md)）、`SpriteStudioPlayer` は Timeline にも載せられます。
+- **シーンにも UI にも。** `SpriteStudioPlayer` はワールド空間に、`SpriteStudioGraphic` は uGUI の Canvas に描画します。Canvas では `RectTransform` に収まり、**Mask** / **Rect Mask 2D** に従い、状態ごとに区間を流すボタンやトグルにもなります（[ボタンと UI 状態](./workflow/ui_buttons.md)）。どちらも C# から操作でき（パーツ単位の上書き、セルマップのテクスチャ差し替え、ユーザーデータ・シグナル・オーディオのキー通知に対応 — [スクリプト制御とイベント](./workflow/usage_scripting.md)）、`SpriteStudioPlayer` はさらにパーツへの `Transform` の追従と Timeline にも対応します。
 - **SpriteStudio と Unity をシームレスに往復。** `.sspj` を **SS Importer** ウィンドウにドロップすれば、すぐ使えるアセットになります（[アセットのインポートとエディタ連携](./workflow/usage_asset_pipeline.md)）。直したくなったらインスペクタの **Open SSPJ** で SpriteStudio を開いて保存し、**Reconvert** を押すだけ。書き出しの手作業は要りません。アニメーションはシーンの外のアセットに入るので、チーム開発でシーンの Git コンフリクトが起きにくくなります。
-- **パース不要の読み込みと SIMD・Burst で、軽く滑らかに。** `.ssab` は FlatBuffers のバイナリをそのまま読むので、読み込み時のパースがありません。毎フレーム、SIMD で最適化した Rust コアと Burst ジョブがゼロコピーでメッシュを組み立て、GC アロケーションも発生しません。モバイルや大量のキャラクターでも滑らかに動きます。**サブフレーム補間**をオンにすれば、高リフレッシュレートのディスプレイにも追従します。
+- **パース不要の読み込みと SIMD・Burst で、軽く滑らかに。** `.ssab` は FlatBuffers のバイナリをそのまま読むので、読み込み時のパースがありません。毎フレーム、SIMD で最適化した Rust コアと Burst ジョブがゼロコピーでメッシュを組み立て、GC アロケーションも発生しません。モバイルや大量のキャラクターでも滑らかに動きます。インスペクタの **Sub-Frame Interpolation** をオンにすれば、高リフレッシュレートのディスプレイにも追従します。
 
 ## 概要 (Overview)
 
@@ -43,8 +43,8 @@ graph LR
     SS[" .sspj / 画像<br>(ソースアセット) "]
 
     subgraph Convert ["変換プロセス"]
-        IMP[[" SS Importer ウィンドウ<br>(Unityエディタ内蔵) "]]
-        CLI[[" ssconverter-cli<br>(CLIツール) "]]
+        IMP[[" SS Importer ウィンドウ<br>(Unity エディタ内蔵) "]]
+        CLI[[" ssconverter-cli<br>(CLI ツール) "]]
     end
 
     subgraph Asset ["インポート成果物 (Assets/)"]
@@ -57,7 +57,7 @@ graph LR
     end
 
     SS -- "ドラッグ＆ドロップ" --> IMP
-    SS -- "CI/CDや手動" --> CLI
+    SS -- "CI/CD や手動" --> CLI
     IMP -. "自動変換" .-> BIN
     CLI -. "生成" .-> BIN
 

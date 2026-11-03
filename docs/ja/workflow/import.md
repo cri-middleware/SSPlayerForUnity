@@ -8,7 +8,7 @@
 
 ## 出力先の設定
 
-変換結果の出力先は SS Importer ウィンドウの **Output Folder** で設定します（既定 `Assets/ssab_generated`）。`Assets/` 配下であれば任意のフォルダを指定できます。それ以外（ファイル、`Assets/` の外のフォルダ）を指定すると理由を出して拒否し、次のインポートが実際に使うフォルダへ表示を戻します。設定は `EditorUserSettings`（`UserSettings/EditorUserSettings.asset`）に保存されるため、プロジェクトごと・作業者ごとの設定になります。
+変換結果の出力先は SS Importer ウィンドウの **Output Folder** で設定します（既定 `Assets/ssab_generated`）。`Assets/` 配下であれば任意のフォルダを指定できます。フォルダは Project ウィンドウからフィールドへドラッグするか、丸いボタンで選びます。**Reset** で `Assets/ssab_generated` に戻ります。それ以外（ファイル、`Assets/` の外のフォルダ）を指定すると理由を出して拒否し、次のインポートが実際に使うフォルダへ表示を戻します。設定は `EditorUserSettings`（`UserSettings/EditorUserSettings.asset`）に保存されるため、プロジェクトごと・作業者ごとの設定になります。
 
 ## Unity へのインポート時の自動設定（テクスチャ・マテリアル）
 
@@ -44,17 +44,22 @@ Unity エディタを起動せずにコマンドラインから変換したい�
 1. [SpriteStudio-SDK の Releases](https://github.com/cri-middleware/SpriteStudio-SDK/releases) から、該当プラットフォーム（Windows / macOS / Linux）向けの CLI コンバータを取得します。
 2. ターミナル（またはコマンドプロンプト）を開き、`.sspj` ファイルへのパスを引数に渡して実行します。
 
-**Windows:**
-```powershell
-.\ssconverter-cli.exe path\to\your.sspj
-```
+    **Windows:**
 
-**macOS / Linux:**
-```bash
-./ssconverter-cli path/to/your.sspj
-```
+    ```powershell
+    .\ssconverter-cli.exe path\to\your.sspj
+    ```
 
-実行すると、元の `.sspj` と同じディレクトリに `<sspj名>/` というフォルダが作成され、その配下に `.ssab`（および `.ssqb`）と画像ファイルが出力されます。
+    **macOS / Linux:**
+
+    ```bash
+    ./ssconverter-cli path/to/your.sspj
+    ```
+
+    実行すると、元の `.sspj` と同じディレクトリに `<sspj名>/` というフォルダが作成され、その配下に `.ssab`（および `.ssqb`）と画像ファイルが出力されます。
+
+    `-e` / `--embedded` は付けずに実行してください。本プレイヤーが読むのは既定の出力で、画像が `.ssab` の隣に別ファイルで並びます。
+
 3. 出力された **`<sspj名>/` フォルダごと**、Unity プロジェクトの `Assets/` 配下へ配置します。すると `SpriteStudioAnimeAsset` として自動的にインポートされ、上記のテクスチャやマテリアルの自動設定も同様に行われます。
 
 詳細なオプションや仕様は、SDK リポジトリの [`ssconverter-cli` の README](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/cli/README.ja.md) を参照してください。

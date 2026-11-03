@@ -8,7 +8,7 @@ For the basic import procedure, see [Asset Import and Editor Integration](./usag
 
 ## Configuring the output location
 
-The output location for conversion results is set via **Output Folder** in the SS Importer window (default: `Assets/ssab_generated`); any folder under `Assets/` will do. Anything else — a file, or a folder outside `Assets/` — is refused with the reason, and the field goes back to the folder the next import will actually use. The setting is saved in `EditorUserSettings` (`UserSettings/EditorUserSettings.asset`), so it is per project and per person.
+The output location for conversion results is set via **Output Folder** in the SS Importer window (default: `Assets/ssab_generated`); any folder under `Assets/` will do — drag a folder from the Project window onto the field (or pick one with the circle button); **Reset** returns to `Assets/ssab_generated`. Anything else — a file, or a folder outside `Assets/` — is refused with the reason, and the field goes back to the folder the next import will actually use. The setting is saved in `EditorUserSettings` (`UserSettings/EditorUserSettings.asset`), so it is per project and per person.
 
 ## Automatic configuration on import into Unity (textures and materials)
 
@@ -44,17 +44,22 @@ If you want to convert from the command line without launching the Unity editor 
 1. Get the CLI converter for your platform (Windows / macOS / Linux) from [SpriteStudio-SDK Releases](https://github.com/cri-middleware/SpriteStudio-SDK/releases).
 2. Open a terminal (or command prompt) and run it, passing the path to the `.sspj` file as an argument.
 
-**Windows:**
-```powershell
-.\ssconverter-cli.exe path\to\your.sspj
-```
+    **Windows:**
 
-**macOS / Linux:**
-```bash
-./ssconverter-cli path/to/your.sspj
-```
+    ```powershell
+    .\ssconverter-cli.exe path\to\your.sspj
+    ```
 
-When run, a folder named `<sspj name>/` is created in the same directory as the original `.sspj`, and the `.ssab` (and `.ssqb`) along with image files are output beneath it.
+    **macOS / Linux:**
+
+    ```bash
+    ./ssconverter-cli path/to/your.sspj
+    ```
+
+    When run, a folder named `<sspj name>/` is created in the same directory as the original `.sspj`, and the `.ssab` (and `.ssqb`) along with image files are output beneath it.
+
+    Run it without `-e` / `--embedded`: this player reads the default output, where the images stay as separate files next to the `.ssab`.
+
 3. Place the **entire `<sspj name>/` folder** under the `Assets/` directory of the Unity project. It is then automatically imported as a `SpriteStudioAnimeAsset`, and the automatic texture and material configuration described above is performed the same way.
 
 For detailed options and specifications, refer to the [`ssconverter-cli` README](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/cli/README.md) in the SDK repository.

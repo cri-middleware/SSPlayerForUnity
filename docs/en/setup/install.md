@@ -12,6 +12,8 @@ This page explains how to add SpriteStudio Player for Unity to your project: ins
 | Render pipeline | Universal (URP) / Built-in (BRP) |
 | Dependent packages | Burst / Mathematics / Collections / Timeline / uGUI (automatically resolved by Package Manager) |
 | Supported platforms | Windows / macOS / Linux / Android / iOS / WebGL |
+| Unity Editor | Windows / macOS / Linux. The SS Importer window converts on Windows and macOS only; on Linux, convert with `ssconverter-cli` ([Conversion Features and CI/CD](../workflow/import.md)) and copy the output folder into the project |
+| SpriteStudio projects | Authored in **SpriteStudio 7.6** or later |
 
 All dependent packages are standard Unity packages, so Package Manager resolves them automatically when you add this package.
 
@@ -21,7 +23,7 @@ The project template you start from can be **either 2D or 3D**. What this packag
 
 ---
 
-## 1. Install the Released Package (Recommended)
+## Install the Released Package
 
 This is the easiest and most reliable method. It uses the precompiled package each release publishes, on npm and as a tarball on GitHub Releases: the same package in both places. From npm, Package Manager fetches it by name; the tarball needs no setup.
 

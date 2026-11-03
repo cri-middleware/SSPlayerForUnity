@@ -19,7 +19,7 @@ Unity 上で再生・制御可能な専用の最適化バイナリ（**`.ssab`**
 2. 出力先（**Output Folder**、デフォルトは `Assets/ssab_generated`）を確認します。
 3. エクスプローラーや Finder から、目的の **`.sspj` ファイルを SS Importer ウィンドウへドラッグ＆ドロップ** します（ドラッグ中は中ほどの枠が光ります）。
 
-これだけでコンバート処理が走り、指定した出力先に `SpriteStudioAnimeAsset`（`.ssab` を内包した ScriptableObject）が生成されます。生成されたアセットを Hierarchy ウィンドウや Scene ビューへドラッグ＆ドロップして、`SpriteStudioPlayer` / `SpriteStudioGraphic` を配置しましょう（詳細は [基本的な使い方](./usage_basic.md) を参照）。
+これだけでコンバート処理が走り、指定した出力先に `SpriteStudioAnimeAsset`（`.ssab` を内包した ScriptableObject）が生成されます。生成先は `Assets/ssab_generated/<sspj名>/` で、ドラッグするのは `.ssab`（SpriteStudio のアイコンのファイル。例: `Ringo.ssab`）です。生成されたアセットを Hierarchy ウィンドウや Scene ビューへドラッグ＆ドロップして、`SpriteStudioPlayer` / `SpriteStudioGraphic` を配置しましょう（詳細は [基本的な使い方](./usage_basic.md) を参照）。
 
 > [!TIP]
 > 
@@ -38,7 +38,7 @@ Unity 上で再生・制御可能な専用の最適化バイナリ（**`.ssab`**
 Unity で作業中に「もう少しアニメーションを微調整したい」と思った場合、わざわざ SpriteStudio を別で立ち上げてプロジェクトを探す必要はありません。
 
 1. プロジェクトウィンドウで、編集したい **`SpriteStudioAnimeAsset` を選択**します。
-2. インスペクタ上部の **「Source SSPJ」** に、元となった `.sspj` のパスが表示されます。
+2. インスペクタの **Imported Object** の中で、**「Source SSPJ」** に元となった `.sspj` のパスが表示されます。
 3. その下にある **「Open SSPJ」ボタン** をクリックします。
 
 この操作により、SpriteStudio が起動して元となる `.sspj` ファイルが開き、すぐに編集作業に入ることができます。
@@ -59,7 +59,9 @@ SpriteStudio 側でアニメーションを修正して保存したら、Unity �
 2. インスペクタの「Open SSPJ」ボタンの横にある **「Reconvert」ボタン** をクリックします。
 
 > [!IMPORTANT]
-> **「開く」→「保存」→「再コンバート」の最短ワークフロー**アセットを選択したままインスペクタから SpriteStudio を呼び出し、編集後すぐに Unity 上で `.ssab` へ最新の変更を反映（再コンバート）させることができます。
+> **「開く」→「保存」→「再コンバート」の最短ワークフロー**
+>
+> アセットを選択したままインスペクタから SpriteStudio を呼び出し、編集後すぐに Unity 上で `.ssab` へ最新の変更を反映（再コンバート）させることができます。
 
 > [!TIP]
 > SS Importer ウィンドウの **Recent SSPJs** からも再変換できます（行をクリック、または右クリック →「Reconvert」）。
@@ -88,7 +90,7 @@ SpriteStudio 側でアニメーションを修正して保存したら、Unity �
 > [!NOTE]
 > アニメーションが他のアニメーション（Instance パーツ）を参照する場合、その参照先は **External References** に解決されます。実行時はファイルを読み込まずハードリファレンスを辿るだけなので、Resources / AssetBundle / Addressables のいずれでも安全に動作します。
 
-`.ssab` をインポートする際、参照テクスチャに対応する**共有マテリアル (`.mat`)** が隣接位置に自動生成され、アセットへ束ねられます。また、`.sspj` / `.ssab` と同フォルダのテクスチャには、2D アニメーション向けのインポート設定（無圧縮・Clamp・Mipmap 無効など）が自動適用されます。
+`.ssab` をインポートする際、参照テクスチャに対応する**共有マテリアル (`.mat`)** が隣接位置に自動生成され、アセットへ束ねられます。また、`.ssab` と同フォルダのテクスチャには、2D アニメーション向けのインポート設定（無圧縮・Clamp・Mipmap 無効など）が自動適用されます。
 
 > [!TIP]
 > 出力フォルダに生成される各ファイルの役割と依存関係、どのファイルを更新するとゲーム内の何が変わるか、AssetBundle / Addressables でどう分割するかは [生成アセットの構成と AssetBundle](./generated_assets.md) にまとめています。
@@ -101,6 +103,7 @@ SpriteStudio 側でアニメーションを修正して保存したら、Unity �
 
 > [!WARNING]
 > **SpriteStudio のインストールが必要です**
+>
 > `Open SSPJ` ボタンを押すと、OS の関連付けにより SpriteStudio が起動します。そのため、操作する PC 自体に [SpriteStudio](https://www.webtech.co.jp/spritestudio/) がインストールされている必要があります。
 
 > [!TIP]
@@ -108,6 +111,6 @@ SpriteStudio 側でアニメーションを修正して保存したら、Unity �
 >
 > SS Importer ウィンドウ経由でインポートした際の連携情報（`.ssab` ↔ `.sspj` のひも付け）は、Unity プロジェクト直下の `ProjectSettings/SpriteStudioSourceMap.json` に **相対パス** で保存されます。
 >
-> このファイルを Git 等のバージョン管理システムで共有することで、チームの別メンバーが PC に `git clone` した場合でもパスの連携が維持され、そのまま `Open SSPJ` や `Reconvert` を利用できます。
+> このファイルを Git 等のバージョン管理システムで共有することで、チームの別メンバーが PC に `git clone` し、`.sspj` を Unity プロジェクトから同じ相対位置に置いていれば、パスの連携が維持され、そのまま `Open SSPJ` や `Reconvert` を利用できます。
 >
 > 万が一、フォルダ構造の変更などにより `.sspj` へのリンクが切れてしまった場合でも簡単に修復できます。`SpriteStudioAnimeAsset` のインスペクタに表示される **「Relink SSPJ...」** ボタンを押すと、新しい `.sspj` の場所を尋ねるダイアログが表示されます。ここで 1 つのファイルを再リンクするだけで、同じ出力フォルダ内にある他の関連 `.ssab` も**まとめてスマート再リンク＋再変換**されるため、修復の手間がかかりません。
