@@ -14,12 +14,12 @@
 
 ## 2. コンポーネントと配置の変更
 
-- **SS6Player**: 生成された**プレハブをシーンに配置**して使用しました。プレハブには `Script_SpriteStudio6_Root` が付与され、描画方式に応じて `Script_SpriteStudio6_RootUnityNative`（メッシュ）や `Script_SpriteStudio6_RootUnityUI`（uGUI/Canvas）が併用されていました。クラスはすべてグローバル名前空間にあります。
+- **SS6Player**: 生成された**プレハブをシーンに配置**して使用しました。プレハブには `Script_SpriteStudio6_Root` が付与され、インポート時のモードに応じて、既定の `SS6PU` では単独（MeshRenderer で描画）、`UNITY_NATIVE` では `Script_SpriteStudio6_RootUnityNative`（Unity 標準のレンダラーでパーツごとに描画）、`UNITY_UI` では `Script_SpriteStudio6_RootUnityUI`（uGUI/Canvas）が併用されていました。クラスはすべてグローバル名前空間にあります。
 - **本バージョン**: プレハブではなく、用途に応じて **2 種類のコンポーネント**を使い分けます。名前空間は `SpriteStudio.Runtime` です。
 
   | 用途 | SS6Player | 本バージョン |
   |---|---|---|
-  | ワールド空間（3D/2D） | `Script_SpriteStudio6_Root` + `RootUnityNative` | **`SpriteStudioPlayer`**（MeshRenderer） |
+  | ワールド空間（3D/2D） | `Script_SpriteStudio6_Root`（`SS6PU`）、または `RootUnityNative` を併用（`UNITY_NATIVE`） | **`SpriteStudioPlayer`**（MeshRenderer） |
   | Canvas (uGUI) の UI | `Script_SpriteStudio6_Root` + `RootUnityUI` | **`SpriteStudioGraphic`**（CanvasRenderer） |
 
   - 配置は、生成された `SpriteStudioAnimeAsset` を **Hierarchy へドラッグ＆ドロップ**し、表示されるメニューから `SpriteStudioPlayer` / `SpriteStudioGraphic` を選ぶだけです。手動で Add Component することもできます。
@@ -53,9 +53,9 @@ _player.Play();
 | SS6Player | 本バージョン | 備考 |
 |---|---|---|
 | `IndexGetAnimation(name)` + `AnimationPlay(track, index, …)` | `SetAnimation(name)` + `Play()` | ロードと再生開始を分離 |
-| `AnimationPlay(…, frameOffset)` | `Play(float startFrame)` | 開始フレーム指定 |
+| `AnimationPlay(…, frameOffset)` | `Play(float startFrame)` | 開始フレーム指定。`startFrame` は区間の先頭からのオフセットではなくアニメーション内のフレーム番号で、区間には丸められません（`frameOffset` は再生区間の先頭からの相対値でした） |
 | `AnimationStop(track)` | `Stop()` | |
-| `AnimationPause(track, true/false)` | `Pause()` / `Resume()` | 2つに分離。`Pause()` でフレームを保持、`Resume()` で解除（`Play()` は巻き戻り） |
+| `AnimationPause(track, true/false)` | `Pause()` / `Resume()` | 2 つに分離。`Pause()` でフレームを保持、`Resume()` で解除（`Play()` は巻き戻り） |
 | `CursorSet/Get(track, cursor)` | `FrameNo`（get/set） | シーク。小数フレーム可 |
 | `RateTimeSet/Get(track, rate)` | `SpeedScale` | 再生速度倍率 |
 | `AnimationPlay(…, timesPlay)` | `LoopCount` | **後述のループ回数の違いに注意** |
@@ -70,7 +70,7 @@ _player.Play();
 
 ### 3-3. ループ回数
 
-`timesPlay` の値はそのまま移植できます。
+`timesPlay` の `0`・`1`・`n` はそのまま移植できます。SS6Player の既定値 `-1` は「前の設定を維持」でしたが、本バージョンの `-1` は無限ループです。`LoopCount` は最後に設定した値をそのまま保持します。
 
 | 意味 | SS6Player `timesPlay` | 本バージョン `LoopCount` |
 |---|---|---|
@@ -85,7 +85,7 @@ _player.Play();
 SS6Player では `rateTime` に負値を渡すことで逆再生していましたが、本バージョンでは**速度（`SpeedScale`）と方向（`PlaybackDirection`）が独立**しています。
 
 ```csharp
-// SS6Player: 2倍速で逆再生
+// SS6Player: 2 倍速で逆再生
 //   _root.RateTimeSet(0, -2.0f);
 // 本バージョン:
 _player.SetAnimation("walk");
@@ -98,7 +98,7 @@ _player.Play();
 
 ## 4. イベント／コールバックの変更
 
-- **SS6Player**: `Script_SpriteStudio6_Root` の**デリゲートフィールド**（`FunctionUserData` / `FunctionSignal` / `FunctionPlayEnd`）に関数を代入していました。各デリゲートは `scriptRoot, nameParts, indexParts, …, ref userData, flagWayBack` のように多数の引数を取り、`FunctionPlayEnd` は戻り値 `bool`（`false` で自動破棄）でした。
+- **SS6Player**: `Script_SpriteStudio6_Root` の**デリゲートフィールド**（`FunctionUserData` / `FunctionSignal` / `FunctionSound` / `FunctionPlayEnd`）に関数を代入していました。`FunctionUserData`・`FunctionSignal`・`FunctionSound` は `scriptRoot, nameParts, indexParts, …, ref userData, flagWayBack` のように多数の引数を取り、`FunctionPlayEnd(scriptRoot, objectControl)` は戻り値 `bool`（`false` で自動破棄）でした。
 - **本バージョン**: Unity 標準に沿った **C# `event` と、インスペクタで配線できる `UnityEvent` の両方**を提供します。ペイロードは構造体（`SpriteStudioUserData` など）で受け取ります。
 
 ### 4-1. イベント対応表
@@ -108,8 +108,8 @@ _player.Play();
 | `FunctionPlayEnd` | `OnAnimationFinished` / `OnAnimationFinishedEvent` | なし |
 | `FunctionUserData` | `OnUserData` / `OnUserDataEvent` | `SpriteStudioUserData` |
 | `FunctionSignal` | `OnSignal` / `OnSignalEvent` | `SpriteStudioSignal` |
+| `FunctionSound` | `OnAudio` / `OnAudioEvent` | `SpriteStudioAudio` |
 | （なし・新規） | `OnAnimationStarted` / `OnAnimationLooped` | なし |
-| （なし・新規） | `OnAudio` / `OnAudioEvent` | `SpriteStudioAudio` |
 
 ### 4-2. 登録方法の変更
 
@@ -130,7 +130,7 @@ void OnDisable()
     _player.OnAnimationFinished -= HandleFinished;
 }
 
-void HandleUserData(SpriteStudioUserData data)   // 引数は構造体1つ
+void HandleUserData(SpriteStudioUserData data)   // 引数は構造体 1 つ
 {
     if (data.HasString) Debug.Log(data.StringValue);
     if (data.HasInt)    Debug.Log(data.IntValue);
@@ -144,10 +144,10 @@ void HandleFinished() { /* 戻り値なし。自動破棄の挙動は無くな�
 
 ## 5. その他の注意点・仕様差分
 
-- **マルチトラック／クロスフェード**: SS6Player の複数トラックによるアニメーションの重ね合わせと `TrackTransition()`（クロスフェード）は、トラックの積み重ねで行います。`SetTrackAnimation()` で `SetAnimation()` が選んだアニメーションの上にアニメーションを重ね、`Crossfade()` でトラックをフェードしながら切り替えます。[モーションブレンド](./workflow/motion_blending.md) を参照してください。
+- **マルチトラック／クロスフェード**: SS6Player の複数トラックによるアニメーションの重ね合わせ（`TrackConnectParts()`）と `TrackTransition()`（クロスフェード）は、トラックの積み重ねで行います。`SetTrackAnimation()` で `SetAnimation()` が選んだアニメーションの上にアニメーションを重ね、`Crossfade()` でトラックをフェードしながら切り替えます。[モーションブレンド](./workflow/motion_blending.md) を参照してください。
 - **エフェクト**: SS6Player の `Script_SpriteStudio6_RootEffect` のような独立コンポーネントは不要です。エフェクトパーツを含むアニメーションは、`SpriteStudioPlayer` / `SpriteStudioGraphic` 内で**インラインに再生**されます。
-- **パーツへの GameObject 追従**: SS6Player の `TrackConnectParts()` / `InstanceGet()` などに代わり、`SpriteStudioPlayer` の **Part Trackers**（指定パーツへ任意の `Transform` を追従させる機能）を利用してください。詳細は [スクリプト制御とイベント](./workflow/usage_scripting.md#パーツトラッキング指定パーツへの追従) を参照してください。
-- **Timeline**: 引き続き対応しています。`SpriteStudioPlayer` は `ITimeControl` を実装しており、Timeline トラックから再生時刻を制御できます。
+- **パーツへの GameObject 追従**: SS6Player は `UNITY_NATIVE` / `UNITY_UI` モードで全パーツを GameObject にしていたため、その下に子を置けました。本バージョンはアニメーションを 1 つのメッシュで描くので、`SpriteStudioPlayer` の **Part Trackers**（指定パーツへ任意の `Transform` を追従させる機能）を利用してください。詳細は [スクリプト制御とイベント](./workflow/usage_scripting.md#パーツトラッキング指定パーツへの追従) を参照してください。
+- **Timeline**: ワールドパスでは引き続き対応しています。`SpriteStudioPlayer` は `ITimeControl` を実装しており、Timeline トラックや専用の `SpriteStudioTrack` から再生時刻を制御できます。`SpriteStudioGraphic`（Canvas）は Timeline から動かせません（[制約と適用範囲](./limitations.md)）。
 - **対応環境**: [インストール](./setup/install.md#対応環境) を参照してください。
 - **パーツ単位のカラー / セル / 表示の上書き**: SS6Player の `PartsColorChange()` / `CellChangeParts()` / `HideSet()` に相当する機能は、**パーツオーバーライド（Override Layer API）** として提供しています。キーフレームやアニメーションのブレンドより優先してパーツを上書きできます。詳細は [スクリプト制御とイベント](./workflow/usage_scripting.md#パーツオーバーライドパーツカラー--セル--表示指定) を参照してください。
 - **コライダー連携**: SS6Player のコライダー機能に直接相当する API はありません。必要な場合は、指定パーツへ追従させた GameObject（**Part Trackers**）側に任意のコライダーを付ける方法で代替してください（Part Trackers の詳細は上記を参照）。

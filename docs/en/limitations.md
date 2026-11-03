@@ -7,6 +7,7 @@ Constraints and caveats to be aware of when shipping with the current SpriteStud
 > [!WARNING]
 > - **Text parts** — not drawn. The runtime reserves the part's slot in the draw plan but supplies no glyphs (glyph layout and rasterization are the player's job), and the plugin has no Unity text pass yet.
 > - **9-slice parts** — not drawn. The runtime builds the whole grid into its dedicated `Nines` buffers, but the plugin does not read them yet, so the part renders as nothing rather than as a stretched cell.
+> - **Sequence (`.ssqb`) playback** — not supported. The file imports as a `SpriteStudioSequenceAsset`; to play animations back to back, switch in `OnAnimationFinished` (see [Choosing Between SSAB and SSQB](./workflow/tips.md)).
 
 Text and 9-slice parts still occupy their place in the draw order, so an animation that uses them plays with those parts missing rather than failing. If you ship one, replace it with an ordinary part at authoring time.
 
@@ -19,13 +20,14 @@ Text and 9-slice parts still occupy their place in the draw order, so an animati
 > - **Blend modes are limited to MIX / ADD.** They are dispatched per-vertex inside the shader; every other blend collapses to MIX.
 > - **`TexCoord1` and `TexCoord2` are switched on for you.** Part Color travels through TEXCOORD1 and TEXCOORD2, so the target Canvas's `additionalShaderChannels` gains both automatically.
 > - **Mesh effects and per-part shaders do not apply.** The graphic uploads its mesh itself rather than through `OnPopulateMesh`, so `Shadow`, `Outline` and other `BaseMeshEffect` components on it change nothing, and the per-part AddOn / custom shaders (sepia, outline, blur, …) are not drawn on a Canvas — every part draws with the one Canvas material.
+> - **SpriteStudio masks do not apply.** The graphic writes and tests no stencil mask: mask-only parts draw nothing and every other part draws unmasked, so an animation built on masks shows what they would have hidden. Clip with uGUI's **Mask** / **Rect Mask 2D** instead ([Performance Tuning and Advanced Settings](./workflow/tips.md#masking-and-clipping)).
 > - **No Timeline control.** `SpriteStudioGraphic` implements no `ITimeControl`, and the Timeline track binds `SpriteStudioPlayer` only.
 
-If you need complex blends or multiple atlases, use the world path (`SpriteStudioPlayer`). It draws every blend type but two of the SS6-era "2" variants: **Mul2** draws as Mul and **Screen2** as Screen, while **Div2** and **Overlay2**, which need the colour already behind the part, draw as MIX.
+If you need complex blends or multiple atlases, use the world path (`SpriteStudioPlayer`). It draws every blend type but two of the "2" variants: **Mul2** draws as Mul and **Screen2** as Screen, while **Div2** and **Overlay2**, which need the colour already behind the part, draw as MIX.
 
 ## Masking / Clipping
 
-Of the stencil buffer, this plugin uses only the low 4 bits — the range URP leaves to users (the rest carry light shapes and material types, and writing into them breaks rendering). Those 4 bits are split in two by whether a mask has "mask influence" set, which puts a ceiling on how many of one kind may overlap.
+This section is about the world path (`SpriteStudioPlayer`); the Canvas path draws no SpriteStudio masks. Of the stencil buffer, this plugin uses only the low 4 bits — the range URP leaves to users (the rest carry light shapes and material types, and writing into them breaks rendering). Those 4 bits are split in two by whether a mask has "mask influence" set, which puts a ceiling on how many of one kind may overlap.
 
 > [!NOTE]
 > - **Masks with "mask influence" OFF stack up to 7 deep over one pixel.** An eighth overlapping mask wraps that pixel's count around, and the mask appears to drop out there.
@@ -62,7 +64,7 @@ Part Tracking (making a `Transform` follow a part) is a `SpriteStudioPlayer` (wo
 
 > [!WARNING]
 > - **Instance and Effect parts are outside motion blending.** They belong to the `.ssab`, not to one animation, so a crossfade on track 0 keeps them running instead of setting them up again. Which key drives such a part across the switch is not blended: where both animations key it on the same frame, it may carry on with the outgoing animation's setting.
-> - **A Timeline-driven player does not blend.** The clip seeks the player instead of advancing it, so fades and overlays hold still, and the clip sets its own animation back up on track 0.
+> - **A Timeline-driven player does not blend.** The clip seeks the player instead of advancing it, so fades and overlays hold still, and a SpriteStudio Track clip sets its own animation back up on track 0.
 
 ## Timeline
 
@@ -81,7 +83,7 @@ A `SpriteStudioTrack` or a Control Track drives `SpriteStudioPlayer` by seeking 
 
 ## Playback Feature Constraints
 
-These come from the shared `libssruntime` and therefore apply to every render path and platform. They apply to every official player too, so the full explanations — and the rest of the shared constraints (embedded mode, unvalidated `.ssab` input, and so on) — live in the portal: **[Shared Limitations](https://cri-middleware.github.io/SpriteStudio-Docs/sdk/limitations/)**.
+The first three come from the shared `libssruntime` and therefore apply to every render path and platform, and to every official player; the full explanations — and the rest of the shared constraints (embedded mode, unvalidated `.ssab` input, and so on) — live in the portal: **[Shared Limitations](https://cri-middleware.github.io/SpriteStudio-Docs/sdk/limitations/)**. The last applies to WebGL builds only.
 
 > [!WARNING]
 > - **`independent=true` parts (Instance / Effect) do not reverse or seek correctly.** Only forward playback (including forward frame-skips) is correct.
