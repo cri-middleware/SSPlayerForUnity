@@ -34,6 +34,12 @@ namespace SpriteStudio.Editor
         private static readonly GUIContent _subFrameInterpolationLabel = new GUIContent("Sub-Frame Interpolation",
             "ON: interpolate between frames for smooth rendering (fluid at high FPS). OFF: snap to keyframes (stepped look).");
 
+        protected override void OnDisable()
+        {
+            SpriteStudioEditModePreviewGUI.End(this);
+            base.OnDisable();
+        }
+
         protected override void OnEnable()
         {
             base.OnEnable();
@@ -65,6 +71,7 @@ namespace SpriteStudio.Editor
 
             SpriteStudioAnimationNameField.DrawAsset(_animeAssetProp, _animationNameProp);
             SpriteStudioAnimationNameField.DrawName(_animeAssetProp, _animationNameProp);
+            SpriteStudioEditModePreviewGUI.Draw(this);
 
             EditorGUILayout.PropertyField(_autoPlayProp);
             EditorGUILayout.PropertyField(_loopProp);
