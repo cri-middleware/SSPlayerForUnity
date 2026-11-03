@@ -1,7 +1,6 @@
 using UnityEngine;
 using UnityEditor;
 using SpriteStudio.Runtime;
-using System.IO;
 
 namespace SpriteStudio.Editor
 {
@@ -14,44 +13,7 @@ namespace SpriteStudio.Editor
             bool wasEnabled = GUI.enabled;
             GUI.enabled = true;
 
-            string ssabPath = AssetDatabase.GetAssetPath(target);
-            string sspjPath = SpriteStudioSourceMap.GetSspjForSsab(ssabPath);
-            bool hasSspj = !string.IsNullOrEmpty(sspjPath) && File.Exists(sspjPath);
-
-            GUILayout.BeginVertical(EditorStyles.helpBox);
-            GUILayout.Label("Source SSPJ", EditorStyles.boldLabel);
-            
-            if (hasSspj)
-            {
-                GUILayout.Label(sspjPath, EditorStyles.wordWrappedMiniLabel);
-                
-                GUILayout.BeginHorizontal();
-                if (GUILayout.Button("Open SSPJ"))
-                {
-                    EditorUtility.OpenWithDefaultApp(sspjPath);
-                }
-                
-                if (GUILayout.Button("Reconvert"))
-                {
-                    // Back into the folder this asset lives in, not the Output Folder setting: the folder
-                    // may have been moved or renamed since it was generated.
-                    SpriteStudioImporter.ReconvertInto(sspjPath, Path.GetDirectoryName(ssabPath));
-                }
-                GUILayout.EndHorizontal();
-            }
-            else
-            {
-                GUIStyle warningStyle = new GUIStyle(EditorStyles.wordWrappedMiniLabel);
-                warningStyle.normal.textColor = Color.yellow;
-                GUILayout.Label("Source SSPJ not found in map or doesn't exist.", warningStyle);
-
-                // Broken-link repair: re-pick the .sspj and batch re-link + reconvert the .ssab files in the same output folder
-                if (GUILayout.Button("Relink SSPJ..."))
-                {
-                    SpriteStudioReconvertMenu.RelinkSsab(ssabPath);
-                }
-            }
-            GUILayout.EndVertical();
+            SpriteStudioSourceSspjGUI.DrawBox(AssetDatabase.GetAssetPath(target));
 
             EditorGUILayout.Space();
 

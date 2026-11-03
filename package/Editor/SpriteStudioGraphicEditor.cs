@@ -64,6 +64,7 @@ namespace SpriteStudio.Editor
             serializedObject.Update();
 
             SpriteStudioAnimationNameField.DrawAsset(_animeAssetProp, _animationNameProp);
+            SpriteStudioSourceSspjGUI.DrawRow(_animeAssetProp);
             SpriteStudioAnimationNameField.DrawName(_animeAssetProp, _animationNameProp);
             SpriteStudioEditModePreviewGUI.Draw(this);
 
