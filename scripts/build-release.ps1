@@ -400,8 +400,9 @@ if ($verify -eq "yes") {
     if (-not (Test-Entry "package.json")) { $failed.Add("$versioned has no package/package.json") }
 
     # The documents pack-release copies in, each with the .meta Unity needs to
-    # show it in the Package Manager's Licenses / Changelog tabs.
-    foreach ($document in @("LICENSE.md", "CHANGELOG.md", "Third Party Notices.md")) {
+    # show it in the Package Manager's Licenses / Changelog tabs, and the committed
+    # README.md that npmjs.com shows as the package's page.
+    foreach ($document in @("LICENSE.md", "LICENSE.ja.md", "CHANGELOG.md", "Third Party Notices.md", "README.md")) {
         if (-not (Test-Entry $document))         { $failed.Add("$versioned is missing $document") }
         if (-not (Test-Entry "$document.meta"))  { $failed.Add("$versioned is missing $document.meta") }
     }
