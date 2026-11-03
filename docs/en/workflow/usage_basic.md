@@ -150,7 +150,7 @@ The **Color** / **Material** / **Raycast Target** / **Raycast Padding** / **Mask
 
 Both components also run in edit mode. Place one in a scene and a **static preview of the start frame** appears in the Scene / Game view without entering Play mode. It is always on.
 
-To see the animation move, use **Edit Mode Preview** in the component's Inspector. **Play** plays the selected animation in a loop at its **Speed Scale**, **Pause** holds the frame, the **Frame** slider moves to any frame, and **Stop** goes back to the start frame. The preview stops when you select something else.
+To see the animation move, use **Play in Edit Mode** in the component's Inspector. **Play** plays the selected animation in a loop at its **Speed Scale**, **Pause** holds the frame, the **Frame** slider moves to any frame, and **Stop** goes back to the start frame. The preview stops when you select something else.
 
 The preview only draws. User data, signals and sounds fire in Play mode only, and nothing is saved to the scene: a scene saved while the preview plays is saved at the start frame. A player that a Timeline drives follows the Timeline window instead; scrub it to move the player (see [Driving from Timeline](./usage_scripting.md#driving-from-timeline)).
 

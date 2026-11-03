@@ -205,8 +205,8 @@ namespace SpriteStudio.Editor
 
     internal static class SpriteStudioEditModePreviewGUI
     {
-        private static readonly GUIContent _header = new GUIContent("Edit Mode Preview");
-        private static readonly GUIContent _play = new GUIContent("Play", "Play in Edit Mode. Nothing is saved to the scene.");
+        private static readonly GUIContent _header = new GUIContent("Play in Edit Mode");
+        private static readonly GUIContent _play = new GUIContent("Play", "Nothing is saved to the scene.");
         private static readonly GUIContent _pause = new GUIContent("Pause");
         private static readonly GUIContent _stop = new GUIContent("Stop", "Back to the start frame.");
         private static readonly GUIContent _frame = new GUIContent("Frame");

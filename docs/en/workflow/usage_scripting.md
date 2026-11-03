@@ -370,7 +370,7 @@ When `Drive Scale` is ON, only the **inherited** scale is reflected; the part's 
 - Part names resolve against the parts of the asset the player itself plays. **Parts inside an Instance part (the child animation) cannot be specified** (the Instance part itself can).
 - If several parts share a name, the first one found is used.
 - Swapping `AnimeAsset` re-resolves part names automatically, so trackers do not need to be registered again.
-- In edit mode, trackers follow the frame the preview draws: the static start frame, the Inspector's **Edit Mode Preview**, or a Timeline scrub. They move the target but never change its active state there.
+- In edit mode, trackers follow the frame the preview draws: the static start frame, the Inspector's **Play in Edit Mode**, or a Timeline scrub. They move the target but never change its active state there.
 
 ## Part Outlines and Hit Testing
 
