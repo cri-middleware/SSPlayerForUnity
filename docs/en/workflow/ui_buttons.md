@@ -47,7 +47,7 @@ A press goes to `pressed` before the other `selected_` labels: it lasts only whi
 
 ## Using animations you already have
 
-**State Clips** replaces the label of a state with a whole animation (**Animation** only), a label of the same animation (**Label** only), or a label of another animation (both). Tick **Selected** for a toggle's `selected_` state. States that fall back to a state take its clip too: a clip for `hover` is what a press plays when there is no `pressed` label or clip.
+**State Clips** replaces the label of a state with a whole animation (**Animation** only), a label of the same animation (**Label** only), or a label of another animation (both). Tick **Selected** for a toggle's `selected_` state. States that fall back to a state take its clip too: a clip for `hover` is what a press plays when there is no `pressed` label or clip. In the Inspector, **Animation** is picked from the animations of the graphic's asset and **Label** from the labels of the animation the clip plays.
 
 ```csharp
 using SpriteStudio.UI;
@@ -73,7 +73,7 @@ If the animation has a `reduced_motion` label, `normal` — and the states that 
 A Canvas takes a click anywhere in a graphic's `RectTransform`, transparent margin included. Add **SpriteStudio Raycast Filter** to the graphic and only the parts' outlines take it; a click on the margin goes to whatever is behind.
 
 - **Parts** empty: every part with an outline.
-- **Parts** listing names: only those parts. A name the asset does not have is skipped.
+- **Parts** listing names: only those parts, picked from the asset's part names in the Inspector. A name the asset does not have is skipped.
 
 The outlines are those of [`TryGetPartQuad`](./usage_scripting.md#part-outlines-and-hit-testing), on the frame being shown. The filter never widens the rect, and keyboard and gamepad navigation are not narrowed. uGUI asks a parent's filters too, so a graphic below the button in the hierarchy, such as a label, takes the pointer only over the same parts. It answers only when uGUI asks, so it costs nothing per frame.
 
