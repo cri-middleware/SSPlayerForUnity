@@ -43,6 +43,8 @@
     "Editor.meta",
     "Documentation~",
     "package.json.meta",
+    "README.md",
+    "README.md.meta",
     "CHANGELOG.md",
     "CHANGELOG.md.meta",
     "LICENSE.md.meta",

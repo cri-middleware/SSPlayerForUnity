@@ -409,8 +409,9 @@ if [ "$VERIFY" = "yes" ]; then
   has "package.json" || fail "$VERSIONED has no package/package.json"
 
   # The documents pack-release.sh copies in, each with the .meta Unity needs to
-  # show it in the Package Manager's Licenses / Changelog tabs.
-  for doc in "LICENSE.md" "LICENSE.ja.md" "CHANGELOG.md" "Third Party Notices.md"; do
+  # show it in the Package Manager's Licenses / Changelog tabs, and the committed
+  # README.md that npmjs.com shows as the package's page.
+  for doc in "LICENSE.md" "LICENSE.ja.md" "CHANGELOG.md" "Third Party Notices.md" "README.md"; do
     has "$doc"        || fail "$VERSIONED is missing $doc"
     has "$doc.meta"   || fail "$VERSIONED is missing $doc.meta"
   done
