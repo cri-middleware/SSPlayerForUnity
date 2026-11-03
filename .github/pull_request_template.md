@@ -32,7 +32,7 @@ that is useful information, not a problem.
 - [ ] No new third-party dependencies (standard Unity packages only).
 - [ ] The Tick / mesh-update path still allocates no GC memory.
 - [ ] `JobHandle.Complete()` is called before any native resource is freed.
-- [ ] Generated code (FFI bindings, FlatBuffers accessors) regenerated with the scripts and committed, never hand-edited.
+- [ ] Generated FlatBuffers accessors regenerated with `scripts/generate-fbs-code` and committed, never hand-edited. (The FFI bindings are not in git.)
 
 ## Anything reviewers should know? / レビュー時の注意点
 

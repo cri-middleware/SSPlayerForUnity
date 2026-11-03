@@ -13,8 +13,11 @@ toggle that show their state, a raycast filter that takes the pointer on the art
 ## Run it
 
 1. From the repository root, run `./scripts/download-sdk.sh` (the native libraries) and
-   `./scripts/deploy-examples.sh` (the converted Ringo; no converted asset is committed) — `.ps1` on
-   Windows. Do this **before** the project is first opened, or Unity deletes the committed `.meta`
+   `./scripts/deploy-examples.sh` (converts the SDK's Ringo; no converted asset is committed) — `.ps1` on
+   Windows. `deploy-examples` needs the `SpriteStudio-SDK` submodule (`git submodule update --init --recursive`)
+   and a Rust toolchain. Without Rust, open the project, drag `SpriteStudio-SDK/tests/Ringo/Ringo.sspj` onto
+   **Window > SpriteStudio > Importer**, and assign the imported `Ringo.ssab` to each player in the scene.
+   Do the scripts **before** the project is first opened, or Unity deletes the committed `.meta`
    that carry the scene's references; see
    [CONTRIBUTING › Example projects](../../CONTRIBUTING.md#example-projects).
 2. Open `examples/UI_Ringo` in Unity.

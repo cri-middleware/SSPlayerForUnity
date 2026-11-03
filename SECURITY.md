@@ -25,7 +25,7 @@ Please include:
 
 - What the impact is — crash, out-of-bounds read, arbitrary code execution, information disclosure.
 - Steps to reproduce, ideally with a minimal `.ssab` / `.sspj` and the smallest amount of C# needed.
-- The player version, the SpriteStudio SDK version (`scripts/SDK_VERSION.txt`), your Unity version,
+- The player version and the SpriteStudio SDK version (both are listed at the bottom of the SS Importer window, **Window > SpriteStudio > Importer**, as `player:` and `converter:`), your Unity version,
   and the target platform.
 - Whether the input that triggers it comes from a trusted source in your project or from somewhere
   untrusted (downloaded content, user-supplied files).
@@ -79,7 +79,7 @@ demonstrates impact beyond it is more useful.
 
 - 影響の内容（クラッシュ、境界外読み取り、任意コード実行、情報漏洩など）
 - 再現手順。可能であれば最小限の `.ssab` / `.sspj` と、必要最小限の C# コード
-- プレイヤーのバージョン、SpriteStudio SDK のバージョン（`scripts/SDK_VERSION.txt`）、Unity のバージョン、対象プラットフォーム
+- プレイヤーと SpriteStudio SDK のバージョン（どちらも SS Importer ウィンドウ（**Window > SpriteStudio > Importer**）の下部に `player:` と `converter:` として表示されます）、Unity のバージョン、対象プラットフォーム
 - 引き金となる入力が、プロジェクト内の信頼できるデータか、信頼できない経路（ダウンロードコンテンツ、ユーザーが用意したファイル）由来か
 
 受領の確認、再現可否、修正版の公開時期についてご連絡します。修正を公開するまでの間、公表をお待ちいただけますようお願いします。

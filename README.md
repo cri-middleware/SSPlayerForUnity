@@ -10,9 +10,9 @@ A high-performance plugin for playing back animations (`.ssab`) created with **[
 
 - **Bring your characters to life.** Breathing and blinking, swaying hair and clothes, flashy slash and magic effects — the motion is built visually in a dedicated editor (SpriteStudio) with bone rigs, mesh deformation and particles. Artists work in their own tool, and Unity just plays the result. Animations crossfade and layer on tracks at runtime, so a walk eases into a run instead of snapping.
 - **Not just characters — effects, UI and whole scenes.** Particle effects sit on the same timeline as the character, so there is no separate effect system to set up. Combine characters, backgrounds, effects and UI into a cutscene or a full-screen sequence, and play it in Unity as a single animation.
-- **In your scene or on your UI.** `SpriteStudioPlayer` draws in the world and `SpriteStudioGraphic` on a uGUI Canvas, where it fits its `RectTransform` and follows **Mask** / **RectMask2D**, and can be a button or a toggle that plays a section for each state. Both are controlled from C# — with per-part overrides at runtime and callbacks from the artist's user-data, signal and audio keys — and `SpriteStudioPlayer` can be sequenced on Timeline.
+- **In your scene or on your UI.** `SpriteStudioPlayer` draws in the world and `SpriteStudioGraphic` on a uGUI Canvas, where it fits its `RectTransform` and follows **Mask** / **Rect Mask 2D**, and can be a button or a toggle that plays a section for each state. Both are controlled from C# — with per-part overrides at runtime and callbacks from the artist's user-data, signal and audio keys — and `SpriteStudioPlayer` can be sequenced on Timeline.
 - **A seamless SpriteStudio ⇄ Unity round trip.** Drop a `.sspj` onto the **SS Importer** window and it becomes a ready-to-use asset. To tweak it, click **Open SSPJ** in the Inspector, save in SpriteStudio, then click **Reconvert** — no manual export step. The animation lives in its own asset rather than the scene, so teammates don't collide over scene merges in Git.
-- **Zero-parse loading, SIMD and Burst playback.** `.ssab` is a FlatBuffers binary read in place, so loading involves no parsing. Each frame, a SIMD-optimised Rust core and Burst jobs build the meshes zero-copy, with no per-frame GC allocations — light enough for mobile and for scenes with many characters. Turn on **sub-frame interpolation** and motion follows high-refresh-rate displays.
+- **Zero-parse loading, SIMD and Burst playback.** `.ssab` is a FlatBuffers binary read in place, so loading involves no parsing. Each frame, a SIMD-optimised Rust core and Burst jobs build the meshes zero-copy, with no per-frame GC allocations — light enough for mobile and for scenes with many characters. Turn on **Sub-Frame Interpolation** and motion follows high-refresh-rate displays.
 
 ## 📚 Documentation
 
@@ -39,7 +39,7 @@ Everything after that (scripting, events, per-part overrides, Timeline) is the s
 This player supports Unity 6.3 LTS and later, and works in both URP and BRP. Projects have to be authored in **SpriteStudio 7.6 or later**.
 
 1. **Install**: In **Project Settings > Package Manager**, add `https://registry.npmjs.org` as a scoped registry for `jp.co.cri-mw`, then install `jp.co.cri-mw.spritestudio.ssplayer-unity` with Package Manager's **Install package by name...** — the [Installation Guide](./docs/en/setup/install.md) has the steps. Or download the package tarball from GitHub Releases (stable link, always the latest release) — [`jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz) — and choose **Install package from tarball...**. *(Package Manager's "Install package from git URL..." / git URL does not work for this package, since the native binaries ship only in the released package.)*
-2. **Import**: Open **Window > SpriteStudio > Importer** from the Unity menu, and drag your `.sspj` onto the window from Explorer or Finder — the box in the middle lights up while you drag. It is converted into the window's **Output Folder**, `Assets/ssab_generated/<sspj name>/` by default:
+2. **Import**: Open **Window > SpriteStudio > Importer** from the Unity menu, and drag your `.sspj` onto the window from Explorer or Finder — the box in the middle lights up while you drag. It is converted into the window's **Output Folder**, `Assets/ssab_generated/<sspj name>/` by default (the window converts on Windows and macOS Editors; on a Linux Editor, use `ssconverter-cli` instead — see [Conversion Features and CI/CD](./docs/en/workflow/import.md)):
 
    ```
    Ringo/                       ← your SpriteStudio project, anywhere on disk
@@ -57,7 +57,7 @@ This player supports Unity 6.3 LTS and later, and works in both URP and BRP. Pro
                └── …
    ```
 
-3. **Place**: Drag the `SpriteStudioAnimeAsset` (`Ringo.ssab` above) from the Project window into the Hierarchy (or Scene view), and pick **SpriteStudioPlayer** (world space) or **SpriteStudioGraphic (Canvas UI)**. **Animation Name** starts on the pack's first animation; pick another from its list if you like, and press Play.
+3. **Place**: Drag the `SpriteStudioAnimeAsset` (`Ringo.ssab` above) from the Project window into the Hierarchy (or Scene view), and pick **SpriteStudioPlayer** (world space) or **SpriteStudioGraphic (Canvas UI)**. **Animation Name** starts on the asset's first animation; pick another from its list if you like, and press Play.
 
 No `.sspj` of your own yet? SpriteStudio's [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is — the page is in Japanese, the downloads are not. [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character to start with, and [Particle](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) a good one for effects.
 

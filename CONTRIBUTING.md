@@ -20,12 +20,12 @@ Please refer to [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 This player is a thin C# "Body" driving the SpriteStudio-SDK Rust "Brain" (`libssruntime`) over csbindgen-generated FFI. To keep it fast and predictable, please follow these principles:
 
 - **Unity idioms first:** match the C# conventions and the existing style of the file you touch.
-- **Standard packages only:** Burst, Mathematics, Collections, and Timeline. Please do not introduce third-party dependencies.
+- **Standard packages only:** Burst, Mathematics, Collections, Timeline and uGUI. Please do not introduce third-party dependencies.
 - **Zero allocation in the hot path:** the tick / mesh-update loop must not allocate GC memory. Reuse `NativeArray`, and upload meshes with `SetVertexBufferData`.
 - **FFI safety:** native handles (`SsPlayerHandle`) are plain pointers owned by `IDisposable` classes (`SpriteStudioNativeContext`, `SpriteStudioInternalPlayer`). Always `JobHandle.Complete()` before freeing native resources - a running Burst job will segfault otherwise.
 - **Respect the layer split:** `SpriteStudioInternalPlayer` owns the native lifecycle, FFI, and `IDisposable`; all per-frame geometry (frame-data decode, effect / instance / mask batching, Burst scheduling, mesh upload) lives in `SpriteStudioGeometryBuilder`, its collaborators, and `SpriteStudioMeshJob.cs`. Add rendering features there rather than in the player component, and preserve the struct layouts Burst and the FFI depend on.
 - **SDK separation:** the core animation logic lives in the `SpriteStudio-SDK` submodule (Rust `libssruntime` / `libssconverter`). Changes to the core or the algorithms belong in the SDK repository; Unity-specific rendering belongs in `package/`.
-- **Generated code is never hand-edited:** regenerate the FFI bindings and FlatBuffers accessors with the provided scripts and commit the result.
+- **Generated code is never hand-edited:** regenerate the FlatBuffers accessors with `scripts/generate-fbs-code` and commit them. The csbindgen FFI bindings come from the SDK build (`build-runtime` / `download-sdk`) and are not in git.
 
 ### Reporting Bugs
 If you find a bug, please open a GitHub Issue and include:
@@ -36,7 +36,7 @@ If you find a bug, please open a GitHub Issue and include:
 
 *Note: If you need to send proprietary `.sspj` projects to reproduce the bug, please do not attach them to public issues. See [SUPPORT.md](./SUPPORT.md) for how to contact us privately.*
 
-*Note: If the same problem reproduces on other SpriteStudio players, it most likely belongs to the shared core - please report it in [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK/issues) instead.*
+*Note: If the same problem reproduces on other SpriteStudio players, it most likely belongs to the shared core — say so in your issue, and we will route it.*
 
 ### Pull Requests
 1. Fork the repository and create your branch from `develop`.
@@ -49,6 +49,7 @@ If you find a bug, please open a GitHub Issue and include:
 - Unity, matching the `unity` field in [`package/package.json`](./package/package.json).
 - A Rust toolchain (`rustup`) - only to build `libssruntime` / `libssconverter` from source, or to run `deploy-examples`, which builds `ssconverter-cli`.
 - The `SpriteStudio-SDK` submodule (`git submodule update --init --recursive`), for `build-runtime`, `deploy-examples` and the test fixtures, which are converted from its sources. `download-sdk` does not need it.
+- **zsh** for `build-runtime.sh` and `deploy-examples.sh` (macOS has it; on Linux, install it first). On Windows, the `.ps1` twins need **PowerShell 7** (`pwsh`), not Windows PowerShell 5.1.
 
 ### Setup
 ```bash
@@ -71,7 +72,7 @@ With the Editor open, use the Unity Test Runner instead. Windows users: every sc
 ```bash
 ./scripts/deploy-examples.sh   # converts the SDK's Ringo into examples/SampleProject, examples/Override_Ringo and examples/UI_Ringo
 ```
-No converted asset is committed, so this is what makes any of them show anything. Run it **before** the project is opened in Unity: open it first and Unity deletes the committed `.meta` that carry the scenes' references. If you opened it first, `git checkout -- examples/<project>/Assets` puts them back. It builds `ssconverter-cli` from the submodule, so it needs Rust; without it, open the project, drag `SpriteStudio-SDK/tests/Ringo/Ringo.sspj` onto the SS Importer window (**Window > SpriteStudio > Importer**), and re-assign the imported asset on the player in the scene. `examples/UnityTestProject` is the blank scratch project: the package linked, and nothing else.
+No converted asset is committed, so this is what makes any of them show anything. Run it **before** the project is opened in Unity: open it first and Unity deletes the committed `.meta` that carry the scenes' references. If you opened it first, `git checkout -- examples/<project>/Assets` puts them back. It builds `ssconverter-cli` from the submodule, so it needs Rust; without it, open the project, drag `SpriteStudio-SDK/tests/Ringo/Ringo.sspj` onto the SS Importer window (**Window > SpriteStudio > Importer**), and re-assign the imported asset on the player in the scene. `examples/UnityTestProject` is the blank scratch project: the package linked, three maintainer Editor scripts under `Assets/Editor`, and no sample content.
 
 ### Documentation
 Pages live as both `docs/en/<path>` and `docs/ja/<path>`, each locale with its own `assets/`; there is no fallback locale, so a page missing from one side is a nav entry pointing at nothing. Asset paths are source-relative (`../assets/…`) **including inside raw `<video>` / `<img>` HTML**, which Zensical rewrites the same way it rewrites Markdown links. If you edit a page, build both locales before you finish. CI builds them too, both `--strict`, on a pull request that touches the site's sources, on the release PR and weekly.
@@ -117,12 +118,12 @@ SSPlayerForUnity への貢献にご関心をお寄せいただきありがとう
 本 Player は、csbindgen が生成する FFI を介して SpriteStudio-SDK の Rust 製「Brain」（`libssruntime`）を駆動する、薄い C# 製の「Body」です。速度と予測可能性を保つため、以下の方針に従ってください。
 
 - **まず Unity の作法に従う:** 編集するファイルの C# の規約と既存スタイルに合わせてください。
-- **標準パッケージのみ:** Burst / Mathematics / Collections / Timeline。サードパーティ依存の追加はご遠慮ください。
+- **標準パッケージのみ:** Burst / Mathematics / Collections / Timeline / uGUI。サードパーティ依存の追加はご遠慮ください。
 - **ホットパスでのアロケーション禁止:** tick／メッシュ更新ループで GC アロケーションを発生させないでください。`NativeArray` を再利用し、メッシュ更新は `SetVertexBufferData` で行います。
 - **FFI の安全性:** ネイティブハンドル（`SsPlayerHandle`）はただのポインタで、`IDisposable` なクラス（`SpriteStudioNativeContext`、`SpriteStudioInternalPlayer`）が所有します。ネイティブリソースの解放前には必ず `JobHandle.Complete()` を呼んでください。実行中の Burst ジョブがあるとクラッシュします。
 - **レイヤー分離の遵守:** `SpriteStudioInternalPlayer` がネイティブのライフサイクル・FFI・`IDisposable` を持ち、フレームごとのジオメトリ処理（フレームデータのデコード、エフェクト／インスタンス／マスクのバッチング、Burst のスケジューリング、メッシュのアップロード）は `SpriteStudioGeometryBuilder` とその協調クラス、`SpriteStudioMeshJob.cs` にあります。描画機能の追加は Player コンポーネントではなくそちらへ。Burst と FFI が依存する構造体レイアウトは維持してください。
 - **SDK との分離:** アニメーションのコアロジックは `SpriteStudio-SDK` サブモジュール（Rust の `libssruntime` / `libssconverter`）にあります。コアやアルゴリズムの変更は SDK リポジトリへ、Unity 固有の描画は `package/` へ。
-- **生成コードは手編集しない:** FFI バインディングと FlatBuffers アクセサーは、付属スクリプトで再生成してコミットしてください。
+- **生成コードは手編集しない:** FlatBuffers アクセサーは `scripts/generate-fbs-code` で再生成してコミットしてください。csbindgen の FFI バインディングは SDK のビルド（`build-runtime` / `download-sdk`）が生成するもので、git には入っていません。
 
 ### 不具合の報告
 不具合を見つけた場合は、GitHub Issue に以下を含めてご投稿ください。
@@ -133,7 +134,7 @@ SSPlayerForUnity への貢献にご関心をお寄せいただきありがとう
 
 *注: 再現のために非公開の `.sspj` プロジェクトを送付する必要がある場合、公開 Issue には添付しないでください。非公開の連絡方法は [SUPPORT.md](./SUPPORT.md) を参照してください。*
 
-*注: 他の SpriteStudio Player でも同じ問題が再現する場合、共通コア側の問題である可能性が高いため、[SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK/issues) へご報告ください。*
+*注: 他の SpriteStudio Player でも同じ問題が再現する場合、共通コア側の問題である可能性が高いため、その旨を Issue にお書きください。こちらで振り分けます。*
 
 ### プルリクエスト
 1. リポジトリを fork し、`develop` からブランチを作成してください。
@@ -146,6 +147,7 @@ SSPlayerForUnity への貢献にご関心をお寄せいただきありがとう
 - Unity（バージョンは [`package/package.json`](./package/package.json) の `unity` フィールドに準拠）
 - Rust ツールチェーン（`rustup`）— `libssruntime` / `libssconverter` をソースからビルドする場合と、`ssconverter-cli` をビルドする `deploy-examples` を実行する場合のみ
 - `SpriteStudio-SDK` サブモジュール（`git submodule update --init --recursive`）。`build-runtime`・`deploy-examples` と、そのソースから変換するテスト用のデータに要ります。`download-sdk` には要りません。
+- `build-runtime.sh` と `deploy-examples.sh` を動かす **zsh**（macOS には入っています。Linux では先にインストールしてください）。Windows の `.ps1` には、Windows PowerShell 5.1 ではなく **PowerShell 7**（`pwsh`）が要ります。
 
 ### セットアップ
 ```bash
@@ -168,7 +170,7 @@ SSPlayerForUnity への貢献にご関心をお寄せいただきありがとう
 ```bash
 ./scripts/deploy-examples.sh   # SDK の Ringo を examples/SampleProject・examples/Override_Ringo・examples/UI_Ringo へ変換
 ```
-変換済みアセットは 1 つもコミットされていないため、これを実行しないとどのプロジェクトも何も表示しません。**Unity でプロジェクトを開く前に**実行してください。先に開くと、シーンの参照を持つコミット済みの `.meta` を Unity が削除します。先に開いてしまったときは `git checkout -- examples/<project>/Assets` で戻せます。submodule から `ssconverter-cli` をビルドするため Rust が必要です。Rust が無い場合は、プロジェクトを開いてから `SpriteStudio-SDK/tests/Ringo/Ringo.sspj` を SS Importer ウィンドウ（**Window > SpriteStudio > Importer**）にドラッグし、シーン上の Player に取り込んだアセットを割り当て直してください。`examples/UnityTestProject` は、パッケージをリンクしただけの空のスクラッチ用プロジェクトです。
+変換済みアセットは 1 つもコミットされていないため、これを実行しないとどのプロジェクトも何も表示しません。**Unity でプロジェクトを開く前に**実行してください。先に開くと、シーンの参照を持つコミット済みの `.meta` を Unity が削除します。先に開いてしまったときは `git checkout -- examples/<project>/Assets` で戻せます。submodule から `ssconverter-cli` をビルドするため Rust が必要です。Rust が無い場合は、プロジェクトを開いてから `SpriteStudio-SDK/tests/Ringo/Ringo.sspj` を SS Importer ウィンドウ（**Window > SpriteStudio > Importer**）にドラッグし、シーン上の Player に取り込んだアセットを割り当て直してください。`examples/UnityTestProject` は、パッケージをリンクし、`Assets/Editor` にメンテナー用のエディタースクリプトが 3 つあるだけの、サンプルの無いスクラッチ用プロジェクトです。
 
 ### ドキュメント
 ページは `docs/en/<path>` と `docs/ja/<path>` の両方に存在し、アセットもロケールごとに `assets/` を持ちます。フォールバックロケールは無いため、片方に欠けたページは行き先の無い nav エントリになります。アセットのパスはソース相対（`../assets/…`）で、**生の `<video>` / `<img>` HTML の中でも同じ**です（Zensical は Markdown リンクと同じ規則で書き換えます）。ページを編集したら、仕上げる前に両ロケールをビルドしてください。CI も、サイトのソースに触れるプルリクエスト、リリースのプルリクエスト、週次の実行で、両ロケールを `--strict` でビルドします。

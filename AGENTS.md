@@ -41,7 +41,7 @@ editor converts `.sspj` to `.ssab` with `libssconverter` (`SpriteStudioConversio
 | How the player is put together, and the reasons that span files | [docs/en/development/architecture.md](./docs/en/development/architecture.md) |
 | Releases, maintainers only | [RELEASING.md](./RELEASING.md) |
 | Plans and non-goals | [ROADMAP.md](./ROADMAP.md) |
-| What a script takes | its `--help` |
+| What a script takes | its `--help` (the maintainer tools `download-flatbuffers`, `pack-release` and `scaffold-plugin-placeholders` take none and run when called: read their header) |
 
 ## Invariants
 
