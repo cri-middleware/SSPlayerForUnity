@@ -27,7 +27,7 @@ SS Importer ウィンドウ（Unity メニュー: **Window > SpriteStudio > Impo
 
 SpriteStudio 側でアニメーションを修正した際、最新の `.sspj` を再度読み込んで Unity 上の `.ssab` を更新する（再コンバートする）方法は複数あります。
 
-- **生成アセットのインスペクタ**: `SpriteStudioAnimeAsset` のインスペクタにある **Reconvert** ボタンから実行できます。書き先はそのアセットがあるフォルダなので、フォルダを移動・リネームした後でも正しい場所に書き戻されます。
+- **インスペクタ**: `SpriteStudioAnimeAsset` のインスペクタ、または `SpriteStudioPlayer` / `SpriteStudioGraphic` のインスペクタで **Anime Asset** の下にある **Reconvert** ボタンから実行できます。書き先はそのアセットがあるフォルダなので、フォルダを移動・リネームした後でも正しい場所に書き戻されます。
 - **プロジェクトブラウザの右クリック**: `.ssab` を選んで **SpriteStudio > Reconvert** を実行すると、選択した分だけ同じことを行います。
 - **SS Importer ウィンドウの Recent リスト**: 行をクリックすると再コンバートが走ります。右クリックメニューの **Reconvert** からも実行できます。こちらは `.sspj` を起点にするため、書き先は新規ドロップと同じく **Output Folder** です。
 

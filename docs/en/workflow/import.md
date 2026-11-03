@@ -27,7 +27,7 @@ Dropping a **folder** into the drop area of the SS Importer window (Unity menu: 
 
 When you modify an animation on the SpriteStudio side, there are several ways to reload the latest `.sspj` and update (re-convert) the `.ssab` in Unity.
 
-- **Generated asset inspector**: You can run it from the **Reconvert** button in the `SpriteStudioAnimeAsset` inspector. It writes back into the folder that asset is in, so it still lands in the right place after you have moved or renamed the folder.
+- **Inspector**: You can run it from the **Reconvert** button in the `SpriteStudioAnimeAsset` inspector, or from the same button under **Anime Asset** in a `SpriteStudioPlayer` / `SpriteStudioGraphic` inspector. It writes back into the folder that asset is in, so it still lands in the right place after you have moved or renamed the folder.
 - **Project browser right-click**: **SpriteStudio > Reconvert** on one or more `.ssab` does the same for each of them.
 - **Recent list in the SS Importer window**: Clicking a row triggers re-conversion. You can also run it from **Reconvert** in the right-click menu. These start from the `.sspj`, so they write into **Output Folder**, exactly as a fresh drop would.
 
