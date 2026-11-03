@@ -14,7 +14,7 @@ The three components live in an assembly of their own, `SpriteStudio.UI`, in the
 
 1. Place a **SpriteStudio Graphic** on a Canvas and give it its **Anime Asset** and **Animation Name**, as in [Basic Usage](./usage_basic.md).
 2. On the same GameObject, **Add Component > SpriteStudio > SpriteStudio Button** (or **SpriteStudio Toggle**). Its **Transition** starts at **None**: the animation shows the state, and a tint on top of it would show it twice.
-3. Hook **On Click ()** up as for any `Button`.
+3. Hook **On Click ()** up as for any `Button` (a **SpriteStudio Toggle** has **On Value Changed (Boolean)** instead).
 
 While the game runs, the button plays the graphic: it selects the animation, sets the section, and plays and stops it. Leave the graphic's playback to the button; the button turns the graphic's **Auto Play** off when it wakes. In edit mode the graphic shows its usual preview.
 
@@ -26,11 +26,11 @@ In one animation, put a label named after each state: `normal`, `hover`, `presse
 |---|---|---|
 | none of the below | `normal` | the whole animation |
 | pointer over it | `hover` | `normal` |
-| pointer held down on it, or **Submit** from a keyboard or gamepad | `pressed` | `hover`, then `normal` |
+| pointer pressed on it, until it is released (even if it slides off), or **Submit** from a keyboard or gamepad | `pressed` | `hover`, then `normal` |
 | not **Interactable** (also through a `CanvasGroup`) | `disabled` | `normal` |
-| selected by navigation, or by a click until something else is | `focused` | `normal` |
+| selected by navigation, or by a click (not when its **Navigation** is **None**) until something else is | `focused` | `normal` |
 
-When several hold at once, one is shown: `disabled`, then `pressed`, `hover`, `focused`, and `normal` when none does. uGUI's own Selected beats Highlighted; here hover beats focus, as on the other SpriteStudio Players. A change shows at once: the new section starts from its first frame, and the section that was playing is dropped.
+When several hold at once, one is shown: `disabled`, then `pressed`, `hover`, `focused`, and `normal` when none does. uGUI's own Selected beats Highlighted; here hover beats focus. A change shows at once: the new section starts from its first frame, and the section that was playing is dropped.
 
 The labels are read from the animation the graphic has in **Animation Name**. Selecting another one from a script (`SetAnimation`) makes the states read that one from then on.
 
@@ -83,8 +83,8 @@ By default the animation is decoration: nothing is read for it. Unity builds no 
 
 ## The state rules from a script
 
-`SpriteStudioUiStates` holds the rules on their own, for a control of your own: `Of` picks the state, `Chain` lists the labels a state is read from, `TryGetLabelSection` reads a label's section from a `SpriteStudioLabelTable` (`GetLabelTable` on the graphic), and `TryResolve` returns the section a state plays, clips and reduced motion included.
+`SpriteStudioUiStates` holds the rules on their own, for a control of your own: `Of` picks the state, `Chain` lists what a state is read from, in order (each entry is a state and whether it is the `selected_` form; `LabelOf` gives the label's name), `TryGetLabelSection` reads a label's section from a `SpriteStudioLabelTable` (`GetLabelTable` on the graphic), and `TryResolve` returns the section a state plays, clips and reduced motion included.
 
 ## Example project
 
-`examples/UI_Ringo` has a button and a toggle made of Ringo, with clips naming Ringo's animations, a filter on each, a panel that switches interactable and reduced motion, the parts' outlines drawn over them, and a row of rects showing **Fit**. See its README for how to run it.
+[`examples/UI_Ringo`](https://github.com/cri-middleware/SSPlayerForUnity/tree/HEAD/examples/UI_Ringo) in the repository has a button and a toggle made of Ringo (SpriteStudio's sample character), with clips naming Ringo's animations, a filter on each, a panel that switches interactable and reduced motion, the parts' outlines drawn over them, and a row of rects showing **Fit**. Its README says how to run it; that needs a clone of the repository.

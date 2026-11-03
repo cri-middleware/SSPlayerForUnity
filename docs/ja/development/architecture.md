@@ -8,7 +8,7 @@ SpriteStudio の Player に共通すること（再生・モーションブレ�
 
 ## 層
 
-パッケージは `package/` です。薄い C# の層が、csbindgen が生成する FFI バインディングで Rust のランタイム `libssruntime` を動かし、各フレームのジオメトリを Burst のジョブで組み立てて `Mesh` にアップロードします。エディタは `libssconverter` で `.sspj` を変換します。矢印は呼び出しです。
+パッケージは `package/` です。薄い C# の層が、csbindgen が生成する FFI バインディングで Rust のランタイム `libssruntime`（図の「Brain」）を動かし、各フレームのジオメトリを Burst のジョブで組み立てて `Mesh` にアップロードします。エディタは `libssconverter` で `.sspj` を変換します。矢印は呼び出しです。
 
 ```mermaid
 ---
@@ -49,7 +49,7 @@ flowchart TD
 **再生**（`package/Runtime/`）:
 
 - ジオメトリの段は 1 フレームの描画データをバッチ・サブメッシュ・マスクの手順・エフェクトの四角形に変え、Burst のジョブで頂点を書いてアップロードします。インデックスはトポロジーが変わったときだけ送り直します。
-- マテリアルはテクスチャとブレンドごとに持ち、パーツ単位のシェーダーは `SpriteStudioShaderCatalog` が対応付けます。組み込みのサウンド、イベント、パーツへの追従（`SpriteStudioPartTracker`）、パーツ単位とテクスチャの上書き、Timeline のトラックがその横にあります。
+- マテリアルはテクスチャとブレンドごとに持ち、パーツ単位のシェーダーは `SpriteStudioShaderCatalog` が対応付けます。AddOn パーツは `MaterialPropertyBlock` ではなくパーツごとのマテリアルインスタンスで描くので、SRP Batcher のバッチを崩しません。プレイヤーは、サブメッシュ・アセット・Shader Catalog・テクスチャの差し替えのいずれかが変わるたびにそれを作り直し、パラメータを毎フレーム設定します。組み込みのサウンド、イベント、パーツへの追従（`SpriteStudioPartTracker`）、パーツ単位とテクスチャの上書き、Timeline のトラックがその横にあります。
 - インポートしたアセットは `SpriteStudioAnimeAsset` と `SpriteStudioSequenceAsset` です。
 - FFI バインディングとネイティブライブラリは生成またはダウンロードするもので、git には無く、`.meta` だけがあります。`.ssab` の読み取り（flatc の出力）と FlatBuffers の C# ランタイムはコミット済みです。
 
@@ -71,8 +71,8 @@ flowchart TD
 
 **ネイティブのハンドルは `IDisposable` のクラスが持ち、ジョブを先に終わらせます。** ランタイムのポインタを持つのは各プレイヤーの下の層です。何かを解放する前に `JobHandle.Complete()` を呼びます。解放したメモリを Burst のジョブが読み続けると、プロセスが落ちるためです。
 
-**変換でエディタを止めません。** ドロップしたフォルダのスキャンは別スレッドで走り、変換は CPU 数を上限とするキューから `EditorApplication.update` で進めて、進み具合をステータスバーに出します。`.sspj` はディスクのどこに置いてもよく、各 `.ssab` の変換元は `ProjectSettings/SpriteStudioSourceMap.json` が記録します。Reconvert が読むのはこれです。出力先と最近使ったファイルは利用者ごと（`UserSettings/`）です。
+**変換でエディタを止めません。** ドロップしたフォルダのスキャンは別スレッドで走り、変換は CPU 数から 1 を引いた数（1〜8）を上限とするキューから `EditorApplication.update` で進めて、進み具合をステータスバーに出します。`.sspj` はディスクのどこに置いてもよく、各 `.ssab` の変換元は `ProjectSettings/SpriteStudioSourceMap.json` が記録します。Reconvert が読むのはこれです。出力先と最近使ったファイルは利用者ごと（`UserSettings/`）です。
 
 **インポートした `.ssab` は、テクスチャへのハード参照を持ちます。** `SpriteStudioAnimeAsset` は `.ssab` のバイト列を持ち、それが名指すすべてのテクスチャを参照するので、ビルドがアニメの描くものを取り除くことはなく、AssetBundle にも要るものが入ります。
 
-**SDK のサブモジュールが、この repo がどのランタイムでビルドされるかの記録です。** `Plugins/` と `Bindings/` は git に無いので、チェックアウトがどの `libssruntime` で動くはずかを示すのは、サブモジュールのポインタだけです。ランタイムの挙動に関わる変更は同じプルリクエストでサブモジュールを上げます。そうすれば、ブランチの記録どおりにビルドしたレビュアーが、プルリクエストの主張どおりの結果を得られます。
+**チェックアウトがどのランタイムで動くかを示す記録は 2 つあります。** `Plugins/` と `Bindings/` は git に無いので、`download-sdk` が入れる SDK のリリースは `scripts/SDK_VERSION.txt` が、`build-runtime` がコンパイルするソースは SDK のサブモジュールのポインタが示します。ランタイムの挙動に関わる変更は同じプルリクエストでサブモジュールを上げます。そうすれば、ブランチの記録どおりにビルドしたレビュアーが、プルリクエストの主張どおりの結果を得られます。

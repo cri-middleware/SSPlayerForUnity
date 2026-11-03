@@ -24,6 +24,7 @@ If you are handed a `.sspj` and asked to take it from there in Unity, the first 
 | Repainted the artwork only (cells untouched) | The `.png` alone | Shipping the texture bundle alone is enough |
 | Added, moved or resized cells, or changed the image size (the `.ssce` changed) | The `.png` **and** the `.ssab` | **Ship both together.** Shipping one alone makes the artwork shift |
 | Edited an animation (`.ssae`) | The corresponding `.ssab` | The bundle containing that `.ssab` |
+| Edited an effect (`.ssee`) or sound settings | The `.ssab` that uses it | The bundle containing that `.ssab` |
 | Added an anime pack | One more `.ssab` | Register the new asset with a bundle / group |
 | Edited a sequence (`.ssqe`) | The `.ssqb` | Nothing in the game changes today |
 
@@ -36,8 +37,9 @@ Converting one `.sspj` creates a `<sspj name>/` folder under the output folder (
 | File | Produced from | Unity representation | What it holds |
 |---|---|---|---|
 | `<anime pack>.ssab` | One file per `.ssae` | `SpriteStudioAnimeAsset` | Animations (keyframes), part structure, **the cell map (the source rectangle, pivot and original image size on the atlas)**, effect definitions, user data / signals, **the referenced texture names (both the cell map atlases and the replacement textures for texture change)**, sound references |
-| `<sequence pack>.ssqb` | One file per `.ssqe` | `SpriteStudioSequenceAsset` | The animation playback order (sequence). Playback is not yet supported ([Choosing Between SSAB and SSQB](./tips.md)) |
+| `<sequence pack>.ssqb` | One file per `.ssqe` | `SpriteStudioSequenceAsset` | The animation playback order (sequence). Playback is not yet supported ([Choosing Between SSAB and SSQB](./tips.md#choosing-between-ssab-and-ssqb)) |
 | `<texture>.png` and so on | The images referenced by the `.sspj` | `Texture2D` | The artwork itself (the atlas image) |
+| `<sound>.wav` and so on | The sound files referenced by the `.sspj` | `AudioClip` | The audio that Audio keys play |
 | `<texture>.mat` | Generated automatically on import | `Material` | The shared material used for rendering (shader and texture reference) |
 | `*.meta` | Unity | — | GUID, texture import settings, AssetBundle name |
 
@@ -45,8 +47,9 @@ Converting one `.sspj` creates a `<sspj name>/` folder under the output folder (
 > Exactly one `.mat` is generated per texture, and it is **shared by every `.ssab` that references that texture**.
 
 > [!TIP]
-> **The output can live anywhere in the project**
-> `Assets/ssab_generated` is only the default. **Output Folder** in the SS Importer window accepts any folder in the project, and you may move or rename the `<sspj name>/` folder afterwards (the binding to the `.sspj` follows the move, and **Reconvert** on the asset writes back into the folder it is in). If your Addressables groups are organized by folder, lay the output out to match.
+> **The output can live anywhere under `Assets/`**
+>
+> `Assets/ssab_generated` is only the default. **Output Folder** in the SS Importer window accepts any folder under `Assets/`, and you may move or rename the `<sspj name>/` folder afterwards (the binding to the `.sspj` follows the move, and **Reconvert** on the asset writes back into the folder it is in). If your Addressables groups are organized by folder, lay the output out to match.
 >
 > Keep the `.ssab`, its images and its `.mat` **in the same place relative to each other**, though. Textures are looked for inside the `.ssab`'s own folder only — the project is never searched — so splitting the folder's contents apart breaks resolution.
 
@@ -63,9 +66,9 @@ graph LR
         MAT[" .mat "]
         TEX[" .png "]
         EXT[[" referenced .ssab<br>(Instance part) "]]
+        SND[" AudioClip "]
     end
 
-    SND[" AudioClip "]
     SHADER[" SpriteStudio/Default<br>(Resources in the package) "]
 
     NODE -- "Anime Asset" --> SSAB
@@ -78,7 +81,7 @@ graph LR
 ```
 
 - **Every reference is a hard GUID reference.** Nothing is resolved by file path at runtime, so references resolve wherever the assets live — Resources, AssetBundle or Addressables. Conversely, a bundle that contains a `.ssab` pulls in its dependencies too (`.mat` → `.png`, `AudioClip`, and the `.ssab` an Instance part references).
-- **Paths are only searched at import time**: the importer looks for textures in the same folder as the `.ssab`, and uses the `.mat` adjacent to each texture. Move the files in a folder together.
+- **Paths are only searched at import time**: the importer looks for textures and sound files in the same folder as the `.ssab`, and uses the `.mat` adjacent to each texture. The `.ssab` an Instance part plays is looked for in that folder first, then by file name in the whole project. Move the files in a folder together.
 - The **Textures** edge above covers two kinds: the cell map atlases, and the textures a **texture change (TCHG)** swaps in. The importer collects both and references them by GUID, so neither can go missing from a bundle on its own.
 - **The shader** lives under `Runtime/Resources` in the package, so it is always included in the player build. The shader a `.mat` is created with can be chosen in the import settings shown when a `.ssab` is selected (**Generate Materials** / **Override Shader**). It applies when a `.mat` is created; a `.mat` that already exists keeps its own shader, so change that on the `.mat` itself.
 
@@ -109,7 +112,7 @@ There is really only one design decision: **at what granularity do you want to b
 | **C. Shared assets in a dedicated bundle** | Several `.ssab` files sharing an atlas or the same Instance reference | Updating the shared side affects everyone referencing it |
 
 > [!IMPORTANT]
-> A dependency that is not explicitly assigned to a bundle (group) is **duplicated into every bundle that references it**. If several characters share a texture or the target of an Instance part, assign the shared asset explicitly as well. In Addressables, **Tools > Check Duplicate Bundle Dependencies** in the Groups window finds these.
+> A dependency that is not explicitly assigned to a bundle (group) is **duplicated into every bundle that references it**. If several characters share a texture or the target of an Instance part, assign the shared asset explicitly as well. In Addressables, open the Analyze window (**Tools > Window > Analyze** in the Groups window, or **Window > Asset Management > Addressables > Analyze**) and run the **Check Duplicate Bundle Dependencies** rule to find these.
 
 ### Patching appearance only (split B)
 

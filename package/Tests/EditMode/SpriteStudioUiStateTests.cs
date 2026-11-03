@@ -123,6 +123,16 @@ namespace SpriteStudio.Runtime.EditModeTests
         }
 
         [Test]
+        public void ReducedMotion_PlaysTheReducedMotionLabelWhereNormalFallsBackToTheWholeAnimation()
+        {
+            var calmOnly = Table(59, ("pressed", 20), ("reduced_motion", 40));
+            AssertSection(Resolve(SpriteStudioUiState.Normal, calmOnly, reduced: true), Button, 40, 59, false);
+            AssertSection(Resolve(SpriteStudioUiState.Hover, calmOnly, reduced: true), Button, 40, 59, false);
+            // A state with a label of its own still holds it.
+            AssertSection(Resolve(SpriteStudioUiState.Pressed, calmOnly, reduced: true), Button, 20, 39, true);
+        }
+
+        [Test]
         public void ReducedMotion_HoldsEachState_ButNormalPlaysTheReducedMotionLabel()
         {
             AssertSection(Resolve(SpriteStudioUiState.Normal, Full, reduced: true), Button, 40, 49, false);

@@ -40,7 +40,6 @@ Copyright (c) CRI Middleware Co., Ltd. All rights reserved.
 
 **License Location:**
 The license documents for the Rust dependencies ship with the native libraries. In the released package they are `Runtime/Plugins/THIRD-PARTY-LICENSES.ssruntime.md` and `Editor/Plugins/THIRD-PARTY-LICENSES.ssconverter.md`, each beside the SDK's `LICENSE.md`.
-The runtime binaries are not checked into this repository, so in a source checkout `download-sdk` places the same files under `package/Runtime/Plugins/` and `package/Editor/Plugins/`; `build-runtime` places the dependency notices there only after the SDK's `generate-licenses` script has written them to `SpriteStudio-SDK/target/licenses/`.
 
 **Distribution Note:**
 If you distribute compiled Unity applications or Unity packages that include `libssruntime`, please ensure you also bundle and distribute the license files (`THIRD-PARTY-LICENSES.ssruntime.md` and `LICENSE.md`) located in the package's `Runtime/Plugins/` to comply with the open-source licenses of the underlying Rust crates.

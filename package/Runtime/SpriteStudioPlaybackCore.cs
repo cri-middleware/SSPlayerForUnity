@@ -264,6 +264,7 @@ namespace SpriteStudio.Runtime
         public void Play()
         {
             if (Internal == null) return;
+            _seekPending = false;
             Internal.Play();
             OnAnimationStarted?.Invoke();
         }
@@ -272,23 +273,25 @@ namespace SpriteStudio.Runtime
         public void Play(float startFrame)
         {
             if (Internal == null) return;
+            _seekPending = false;
             Internal.Play(startFrame);
             OnAnimationStarted?.Invoke();
         }
 
-        // A seek made while playing reports the landing frame's keys on the next update, though the playhead
-        // crossed none of them: their sounds are not played, and their notifications still fire.
+        // A seek, playing or not, reports the landing frame's keys on the next update, though the playhead
+        // crossed none of them: their sounds are not played, and their notifications still fire. Play() starts
+        // from its own frame, whose keys do sound, so it drops a seek made before it.
         private bool _seekPending;
         private int _seekLandingFrame;
 
-        /// <summary>Moves the playhead, remembering where a seek made while playing lands.</summary>
+        /// <summary>Moves the playhead, remembering where it lands.</summary>
         public void Seek(float frame)
         {
             var p = Internal;
             if (p == null) return;
             p.SetFrame(frame);
-            _seekPending = p.IsPlaying() && !p.IsPausing();
-            if (_seekPending) _seekLandingFrame = Mathf.FloorToInt(p.GetFrame());
+            _seekPending = true;
+            _seekLandingFrame = Mathf.FloorToInt(p.GetFrame());
         }
 
         /// <summary>Whether an audio key on <paramref name="frameNo"/> is a seek's landing frame, not one crossed.</summary>

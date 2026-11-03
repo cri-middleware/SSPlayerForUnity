@@ -4,7 +4,7 @@
 
 Unity の C# スクリプトから `SpriteStudioPlayer` / `SpriteStudioGraphic` を制御する方法を解説します。Unity の設計思想に沿って、シンプルなメソッド呼び出しによる再生制御と、**C# event とインスペクタ配線可能な `UnityEvent` の両方**によるイベント連携を提供しており、ゲームロジックへの組み込みが容易です。
 
-`SpriteStudioPlayer`（ワールド）と `SpriteStudioGraphic`（Canvas）は、**再生制御 API とイベント通知 API を共通**で備えています。本ページのコードはどちらのコンポーネントでもそのまま使えます。
+`SpriteStudioPlayer`（ワールド）と `SpriteStudioGraphic`（Canvas）は、**再生制御 API とイベント通知 API を共通**で備えています。本ページのコードは、`SpriteStudioPlayer` 専用と記した箇所（Flip X・Offset・描画順、パーツトラッキング、Timeline）を除き、どちらのコンポーネントでもそのまま使えます。
 
 名前空間は `SpriteStudio.Runtime` です。
 
@@ -23,7 +23,7 @@ _player.SetAnimation("walk");
 _player.Play();
 ```
 
-`SetAnimation()` はアニメーションのデータをロードし**先頭フレームで待機**します（再生は開始しません）。続けて `Play()` を呼ぶとその場から再生が始まります。
+`SetAnimation()` はアニメーションのデータをロードし**先頭フレームで待機**します（再生は開始しません）。続けて `Play()` を呼ぶとその場から再生が始まります。すでにセットアップ済みのアニメーションを指定した場合は何も起こりません。再生ヘッド・再生状態・再生区間・ループ回数はそのままなので、ステートマシンから毎フレーム `SetAnimation(state.clip)` を呼んでも問題ありません。最初からやり直すには `Play()` を呼びます。
 
 設定した再生パラメータは切り替えを跨いで保持されます。`SpeedScale` / `FrameSkipEnabled` / フレームレート上書き / `PlaybackDirection`・`PlaybackStyle` はいずれもクリップではなく再生そのものを記述するものなのでランタイムが保持し、`LoopCount` は遷移ごとの指定なのでコンポーネントが再適用します。リセットされるのは再生ヘッド（先頭フレームで待機）と再生区間で、区間のフレーム番号は別のアニメーションに対して意味を持たないためです。
 
@@ -32,7 +32,7 @@ _player.Play();
 | メンバー | 種別 | 説明 |
 |---|---|---|
 | `SetAnimation(string animName)` | メソッド | アニメーションを指定しデータをロード（再生は開始しない）。成功で `true` |
-| `Play()` | メソッド | セットアップ済みアニメを先頭から再生開始 |
+| `Play()` | メソッド | セットアップ済みアニメを区間の先頭（`PlaybackDirection` が `Backward` のときは末尾）から再生開始 |
 | `Play(float startFrame)` | メソッド | セットアップ済みアニメを指定フレームから再生開始 |
 | `Pause()` | メソッド | 現在フレームを保持して再生を止める。冪等で、再生していないときは無視される |
 | `Resume()` | メソッド | `Pause()` を解除し、同じフレームから再開する。冪等。`Play()` は先頭へ巻き戻すため再開には使えない |
@@ -49,7 +49,7 @@ _player.Play();
 | `PlaybackStyle` | `enum` | 終端での挙動（`Normal` / `PingPong`） |
 | `SetAnimationSection(int start, int end)` | メソッド | 再生範囲をフレームで限定（両端を含む）。範囲外の値（`-1` など）を渡した側はアニメーションの端になる。両端がアニメーションの範囲内で終わりが始まりより前のときは `false` を返し、区間も再生ヘッドも変えない。そのときの警告は同じ組み合わせにつき最初の 1 回だけ |
 | `SetAnimationSectionByLabel(string startLabel, string endLabel, int startOffset = 0, int endOffset = 0)` | メソッド | 再生範囲を今のアニメーションのラベルで指定する `SetAnimationSection`。`startLabel` のフレームに `startOffset` を足した位置から、`endLabel` のフレームに `endOffset` を足した位置までで、インスタンスパーツの開始・終了ラベルと同じ規則。`_start` と `_end` はアニメーション自身の最初と最後のフレーム。アニメーションにそのラベルが無いとき、または求めたフレームが `SetAnimationSection` の受け付けない区間になったときは `false` を返し、区間も再生ヘッドも変えない。そのときの警告は最初の 1 回だけ |
-| `GetLabelTable(string animationName = null)` | メソッド | アニメーション（省略時は今のアニメーション）のラベルをフレーム順に並べたものと、アニメーション自身の最初と最後のフレーム（`StartFrame` / `EndFrame`）。アセットにそのアニメーションが無いとき、名前を省略してまだ何もセットアップしていないときは `null`。呼ぶたびにアセットから読み出す |
+| `GetLabelTable(string animationName = null)` | メソッド | アニメーション（省略時は今のアニメーション）のラベルをフレーム順に並べたものと、アニメーション自身の最初と最後のフレーム（`StartFrame` / `EndFrame`）。アセットにそのアニメーションが無いとき、名前を省略してまだ何もセットアップしていないときは `null`。`Labels` の各要素は `Name` と `Frame` を持ち、`TryGetFrame(label, out frame)` で 1 つを引けます。呼ぶたびにアセットから読み出す |
 
 プレイヤーの進行とメッシュの構築は、すべての `Update`・Timeline・Animator が終わった後、**LateUpdate** の早い段階（`DefaultExecutionOrder(-100)`）で行われます。そのため自前の `Update` から呼んだ `SetAnimation`・`Play`・`FrameNo` によるシークは、Animator への変更と同じく同じフレームで描画されます。自前の `LateUpdate` から呼んだものは次のフレームで描画されます。
 
@@ -69,11 +69,11 @@ else _player.Play();   // 停止中 — Play() は区間の先頭から再生し
 
 ```csharp
 _player.SetAnimation("attack");
+_player.SetAnimationSection(10, 30); // 10〜30 フレームの区間だけ再生。再生ヘッドは 10 フレームへ移る
 _player.Play();
-_player.SetAnimationSection(10, 30); // 10〜30 フレームの区間だけ再生
-_player.FrameNo = 10f;          // 区間先頭へシーク
+_player.FrameNo = 20f;               // 区間内の好きな位置へシーク
 
-_player.SetAnimationSectionByLabel("loop_start", "loop_end"); // 区間の両端をアニメーションのラベルで指定
+// _player.SetAnimationSectionByLabel("loop_start", "loop_end"); // 区間の両端をラベルで指定してもよい
 ```
 
 ### 例: 逆再生・ピンポン
@@ -85,7 +85,7 @@ _player.PlaybackStyle = SpriteStudioPlaybackStyle.PingPong;
 _player.Play();
 ```
 
-> `PlaybackDirection` / `PlaybackStyle` は `SetAnimation()` を跨いで保持されるので、設定は一度で済みます。インスペクタ側の既定値は無いため、スクリプトで指定するまでは Forward / Normal です。切り替えでリセットされるのは往復再生の進行中の向きだけで、新しいアニメーションは必ず往路から始まります。方向とスタイルは `SetPlaybackDirection(direction, style)` で 1 回にまとめて設定することもできます。
+> `PlaybackDirection` / `PlaybackStyle` は `SetAnimation()` を跨いで保持されます。インスペクタ側の既定値は無いため、スクリプトで指定するまでは Forward / Normal です。これらはシリアライズされずランタイムが保持するため、コンポーネントを無効化する（または `AnimeAsset` を `null` にする）と破棄され、再び有効にしたコンポーネントは Forward / Normal から始まります。有効になった後で設定し直してください。`FrameRate` の上書きも同じく破棄されます。切り替えでリセットされるのは往復再生の進行中の向きだけで、新しいアニメーションは必ず往路から始まります。方向とスタイルは `SetPlaybackDirection(direction, style)` で 1 回にまとめて設定することもできます。
 
 ## 再生パラメータのプロパティ
 
@@ -95,6 +95,7 @@ _player.Play();
 |---|---|---|
 | `AnimeAsset` | `SpriteStudioAnimeAsset` | 再生対象アセット（差し替え可） |
 | `CurrentAnimation` | `string` | アニメーション名（読み取り専用。切り替えは `SetAnimation()` で行います） |
+| `AnimationNames` | `string[]` | アセットに含まれるアニメーションの名前（読み取り専用。アセット未設定のときは空） |
 | `AutoPlay` | `bool` | 起動時と再有効化時の自動再生 |
 | `LoopCount` | `int` | ループ回数（`-1` または `0` = 無限 / `n` = n 回） |
 | `SpeedScale` | `float` | 再生速度倍率。ランタイムの実値を読み返す。`0` と負値は**停止**にクランプされる（逆再生は `PlaybackDirection` の役目）ため、`-1` を設定すると `0` が返る |
@@ -107,7 +108,7 @@ _player.Play();
 |---|---|---|
 | `FlipX` | `bool` | 描画を左右反転（`SpriteRenderer.flipX` と同じ考え方） |
 | `FlipY` | `bool` | 描画を上下反転 |
-| `Offset` | `Vector2` | 描画を **ワールド単位** でずらす（`PixelsPerUnit` の後に適用） |
+| `Offset` | `Vector2` | 描画を GameObject の空間の Unity 単位でずらす（`PixelsPerUnit` の後に適用。Transform のスケールが掛かる） |
 
 3 つとも変えるのはそのプレイヤーが描くものだけで、`Transform` には触れません。つまり GameObject の子オブジェクトやコライダーはその場に留まります。これが要点で、キャラクタを反転させるために
 `transform.localScale.x` を負にすると武器の取り付け位置・当たり判定・パーティクルまで一緒に反転してしまいますが、`FlipX` ではそうなりません。
@@ -120,7 +121,7 @@ _player.FlipX = _velocity.x < 0f;
 登録済みのパーツトラッカーは反転後の姿勢に追従するので、パーツに固定したオブジェクトは反転しても外れません。ただし鏡像は回転ではないため、反転そのものが対象に伝わるのは対象の `driveScale` が
 ON のとき（負のスケールとして届きます）だけです。位置はどちらの場合も正確ですが、向きには制約があります（[「反転が絡むときの制約」](#反転が絡むときの制約)を参照）。
 
-`SpriteStudioGraphic`（uGUI）はまだ未対応です。
+`SpriteStudioGraphic`（uGUI）にはこれらはありません。大きさと位置は `RectTransform` と **Fit**・**Align** で決まります。
 
 ## イベント通知
 
@@ -137,7 +138,7 @@ ON のとき（負のスケールとして届きます）だけです。位置�
 
 > これらは SpriteStudio 側でアニメーションに設定したキー（UserData / Signal / Audio）に対応します。
 
-### C#からのイベントの登録
+### C# からのイベントの登録
 
 ```csharp
 void OnEnable()
@@ -193,7 +194,7 @@ struct SpriteStudioSignal
     SpriteStudioSignalParam GetParam(int index);       // 0 <= index < ParamCount
     bool TryGetParam(string id, out SpriteStudioSignalParam p);
 }
-// パラメータ1件: Type に対応するアクセサで読む（Bool / Index / Integer / Floating / Text）
+// パラメータ 1 件: Type に対応するアクセサで読む（Bool / Index / Integer / Floating / Text）
 struct SpriteStudioSignalParam
 {
     string Id; SpriteStudioSignalParamType Type;
@@ -215,13 +216,15 @@ struct SpriteStudioAudio
 > [!NOTE]
 > **Audio イベントについて**: `Play Audio` は既定でオンのため、コンポーネント自身がプール済みの `AudioSource` で発音します。`OnAudio` はそれとは独立した**観測用**のチャンネルで、再生を奪わずに音へ反応したい場合や、`Play Audio` をオフにして自前で（たとえば音声ミドルウェアで）鳴らす場合に使います。`AudioClip` は `SpriteStudioAnimeAsset.Sounds` に解決済みで保持されており、イベントが指す音は `SpriteStudioAnimeAsset.ResolveAudioClip(SoundListNameHash, SoundNameHash)` で引けます。
 >
-> 一度鳴り始めた音は、**それを発火させた再生よりも長く生き残ります**。`Pause()` / `Resume()` / `Stop()`、`SetAnimation()` による切り替え、アニメーションの終了 — いずれも音には触れません。音が鳴っている間に同じキーを再び通過した場合も、前の音を切らずに別の音として重ねて鳴らします。止まるのはコンポーネントが無効化・破棄されたときと、`StopAllSounds()` を呼んだときだけです。SpriteStudio に無限ループの音はなく（`loop_num` は再生回数）、すべての音はいつか自然に終わります。アニメーションの尺より長く鳴る音があるなら、それはアニメーションデータ側の問題です。
+> 一度鳴り始めた音は、**それを発火させた再生よりも長く生き残ります**。`Pause()` / `Resume()` / `Stop()`、`SetAnimation()` による切り替え、アニメーションの終了 — いずれも音には触れません。音が鳴っている間に同じキーを再び通過した場合も、前の音を切らずに別の音として重ねて鳴らします。止まるのはコンポーネントが無効化・破棄されたとき、`AnimeAsset` を `null` にしたとき、`StopAllSounds()` を呼んだときだけです。SpriteStudio に無限ループの音はなく（`loop_num` は再生回数）、すべての音はいつか自然に終わります。アニメーションの尺より長く鳴る音があるなら、それはアニメーションデータ側の問題です。
 >
-> 音が鳴るのは、再生ヘッドが通過したキーです。再生中のシーク（`FrameNo` への代入）では、着地したフレームのキーの音は鳴りません（`OnAudio` イベントは発火します）。`Play()` 直後の開始フレームのキーは鳴ります。
+> 音が鳴るのは、再生ヘッドが通過したキーです。シーク（`FrameNo` への代入）では、再生中かどうかにかかわらず、着地したフレームのキーの音は鳴りません（`OnAudio` イベントは発火します）。`Play()` 直後の開始フレームのキーは鳴ります。
 
 ### 実装例: アニメーションの連続再生
 
 「攻撃」アニメーションが終了したら、自動的に「待機」アニメーションへ遷移させる実装例です。
+
+`LoopCount` はアニメーションではなくコンポーネントの設定で、次にセットするどのアニメーションにも適用されます。既定の `-1` は終了しないため、1 回きりのアニメーションの前に有限の回数を指定し、続くアニメーションの前に `-1` へ戻してください。
 
 ```csharp
 void OnEnable()
@@ -234,11 +237,19 @@ void OnDisable()
     _player.OnAnimationFinished -= HandleFinished;
 }
 
+void PlayAttack()
+{
+    _player.LoopCount = 1;      // 有限回にして OnAnimationFinished が発火するようにする
+    _player.SetAnimation("attack");
+    _player.Play();
+}
+
 void HandleFinished()
 {
     // 攻撃が終わったら待機状態に戻る
     if (_player.CurrentAnimation == "attack")
     {
+        _player.LoopCount = -1; // LoopCount は引き継がれるので、待機はループさせる
         _player.SetAnimation("idle");
         _player.Play();
     }
@@ -277,13 +288,13 @@ void HandleUserData(SpriteStudioUserData data)
 > [!NOTE]
 > **メッシュ（スキン）パーツには直接追従できません。** ボーンにバインドされたメッシュパーツ（手・顔などの変形パーツ）は、頂点がボーンのスキニングで描かれる一方、パーツ自身の変換はセットアップ時のノード位置（多くはキャラクターのルート付近）に留まります。そのため Part Name にこうしたパーツを指定すると、追従先は見た目の絵ではなくルート付近に吸い寄せられます。
 >
-> メッシュパーツの位置に追従させたいときは、SpriteStudio 側でその位置に **NULL パーツ（ボーンポイント／空パーツ）** を1つ置き、そのパーツ名を追従先に指定してください。ボーン（armature）やジョイントパーツを指定しても同様に追従できます。
+> メッシュパーツの位置に追従させたいときは、SpriteStudio 側でその位置に **NULL パーツ（ボーンポイント／空パーツ）** を 1 つ置き、そのパーツ名を追従先に指定してください。ボーン（armature）やジョイントパーツを指定しても同様に追従できます。
 
 `SpriteStudioPlayer` の **Part Trackers** リストにエントリを追加して設定します。
 
 | 設定 | 説明 |
 |---|---|
-| **Part Name** | 追従対象のパーツ名（`.ssab` の PartData 名）。インスペクタではアセットのパーツ名からドロップダウンで選べます（メッシュ（スキン）パーツはグレー表示で選べません） |
+| **Part Name** | 追従対象のパーツ名（SpriteStudio で付けたパーツ名）。インスペクタではアセットのパーツ名からドロップダウンで選べます（メッシュ（スキン）パーツはグレー表示で選べません） |
 | **Target** | 追従させる `Transform`。プレイヤー直下でも別階層でも可 |
 | **Drive Position** | ON（既定）でパーツの位置に追従します |
 | **Drive Rotation** | ON（既定）でパーツの回転に合わせて向きを変えます |
@@ -313,7 +324,7 @@ player.UnregisterPartTracker(weapon.transform);
 | `RegisterPartTracker(partName, target, driveScale, onHide, drivePosition, driveRotation)` | トラッカーを追加し、作成されたエントリを返す（末尾 4 つは省略可。`drivePosition` / `driveRotation` は既定 ON、`driveScale` は既定 OFF） |
 | `UnregisterPartTracker(target)` | その `Transform` を対象とするエントリをすべて削除し、削除件数を返す |
 | `TryGetPartHidden(partName, out bool hidden)` | そのパーツが現在フレームで hide かを取得。パーツが不明なら `false` を返す |
-| `TryGetPartTransform(partName, out Matrix4x4 matrix)` | そのパーツの現在フレームの変換行列（プレイヤーローカル、`1 / PixelsPerUnit` 適用済み）を取得 |
+| `TryGetPartTransform(partName, out Matrix4x4 matrix)` | そのパーツの現在フレームの変換行列（プレイヤーローカル、`1 / PixelsPerUnit`・`FlipX` / `FlipY`・`Offset` 適用済み）を取得 |
 
 > `Transform` を常時追従させるまでもなく「その瞬間のパーツ位置だけ知りたい」場合（弾の発射位置を取るなど）は、トラッカーを登録せず `TryGetPartTransform()` を直接呼ぶ方が簡潔です。
 
@@ -346,11 +357,11 @@ player.UnregisterPartTracker(weapon.transform);
 ### 注意点
 
 - **次の 2 つの場合、プレイヤーはターゲットを非アクティブにし**、条件が解消すると再アクティブ化します。再アクティブ化するのは自分で非アクティブにしたターゲットだけで、拾うまで隠しておく武器のようにユーザーが非アクティブにしたターゲットはそのままです。ただし、プレイヤーが既に非アクティブにしているあいだにユーザーが非アクティブにしたターゲットは、条件が解消すると戻ります（ターゲット側には両者を区別する手がかりがありません）。
-    - パーツ名が現在のアニメーションに存在しない（この場合は `On Hide` の設定に関係なく常に非アクティブ）
+    - パーツ名がアセットに存在しない（1 つのアセットのアニメーションはパーツを共有します。この場合は `On Hide` の設定に関係なく常に非アクティブ）
     - パーツが hide のフレームで、かつ `On Hide` が `Deactivate`
 
     トラッカーの `target` を差し替えたとき、または `UnregisterPartTracker` でトラッカーを外したときは、そのトラッカーが非アクティブにしていたターゲットを再アクティブ化します。
-- パーツ名は、そのプレイヤー自身が再生しているアニメーションのパーツから解決されます。**インスタンスパーツの内部（子アニメーション）のパーツは指定できません**（インスタンスパーツ自体は指定できます）。
+- パーツ名は、そのプレイヤー自身が再生しているアセットのパーツから解決されます。**インスタンスパーツの内部（子アニメーション）のパーツは指定できません**（インスタンスパーツ自体は指定できます）。
 - 同名のパーツが複数ある場合は、最初に見つかったものが使われます。
 - `AnimeAsset` を差し替えるとパーツ名は自動で再解決されるため、トラッカーを登録し直す必要はありません。
 - 編集モードでも、開始フレームの静止プレビューが構築されるタイミングでトラッカーが一度反映されます。ただし編集モードではターゲットを動かすだけで、アクティブ状態は変えません。
@@ -414,10 +425,10 @@ player.ClearAllPartOverrides();
 |---|---|
 | `GetPartNames()` | パーツ名の一覧（パーツ index 順）。イベントの `PartIndex` を人間が読める形に戻す、パーツ一覧 UI を作る、といった用途。名前の無いパーツは `""` で枠を保持するので index と揃ったままです。`Length` が個数 |
 | `FindPartIndex(name)` | パーツインデックス。アセットに無ければ `-1` |
-| `SetPartColorOverride(part, color, blendOp, priority)` | パーツカラーオーバーライド（単色）。4隅ごとのグラデーションは `SetPartColorOverrideCorners(part, SpriteStudioCornerColors, blendOp, priority)`（左上・右上・左下・右下） |
+| `SetPartColorOverride(part, color, blendOp, priority)` | パーツカラーオーバーライド（単色）。`blendOp` は `SpriteStudioBlendOp` の `Mix`・`Mul`・`Add`・`Sub`。4 隅ごとのグラデーションは `SetPartColorOverrideCorners(part, SpriteStudioCornerColors, blendOp, priority)`（左上・右上・左下・右下） |
 | `SetPartCellOverride(part, cellmapName, cellName, priority)` | 別のセルで描画する |
 | `SetPartVisibilityOverride(part, hide, cascade)` | 強制非表示（`hide: false` でアニメーションに戻す） |
-| `ClearPartColorOverride` / `ClearPartCellOverride` / `ClearPartVisibilityOverride` | 1パーツの1オーバーライドを解除 |
+| `ClearPartColorOverride` / `ClearPartCellOverride` / `ClearPartVisibilityOverride` | 1 パーツの 1 オーバーライドを解除 |
 | `ClearAllPartOverrides()` | そのプレイヤーの全オーバーライドを解除 |
 | `GetCellmapNames()` / `GetCellNames(cellmap)` | セルオーバーライドに指定できるセルマップ名 / セル名の列挙 |
 
@@ -431,7 +442,7 @@ player.ClearAllPartOverrides();
 
 | 優先モード | 挙動 |
 |---|---|
-| `OverwriteOnNextKeyframe` | アニメーションデータが当該アトリビュートを更新するまで、オーバーライドが適用される |
+| `OverwriteOnNextKeyframe` | アニメーションデータが当該アトリビュートを更新するまで、オーバーライドが適用される（新しいアニメーションを設定すると解除される） |
 | `HoldUntilNextAnimation`（既定） | 現在のアニメーション中は勝ち続け、新しいアニメーションを設定するとオーバーライドが解除される |
 | `Permanent` | 同じアニメーションデータ（.ssab）である間、オーバーライドが適用される (アニメーション変更をまたいでも持続) |
 
@@ -440,27 +451,27 @@ player.ClearAllPartOverrides();
 - **カラー**は通常パーツ、**セル**は通常パーツとマスクパーツに適用されます。それ以外の種別のパーツでは黙って無視されます（呼び出し自体は `true` を返します）。
 - 色はオーサリングされた Part Color と同じ 8bit sRGB 空間として解釈され、アルファはランタイム側で pre-multiply されます。自前で変換せず、オーサリングどおりの色を渡してください。
 - セルオーバーライドは設定時に解決されるため、存在しないセルマップ名 / セル名はその場で失敗します（`false` を返します）。
-- オーバーライドはランタイムが保持し、そのライフサイクルもランタイムが管理します。アニメーション変更後に再適用する必要はありません。意図に合った優先モードを選んでください。
+- オーバーライドはランタイムが保持し、そのライフサイクルもランタイムが管理します。`SetAnimation()` で切り替えると `Permanent` 以外はすべて解除されます（track 0 のクロスフェードでは何も解除されません）。そのたびに再適用するのではなく、意図に合った優先モードを選んでください。
 
 ## 動的テクスチャ差し替え（セルマップの差し替え / 着せ替え）
 
-セルマップ（外部テクスチャ）単位で、バインドするテクスチャを**実行時にそのプレイヤーだけ**差し替える機能です。キャラクターのカラーバリエーションや衣装・装備の切り替え（アバターの着せ替え）を、パーツごとに何パターンも用意することなく実装できます。アセットや他のプレイヤーには影響しません。`SpriteStudioPlayer` / `SpriteStudioGraphic` の両方で使えます。これは上記のパーツオーバーライドとは**別系統**の機能です（下記の使い分けを参照）。
+セルマップ（外部テクスチャ）単位で、バインドするテクスチャを**実行時にそのプレイヤーだけ**差し替える機能です。キャラクターのカラーバリエーションや衣装・装備の切り替え（アバターの着せ替え）を、衣装ごとに別のアセットを用意することなく実装できます。アセットや他のプレイヤーには影響しません。`SpriteStudioPlayer` / `SpriteStudioGraphic` の両方で使えます。これは上記のパーツオーバーライドとは**別系統**の機能です（下記の使い分けを参照）。
 
 ### 実装例: 衣装の着せ替え
 
 ```csharp
 var player = GetComponent<SpriteStudioPlayer>();
 
-// セルマップ名は SpriteStudio の定義名。差し替え可能な名前は GetReplaceableTextureNames() で取得でき、
-// インスペクタの "Cellmap Texture Overrides" にも表示されます。
-Texture2D sailorUniform = ...; // 差し替え先（元と同じサイズ・アトラス構成を推奨）
+// セルマップ名は SpriteStudio の定義名。差し替え可能な名前は GetReplaceableTextureNames() で取得できます。
+// インスペクタの "Cellmap Texture Overrides" には、同じ名前を文字列で入力します。
+var sailorUniform = Resources.Load<Texture2D>("SailorUniform"); // 差し替え先（元と同じサイズ・アトラス構成を推奨）
 player.SetCellmapTexture("Clothes 1", sailorUniform);
 
 // 元のテクスチャに戻す（null を渡す）。
 player.SetCellmapTexture("Clothes 1", null);
 ```
 
-パーツごとに衣装違いのアセットを用意する必要がなく、1 つのアニメーションでテクスチャだけを差し替える効率的なアバターシステムを構築できます。
+衣装ごとにアセットを用意する必要がなく、1 つのアニメーションでテクスチャだけを差し替える効率的なアバターシステムを構築できます。
 
 | メソッド | 説明 |
 |---|---|
@@ -483,7 +494,7 @@ player.SetCellmapTexture("Clothes 1", null);
 
 `SpriteStudioPlayer` は、Timeline から次の 2 つの方法で動かせます（`SpriteStudioGraphic` は動かせません）。
 
-- **SpriteStudio Track** — `SpriteStudioTrack` を追加して `SpriteStudioPlayer` をバインドし、クリップを並べます。各クリップの **Animation Name** に、そのクリップで再生するアニメーションを指定します。トラックはブレンドしないため、Timeline 上でクリップを重ねることはできません。クリップはアニメーションを停止した状態で準備するため、クリップの後の空白では、プレイヤーはそのクリップの最後のフレームで止まったままになり、スクリプトから `Play()` を呼ぶまで動きません。
+- **Sprite Studio Track**（Timeline の追加メニューの **SpriteStudio.Runtime** の下）— `SpriteStudioTrack` を追加して `SpriteStudioPlayer` をバインドし、クリップを並べます。各クリップの **Animation Name** に、そのクリップで再生するアニメーションを指定します。トラックはブレンドしないため、Timeline 上でクリップを重ねることはできません。クリップはアニメーションを停止した状態で準備するため、クリップの後の空白では、プレイヤーはそのクリップの最後のフレームで止まったままになり、スクリプトから `Play()` を呼ぶまで動きません。
 - **Control Track** — `SpriteStudioPlayer` は `ITimeControl` を実装しているため、その GameObject を対象にした Control Track のクリップが、**Animation Name** に設定したアニメーションをシークします。
 
 クリップの時刻はアニメーションの先頭フレームから数えます。プレイヤー自身の **Loop Count**・**Speed Scale**・**Frame Skipping** はクリップを跨いで保持されるため、1 回再生に設定したプレイヤーは、カットシーンの後にスクリプトから再生しても 1 回で止まります。

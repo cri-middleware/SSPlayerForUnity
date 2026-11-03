@@ -14,7 +14,7 @@ releases. Two groups:
 | `LICENSE.md.meta`, `LICENSE.ja.md.meta`, `Third Party Notices.md.meta`, `CHANGELOG.md.meta` | Repo-root documents staged into `package/` at pack time, so Package Manager can show the Licenses / Changelog tabs | `pack-release.sh` / `.ps1` |
 | `SSRuntimeMethods.g.cs.meta`, `SSConverterMethods.g.cs.meta` | The gitignored csbindgen FFI bindings — without a `.meta` the scripts are dropped and the package does not compile | `download-sdk.sh` / `.ps1` (release), `build-runtime.sh` / `.ps1` (local build) |
 
-`release.yml` asserts the binding `.meta` reached the package before packing.
+`release.yml` runs `scripts/build-release.sh` (`.ps1`) with `verify=yes`, which asserts that both binding `.meta` are in the package tree before packing and in the finished tarball.
 
 If a file listed here is renamed, rename its `.meta` too and keep the GUID — changing the GUID
 breaks references in projects that already installed the package.

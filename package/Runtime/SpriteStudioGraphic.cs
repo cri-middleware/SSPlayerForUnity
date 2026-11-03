@@ -629,7 +629,7 @@ namespace SpriteStudio.Runtime
         /// <summary>Empties a track; above track 0 it no longer contributes to the pose.</summary>
         public bool ClearTrack(int track) => _core.Internal?.ClearTrack(track) ?? false;
 
-        /// <summary>How strongly a track is laid over the ones below it, 0 to 1.</summary>
+        /// <summary>How strongly a track is laid over the ones below it: 0 contributes nothing, 1 is the track in full, above 1 extrapolates.</summary>
         public bool SetTrackAlpha(int track, float alpha) => _core.Internal?.SetTrackAlpha(track, alpha) ?? false;
 
         /// <inheritdoc cref="SetTrackAlpha"/>

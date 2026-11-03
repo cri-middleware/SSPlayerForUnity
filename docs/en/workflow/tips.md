@@ -42,17 +42,17 @@ There are two types of imported binaries.
 
 ## About Zero-Allocation
 
-This plugin's Tick / mesh construction loop produces no GC allocations (it reuses `NativeArray` and writes directly to `Mesh.SetVertexBufferData`).
+This plugin's Tick / mesh construction loop produces no GC allocations.
 
 **Event notifications** allocate only where unavoidable. Signal command parameters are decoded into a reusable, typed buffer (read via `SpriteStudioSignal.GetParam` / `TryGetParam`), so numeric parameters allocate nothing. What remains is the managed strings that must be materialized for part names, command ids, and string-typed parameters — unavoidable, and scaling with the number and burstiness of Signals, so animations that fire Signals in large numbers or at high frequency can still cause minor hitches on mobile / WebGL.
 
 ## Custom Shaders / AddOn (Per-Part)
 
-Supports AddOns set on SpriteStudio parts (sepia / hsb / outline / blur / pixelate / noise / wave, etc.).
+On the world path (`SpriteStudioPlayer`), AddOns set on SpriteStudio parts are supported (sepia / hsb / outline / blur / pixelate / noise / wave, etc.). `SpriteStudioGraphic` draws every part with the one Canvas material, so AddOn and custom shaders do not apply on a Canvas.
 
 - The built-in AddOns are pre-registered and need no setup: the package ships a default catalog at `Runtime/Resources/SpriteStudioAddOnCatalog.asset` that resolves them automatically.
 - To add a custom shader, give the player a catalog of your own: create one with **Assets > Create > SpriteStudio > Shader Catalog**, add an entry whose **Id Name** matches the shader id set on the part in the SpriteStudio editor, with a **Shader** that follows the AddOn contract (`SpriteStudioAddOn.hlsl`), and assign the catalog to the player's **Shader Catalog** field. The player looks an id up there first, and whatever it does not list falls through to the built-in AddOns. The default catalog belongs to the installed package, which cannot be edited.
-- It does not use `MaterialPropertyBlock`: each AddOn part draws with a material instance of its own, which the player rebuilds whenever its submeshes, asset, Shader Catalog or texture overrides change, and whose parameters it sets on every frame, so it **does not obstruct the SRP Batcher**.
+- Each AddOn part draws with a material of its own rather than a `MaterialPropertyBlock`, so it **does not obstruct the SRP Batcher**.
 
 > The AddOn path supports both URP / Built-in.
 
@@ -61,13 +61,9 @@ Supports AddOns set on SpriteStudio parts (sepia / hsb / outline / blur / pixela
 Supports SpriteStudio's masking / clipping (per-part) using the stencil buffer.
 
 - **World path (`SpriteStudioPlayer`)**: Draws with the stencil using SpriteStudio's internal mask mechanism. On URP, the stencil bits used are limited so that masking does not break when combined with SSAO / Deferred / Decal.
-- **Canvas path (`SpriteStudioGraphic`)**: SpriteStudio's internal mask is suppressed; instead it follows uGUI's **Mask** / **RectMask2D** (placing a mask on a parent clips this graphic, and a **Mask** on the graphic itself clips its children).
+- **Canvas path (`SpriteStudioGraphic`)**: SpriteStudio's internal mask is suppressed; instead it follows uGUI's **Mask** / **Rect Mask 2D** (placing a mask on a parent clips this graphic, and a **Mask** on the graphic itself clips its children).
 
-On the world path, masks resolve as SpriteStudio 7.5 draws them:
-
-- **A part set to draw inside the mask is hidden wherever no mask covers it** — even in an animation that has no mask at all, or whose masks are all hidden or at mask value 0. It is not drawn untested just because there is nothing to mask with.
-- **An Instance part combines its mask settings with its sub-animation's parts one level deep.** A part of the sub-animation receives masks only if both it and the Instance part have mask influence on, and draws inside the mask if either of them asks for it. Only the Instance part that draws the sub-animation counts: an Instance part further up does not reach a part nested two levels down.
-- **A mask inside an Instance applies to the sub-animation's own parts, and a clipping mask there keeps going.** It also clips the parts of the calling animation drawn after the Instance, up to the end of the whole animation.
+On the world path, masks resolve as SpriteStudio 7.5 draws them. A part set to draw inside the mask is hidden wherever no mask covers it, even in an animation with no mask at all. The rules for masks inside an Instance part are in the runtime's [mask guide](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/libs/ssruntime/docs/40_parts/40_mask.md).
 
 ## Canvas (uGUI) Path Constraints
 
@@ -76,6 +72,7 @@ On the world path, masks resolve as SpriteStudio 7.5 draws them:
 - **Single-atlas assumption**: For animations that use multiple atlases, only the first atlas is drawn, and parts from other atlases cannot sample the correct texture (a warning is logged). Either **consolidate into a single atlas** or **use the world path (`SpriteStudioPlayer`)**.
 - **Part draw modes**: MIX and ADD are dispatched per-vertex within the shader. Other blends are collapsed into MIX.
 - **Enabling TexCoord1 / TexCoord2**: Part-Color data travels in TEXCOORD1 and TEXCOORD2, so `TexCoord1` and `TexCoord2` are automatically added to the target Canvas's `additionalShaderChannels`. The vertex colour is left to uGUI: it carries the graphic's **Color**, like an `Image`'s.
+- **Per-part shaders and mesh effects do not apply**: the graphic uploads its mesh itself, so `Shadow`, `Outline` and other `BaseMeshEffect` components on it change nothing, and per-part AddOn / custom shaders are not drawn. Use the world path (`SpriteStudioPlayer`) for them.
 
 If you want to correctly use complex blends or multiple atlases, we recommend using the world path (`SpriteStudioPlayer`). It draws Mul2 as Mul and Screen2 as Screen, and Div2 / Overlay2 as MIX (see [Limitations](../limitations.md)).
 

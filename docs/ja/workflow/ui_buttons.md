@@ -14,7 +14,7 @@ SpriteStudio のアニメーションを uGUI のボタンやトグルにして�
 
 1. [基本的な使い方](./usage_basic.md) のとおり、Canvas に **SpriteStudio Graphic** を置き、**Anime Asset** と **Animation Name** を設定します。
 2. 同じ GameObject に **Add Component > SpriteStudio > SpriteStudio Button**（または **SpriteStudio Toggle**）を追加します。**Transition** は最初から **None** です。状態はアニメーションが見せるので、上から色を付けると二重になります。
-3. **On Click ()** は普通の `Button` と同じようにつなぎます。
+3. **On Click ()** は普通の `Button` と同じようにつなぎます（**SpriteStudio Toggle** では **On Value Changed (Boolean)** をつなぎます）。
 
 ゲームの実行中は、ボタンがグラフィックの再生を握ります。アニメーションを選び、区間を設定し、再生と停止をします。グラフィックの再生はボタンに任せてください。ボタンは起動時にグラフィックの **Auto Play** を切ります。エディットモードでは、グラフィックはいつものプレビューを表示します。
 
@@ -26,11 +26,11 @@ SpriteStudio のアニメーションを uGUI のボタンやトグルにして�
 |---|---|---|
 | 下のどれでもない | `normal` | アニメーション全体 |
 | ポインタが乗っている | `hover` | `normal` |
-| ポインタで押している間、またはキーボードやゲームパッドの **Submit** | `pressed` | `hover`、次に `normal` |
+| ポインタで押してから離すまで（途中でポインタが外れても）、またはキーボードやゲームパッドの **Submit** | `pressed` | `hover`、次に `normal` |
 | **Interactable** がオフ（`CanvasGroup` によるものも含む） | `disabled` | `normal` |
-| ナビゲーションで選ばれている、またはクリックで選ばれて、ほかが選ばれるまで | `focused` | `normal` |
+| ナビゲーションで選ばれている、またはクリックで選ばれて（**Navigation** が **None** のときは選ばれません）、ほかが選ばれるまで | `focused` | `normal` |
 
-いくつも同時に立ったときは、`disabled`、`pressed`、`hover`、`focused` の順で 1 つを選び、どれも立っていなければ `normal` です。uGUI 自身は Selected を Highlighted より優先しますが、ここではほかの SpriteStudio Player と同じく hover をフォーカスより優先します。状態が変わると、新しい区間の先頭からすぐに流し、流れていた区間は捨てます。
+いくつも同時に立ったときは、`disabled`、`pressed`、`hover`、`focused` の順で 1 つを選び、どれも立っていなければ `normal` です。uGUI 自身は Selected を Highlighted より優先しますが、ここでは hover をフォーカスより優先します。状態が変わると、新しい区間の先頭からすぐに流し、流れていた区間は捨てます。
 
 ラベルは、グラフィックの **Animation Name** のアニメーションから読みます。スクリプトから別のアニメーションを選ぶ（`SetAnimation`）と、以後はそのアニメーションから読みます。
 
@@ -83,8 +83,8 @@ Canvas は、グラフィックの `RectTransform` のどこでも、透明な�
 
 ## スクリプトから状態の規則を使う
 
-`SpriteStudioUiStates` は、自作のコントロール向けに規則だけを持っています。`Of` は状態を選び、`Chain` は状態がラベルを読む順を返し、`TryGetLabelSection` は `SpriteStudioLabelTable`（グラフィックの `GetLabelTable`）からラベルの区間を読み、`TryResolve` はクリップと reduced motion を含めて状態が流す区間を返します。
+`SpriteStudioUiStates` は、自作のコントロール向けに規則だけを持っています。`Of` は状態を選び、`Chain` は状態が読む先を順に返し（各項目は状態と、`selected_` 側かどうかの組。ラベル名は `LabelOf` で得られます）、`TryGetLabelSection` は `SpriteStudioLabelTable`（グラフィックの `GetLabelTable`）からラベルの区間を読み、`TryResolve` はクリップと reduced motion を含めて状態が流す区間を返します。
 
 ## 見本プロジェクト
 
-`examples/UI_Ringo` には、Ringo で作ったボタンとトグルがあります。Ringo のアニメーションを指すクリップと、それぞれのフィルタが付いています。ほかに、Interactable と Reduced motion を切り替えるパネル、パーツの輪郭の重ね描き、**Fit** を見せる矩形の列があります。動かし方はその README を参照してください。
+リポジトリの [`examples/UI_Ringo`](https://github.com/cri-middleware/SSPlayerForUnity/tree/HEAD/examples/UI_Ringo) には、Ringo（SpriteStudio のサンプルキャラクター）で作ったボタンとトグルがあります。Ringo のアニメーションを指すクリップと、それぞれのフィルタが付いています。ほかに、Interactable と Reduced motion を切り替えるパネル、パーツの輪郭の重ね描き、**Fit** を見せる矩形の列があります。動かし方はその README にあり、リポジトリの clone が必要です。

@@ -4,7 +4,7 @@
 
 This page explains how to control `SpriteStudioPlayer` / `SpriteStudioGraphic` from Unity C# scripts. In line with Unity's design philosophy, it provides playback control via simple method calls, and event integration through **both C# events and inspector-wireable `UnityEvent`s**, making it easy to embed into game logic.
 
-`SpriteStudioPlayer` (world) and `SpriteStudioGraphic` (Canvas) share **the same playback control API and event notification API**. The code on this page works as-is on either component.
+`SpriteStudioPlayer` (world) and `SpriteStudioGraphic` (Canvas) share **the same playback control API and event notification API**. The code on this page works as-is on either component, except where a section says it is `SpriteStudioPlayer` only (Flip X / Offset / sorting, Part Tracking, Timeline).
 
 The namespace is `SpriteStudio.Runtime`.
 
@@ -23,7 +23,7 @@ _player.SetAnimation("walk");
 _player.Play();
 ```
 
-`SetAnimation()` loads the animation's data and **waits on the first frame** (it does not start playback). Calling `Play()` afterward starts playback from that point.
+`SetAnimation()` loads the animation's data and **waits on the first frame** (it does not start playback). Calling `Play()` afterward starts playback from that point. Selecting the animation that is already set up does nothing at all — the playhead, the playback state, the section and the loop count stay as they are — so a state machine can call `SetAnimation(state.clip)` every frame. To restart it, call `Play()`.
 
 Your playback settings hold across the switch: `SpeedScale`, `FrameSkipEnabled`, a frame-rate override and `PlaybackDirection` / `PlaybackStyle` all describe the playback rather than the clip, so the runtime keeps them, and the component puts `LoopCount` back because that one is per-transition. What does reset is the playhead — it waits on the first frame — and the playback section, whose frame numbers mean nothing against a different animation.
 
@@ -32,7 +32,7 @@ Your playback settings hold across the switch: `SpeedScale`, `FrameSkipEnabled`,
 | Member | Kind | Description |
 |---|---|---|
 | `SetAnimation(string animName)` | Method | Specify an animation and load its data (does not start playback). Returns `true` on success |
-| `Play()` | Method | Start playing the set-up animation from the beginning |
+| `Play()` | Method | Start playing the set-up animation from the start of its section (the end of it when `PlaybackDirection` is `Backward`) |
 | `Play(float startFrame)` | Method | Start playing the set-up animation from the specified frame |
 | `Pause()` | Method | Hold playback on the current frame. Idempotent, and ignored while nothing is playing |
 | `Resume()` | Method | Lift a `Pause()`, carrying on from the same frame. Idempotent. `Play()` rewinds to the beginning, so it cannot be used to resume |
@@ -49,7 +49,7 @@ Your playback settings hold across the switch: `SpeedScale`, `FrameSkipEnabled`,
 | `PlaybackStyle` | `enum` | What the playhead does at the far end (`Normal` / `PingPong`) |
 | `SetAnimationSection(int start, int end)` | Method | Limit the playback range by frame, both ends included. An end outside the animation (`-1`, say) is the animation's edge on that side. Returns `false`, changing neither the section nor the playhead, when both ends are inside the animation and the end is before the start; the first refusal of a pair logs a warning |
 | `SetAnimationSectionByLabel(string startLabel, string endLabel, int startOffset = 0, int endOffset = 0)` | Method | `SetAnimationSection` with the ends named by labels of the current animation: from `startLabel`'s frame plus `startOffset` to `endLabel`'s frame plus `endOffset`, as an Instance part's start and end labels are. `_start` and `_end` name the animation's own first and last frame. Returns `false`, changing neither the section nor the playhead, when the animation has no such label or the frames it lands on are a section `SetAnimationSection` refuses; the first failure logs a warning |
-| `GetLabelTable(string animationName = null)` | Method | The labels of an animation (the current one when omitted) in frame order, with its own first and last frame (`StartFrame` / `EndFrame`). `null` when the asset has no such animation, or, with the name omitted, before one is set up. Read out of the asset on every call |
+| `GetLabelTable(string animationName = null)` | Method | The labels of an animation (the current one when omitted) in frame order, with its own first and last frame (`StartFrame` / `EndFrame`). `null` when the asset has no such animation, or, with the name omitted, before one is set up. Each entry of `Labels` has a `Name` and a `Frame`; `TryGetFrame(label, out frame)` looks one up. Read out of the asset on every call |
 
 The players advance and build their meshes early in **LateUpdate** (`DefaultExecutionOrder(-100)`), after every `Update`, the Timeline and the Animator have run. A call made from your `Update` — `SetAnimation`, `Play`, a seek through `FrameNo` — is therefore drawn in the same frame, as a change to an Animator is; one made from your own `LateUpdate` is drawn in the next.
 
@@ -69,11 +69,11 @@ else _player.Play();   // stopped — Play() starts over from the section start
 
 ```csharp
 _player.SetAnimation("attack");
+_player.SetAnimationSection(10, 30); // only frames 10-30; the playhead moves to frame 10
 _player.Play();
-_player.SetAnimationSection(10, 30); // Play only the section from frame 10 to 30
-_player.FrameNo = 10f;          // Seek to the start of the section
+_player.FrameNo = 20f;               // seek anywhere inside the section
 
-_player.SetAnimationSectionByLabel("loop_start", "loop_end"); // Or name the ends by the animation's labels
+// _player.SetAnimationSectionByLabel("loop_start", "loop_end"); // or name the ends by labels
 ```
 
 ### Example: Reverse and Ping-Pong
@@ -85,7 +85,7 @@ _player.PlaybackStyle = SpriteStudioPlaybackStyle.PingPong;
 _player.Play();
 ```
 
-> `PlaybackDirection` / `PlaybackStyle` survive a `SetAnimation()`, so set them once. They have no inspector default, so a component starts Forward / Normal until a script says otherwise. What a switch does reset is the heading inside a round trip: a new animation always starts on the outward leg. `SetPlaybackDirection(direction, style)` sets both in one call.
+> `PlaybackDirection` / `PlaybackStyle` survive a `SetAnimation()`. They have no inspector default, so a component starts Forward / Normal until a script says otherwise. They live in the runtime, not in a serialized field: disabling the component (or setting `AnimeAsset` to `null`) discards them, and a component enabled again starts Forward / Normal, so set them again after it is enabled. A `FrameRate` override is discarded the same way. What a switch does reset is the heading inside a round trip: a new animation always starts on the outward leg. `SetPlaybackDirection(direction, style)` sets both in one call.
 
 ## Playback Parameter Properties
 
@@ -95,6 +95,7 @@ These properties correspond to the inspector items. Changing them at runtime is 
 |---|---|---|
 | `AnimeAsset` | `SpriteStudioAnimeAsset` | Playback target asset (swappable) |
 | `CurrentAnimation` | `string` | Animation name (read-only: switch it with `SetAnimation()`) |
+| `AnimationNames` | `string[]` | The names of the asset's animations (read-only; empty when no asset is assigned) |
 | `AutoPlay` | `bool` | Auto-play at startup and each time the component is enabled again |
 | `LoopCount` | `int` | Loop count (`-1` or `0` = infinite / `n` = n times) |
 | `SpeedScale` | `float` | Playback speed multiplier. Read back from the runtime, which clamps `0` and negatives to a **stop** (reverse is `PlaybackDirection`'s job), so `-1` reads back as `0` |
@@ -107,7 +108,7 @@ These properties correspond to the inspector items. Changing them at runtime is 
 |---|---|---|
 | `FlipX` | `bool` | Mirror the drawn animation horizontally, in the manner of `SpriteRenderer.flipX` |
 | `FlipY` | `bool` | Mirror it vertically |
-| `Offset` | `Vector2` | Shift it by this many **world units** (applied after `PixelsPerUnit`) |
+| `Offset` | `Vector2` | Shift it by this many Unity units of the GameObject's space (applied after `PixelsPerUnit`; the Transform's scale applies) |
 
 All three change only what the player draws — the `Transform` is untouched, so the GameObject's children and
 colliders stay where they are. That is the point: negating `transform.localScale.x` to mirror a character
@@ -123,7 +124,7 @@ A mirror is not a rotation, though, so the mirroring itself reaches the tracked 
 `driveScale` is on (it arrives as a negative scale); position is exact either way, but orientation comes
 with caveats — see ["What mirroring costs you"](#what-mirroring-costs-you).
 
-`SpriteStudioGraphic` (uGUI) does not expose these yet.
+`SpriteStudioGraphic` (uGUI) does not have these; its size and placement come from the `RectTransform`, **Fit** and **Align**.
 
 ## Event Notifications
 
@@ -221,13 +222,15 @@ struct SpriteStudioAudio
 > [!NOTE]
 > **About Audio events**: `Play Audio` is on by default, so the component already produces the sound itself through pooled `AudioSource` voices. `OnAudio` is an **observation** channel beside that — use it to react to a sound without taking it over, or turn `Play Audio` off and play it yourself, through audio middleware for instance. The `AudioClip` is already resolved and held in `SpriteStudioAnimeAsset.Sounds`; `SpriteStudioAnimeAsset.ResolveAudioClip(SoundListNameHash, SoundNameHash)` looks up the one an event names.
 >
-> A sound that has started **outlives the playback that triggered it**. `Pause()`, `Resume()`, `Stop()`, a `SetAnimation()` switch and the end of the animation all leave it running, and a key crossed again while its sound still plays starts another voice rather than cutting the first. Only disabling or destroying the component, or `StopAllSounds()`, stops one. SpriteStudio has no infinite loop — `loop_num` is a play count — so every sound ends on its own. If one outlasts its animation, that is the animation data's business, not the component's.
+> A sound that has started **outlives the playback that triggered it**. `Pause()`, `Resume()`, `Stop()`, a `SetAnimation()` switch and the end of the animation all leave it running, and a key crossed again while its sound still plays starts another voice rather than cutting the first. Only disabling or destroying the component, setting `AnimeAsset` to `null`, or `StopAllSounds()` stops one. SpriteStudio has no infinite loop — `loop_num` is a play count — so every sound ends on its own. If one outlasts its animation, that is the animation data's business, not the component's.
 >
-> Sounds play for the keys the playhead crosses. A seek made while playing — setting `FrameNo` — does not sound the keys on the frame it lands on, though their `OnAudio` events still fire; the start frame's keys do sound after `Play()`.
+> Sounds play for the keys the playhead crosses. A seek — setting `FrameNo`, playing or not — does not sound the keys on the frame it lands on, though their `OnAudio` events still fire; the start frame's keys do sound after `Play()`.
 
 ### Implementation Example: Continuous Animation Playback
 
 An implementation example that automatically transitions to the "idle" animation when the "attack" animation finishes.
+
+`LoopCount` belongs to the component, not to an animation: it is applied to whatever animation you set next. The default `-1` never finishes, so give the one-shot animation a finite count first and put `-1` back for the one that follows.
 
 ```csharp
 void OnEnable()
@@ -240,11 +243,19 @@ void OnDisable()
     _player.OnAnimationFinished -= HandleFinished;
 }
 
+void PlayAttack()
+{
+    _player.LoopCount = 1;      // finite, so OnAnimationFinished can fire
+    _player.SetAnimation("attack");
+    _player.Play();
+}
+
 void HandleFinished()
 {
     // Return to the idle state when the attack finishes
     if (_player.CurrentAnimation == "attack")
     {
+        _player.LoopCount = -1; // LoopCount carries over: let idle loop
         _player.SetAnimation("idle");
         _player.Play();
     }
@@ -289,7 +300,7 @@ Configure it by adding entries to the **Part Trackers** list of `SpriteStudioPla
 
 | Setting | Description |
 |---|---|
-| **Part Name** | The name of the part to follow (the PartData name in the `.ssab`). The inspector offers a dropdown populated from the asset's part names, with mesh (skinned) parts greyed out |
+| **Part Name** | The name of the part to follow (the part name set in SpriteStudio). The inspector offers a dropdown populated from the asset's part names, with mesh (skinned) parts greyed out |
 | **Target** | The `Transform` to make follow. It can be directly under the player or in a separate hierarchy |
 | **Drive Position** | When ON (default), the target follows the part's position |
 | **Drive Rotation** | When ON (default), the target turns with the part |
@@ -319,7 +330,7 @@ player.UnregisterPartTracker(weapon.transform);
 | `RegisterPartTracker(partName, target, driveScale, onHide, drivePosition, driveRotation)` | Adds a tracker and returns the created entry (the last four are optional; `drivePosition` / `driveRotation` default on, `driveScale` off) |
 | `UnregisterPartTracker(target)` | Removes every entry targeting that `Transform` and returns the number removed |
 | `TryGetPartHidden(partName, out bool hidden)` | Whether the part is hidden on the current frame. Returns `false` if the part is unknown |
-| `TryGetPartTransform(partName, out Matrix4x4 matrix)` | The part's transform for the current frame (player-local, with `1 / PixelsPerUnit` already folded in) |
+| `TryGetPartTransform(partName, out Matrix4x4 matrix)` | The part's transform for the current frame (player-local, with `1 / PixelsPerUnit`, `FlipX` / `FlipY` and `Offset` already folded in) |
 
 > When you only need the part's position at a single moment (a projectile spawn point, for example) rather than continuous following, calling `TryGetPartTransform()` directly is simpler than registering a tracker.
 
@@ -352,11 +363,11 @@ When `Drive Scale` is ON, only the **inherited** scale is reflected; the part's 
 ### Notes
 
 - **The player deactivates the target in the two cases below**, and activates it again once the condition clears — only a target it deactivated itself. A target you deactivate yourself, such as a weapon kept out of sight until it is picked up, stays inactive. A target you deactivate while the player already has it deactivated still comes back when the condition clears: nothing on the target tells the two apart.
-    - The part name does not exist in the current animation (always deactivated, regardless of the `On Hide` setting)
+    - The part name does not exist in the asset (all animations of one asset share its parts; always deactivated, regardless of the `On Hide` setting)
     - The part is hidden on this frame and `On Hide` is `Deactivate`
 
     Replacing a tracker's `target`, or removing the tracker with `UnregisterPartTracker`, activates the target it had deactivated again.
-- Part names resolve against the parts of the animation the player itself is running. **Parts inside an Instance part (the child animation) cannot be specified** (the Instance part itself can).
+- Part names resolve against the parts of the asset the player itself plays. **Parts inside an Instance part (the child animation) cannot be specified** (the Instance part itself can).
 - If several parts share a name, the first one found is used.
 - Swapping `AnimeAsset` re-resolves part names automatically, so trackers do not need to be registered again.
 - In edit mode, trackers are applied once as well, when the static start-frame preview is built. They move the target but never change its active state there.
@@ -420,7 +431,7 @@ player.ClearAllPartOverrides();
 |---|---|
 | `GetPartNames()` | Part names in part-index order — what turns an event's `PartIndex` back into something a human reads, and what fills a part picker. An unnamed part holds its slot as `""` so the array stays index-aligned; `Length` is the part count |
 | `FindPartIndex(name)` | Part index, or `-1` if the part is not in the asset |
-| `SetPartColorOverride(part, color, blendOp, priority)` | Part Color override (single color). For a per-corner gradient use `SetPartColorOverrideCorners(part, SpriteStudioCornerColors, blendOp, priority)` (left-top, right-top, left-bottom, right-bottom) |
+| `SetPartColorOverride(part, color, blendOp, priority)` | Part Color override (single color). `blendOp` is a `SpriteStudioBlendOp`: `Mix`, `Mul`, `Add` or `Sub`. For a per-corner gradient use `SetPartColorOverrideCorners(part, SpriteStudioCornerColors, blendOp, priority)` (left-top, right-top, left-bottom, right-bottom) |
 | `SetPartCellOverride(part, cellmapName, cellName, priority)` | Draw a different cell |
 | `SetPartVisibilityOverride(part, hide, cascade)` | Force-hide (`hide: false` reverts to the animation) |
 | `ClearPartColorOverride` / `ClearPartCellOverride` / `ClearPartVisibilityOverride` | Clear one override on one part |
@@ -437,7 +448,7 @@ Part Color and cell overrides conflict with the animation, so they take a `Sprit
 
 | Priority | Behavior |
 |---|---|
-| `OverwriteOnNextKeyframe` | The override applies until the animation data updates that attribute |
+| `OverwriteOnNextKeyframe` | The override applies until the animation data updates that attribute, and is cleared when a new animation is set up |
 | `HoldUntilNextAnimation` (default) | The override wins for the current animation, and is cleared when a new animation is set up |
 | `Permanent` | The override applies as long as the same animation data (`.ssab`) is loaded (it survives animation changes) |
 
@@ -446,9 +457,9 @@ Part Color and cell overrides conflict with the animation, so they take a `Sprit
 - **Color** applies to normal parts, **cell** to normal and mask parts; other part types silently ignore the override (the call still returns `true`).
 - Colors are interpreted in the same 8-bit sRGB space as the authored Part Color, and alpha is pre-multiplied by the runtime — pass the color as authored, without converting it yourself.
 - A cell override is resolved when you set it, so an unknown cellmap / cell name fails immediately (returns `false`).
-- Overrides live on the runtime, which owns their lifecycle. Do not re-apply them after an animation change; choose the priority mode that expresses what you want instead.
+- Overrides live on the runtime, which owns their lifecycle: a switch with `SetAnimation()` clears everything except `Permanent` ones (a track-0 crossfade clears nothing). Do not re-apply them on a schedule; choose the priority mode that expresses what you want.
 
-## Dynamic Texture Replacement (CellMap Overrides / Avatar Customization)
+## Dynamic Texture Replacement (Cellmap Overrides / Avatar Customization)
 
 Replace the texture bound for a cellmap (external texture), **at runtime and for that player only**. This lets you implement color variations or costume / equipment changes (avatar customization) without authoring a separate asset per outfit. The asset and other players are untouched. Works on both `SpriteStudioPlayer` and `SpriteStudioGraphic`. This is a **separate** feature from the Part Overrides above (see the note on when to use which, below).
 
@@ -458,8 +469,8 @@ Replace the texture bound for a cellmap (external texture), **at runtime and for
 var player = GetComponent<SpriteStudioPlayer>();
 
 // The cellmap name is the SpriteStudio-defined name. Discover the replaceable names with
-// GetReplaceableTextureNames(); they also appear under "Cellmap Texture Overrides" in the inspector.
-Texture2D sailorUniform = ...; // replacement (should share the original's size / atlas layout)
+// GetReplaceableTextureNames(); the inspector's "Cellmap Texture Overrides" list takes the same names as text.
+var sailorUniform = Resources.Load<Texture2D>("SailorUniform"); // replacement (should share the original's size / atlas layout)
 player.SetCellmapTexture("Clothes 1", sailorUniform);
 
 // Restore the original texture (pass null).
@@ -489,7 +500,7 @@ Replacements set in the inspector's **"Cellmap Texture Overrides"** (a name / te
 
 `SpriteStudioPlayer` can be driven from a Timeline in two ways (`SpriteStudioGraphic` cannot):
 
-- **SpriteStudio Track** — add a `SpriteStudioTrack`, bind the `SpriteStudioPlayer` to it, and place clips on it. Each clip's **Animation Name** names the animation it plays. The track does not blend, so Timeline does not let its clips overlap. A clip sets its animation up stopped, so in the gap after a clip the player holds that clip's last frame until a script calls `Play()`.
+- **Sprite Studio Track** (Timeline's Add menu, under **SpriteStudio.Runtime**) — add a `SpriteStudioTrack`, bind the `SpriteStudioPlayer` to it, and place clips on it. Each clip's **Animation Name** names the animation it plays. The track does not blend, so Timeline does not let its clips overlap. A clip sets its animation up stopped, so in the gap after a clip the player holds that clip's last frame until a script calls `Play()`.
 - **Control Track** — `SpriteStudioPlayer` implements `ITimeControl`, so a Control Track clip on its GameObject seeks the animation set in **Animation Name**.
 
 A clip's time counts from the animation's first frame. The player keeps its own **Loop Count**, **Speed Scale** and **Frame Skipping** through the clips, so a player set to play once still plays once when a script plays it after the cutscene.

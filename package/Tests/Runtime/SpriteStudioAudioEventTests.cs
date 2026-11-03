@@ -174,6 +174,63 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
+        public void SeekWhileStopped_NotifiesTheLandingFramesKey_ButDoesNotPlayIt()
+        {
+            if (!Application.isPlaying) Assert.Ignore("The built-in playback runs in Play mode only.");
+            var player = MakePlayingSoundPlayer(out int keyFrame);
+            try
+            {
+                int notified = 0;
+                player.OnAudio += a => { if (a.FrameNo == keyFrame) notified++; };
+
+                player.Stop();
+                player.FrameNo = keyFrame;
+                player.PrepareFrame(1f / 60f, out _, out _);   // a stopped player reports the landing frame too
+
+                Assert.Greater(notified, 0, "The landing frame's key is still notified");
+                Assert.IsNull(player.GetComponent<AudioSource>(), "but a scrub of a stopped player does not sound");
+            }
+            finally { Object.DestroyImmediate(player.gameObject); }
+        }
+
+        [Test]
+        public void SeekWhilePaused_NotifiesTheLandingFramesKey_ButDoesNotPlayIt()
+        {
+            if (!Application.isPlaying) Assert.Ignore("The built-in playback runs in Play mode only.");
+            var player = MakePlayingSoundPlayer(out int keyFrame);
+            try
+            {
+                int notified = 0;
+                player.OnAudio += a => { if (a.FrameNo == keyFrame) notified++; };
+
+                player.Pause();
+                player.FrameNo = keyFrame;
+                player.PrepareFrame(1f / 60f, out _, out _);
+
+                Assert.Greater(notified, 0, "The landing frame's key is still notified");
+                Assert.IsNull(player.GetComponent<AudioSource>(), "but a scrub of a paused player does not sound");
+            }
+            finally { Object.DestroyImmediate(player.gameObject); }
+        }
+
+        [Test]
+        public void PlayAfterASeek_SoundsTheStartFramesKey()
+        {
+            if (!Application.isPlaying) Assert.Ignore("The built-in playback runs in Play mode only.");
+            var player = MakePlayingSoundPlayer(out int keyFrame);
+            try
+            {
+                player.Stop();
+                player.FrameNo = keyFrame;
+                player.Play();   // starts over from its own frame, the first key's
+                player.PrepareFrame(1f / 60f, out _, out _);
+
+                Assert.IsNotNull(player.GetComponent<AudioSource>(), "Play() drops the seek before it, so its start frame sounds");
+            }
+            finally { Object.DestroyImmediate(player.gameObject); }
+        }
+
+        [Test]
         public void PlayingOntoAKey_SoundsIt_UntilStopAllSounds()
         {
             // The control for the test above: the same key, reached by playing rather than by a seek. The

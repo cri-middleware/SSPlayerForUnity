@@ -150,7 +150,8 @@ namespace SpriteStudio.UI
         /// whole animation. False when <paramref name="tableOf"/> knows no <paramref name="animation"/>.
         /// <para>
         /// Under <paramref name="reducedMotion"/> the section is held, except where it came from <c>normal</c>
-        /// and the animation has a <c>reduced_motion</c> label: that label's section plays instead.
+        /// (or the whole animation <c>normal</c> falls back to) and the animation has a <c>reduced_motion</c> label:
+        /// that label's section plays instead.
         /// </para>
         /// A clip that names an animation or a label the pack does not have is handed to
         /// <paramref name="onMissingClip"/>, and the state goes on as if it had none.
@@ -203,7 +204,7 @@ namespace SpriteStudio.UI
                 start = table.StartFrame;
                 end = table.EndFrame;
             }
-            if (reducedMotion && found && source.State == SpriteStudioUiState.Normal && !source.Selected
+            if (reducedMotion && (!found || (source.State == SpriteStudioUiState.Normal && !source.Selected))
                 && TryGetLabelSection(table, ReducedMotionLabel, out int calmStart, out int calmEnd))
             {
                 section = new SpriteStudioUiSection(animation, calmStart, calmEnd, false);
