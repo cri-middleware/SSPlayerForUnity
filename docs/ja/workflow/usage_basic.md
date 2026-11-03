@@ -36,8 +36,8 @@
 選択すると GameObject が作成され、**Anime Asset には今ドロップしたアセットが自動的に割り当てられます**。**Animation Name** にはそのアセットの最初のアニメーションが入ります。別のアニメーションにするなら **Animation Name** のリストから選んでください。
 
 > [!TIP]
-> - **SpriteStudioGraphic (Canvas UI)** を選んだ際にシーンへ `Canvas` が無い場合は、**GameObject > UI (Canvas) > Canvas** と同じように `Canvas`（およびプロジェクトの入力方式に合った入力モジュール付きの `EventSystem`）が自動的に作成され、その下に設置されます。
-> - Hierarchy 上で既存の GameObject の上にドロップすると、その子として設置されます。行と行の間にドロップした場合は、その並びに設置されます。
+> - **SpriteStudioGraphic (Canvas UI)** を選んだ際に、ドロップ先が `Canvas` の中にない場合（ドロップ先が無いときは、編集中のシーンやプリファブに使える `Canvas` が無い場合）は、**GameObject > UI (Canvas) > Canvas** と同じように、ドロップ先があればその子として `Canvas`（シーンに無ければ、プロジェクトの入力方式に合った入力モジュール付きの `EventSystem` も）が作成され、その下に設置されます。
+> - Hierarchy 上で既存の GameObject の上にドロップすると、その子として設置されます（`Canvas` の外にドロップした `SpriteStudioGraphic` は、新しい `Canvas` の下に設置されます）。行と行の間にドロップした場合は、その並びに設置されます。
 > - Prefab Mode では、GameObject メニューと同じく編集中のプリファブの中に設置されます。
 > - 複数のアセットを同時にドロップした場合は、まとめて設置されます。
 > - `SpriteStudioAnimeAsset` のインスペクタにある **「Instantiate in Scene」** ボタンからもワールド用プレイヤーを設置できます。
@@ -91,7 +91,7 @@ public class Sample : MonoBehaviour
 
 ## インスペクタの主な設定項目
 
-項目名はインスペクタの表示どおりに記載しています。並び順もインスペクタに合わせてあります。
+項目名はインスペクタの表示どおりに記載し、各表の並び順もインスペクタに合わせてあります。両コンポーネント共通の音声の項目は、インスペクタではコンポーネント固有の項目の後に並びます。
 
 ### 両コンポーネント共通
 
@@ -109,7 +109,7 @@ public class Sample : MonoBehaviour
 
 | 項目 | 既定値 | 説明 |
 |---|---|---|
-| **Play Audio** | `true` | 音源イベント（ADIO）の音を鳴らすか。OFF でもイベントは発火するので、自前で鳴らせます（[スクリプト制御とイベント](./usage_scripting.md) 参照）。OFF のあいだ、下の項目は灰色（無効）になります |
+| **Play Audio** | `true` | オーディオイベントの音を鳴らすか。OFF でもイベントは発火するので、自前で鳴らせます（[スクリプト制御とイベント](./usage_scripting.md) 参照）。OFF のあいだ、下の項目は灰色（無効）になります |
 | **Audio Volume** | `1.0` | 組み込み再生の音量 |
 
 インスペクタの末尾には、再生イベントの UnityEvent（**On Animation Started Event** / **On Animation Finished Event** / **On Animation Looped Event** / **On User Data Event** / **On Signal Event** / **On Audio Event**）が並びます。詳細は [スクリプト制御とイベント](./usage_scripting.md) を参照してください。
@@ -121,7 +121,7 @@ public class Sample : MonoBehaviour
 | 項目 | 既定値 | 説明 |
 |---|---|---|
 | **Flip X / Flip Y** | `false` / `false` | 描画だけを左右／上下に反転します（`SpriteRenderer.flipX` と同じ考え方で、Transform を反転しないため子オブジェクトやコライダは動きません） |
-| **Offset** | `(0, 0)` | Transform を動かさずに描画位置だけをずらします（単位はワールド単位） |
+| **Offset** | `(0, 0)` | Transform を動かさずに描画位置だけをずらします（単位は GameObject の空間の Unity 単位で、Transform のスケールが掛かります） |
 | **Shader Catalog** | （なし） | パーツ単位のカスタムシェーダを登録した自前のカタログ。組み込み AddOn より先に引かれます（[高度な設定](./tips.md) 参照） |
 | **Part Trackers** | （空） | 指定パーツに Transform を追従させる設定（[スクリプト制御とイベント](./usage_scripting.md) 参照） |
 | **Cellmap Texture Overrides** | （空） | セルマップ名ごとのテクスチャ差し替え。シーンに保存されます（[スクリプト制御とイベント](./usage_scripting.md) 参照） |
@@ -157,7 +157,7 @@ uGUI の `Graphic` 由来の **Color** / **Material** / **Raycast Target** / **R
 本プラグインは SpriteStudio の「マスク機能（Mask）」にも対応しています。
 
 - **ワールド（`SpriteStudioPlayer`）**: 特別な設定は不要です。`.ssab` にマスクパーツが含まれていれば、ステンシルバッファを用いて自動的にクリッピング処理が行われます。そのままシーンに配置してお使いいただけます。
-- **Canvas（`SpriteStudioGraphic`）**: SpriteStudio 内部のマスクは抑止され、代わりに uGUI の **Mask** / **RectMask2D** に追従します（親にこれらを置くとクリップされます）。
+- **Canvas（`SpriteStudioGraphic`）**: SpriteStudio 内部のマスクは抑止され、代わりに uGUI の **Mask** / **Rect Mask 2D** に追従します（親にこれらを置くとクリップされます）。
 
 詳細は [パフォーマンスチューニングと高度な設定](./tips.md#マスク--クリッピング) を参照してください。
 

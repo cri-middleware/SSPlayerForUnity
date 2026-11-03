@@ -2,7 +2,7 @@
 
 [← Back to documentation index](../index.md)
 
-This page describes the shortest path from importing a `.sspj` to playing back an animation. For import details, see [Asset Import and Editor Integration](./usage_asset_pipeline.md); for control via scripting, see [Scripting Control and Events](./usage_scripting.md).
+This page describes the shortest path from importing a `.sspj` to playing back an animation. For import details, see [Asset Import and Editor Integration](./usage_asset_pipeline.md); for control via scripting, see [Script Control and Events](./usage_scripting.md).
 
 ## 1. Import an animation
 
@@ -36,8 +36,8 @@ When you drop it, a menu appears for choosing which component to place, so selec
 Once selected, a GameObject is created, and **the asset you just dropped is automatically assigned to Anime Asset**, with **Animation Name** set to its first animation. Pick another from the **Animation Name** list if you want a different one.
 
 > [!TIP]
-> - If you choose **SpriteStudioGraphic (Canvas UI)** and there is no `Canvas` in the scene, a `Canvas` (and an `EventSystem`, with the input module your project's input handling uses) is automatically created as **GameObject > UI > Canvas** creates them, and the player is placed underneath it.
-> - If you drop it onto an existing GameObject in the Hierarchy, it is placed as a child of that GameObject; dropped between two rows, it is placed beside them.
+> - If you choose **SpriteStudioGraphic (Canvas UI)** and the drop target is not inside a `Canvas` (or, with no target, there is no usable `Canvas` in the scene or prefab being edited), a `Canvas` (and an `EventSystem`, with the input module your project's input handling uses, when the scene has none) is created as **GameObject > UI (Canvas) > Canvas** creates them — under the drop target when there is one — and the graphic is placed underneath it.
+> - If you drop it onto an existing GameObject in the Hierarchy, it is placed as a child of that GameObject (a `SpriteStudioGraphic` dropped outside a `Canvas` goes under a new `Canvas` instead); dropped between two rows, it is placed beside them.
 > - In Prefab Mode it is placed inside the prefab you are editing, as the GameObject menu places objects.
 > - If you drop multiple assets at once, they are all placed together.
 > - You can also place a world player from the **"Instantiate in Scene"** button in the `SpriteStudioAnimeAsset` Inspector.
@@ -91,7 +91,7 @@ public class Sample : MonoBehaviour
 
 ## Main Inspector settings
 
-Item names are written exactly as they appear in the Inspector, in the order the Inspector shows them.
+Item names are written exactly as they appear in the Inspector, and each table follows the Inspector's order. The audio items, common to both components, sit after the component-specific ones in the Inspector.
 
 ### Common to both components
 
@@ -109,10 +109,10 @@ The audio items are common too.
 
 | Item | Default | Description |
 |---|---|---|
-| **Play Audio** | `true` | Whether to play sounds from audio events (ADIO). Turned off, the events still fire, for playing the sounds yourself (see [Scripting Control and Events](./usage_scripting.md)); the item below is greyed out |
+| **Play Audio** | `true` | Whether to play sounds from audio events. Turned off, the events still fire, for playing the sounds yourself (see [Script Control and Events](./usage_scripting.md)); the item below is greyed out |
 | **Audio Volume** | `1.0` | Volume of the built-in playback |
 
-At the end of the Inspector sit the playback-event UnityEvents (**On Animation Started Event** / **On Animation Finished Event** / **On Animation Looped Event** / **On User Data Event** / **On Signal Event** / **On Audio Event**). See [Scripting Control and Events](./usage_scripting.md) for details.
+At the end of the Inspector sit the playback-event UnityEvents (**On Animation Started Event** / **On Animation Finished Event** / **On Animation Looped Event** / **On User Data Event** / **On Signal Event** / **On Audio Event**). See [Script Control and Events](./usage_scripting.md) for details.
 
 ### `SpriteStudioPlayer` (world) only
 
@@ -121,10 +121,10 @@ The draw order is the Mesh Renderer's own **Sorting Layer** / **Order in Layer**
 | Item | Default | Description |
 |---|---|---|
 | **Flip X / Flip Y** | `false` / `false` | Mirror only what is drawn, horizontally / vertically (the same idea as `SpriteRenderer.flipX`: the Transform is not negated, so children and colliders stay put) |
-| **Offset** | `(0, 0)` | Shift the drawn animation without moving the Transform (in world units) |
+| **Offset** | `(0, 0)` | Shift the drawn animation without moving the Transform (in Unity units of the GameObject's space: its Transform scale applies, and it is not SpriteStudio pixels) |
 | **Shader Catalog** | (none) | Your own catalog of per-part custom shaders, looked up before the built-in AddOns (see [Advanced Settings](./tips.md)) |
-| **Part Trackers** | (empty) | Settings that make a Transform follow a specified part (see [Scripting Control and Events](./usage_scripting.md)) |
-| **Cellmap Texture Overrides** | (empty) | Texture replacements by cellmap name, saved with the scene (see [Scripting Control and Events](./usage_scripting.md)) |
+| **Part Trackers** | (empty) | Settings that make a Transform follow a specified part (see [Script Control and Events](./usage_scripting.md)) |
+| **Cellmap Texture Overrides** | (empty) | Texture replacements by cellmap name, saved with the scene (see [Script Control and Events](./usage_scripting.md)) |
 
 > **Pixels Per Unit** is configured outside this Inspector, from the `PixelsPerUnit` script property. Per-part **custom shaders** go in a catalog you assign to **Shader Catalog**. See [Advanced Settings](./tips.md).
 
@@ -157,7 +157,7 @@ What edit mode shows is a still image, though — playback does not advance. To 
 This plugin also supports SpriteStudio's "Mask" feature.
 
 - **World (`SpriteStudioPlayer`)**: No special configuration is required. If the `.ssab` contains mask parts, clipping is performed automatically using the stencil buffer. You can use it as-is by placing it in the scene.
-- **Canvas (`SpriteStudioGraphic`)**: SpriteStudio's internal masks are suppressed, and instead it follows uGUI's **Mask** / **RectMask2D** (placing these on a parent clips the content).
+- **Canvas (`SpriteStudioGraphic`)**: SpriteStudio's internal masks are suppressed, and instead it follows uGUI's **Mask** / **Rect Mask 2D** (placing these on a parent clips the content).
 
 For details, see [Performance Tuning and Advanced Settings](./tips.md#masking-and-clipping).
 
