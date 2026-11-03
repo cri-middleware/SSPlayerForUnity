@@ -129,6 +129,24 @@ namespace SpriteStudio.Runtime.EditModeTests
         }
 
         [Test]
+        public void ShowEditPreviewFrame_ReachesTheLastFrame()
+        {
+            var player = PlacePlayer(RingoAssetPath, "wait1");
+            var preview = (ISpriteStudioEditPreview)player;
+            Assert.IsTrue(preview.TryGetEditPreviewSection(out int start, out int end, out int fps));
+            Assert.AreEqual(0, start);
+            Assert.AreEqual(79, end, "wait1 is 80 frames long; the preview must cover all of it.");
+
+            preview.ShowEditPreviewFrame(50);
+            var at50 = Vertices();
+            preview.ShowEditPreviewFrame(end);
+
+            Assert.AreEqual((float)end, GetInternal(player).GetFrame());
+            CollectionAssert.AreNotEqual(at50, Vertices(), "Frames past 50 must draw too.");
+            Assert.AreEqual(79f, SpriteStudioEditPreviewClock.FrameAt(start, end, fps, 1f, start, 79.5 / fps, false));
+        }
+
+        [Test]
         public void EndEditPreview_GoesBackToTheStartFrame()
         {
             var player = PlacePlayer(RingoAssetPath);
