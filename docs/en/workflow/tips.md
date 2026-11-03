@@ -79,5 +79,3 @@ If you want to correctly use complex blends or multiple atlases, we recommend us
 ## Render Pipeline
 
 Supports both Universal (URP) / Built-in (BRP).
-
-- In edit mode, only a static preview of the start frame is shown. Perform behavior checks in Play mode.

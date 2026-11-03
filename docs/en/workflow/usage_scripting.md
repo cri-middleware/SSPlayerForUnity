@@ -370,7 +370,7 @@ When `Drive Scale` is ON, only the **inherited** scale is reflected; the part's 
 - Part names resolve against the parts of the asset the player itself plays. **Parts inside an Instance part (the child animation) cannot be specified** (the Instance part itself can).
 - If several parts share a name, the first one found is used.
 - Swapping `AnimeAsset` re-resolves part names automatically, so trackers do not need to be registered again.
-- In edit mode, trackers are applied once as well, when the static start-frame preview is built. They move the target but never change its active state there.
+- In edit mode, trackers follow the frame the preview draws: the static start frame, the Inspector's **Edit Mode Preview**, or a Timeline scrub. They move the target but never change its active state there.
 
 ## Part Outlines and Hit Testing
 
@@ -505,4 +505,4 @@ Replacements set in the inspector's **"Cellmap Texture Overrides"** (a name / te
 
 A clip's time counts from the animation's first frame. The player keeps its own **Loop Count**, **Speed Scale** and **Frame Skipping** through the clips, so a player set to play once still plays once when a script plays it after the cutscene.
 
-A clip seeks the player rather than advancing it, so under a clip no events fire, no sound plays and loops do not apply — see [Limitations](../limitations.md#timeline).
+A clip seeks the player rather than advancing it, so under a clip no events fire, no sound plays and loops do not apply — see [Limitations](../limitations.md#timeline). The same seek works in edit mode: scrubbing the Timeline window moves the player.

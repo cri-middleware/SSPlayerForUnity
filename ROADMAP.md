@@ -13,8 +13,6 @@ runtime and converter work lives in the
 - [ ] **`SpriteStudioTrack` clips that know their animation** — a clip starts at Timeline's default length rather than
   the animation's, so Match Content has nothing to snap to; `ClipCaps.None` turns off Clip In, Speed Multiplier and
   Looping, none of which involve blending; and Animation Name is free text, with no list to pick from.
-- [ ] **Timeline scrubbing in edit mode** — the edit-mode preview holds the start frame, so scrubbing the Timeline
-  window shows nothing move until Play mode.
 - [ ] **Flip / offset on `SpriteStudioGraphic`** — mirror or shift what the graphic draws without moving the
   `RectTransform`, as `SpriteStudioPlayer` does with `FlipX` / `FlipY` / `Offset`; the uGUI player exposes none of them.
 - [ ] **Player-level tint / opacity, and a choice of clock** — `SpriteStudioPlayer` has no tint or opacity
