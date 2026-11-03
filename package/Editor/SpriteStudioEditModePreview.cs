@@ -13,6 +13,8 @@ namespace SpriteStudio.Editor
     /// Plays a player or a graphic in Edit Mode from its inspector. The state lives here, not in the component,
     /// so nothing is written to the scene. The start frame is what a save or Play mode sees: a part tracker's
     /// target and the renderer's materials follow the frame shown, and both are serialized.
+    /// It ends when the selection leaves the object, not when the inspector closes: the Inspector rebuilds its
+    /// editors whenever the renderer's material list changes, which a frame with another batch layout does.
     /// </summary>
     internal static class SpriteStudioEditModePreview
     {
@@ -173,6 +175,17 @@ namespace SpriteStudio.Editor
             if (change == PlayModeStateChange.ExitingEditMode) StopAll();
         }
 
+        private static void OnSelectionChanged()
+        {
+            foreach (var target in new List<Object>(_states.Keys))
+            {
+                if (target is Component c && c != null && Selection.Contains(c.gameObject)) continue;
+                Stop(target);
+                _states.Remove(target);
+            }
+            if (_states.Count == 0) Unhook();
+        }
+
         private static void RepaintViews()
         {
             SceneView.RepaintAll();
@@ -185,6 +198,7 @@ namespace SpriteStudio.Editor
             if (_hooked) return;
             _hooked = true;
             EditorApplication.update += Tick;
+            Selection.selectionChanged += OnSelectionChanged;
             EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
             AssemblyReloadEvents.beforeAssemblyReload += StopAll;
             EditorSceneManager.sceneSaving += OnSceneSaving;
@@ -196,6 +210,7 @@ namespace SpriteStudio.Editor
             if (!_hooked) return;
             _hooked = false;
             EditorApplication.update -= Tick;
+            Selection.selectionChanged -= OnSelectionChanged;
             EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
             AssemblyReloadEvents.beforeAssemblyReload -= StopAll;
             EditorSceneManager.sceneSaving -= OnSceneSaving;
@@ -257,11 +272,6 @@ namespace SpriteStudio.Editor
                 EditorGUILayout.HelpBox("A Timeline is driving this player. Scrub the Timeline window instead.", MessageType.Info);
             }
             if (playing) editor.Repaint();
-        }
-
-        internal static void End(UnityEditor.Editor editor)
-        {
-            foreach (var target in editor.targets) SpriteStudioEditModePreview.Stop(target);
         }
     }
 }

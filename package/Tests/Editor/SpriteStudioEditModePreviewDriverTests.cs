@@ -8,8 +8,8 @@ using UnityEngine.TestTools;
 namespace SpriteStudio.Editor.Tests
 {
     /// <summary>
-    /// The inspector's Edit Mode preview, end to end: Play moves the player with the editor's clock, Pause holds
-    /// the frame, Stop draws the start frame again.
+    /// Play in Edit Mode, end to end: Play moves the player with the editor's clock, Pause holds the frame, Stop
+    /// draws the start frame again, and only moving the selection off the object ends it.
     /// </summary>
     public class SpriteStudioEditModePreviewDriverTests
     {
@@ -24,12 +24,14 @@ namespace SpriteStudio.Editor.Tests
             _go = new GameObject("EditModePreviewDriverTest");
             _player = _go.AddComponent<SpriteStudioPlayer>();
             _player.AnimeAsset = asset;
+            Selection.activeGameObject = _go;
         }
 
         [TearDown]
         public void TearDown()
         {
             SpriteStudioEditModePreview.StopAll();
+            Selection.activeObject = null;
             if (_go != null) Object.DestroyImmediate(_go);
             _go = null;
         }
@@ -94,6 +96,35 @@ namespace SpriteStudio.Editor.Tests
 
             Assert.IsFalse(SpriteStudioEditModePreview.IsPlaying(_player));
             CollectionAssert.AreEqual(startPose, Vertices(), "Stop must leave the scene as the static preview draws it.");
+        }
+
+        [UnityTest]
+        public IEnumerator Play_SurvivesTheInspectorBeingRebuilt()
+        {
+            StartPose();
+            SpriteStudioEditModePreview.Play(_player);
+            // What the Inspector does to every editor when, say, the renderer's material list changes.
+            var editor = UnityEditor.Editor.CreateEditor(_player);
+            Object.DestroyImmediate(editor);
+            yield return Wait(0.2);
+
+            Assert.IsTrue(SpriteStudioEditModePreview.IsPlaying(_player),
+                "Rebuilding the inspector must not stop the preview: a frame that changes the batch layout does it.");
+        }
+
+        [UnityTest]
+        public IEnumerator SelectingSomethingElse_EndsThePreview()
+        {
+            var startPose = StartPose();
+            SpriteStudioEditModePreview.Play(_player);
+            yield return Wait(0.3);
+            CollectionAssert.AreNotEqual(startPose, Vertices());
+
+            Selection.activeObject = null;
+            yield return Wait(0.1);
+
+            Assert.IsFalse(SpriteStudioEditModePreview.IsPlaying(_player));
+            CollectionAssert.AreEqual(startPose, Vertices());
         }
     }
 }
