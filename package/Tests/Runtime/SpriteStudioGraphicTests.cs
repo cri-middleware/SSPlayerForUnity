@@ -217,6 +217,57 @@ namespace SpriteStudio.Runtime.Tests
             Assert.IsFalse(graphic.InternalPlayer != null && graphic.InternalPlayer.HasSsab, "no pack should stay loaded");
             Assert.AreEqual(0, graphic.CanvasMesh.vertexCount);
         }
+
+        // What the Inspector does: write the field, then OnValidate.
+        private static void InspectorEdit(SpriteStudioGraphic graphic, string field, object value)
+        {
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            typeof(SpriteStudioGraphic).GetField(field, flags).SetValue(graphic, value);
+            typeof(SpriteStudioGraphic).GetMethod("OnValidate", flags).Invoke(graphic, null);
+        }
+
+        [Test]
+        public void InspectorAnimationName_InPlayMode_SwitchesAndPlays()
+        {
+            if (!Application.isPlaying) Assert.Ignore("An inspector edit reaches the runtime in Play mode only.");
+            var graphic = MakeBuiltGraphic();
+
+            InspectorEdit(graphic, "_animationName", "attack1");
+
+            Assert.AreEqual("attack1", graphic.InternalPlayer.CurrentAnimationName, "An Animation Name picked in the Inspector is a switch");
+            Assert.IsTrue(graphic.IsPlaying, "and plays from the head, as on the world player");
+        }
+
+        [Test]
+        public void InspectorAsset_InPlayMode_LoadsItAndPlays()
+        {
+            if (!Application.isPlaying) Assert.Ignore("An inspector edit reaches the runtime in Play mode only.");
+            var graphic = MakeBuiltGraphic();
+            var other = Resources.Load<SpriteStudioAnimeAsset>("overall/Sound");
+            Assert.IsTrue(other != null && other.AnimationNames.Length > 0, "The overall fixture's Sound pack is required");
+
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            typeof(SpriteStudioGraphic).GetField("_animationName", flags).SetValue(graphic, other.AnimationNames[0]);
+            InspectorEdit(graphic, "_animeAsset", other);
+
+            Assert.AreEqual(other.AnimationNames[0], graphic.InternalPlayer.CurrentAnimationName, "The asset picked in the Inspector is loaded");
+            Assert.IsTrue(graphic.IsPlaying);
+        }
+
+        [Test]
+        public void InspectorTweak_InPlayMode_DoesNotRestart()
+        {
+            if (!Application.isPlaying) Assert.Ignore("An inspector edit reaches the runtime in Play mode only.");
+            var graphic = MakeBuiltGraphic();
+            graphic.Play();
+            graphic.FrameNo = 5f;
+
+            InspectorEdit(graphic, "_speedScale", 2f);
+
+            Assert.AreEqual("walk", graphic.InternalPlayer.CurrentAnimationName);
+            Assert.AreEqual(5f, graphic.FrameNo, 0.001f, "A speed edit leaves the playhead where it is");
+            Assert.AreEqual(2f, graphic.InternalPlayer.GetSpeed(), 0.001f);
+        }
 #endif
     }
 }

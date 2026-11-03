@@ -55,6 +55,9 @@ namespace SpriteStudio.Runtime
                 _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
                 _canvasMaterialDirty = true;
                 SetLayoutDirty();
+#if UNITY_EDITOR
+                _appliedAsset = _animeAsset;
+#endif
             }
         }
 
@@ -191,6 +194,10 @@ namespace SpriteStudio.Runtime
         public bool SetAnimation(string animName)
         {
             _animationName = animName;
+#if UNITY_EDITOR
+            // Keep the OnValidate baseline in sync so a later unrelated inspector edit does not restart.
+            _appliedAnimation = _animationName;
+#endif
             // Already set up: a switch with nothing to switch to. Returning here is not just an
             // optimisation -- ApplyPlaybackSettings below calls SetLoop, and the runtime RE-ARMS the
             // remaining-loop counter on every write. A state machine that re-asserts its current
@@ -792,6 +799,10 @@ namespace SpriteStudio.Runtime
         {
             var p = _core.Internal;
             _animationName = p.CurrentAnimationName;
+#if UNITY_EDITOR
+            // An Animation Name edited back to the outgoing animation is then a change to OnValidate.
+            _appliedAnimation = _animationName;
+#endif
             p.SetLoop(_loopCount);
             SetLayoutDirty();
         }
@@ -903,6 +914,12 @@ namespace SpriteStudio.Runtime
 
             // In edit mode, build the start-frame static preview right after placement (setup consumed in LateUpdate).
             _editPreviewNeedsSetup = true;
+#if UNITY_EDITOR
+            // Baseline so the first in-play OnValidate (e.g. tweaking speed) is not mistaken for an
+            // asset/animation change and does not restart playback.
+            _appliedAsset = _animeAsset;
+            _appliedAnimation = _animationName;
+#endif
 
             if (_started && Application.isPlaying) StartPlayback();
         }
@@ -1052,10 +1069,14 @@ namespace SpriteStudio.Runtime
         }
 
 #if UNITY_EDITOR
+        // Baseline of the asset and animation the runtime has, so OnValidate can tell an actual change apart
+        // from tweaking speed etc. Editor-only and never serialized; OnEnable sets it on play entry.
+        [System.NonSerialized] private SpriteStudioAnimeAsset _appliedAsset;
+        [System.NonSerialized] private string _appliedAnimation;
+
         // The inspector writes the serialized fields directly and does not call the property setters.
         // To reflect in-play inspector edits into the runtime (Rust), sync them here. Graphic.OnValidate is
-        // defined only within UNITY_EDITOR, so the override is wrapped in #if UNITY_EDITOR too. (Animation-name
-        // switching is out of scope.)
+        // defined only within UNITY_EDITOR, so the override is wrapped in #if UNITY_EDITOR too.
         protected override void OnValidate()
         {
             base.OnValidate();
@@ -1066,11 +1087,28 @@ namespace SpriteStudio.Runtime
             _canvasMaterialDirty = true;
             // None in the Inspector lets go of the previous pack as the setter does.
             if (_animeAsset == null && _core.Internal != null && _core.Internal.HasSsab) _unloadPending = true;
-            if (_core.Internal == null) return;
-            _core.Internal.SetSpeed(_speedScale);
-            _core.Internal.SetLoop(_loopCount);
-            _core.Internal.SetSkipFrames(_skipFrames);
-            _core.Internal.SubFrameEnabled = _subFrameEnabled;
+            if (_core.Internal != null)
+            {
+                _core.Internal.SetSpeed(_speedScale);
+                _core.Internal.SetLoop(_loopCount);
+                _core.Internal.SetSkipFrames(_skipFrames);
+                _core.Internal.SubFrameEnabled = _subFrameEnabled;
+            }
+            bool assetChanged = !ReferenceEquals(_appliedAsset, _animeAsset);
+            bool animChanged = _appliedAnimation != _animationName;
+            // In Play mode an asset or animation picked in the inspector is a switch, as on the world player:
+            // load the asset when it changed, then set the animation up and play it from the head.
+            if (Application.isPlaying && (assetChanged || animChanged) && _animeAsset != null && isActiveAndEnabled)
+            {
+                if (assetChanged)
+                {
+                    EnsureCore();
+                    SetLayoutDirty();
+                }
+                if (_core.Internal != null && !string.IsNullOrEmpty(_animationName) && SetAnimation(_animationName)) Play();
+            }
+            _appliedAsset = _animeAsset;
+            _appliedAnimation = _animationName;
         }
 #endif
 
