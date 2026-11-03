@@ -15,13 +15,6 @@ namespace SpriteStudio.Editor
         private static readonly GUIContent _partNameLabel = new GUIContent("Part Name",
             "Name of the part to follow (ssab PartData.Name).");
 
-        // Cache the parsed part-name list (and per-part "is a skinned mesh" flags) per asset to avoid
-        // re-parsing the ssab every repaint.
-        private static SpriteStudioAnimeAsset _cachedAsset;
-        private static byte[] _cachedData;
-        private static string[] _cachedNames;
-        private static bool[] _cachedSkinned;
-
         // Suffix shown on a skinned-mesh part. Such a part cannot be followed to its drawn position (a tracker
         // reads the part's own node, which stays near the root), so it is greyed out (disabled) in the dropdown
         // to prevent an easy mistake. It is not a hard block: a skinned name set via script (RegisterPartTracker)
@@ -59,8 +52,8 @@ namespace SpriteStudio.Editor
             float step = line + EditorGUIUtility.standardVerticalSpacing;
             var row = new Rect(position.x, position.y, position.width, line);
 
-            GetPartInfo((property.serializedObject.targetObject as SpriteStudioPlayer)?.AnimeAsset,
-                        out string[] names, out bool[] skinned);
+            SpriteStudioAssetNames.PartInfo((property.serializedObject.targetObject as SpriteStudioPlayer)?.AnimeAsset,
+                                            out string[] names, out bool[] skinned);
             DrawPartNameField(row, partNameProp, names, skinned);
             row.y += step;
 
@@ -127,41 +120,6 @@ namespace SpriteStudio.Editor
                 }
             }
             menu.DropDown(fieldRect);
-        }
-
-        private static void GetPartInfo(SpriteStudioAnimeAsset asset, out string[] names, out bool[] skinned)
-        {
-            if (asset == null || asset.SsabData == null || asset.SsabData.Length == 0)
-            {
-                names = null;
-                skinned = null;
-                return;
-            }
-            if (ReferenceEquals(asset, _cachedAsset) && ReferenceEquals(asset.SsabData, _cachedData))
-            {
-                names = _cachedNames;
-                skinned = _cachedSkinned;
-                return;
-            }
-
-            var bb = new Google.FlatBuffers.ByteBuffer(asset.SsabData);
-            var ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
-            int n = ssab.PartsLength;
-            names = new string[n];
-            skinned = new bool[n];
-            for (int i = 0; i < n; i++)
-            {
-                var p = ssab.Parts(i);
-                if (!p.HasValue) continue;
-                names[i] = p.Value.Name;
-                // Same test the runtime uses (SpriteStudioSsabFormat), so the inspector and playback agree.
-                skinned[i] = SpriteStudioSsabFormat.IsSkinnedMeshPart(p.Value);
-            }
-
-            _cachedAsset = asset;
-            _cachedData = asset.SsabData;
-            _cachedNames = names;
-            _cachedSkinned = skinned;
         }
     }
 }

@@ -3,6 +3,8 @@
     "rootNamespace": "SpriteStudio.UI.Editor",
     "references": [
         "SpriteStudio.UI",
+        "SpriteStudio.Runtime",
+        "SpriteStudio.Editor",
         "UnityEngine.UI",
         "UnityEditor.UI"
     ],
