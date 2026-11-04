@@ -2,7 +2,8 @@ name: CI
 
 # Two tiers, as in SpriteStudio-SDK. Every pull request runs the consistency
 # checks, which need neither Unity nor the SDK binaries, and builds the runtime
-# for Linux from the SDK submodule with scripts/build-runtime.sh. The weekly run,
+# for Linux from the SDK submodule with scripts/build-runtime.sh, unless the
+# weekly run already built that submodule commit (see the runtime job). The weekly run,
 # a dispatch and the release PR (release/X.Y into main) also build the runtime
 # for macOS, iOS, Android, Web and Windows, and build the documentation site.
 # The site goes through docs.yml, which a pull request that touches the docs
@@ -227,6 +228,16 @@ jobs:
   # The runtime built from the SDK submodule, the source a pull request that bumps
   # the submodule changes: scripts/build-runtime.sh builds it, generates the C#
   # bindings, and copies both into package/.
+  #
+  # Nothing after the build reads what it produces, so a build the weekly run
+  # already passed on develop needs no repeating. The build depends on nothing
+  # but the submodule commit, the scripts that drive it, this workflow and the
+  # runner image, so its key is made of those, and only an exact match counts.
+  # The weekly run always builds, which keeps proving the submodule builds with
+  # the current toolchain and keeps the Rust cache seeded, and then saves a
+  # marker under the key. A pull request whose key has a marker skips the
+  # build; one that bumps the submodule, or changes any of the rest, misses
+  # and builds as before.
   runtime:
     name: 🐧 Runtime (Linux)
     runs-on: ubuntu-latest
@@ -240,16 +251,33 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
+      - name: Name the runtime build
+        id: runtime
+        run: |
+          echo "key=runtime-${ImageOS}-linux-debug-$(git rev-parse HEAD:SpriteStudio-SDK)-${{ hashFiles('scripts/build-runtime.sh', 'scripts/upm-meta/**', '.github/workflows/ci.yml') }}" >> "$GITHUB_OUTPUT"
+          echo "marker=$RUNNER_TEMP/runtime-built" >> "$GITHUB_OUTPUT"
+
+      - name: Look up the runtime build
+        id: runtime-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.runtime.outputs.marker }}
+          key: ${{ steps.runtime.outputs.key }}
+          lookup-only: true
+
       - name: Install zsh
+        if: github.event_name != 'pull_request' || steps.runtime-cache.outputs.cache-hit != 'true'
         run: sudo apt-get update && sudo apt-get install -y zsh
 
       - name: Setup Rust toolchain
+        if: github.event_name != 'pull_request' || steps.runtime-cache.outputs.cache-hit != 'true'
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
           # Pinned by SHA, so the channel must be named explicitly here.
           toolchain: stable
 
       - name: Setup Rust cache
+        if: github.event_name != 'pull_request' || steps.runtime-cache.outputs.cache-hit != 'true'
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: SpriteStudio-SDK
@@ -259,7 +287,19 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/develop' }}
 
       - name: Build the runtime
+        if: github.event_name != 'pull_request' || steps.runtime-cache.outputs.cache-hit != 'true'
         run: ./scripts/build-runtime.sh platform=linux build=debug
+
+      - name: Write the marker
+        if: github.ref == 'refs/heads/develop' && steps.runtime-cache.outputs.cache-hit != 'true'
+        run: echo "${{ steps.runtime.outputs.key }}" > "${{ steps.runtime.outputs.marker }}"
+
+      - name: Save the marker
+        if: github.ref == 'refs/heads/develop' && steps.runtime-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.runtime.outputs.marker }}
+          key: ${{ steps.runtime.outputs.key }}
 
   # The weekly tier. `github.base_ref == 'main'` is the release PR: under git-flow
   # only release/X.Y is merged into main.
