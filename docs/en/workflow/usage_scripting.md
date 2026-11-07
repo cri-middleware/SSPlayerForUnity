@@ -40,7 +40,7 @@ Your playback settings hold across the switch: `SpeedScale`, `FrameSkipEnabled`,
 | `StopAllSounds()` | Method | Stop every sound the built-in playback has started. Nothing else stops one (see the note under Event Notifications) |
 | `IsPlaying` | `bool` (read) | Whether a playback session is active (`true` even while paused) |
 | `IsPausing` | `bool` (read) | Whether currently paused |
-| `IsFinished` | `bool` (read) | Whether every configured loop has played. A **state**, not a pulse — it latches on completion and holds until the next `Play()` / `SetAnimation()`, so `Play(); yield return new WaitUntil(() => player.IsFinished);` waits for the run you just started. Never true under an infinite `LoopCount`, and **not raised by `Stop()`** — a commanded stop is not a completion, which is what separates it from `!IsPlaying` |
+| `IsFinished` | `bool` (read) | Whether every configured loop has played. A **state**, not a pulse — it latches on completion and holds until the next `Play()` or a switch to another animation, so `Play(); yield return new WaitUntil(() => player.IsFinished);` waits for the run you just started. Never true under an infinite `LoopCount`, and **not raised by `Stop()`** — a commanded stop is not a completion, which is what separates it from `!IsPlaying` |
 | `IsPlayingForward` | `bool` (read) | Which way the playhead is **actually** travelling. `PlaybackDirection` is only the configured heading: on a `PlaybackStyle.PingPong` return leg this reads `false` while `PlaybackDirection` is still `Forward`. **Gate audio on it** — SpriteStudio has no reverse audio, so a key crossed on a backward leg is not meant to sound |
 | `FrameNo` | `float` | Current frame. Use `set` to seek to an arbitrary frame (fractional allowed) |
 | `TotalFrames` | `int` (read) | Frames in the range being played, both ends inclusive — the section when `SetAnimationSection` set one (`0` when not loaded) |
@@ -87,13 +87,15 @@ _player.Play();
 
 > `PlaybackDirection` / `PlaybackStyle` survive a `SetAnimation()`. They have no inspector default, so a component starts Forward / Normal until a script says otherwise. They live in the runtime, not in a serialized field: disabling the component (or setting `AnimeAsset` to `null`) discards them, and a component enabled again starts Forward / Normal, so set them again after it is enabled. A `FrameRate` override is discarded the same way. What a switch does reset is the heading inside a round trip: a new animation always starts on the outward leg. `SetPlaybackDirection(direction, style)` sets both in one call.
 
+> Disabling the component (or setting `AnimeAsset` to `null`) discards the runtime and everything it holds: besides these, the part overrides (`Permanent` ones too), the track stack, the section, the pause and the playhead. It also stops drawing, on both components. Only the **Cellmap Texture Overrides** stay, being serialized.
+
 ## Playback Parameter Properties
 
 These properties correspond to the inspector items. Changing them at runtime is reflected in the runtime immediately. The inspector items can also be keyed in an AnimationClip or a Timeline Animation Track — **Flip X**, **Offset**, **Speed Scale** and so on — and the player takes each keyed value up after the evaluation, as a `SpriteRenderer` takes a keyed **Flip X**.
 
 | Property | Type | Description |
 |---|---|---|
-| `AnimeAsset` | `SpriteStudioAnimeAsset` | Playback target asset (swappable) |
+| `AnimeAsset` | `SpriteStudioAnimeAsset` | Playback target asset (swappable). What the runtime held for the old asset does not carry over, and on the next frame the new one starts **Animation Name** as an enable does, unless a script has selected an animation first |
 | `CurrentAnimation` | `string` | Animation name (read-only: switch it with `SetAnimation()`) |
 | `AnimationNames` | `string[]` | The names of the asset's animations (read-only; empty when no asset is assigned) |
 | `AutoPlay` | `bool` | Auto-play at startup and each time the component is enabled again |
@@ -450,7 +452,7 @@ Part Color and cell overrides conflict with the animation, so they take a `Sprit
 |---|---|
 | `OverwriteOnNextKeyframe` | The override applies until the animation data updates that attribute, and is cleared when a new animation is set up |
 | `HoldUntilNextAnimation` (default) | The override wins for the current animation, and is cleared when a new animation is set up |
-| `Permanent` | The override applies as long as the same animation data (`.ssab`) is loaded (it survives animation changes) |
+| `Permanent` | The override applies as long as the same animation data (`.ssab`) is loaded and the component stays enabled (it survives animation changes) |
 
 ### Notes
 

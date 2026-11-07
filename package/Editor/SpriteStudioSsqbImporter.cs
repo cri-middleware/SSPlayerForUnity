@@ -81,15 +81,8 @@ namespace SpriteStudio.Editor
                     if (!string.IsNullOrEmpty(it.RefAnimePack) && seenPacks.Add(it.RefAnimePack))
                     {
                         SpriteStudioAnimeAssetBuilder.ResolveSsabPath(baseDir, it.RefAnimePack, out var animeAsset, SpriteStudioAnimeAssetBuilder.ArtifactDependency(ctx));
-                        if (animeAsset != null)
-                        {
-                            if (seenAssets.Add(animeAsset)) asset.ReferencedAnimeAssets.Add(animeAsset);
-                        }
-                        else
-                        {
-                            // Not reported: a pack the conversion has not written or imported yet lands here too.
-                            // ctx.LogImportWarning($"[SpriteStudioSsqbImporter] Referenced anime pack not found: '{it.RefAnimePack}' (sequence '{seq.Name}')");
-                        }
+                        // A missing pack is not reported: one the conversion has not written or imported yet lands here too.
+                        if (animeAsset != null && seenAssets.Add(animeAsset)) asset.ReferencedAnimeAssets.Add(animeAsset);
                     }
                 }
 

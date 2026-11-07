@@ -35,9 +35,6 @@ namespace SpriteStudio.Runtime
                      "(blur/outline/sepia/...) are per-part; a plain custom shader that is not per-part " +
                      "folds into the shared default path.")]
             public bool IsPerPart = true;
-
-            [Tooltip("Reserved for the Canvas (uGUI) AddOn path. Currently unused — leave empty (world-only).")]
-            public Shader CanvasShader;
         }
 
         [Tooltip("Registered per-part shaders. The built-in AddOns ship pre-registered; add rows for custom shaders.")]

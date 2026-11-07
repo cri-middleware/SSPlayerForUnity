@@ -6,8 +6,7 @@ namespace SpriteStudio.Runtime
     /// <summary>
     /// One authored/persisted cellmap texture replacement: a cellmap (or external-texture) name and the
     /// texture that replaces it at runtime. Serialized on the player components so a replacement set in the
-    /// inspector survives into a build and is re-applied on load, exactly like ForGodot's node-side
-    /// name-keyed override table.
+    /// inspector survives into a build and is re-applied on load.
     /// </summary>
     [System.Serializable]
     public class SpriteStudioCellmapTextureOverride
@@ -22,10 +21,10 @@ namespace SpriteStudio.Runtime
     }
 
     /// <summary>
-    /// Per-player runtime texture replacement state (a Player-side override, NOT the Override Layer API).
-    /// Mirrors the ForGodot <c>set_cellmap_texture</c> feature: a cellmap-name → replacement-texture table.
+    /// Per-player runtime texture replacement state (a Player-side override, NOT the Override Layer API):
+    /// a cellmap-name → replacement-texture table.
     ///
-    /// Two-layer design (matching ForGodot's node/internal split):
+    /// Two-layer design:
     ///   * The name-keyed source of truth lives on the owning component as a serialized list
     ///     (<see cref="SpriteStudioCellmapTextureOverride"/>), because names are resource-independent and
     ///     survive an asset swap.

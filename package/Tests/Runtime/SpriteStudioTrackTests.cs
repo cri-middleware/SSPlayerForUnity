@@ -628,5 +628,97 @@ namespace SpriteStudio.Runtime.Tests
             Assert.IsTrue(at10[0].HasInt);
             Assert.AreEqual(987654321, at10[0].IntValue, "read from its animation's table");
         }
+
+        // ---- a playhead moved with no event wanted ----
+
+        // Inside frame 10, the frame with the key; a whole frame number can land a hair below it.
+        private const float OnTheKey = 10.2f;
+
+        [Test]
+        public void ReleasingATimelineClip_ReportsNothingForTheFrameItLastSoughtTo()
+        {
+            var received = new List<SpriteStudioUserData>();
+            var player = MakeEventsPlayer(received);
+            player.EvaluateTimelineClip("anime_1", OnTheKey / player.InternalPlayer.GetFrameRate());
+            player.PrepareFrame(Dt, out _, out _);
+            Assert.IsEmpty(received, "no event fires under a clip");
+
+            player.ReleaseTimelineControl();
+            player.PrepareFrame(Dt, out _, out _);
+            Assert.IsEmpty(received, "and the frame the clip left it on is not reported once it lets go");
+
+            player.FrameNo = OnTheKey;
+            player.PrepareFrame(Dt, out _, out _);
+            Assert.AreEqual(1, Frame10(received).Count, "a seek of the player's own still reports its landing frame");
+        }
+
+        [Test]
+        public void AControlTrackLettingGo_ReportsNothingForTheFrameItLastSoughtTo()
+        {
+            var received = new List<SpriteStudioUserData>();
+            var player = MakeEventsPlayer(received);
+            player.OnControlTimeStart();
+            player.SetTime(OnTheKey / player.InternalPlayer.GetFrameRate());
+
+            player.OnControlTimeStop();
+            player.PrepareFrame(Dt, out _, out _);
+
+            Assert.IsEmpty(received);
+        }
+
+        [Test]
+        public void Graphic_HoldFrame_FiresNothingForTheFrameItHolds()
+        {
+            Assert.IsNotNull(_userData, "UserData.ssab is required.");
+            var asset = ScriptableObject.CreateInstance<SpriteStudioAnimeAsset>();
+            asset.SsabData = _userData;
+            _assets.Add(asset);
+            var go = new GameObject("TrackTestHold");
+            _objects.Add(go);
+            go.AddComponent<Canvas>();
+            go.AddComponent<CanvasRenderer>();
+            var graphic = go.AddComponent<SpriteStudioGraphic>();
+            graphic.AnimeAsset = asset;
+            Assert.IsTrue(graphic.SetAnimation("anime_1"));
+            var received = new List<SpriteStudioUserData>();
+            graphic.OnUserData += received.Add;
+
+            graphic.HoldFrame(OnTheKey);
+            graphic.PrepareFrame(Dt, out _, out _);
+
+            Assert.IsEmpty(received);
+            Assert.IsFalse(graphic.IsPlaying);
+
+            graphic.FrameNo = OnTheKey;
+            graphic.PrepareFrame(Dt, out _, out _);
+            Assert.AreEqual(1, Frame10(received).Count, "a seek of the graphic's own still reports its landing frame");
+        }
+
+        // ---- a clip and the animation it names ----
+
+        [Test]
+        public void SetAnimation_UnderAClip_IsUndoneAtTheNextEvaluation()
+        {
+            var player = MakePlayer("walk");
+            player.EvaluateTimelineClip("wait1", 0.0);
+            Assert.AreEqual("wait1", player.InternalPlayer.CurrentAnimationName);
+
+            Assert.IsTrue(player.SetAnimation("attack1"));
+            player.EvaluateTimelineClip("wait1", 0.1);
+
+            Assert.AreEqual("wait1", player.InternalPlayer.CurrentAnimationName);
+        }
+
+        [Test]
+        public void AClipNamingNoAnimation_IsReportedOnce()
+        {
+            var player = MakePlayer("walk");
+
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("could not select animation 'no-such-animation'"));
+            player.EvaluateTimelineClip("no-such-animation", 0.0);
+            player.EvaluateTimelineClip("no-such-animation", 0.1);
+
+            LogAssert.NoUnexpectedReceived();
+        }
     }
 }

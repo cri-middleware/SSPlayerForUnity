@@ -4,8 +4,8 @@ namespace SpriteStudio.Runtime
 {
     /// <summary>
     /// Mixer for SpriteStudioTrack. On the bound SpriteStudioPlayer, it sets the animation of the
-    /// highest-weight clip and deterministically seeks to the clip-local time.
-    /// SpriteStudio cannot blend multiple animations, so it adopts the single most dominant clip.
+    /// highest-weight clip and deterministically seeks to the clip-local time. Clips are not blended on the
+    /// Timeline; motion blending is for scripts (Crossfade and the track API), on a player no clip drives.
     /// </summary>
     internal class SpriteStudioMixerBehaviour : PlayableBehaviour
     {
@@ -17,7 +17,7 @@ namespace SpriteStudio.Runtime
             _boundPlayer = player;
             if (player == null) return;
 
-            // Pick the single highest-weight clip (blending is impossible, so adopt the dominant clip).
+            // Pick the single highest-weight clip.
             int inputCount = playable.GetInputCount();
             int best = -1;
             float bestWeight = 0f;

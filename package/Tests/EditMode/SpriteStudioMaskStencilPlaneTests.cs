@@ -6,16 +6,12 @@ using SpriteStudio.Runtime;
 namespace SpriteStudio.Runtime.EditModeTests
 {
     /// <summary>
-    /// Regression guard for the mask stencil bit-plane split.
+    /// Guards the mask stencil bit-plane split.
     ///
     /// Mask writers use one of two ops depending on the part's maskInfluence: Invert (influence=1) or
     /// IncrementWrap/DecrementWrap (influence=0). Each op is self-inverse on its own, but the two are
-    /// NOT mutually commutative, so while they shared all four mask bits a scene mixing both kinds of
-    /// pure mask produced order-dependent coverage and left residue behind after a writer's restore -
-    /// residue that then leaked onto every part drawn afterwards.
-    ///
-    /// The fix confines Invert to a parity plane (0x08) and Incr/Decr to a counter plane (0x07), so the
-    /// ops can no longer observe each other's bits. These tests pin that separation, the arithmetic
+    /// NOT mutually commutative, so Invert stays on a parity plane (0x08) and Incr/Decr on a counter plane
+    /// (0x07), where neither observes the other's bits. These tests pin that separation, the arithmetic
     /// properties each plane needs, and the URP coexistence bound (nothing may escape 0x0F).
     /// </summary>
     public class SpriteStudioMaskStencilPlaneTests
@@ -156,7 +152,7 @@ namespace SpriteStudio.Runtime.EditModeTests
                 "a DecrementWrap borrow must be discarded by the write mask, not flip the parity bit");
         }
 
-        // ---- the actual bug --------------------------------------------------------------------
+        // ---- plane isolation --------------------------------------------------------------------
 
         [Test]
         public void MixedInfluence_CoverageIsIndependentOfDrawOrder()

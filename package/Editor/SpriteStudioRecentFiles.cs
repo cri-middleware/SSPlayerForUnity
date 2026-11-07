@@ -13,14 +13,6 @@ namespace SpriteStudio.Editor
     /// The list lives in <see cref="EditorUserSettings"/>, which writes to
     /// UserSettings/EditorUserSettings.asset -- one store per project, per user.
     /// <para>
-    /// It used to live in EditorPrefs, which is per machine: every project opened with the same
-    /// Unity install shared a single list under one unqualified key, so a project's Recent panel
-    /// filled up with .sspj files belonging to whatever else had been imported on that machine.
-    /// The window hides entries whose file no longer exists, which masked it -- another project's
-    /// sources are still on disk, so they showed; only ones that had been moved or deleted
-    /// disappeared, making the list look as though it cleaned itself up.
-    /// </para>
-    /// <para>
     /// A .sspj normally sits outside Assets/, so these are absolute paths and cannot be made
     /// project-relative. Scoping the store is the only place the project can be accounted for.
     /// </para>
@@ -39,8 +31,7 @@ namespace SpriteStudio.Editor
         /// <summary>Returns a fresh list (a copy). Safe for the caller to enumerate directly.</summary>
         public static List<string> Get()
         {
-            // Null for a key this project has never written -- a first run, or a project that
-            // predates the move off EditorPrefs.
+            // Null for a key this project has never written.
             string json = EditorUserSettings.GetConfigValue(ConfigKey);
             if (string.IsNullOrEmpty(json)) return new List<string>();
 

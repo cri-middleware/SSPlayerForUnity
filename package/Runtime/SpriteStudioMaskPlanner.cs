@@ -11,9 +11,8 @@ namespace SpriteStudio.Runtime
     /// (texture hash, blend)", and computes each part's vertex/index counts in a form that matches the mesh
     /// job's builder.
     ///
-    /// The actual draw batch / submesh emission (EmitMaskStep / Phase A/B) touches shared state
-    /// (_drawBatches/_submeshes), so it stays on the builder side. This class handles only the "computation";
-    /// the builder consumes the results via accessors.
+    /// The Phase A/B loops that emit the draw batches and submeshes stay on the builder side. This class
+    /// handles only the "computation"; the builder consumes the results via accessors.
     /// </summary>
     internal sealed class SpriteStudioMaskPlanner : System.IDisposable
     {
@@ -21,7 +20,7 @@ namespace SpriteStudio.Runtime
         {
             public int PartIndex;
             public ushort DrawRank;  // index into draw_order: the writer's scope pivot
-            public bool OpInvert;    // false = increment / true = invert (PartData.MaskInfluence)
+            public bool OpInvert;    // false = increment / true = invert (effective maskInfluence)
             public bool IsClipping;  // true = masks parts drawn AFTER (rank > self) / false (pure) = BEFORE
             public float Threshold;  // (255 - PartState.Mask)/255; texel.a <= threshold is discarded
         }
@@ -42,7 +41,7 @@ namespace SpriteStudio.Runtime
 
         public int WriterCount { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => _maskWriterCount; }
 
-        // The hot-path (mask Phase A) accessors inline and bypass the bounds-check to match the original implementation's raw-pointer performance.
+        // Inlined and unchecked: these run per part in the build loop.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public unsafe MaskWriter GetWriter(int i)
             => ((MaskWriter*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskWriters))[i];
@@ -58,12 +57,12 @@ namespace SpriteStudio.Runtime
         public unsafe bool IsWriterActive(int partIndex)
             => ((byte*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_maskWriterActive))[partIndex] != 0;
 
-        /// <summary>Build the current frame's mask writer list (mirrors _build_mask_writers), and record
+        /// <summary>Build the current frame's mask writer list, and record
         /// which writing parts write at all this frame for <see cref="IsWriterActive"/>.</summary>
         /// <param name="inheritedMaskInfluence">maskInfluence of the instance part directly above this player
         /// (one level, not chained). A writer's op/plane follows its EFFECTIVE maskInfluence, not just its
         /// own: an instance part with maskInfluence=0 puts its child's writers on the counter plane (union),
-        /// which is what SS7.5 does when maskInfluence is mixed. Root players pass the AND identity (true),
+        /// which is what SpriteStudio 7.5 does when maskInfluence is mixed. Root players pass the AND identity (true),
         /// so this is a no-op there.</param>
         public unsafe void BuildWriters(RawPartState* parts, NativeArray<ushort> drawOrder,
             bool hasMaskParts, SpriteStudioInternalPlayer.MaskPartData[] maskPartData, int drawOrderLength, int partsLength,

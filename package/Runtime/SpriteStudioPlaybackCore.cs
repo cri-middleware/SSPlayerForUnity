@@ -78,9 +78,9 @@ namespace SpriteStudio.Runtime
 
         private void RelayAnimationFinished() => OnAnimationFinished?.Invoke();
         private void RelayAnimationLooped() => OnAnimationLooped?.Invoke();
-        private void RelayUserData(SpriteStudioUserData user) => OnUserData?.Invoke(user);
-        private void RelaySignal(SpriteStudioSignal sig) => OnSignal?.Invoke(sig);
-        private void RelayAudio(SpriteStudioAudio audio) => OnAudio?.Invoke(audio);
+        private void RelayUserData(SpriteStudioUserData user) { if (!IsDroppedLanding(user.FrameNo, user.Source)) OnUserData?.Invoke(user); }
+        private void RelaySignal(SpriteStudioSignal sig) { if (!IsDroppedLanding(sig.FrameNo, sig.Source)) OnSignal?.Invoke(sig); }
+        private void RelayAudio(SpriteStudioAudio audio) { if (!IsDroppedLanding(audio.FrameNo, audio.Source)) OnAudio?.Invoke(audio); }
 
         // The one place a pack reaches the Internal, so the one place the "already reported" memory has to
         // be dropped: the names and frame ranges that are valid have just changed.
@@ -156,10 +156,9 @@ namespace SpriteStudio.Runtime
                 if (_reportedMissingAnimation != animationName)
                 {
                     _reportedMissingAnimation = animationName;
-                    // The runtime's own reason, verbatim. This used to say "has no animation", which is the
-                    // common case and not the only one: the same call fails with "SSAB data is not loaded"
-                    // on a player still waiting for its asset to finish importing, and telling that reader
-                    // the name is missing sends them to look at the wrong thing.
+                    // The runtime's own reason, verbatim: a missing name is the common case and not the only
+                    // one. The same call fails with "SSAB data is not loaded" on a player still waiting for
+                    // its asset to finish importing.
                     string reason = Internal.LastErrorMessage;
                     string because = reason == null ? "" : $" -- {reason}";
                     Debug.LogWarning(
@@ -260,11 +259,25 @@ namespace SpriteStudio.Runtime
 
         private string PackName => _loadedAsset != null ? _loadedAsset.name : "the loaded pack";
 
+        // A component that is not enabled has no runtime, so what it was told to do goes nowhere. Warned about
+        // once per component: a script doing this in a loop would otherwise fill the Console.
+        private bool _reportedNotEnabled;
+
+        /// <summary>Reports a call that a component with no runtime cannot carry out.</summary>
+        public void ReportNotEnabled(string call, Object context)
+        {
+            if (Internal != null || _reportedNotEnabled) return;
+            _reportedNotEnabled = true;
+            Debug.LogWarning($"[{Who(context)}] {call} did nothing: the component is not enabled, so it has no runtime yet. " +
+                             "Call it once the GameObject is active and the component enabled.", context);
+        }
+
         /// <summary>Starts playing the currently set-up animation from the beginning.</summary>
         public void Play()
         {
             if (Internal == null) return;
             _seekPending = false;
+            _dropLanding = false;
             Internal.Play();
             OnAnimationStarted?.Invoke();
         }
@@ -274,6 +287,7 @@ namespace SpriteStudio.Runtime
         {
             if (Internal == null) return;
             _seekPending = false;
+            _dropLanding = false;
             Internal.Play(startFrame);
             OnAnimationStarted?.Invoke();
         }
@@ -283,6 +297,10 @@ namespace SpriteStudio.Runtime
         // from its own frame, whose keys do sound, so it drops a seek made before it.
         private bool _seekPending;
         private int _seekLandingFrame;
+        // Where nothing asked for the report at all, not even the notifications go out. Only the source that
+        // landed there is silenced: another track's key on the same frame number is one it reached itself.
+        private bool _dropLanding;
+        private int _dropLandingSource;
 
         /// <summary>Moves the playhead, remembering where it lands.</summary>
         public void Seek(float frame)
@@ -291,8 +309,27 @@ namespace SpriteStudio.Runtime
             if (p == null) return;
             p.SetFrame(frame);
             _seekPending = true;
+            _dropLanding = false;
             _seekLandingFrame = Mathf.FloorToInt(p.GetFrame());
         }
+
+        /// <summary>
+        /// Drops the report of the frame the playhead is on, due on the next update: its keys are not
+        /// delivered and their sounds not played. For a playhead moved with no event wanted, as a held UI state
+        /// and a Timeline clip move it.
+        /// </summary>
+        public void DropLandingReport()
+        {
+            var p = Internal;
+            if (p == null) return;
+            _seekPending = true;
+            _dropLanding = true;
+            _dropLandingSource = p.GetTrackMainSource(0);
+            _seekLandingFrame = Mathf.FloorToInt(p.GetFrame());
+        }
+
+        private bool IsDroppedLanding(int frameNo, int source)
+            => _dropLanding && frameNo == _seekLandingFrame && source == _dropLandingSource;
 
         /// <summary>Moves a track's playhead. Track 0's is the character's, so moving it is a seek.</summary>
         public bool SetTrackFrame(int track, float frame)
@@ -302,6 +339,7 @@ namespace SpriteStudio.Runtime
             if (track == 0)
             {
                 _seekPending = true;
+                _dropLanding = false;
                 _seekLandingFrame = Mathf.FloorToInt(p.GetFrame());
             }
             return true;
@@ -311,7 +349,11 @@ namespace SpriteStudio.Runtime
         public bool IsSeekLanding(int frameNo) => _seekPending && frameNo == _seekLandingFrame;
 
         /// <summary>Called after each update: the landing frame's keys have been reported by then.</summary>
-        public void EndUpdate() => _seekPending = false;
+        public void EndUpdate()
+        {
+            _seekPending = false;
+            _dropLanding = false;
+        }
 
         /// <summary>Advances the animation and schedules the mesh-build job (does not wait for the Job to complete).</summary>
         public void TickAndSchedule(float deltaTime, bool subFrameEnabled)

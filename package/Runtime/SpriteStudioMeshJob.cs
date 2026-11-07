@@ -8,17 +8,16 @@ using UnityEngine;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// Share the frame-data enum values (ss.runtime.UpdateAttributeFlags) by deriving them from the generated
-    /// enum rather than from literals. Having the accounting side (SpriteStudioInternalPlayer) and the Burst Job
-    /// (UpdateMeshJob) reference the same definition prevents the "edit one side and the values drift" accident
-    /// (a mismatch between the vertex-count accounting and the Job).
+    /// The frame-data enum values (ss.runtime.UpdateAttributeFlags), derived from the generated enum rather
+    /// than from literals. Shared by the vertex-count accounting (SpriteStudioGeometryBuilder,
+    /// SpriteStudioMaskPlanner) and the Burst job (UpdateMeshJob), so the two cannot drift.
     /// Burst inlines const, so the Job can reference it too.
     /// </summary>
     internal static class SsUpdateFlag
     {
         public const ulong AttributeVertex = (ulong)ss.runtime.UpdateAttributeFlags.AttributeVertex;
         public const ulong AttributePartColor = (ulong)ss.runtime.UpdateAttributeFlags.AttributePartColor;
-        // Center vertex needed = a frame where vertex deform or part color is active (same condition as SDK core/framedata.rs).
+        // A frame with vertex deform or part color active carries a centre vertex.
         public const ulong NeedsCenterMask = AttributeVertex | AttributePartColor;
     }
 
@@ -100,10 +99,14 @@ namespace SpriteStudio.Runtime
 
     internal struct SsVertex
     {
+        // TexCoord1.y of a part with no cell (a Shape). It resolves to Mix as 0 does; the Canvas shader, whose
+        // one material binds an atlas for every part, reads it as "draw with white".
+        public const float BlendIdxNoCell = -1f;
+
         public Vector3 Position;
         public Color32 Color;
         public Vector2 TexCoord0;
-        public Vector4 TexCoord1; // [rate, blend_idx, pma_flag, reserved]
+        public Vector4 TexCoord1; // [rate, blend_idx, isNormalized, isAdditive]
     }
 
     /// <summary>
@@ -373,7 +376,10 @@ namespace SpriteStudio.Runtime
             float* out_x = stackalloc float[5] { part_verts[0], part_verts[2], part_verts[4], part_verts[6], part_verts[8] };
             float* out_y = stackalloc float[5] { part_verts[1], part_verts[3], part_verts[5], part_verts[7], part_verts[9] };
 
-            Color32* corner_colors = stackalloc Color32[4] { new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255) };
+            // A part colour's corners already carry the part's opacity, its parents' included: the runtime
+            // multiplies it in, so only the white default takes it here.
+            byte alphaByte = (byte)(math.clamp(part.Alpha, 0f, 1f) * 255f);
+            Color32* corner_colors = stackalloc Color32[4] { new Color32(255, 255, 255, alphaByte), new Color32(255, 255, 255, alphaByte), new Color32(255, 255, 255, alphaByte), new Color32(255, 255, 255, alphaByte) };
             float* corner_rates = stackalloc float[4] { 0f, 0f, 0f, 0f };
             int blend_idx = 0;
 
@@ -386,13 +392,6 @@ namespace SpriteStudio.Runtime
                 corner_colors[3] = pc.Rb.Rgba; corner_rates[3] = pc.Rb.Rate;
                 blend_idx = pc.BlendType;
                 if (blend_idx > 3) blend_idx = 0;
-            }
-
-            // Apply part alpha
-            byte alphaByte = (byte)(math.clamp(part.Alpha, 0f, 1f) * 255f);
-            for (int i = 0; i < 4; i++)
-            {
-                corner_colors[i].a = (byte)((corner_colors[i].a * alphaByte) / 255);
             }
 
             for (int i = 0; i < 4; i++)
@@ -462,7 +461,6 @@ namespace SpriteStudio.Runtime
                 new Color32(255, 255, 255, alphaByte)
             };
             float* corner_rates = stackalloc float[4] { 1f, 1f, 1f, 1f };
-            int blend_idx = 0;
 
             if ((part.UpdateFlag & SsUpdateFlag.AttributePartColor) != 0 && part.PartColorIndex >= 0 && part.PartColorIndex < PartColorCount)
             {
@@ -471,11 +469,6 @@ namespace SpriteStudio.Runtime
                 corner_colors[1] = pc.Rt.Rgba;
                 corner_colors[2] = pc.Lb.Rgba;
                 corner_colors[3] = pc.Rb.Rgba;
-                
-                for (int i = 0; i < 4; i++)
-                {
-                    corner_colors[i].a = (byte)((corner_colors[i].a * alphaByte) / 255);
-                }
             }
 
             for (int i = 0; i < part_shape_count; i++)
@@ -506,7 +499,7 @@ namespace SpriteStudio.Runtime
                         0f),
                     Color = new Color32(r, g, b, a),
                     TexCoord0 = new Vector2(0f, 0f),
-                    TexCoord1 = new Vector4(v_rate, blend_idx, 0f, isAdditive)
+                    TexCoord1 = new Vector4(v_rate, SsVertex.BlendIdxNoCell, 0f, isAdditive)
                 };
             }
 
@@ -546,7 +539,6 @@ namespace SpriteStudio.Runtime
             {
                 var pc = PartColors[part.PartColorIndex];
                 meshColor = pc.Lt.Rgba;
-                meshColor.a = (byte)((meshColor.a * alphaByte) / 255);
                 meshRate = pc.Lt.Rate;
                 blendIdx = pc.BlendType;
                 if (blendIdx > 3) blendIdx = 0;

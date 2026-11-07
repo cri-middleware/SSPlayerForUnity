@@ -5,12 +5,7 @@ using UnityEngine.Events;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// Layer 3: Player component for Canvas (uGUI).
-    /// Feeds meshes directly to the CanvasRenderer.
-    /// Bypasses Unity UI's standard rebuild flow (Rebuild) to achieve highly efficient rendering.
-    /// Playback logic is delegated to the shared core (SpriteStudioPlaybackCore).
-    /// In Play mode the SpriteStudioUpdateManager drives it in bulk; in edit mode (ExecuteAlways) it
-    /// updates the preview in its own LateUpdate.
+    /// Plays a SpriteStudio animation (.ssab) as a uGUI graphic on a Canvas.
     /// The animation's canvas is fitted into the RectTransform's rect (<see cref="Fit"/>, <see cref="Align"/>),
     /// and as an <see cref="ILayoutElement"/> the graphic asks a layout for the canvas's size.
     /// </summary>
@@ -35,6 +30,11 @@ namespace SpriteStudio.Runtime
         // Per-player, draw-time replacement map derived from _cellmapTextureOverrides (never serialized).
         private readonly SpriteStudioTextureOverride _textureOverride = new SpriteStudioTextureOverride();
 
+        /// <summary>
+        /// The animation asset to play. Assigning null unloads it, and the graphic draws nothing. Another asset
+        /// loses what the runtime held for the last one (overrides, tracks, section), and on the next frame
+        /// starts Animation Name as an enable does, unless a script selects an animation first.
+        /// </summary>
         public SpriteStudioAnimeAsset AnimeAsset
         {
             get => _animeAsset;
@@ -48,11 +48,13 @@ namespace SpriteStudio.Runtime
                 else if (_core.Internal != null)
                 {
                     _core.ReloadAsset(_animeAsset);
+                    _startAfterSwap = _started;
                 }
                 else if (isActiveAndEnabled)
                 {
                     // The runtime went with the pack a null asset let go of; this one brings it back.
                     EnsureCore();
+                    _startAfterSwap = _started;
                 }
                 // The cellmap name->hash table belongs to the new asset: re-resolve name-keyed replacements.
                 _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
@@ -100,7 +102,7 @@ namespace SpriteStudio.Runtime
         }
 
         [Header("Playback Settings")]
-        [Tooltip("Animation name to play (e.g. pack name / animation name)")]
+        [Tooltip("Name of the animation to play, as listed in the asset.")]
         [SerializeField] private string _animationName = "";
         /// <summary>
         /// The configured animation name (the serialized field the inspector labels "Animation Name").
@@ -116,6 +118,7 @@ namespace SpriteStudio.Runtime
 
         [Tooltip("Whether to start playback automatically on startup")]
         [SerializeField] private bool _autoPlay = true;
+        /// <summary>Whether the animation starts by itself when the graphic starts, and each time it is enabled again.</summary>
         public bool AutoPlay
         {
             get => _autoPlay;
@@ -124,6 +127,7 @@ namespace SpriteStudio.Runtime
 
         [Tooltip("Loop count. -1 = infinite loop (0 is a synonym) / 1 = play once / n = play n times")]
         [SerializeField] private int _loopCount = -1;
+        /// <summary>How many times the animation plays: 1 once, n that many times, -1 (or 0) forever.</summary>
         public int LoopCount
         {
             get => _loopCount;
@@ -154,6 +158,7 @@ namespace SpriteStudio.Runtime
 
         [Tooltip("Whether to enable sub-frame rendering (interpolation between frames)")]
         [SerializeField] private bool _subFrameEnabled = false;
+        /// <summary>Whether to draw between frames rather than on whole frames, for smooth motion at a high refresh rate or in slow motion.</summary>
         public bool SubFrameEnabled
         {
             get => _core.Internal != null ? _core.Internal.SubFrameEnabled : _subFrameEnabled;
@@ -166,6 +171,7 @@ namespace SpriteStudio.Runtime
 
         [Tooltip("Real-time tracking (timed). ON: advance by elapsed time even when frames drop under load. OFF (fixed): always advance exactly one frame per update (frame-by-frame).")]
         [SerializeField] private bool _skipFrames = true;
+        /// <summary>On: playback follows elapsed time, skipping frames under load. Off: each update advances exactly one frame.</summary>
         public bool FrameSkipEnabled
         {
             get => _core.Internal != null ? _core.Internal.IsFrameSkipEnabled() : _skipFrames;
@@ -209,12 +215,11 @@ namespace SpriteStudio.Runtime
             if (_core.IsAnimationSetUp(animName)) return true;
             bool ok = _core.SetAnimation(_animationName, this);
             // The runtime resets the loop count on every setup, so a switch would otherwise turn a
-            // configured `LoopCount = 1` back into looping forever -- silently, and only when the
-            // animation was changed at runtime rather than from the inspector. Every sibling Player
-            // re-applies it inside its own setAnimation for exactly this reason.
+            // configured `LoopCount = 1` back into looping forever.
             if (ok)
             {
                 ApplyPlaybackSettings();
+                _startAfterSwap = false;
                 // Another animation may bring another canvas, which is the size a layout asks for.
                 SetLayoutDirty();
             }
@@ -240,10 +245,28 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>Starts playing the currently set-up animation from the beginning.</summary>
-        public void Play() { _core.Play(); }
+        public void Play()
+        {
+            // With Auto Play on, the enable that creates the runtime starts it all the same.
+            if (!_autoPlay) _core.ReportNotEnabled(nameof(Play), this);
+            _core.Play();
+        }
 
         /// <summary>Starts playing the currently set-up animation from the specified frame.</summary>
-        public void Play(float startFrame) { _core.Play(startFrame); }
+        public void Play(float startFrame)
+        {
+            _core.ReportNotEnabled(nameof(Play), this);
+            _core.Play(startFrame);
+        }
+
+        // Stops on a frame with nothing reported for it, for the UI adapter's reduced motion: a stopped playhead
+        // reports the frame a seek lands on all the same, and a held state fires no event.
+        internal void HoldFrame(float frame)
+        {
+            Stop();
+            _core.Seek(frame);
+            _core.DropLandingReport();
+        }
 
         #region Playback Control
         // Thinly expose, as the component's public API, the playback controls the internal player (Rust
@@ -282,7 +305,7 @@ namespace SpriteStudio.Runtime
         /// Whether every configured loop has played.
         /// <para>
         /// A <b>state</b>, not a pulse: it latches on completion and holds until the next
-        /// <see cref="Play()"/> or <see cref="SetAnimation"/>, so a caller that was not subscribed
+        /// <see cref="Play()"/> or a switch to another animation, so a caller that was not subscribed
         /// when <see cref="OnAnimationFinished"/> fired can still ask whether the run is over. That
         /// also makes it what a coroutine waits on:
         /// <c>Play(); yield return new WaitUntil(() =&gt; player.IsFinished);</c> — <c>Play</c>
@@ -319,6 +342,7 @@ namespace SpriteStudio.Runtime
         /// </summary>
         public void Pause()
         {
+            _core.ReportNotEnabled(nameof(Pause), this);
             _core.Internal?.Pause();
         }
 
@@ -342,7 +366,11 @@ namespace SpriteStudio.Runtime
         public float FrameNo
         {
             get => _core.Internal?.GetFrame() ?? 0f;
-            set => _core.Seek(value);
+            set
+            {
+                _core.ReportNotEnabled(nameof(FrameNo), this);
+                _core.Seek(value);
+            }
         }
 
         /// <summary>
@@ -521,9 +549,9 @@ namespace SpriteStudio.Runtime
         public bool ClearPartVisibilityOverride(int partIndex) => _core.Internal?.ClearPartVisibilityOverride(partIndex) ?? false;
 
         /// <summary>
-        /// Override a Normal part's colour with a single value (all four corners). The colour comes
-        /// first and <paramref name="blendOp"/> trails with a default;
-        /// the C ABI's order is the other way round.
+        /// Override a Normal part's colour with a single value (all four corners). The colour comes first
+        /// and <paramref name="blendOp"/> trails with a default, so the common case reads
+        /// <c>SetPartColorOverride("hat", Color.red)</c>.
         /// </summary>
         public bool SetPartColorOverride(string partName, Color color,
             SpriteStudioBlendOp blendOp = SpriteStudioBlendOp.Mix,
@@ -824,13 +852,19 @@ namespace SpriteStudio.Runtime
         // returns to its default state and a Play On Awake particle system plays again.
         [System.NonSerialized] private bool _started;
 
+        // An asset was assigned after Start. Waiting for the next frame lets a script that assigns it and then
+        // selects an animation, as most do, do so with no warning about the old name and no extra started event.
+        [System.NonSerialized] private bool _startAfterSwap;
+
         private void StartPlayback()
         {
+            _startAfterSwap = false;
             if (string.IsNullOrEmpty(_animationName)) return;
             // Always call SetAnimation so the first frame is posed even when AutoPlay is off; actually start
             // playback only when AutoPlay is on. SetAnimation pushes the serialized loop/speed/skip itself,
-            // so the order is simply animation -> play.
-            if (SetAnimation(_animationName) && _autoPlay) Play();
+            // so the order is simply animation -> play. A script may have played it already, between the enable
+            // and this first Start: Play would rewind what it asked for.
+            if (SetAnimation(_animationName) && _autoPlay && !IsPlaying) Play();
         }
 
         private readonly SpriteStudioPlaybackCore _core = new SpriteStudioPlaybackCore();
@@ -844,43 +878,55 @@ namespace SpriteStudio.Runtime
         // The mesh handed to the CanvasRenderer, exposed for tests that check what reached it.
         internal Mesh CanvasMesh => _sharedMesh;
 
+        /// <summary>Raised by <see cref="Play()"/>, as playback starts.</summary>
         public event System.Action OnAnimationStarted
         {
             add => _core.OnAnimationStarted += value;
             remove => _core.OnAnimationStarted -= value;
         }
+        /// <summary>Raised once when every configured loop has played. Never under an infinite <see cref="LoopCount"/>, and not by <see cref="Stop"/>.</summary>
         public event System.Action OnAnimationFinished
         {
             add => _core.OnAnimationFinished += value;
             remove => _core.OnAnimationFinished -= value;
         }
+        /// <summary>Raised each time a loop returns to the beginning. The final loop finishes instead.</summary>
         public event System.Action OnAnimationLooped
         {
             add => _core.OnAnimationLooped += value;
             remove => _core.OnAnimationLooped -= value;
         }
+        /// <summary>Raised for each user-data key the playhead reaches.</summary>
         public event System.Action<SpriteStudioUserData> OnUserData
         {
             add => _core.OnUserData += value;
             remove => _core.OnUserData -= value;
         }
+        /// <summary>Raised for each signal key the playhead reaches.</summary>
         public event System.Action<SpriteStudioSignal> OnSignal
         {
             add => _core.OnSignal += value;
             remove => _core.OnSignal -= value;
         }
+        /// <summary>Raised for each audio key the playhead reaches, whether or not the built-in playback sounds it.</summary>
         public event System.Action<SpriteStudioAudio> OnAudio
         {
             add => _core.OnAudio += value;
             remove => _core.OnAudio -= value;
         }
 
+        /// <summary>Inspector counterpart of <see cref="OnAnimationStarted"/>.</summary>
         [Header("Events")]
         public UnityEvent OnAnimationStartedEvent = new UnityEvent();
+        /// <summary>Inspector counterpart of <see cref="OnAnimationFinished"/>.</summary>
         public UnityEvent OnAnimationFinishedEvent = new UnityEvent();
+        /// <summary>Inspector counterpart of <see cref="OnAnimationLooped"/>.</summary>
         public UnityEvent OnAnimationLoopedEvent = new UnityEvent();
+        /// <summary>Inspector counterpart of <see cref="OnUserData"/>.</summary>
         public UserDataUnityEvent OnUserDataEvent = new UserDataUnityEvent();
+        /// <summary>Inspector counterpart of <see cref="OnSignal"/>.</summary>
         public SignalUnityEvent OnSignalEvent = new SignalUnityEvent();
+        /// <summary>Inspector counterpart of <see cref="OnAudio"/>.</summary>
         public AudioUnityEvent OnAudioEvent = new AudioUnityEvent();
 
         private Mesh _sharedMesh;
@@ -893,11 +939,7 @@ namespace SpriteStudio.Runtime
             {
                 _sharedMesh = new Mesh();
                 _sharedMesh.name = "SpriteStudio_CanvasMesh";
-                // Same contract as SpriteStudioPlayer's mesh: runtime-only, destroyed by the owner
-                // in OnDisable. This path hands the mesh to canvasRenderer.SetMesh rather than to a
-                // serialized field, so it is not written into scenes the way the MeshFilter one was
-                // - the flag is here so both meshes state the same lifetime instead of leaving the
-                // difference to be rediscovered.
+                // Runtime-only, destroyed by the owner in OnDisable.
                 _sharedMesh.hideFlags = HideFlags.HideAndDontSave;
                 _sharedMesh.MarkDynamic();
             }
@@ -1013,12 +1055,8 @@ namespace SpriteStudio.Runtime
 
         private void LateUpdate()
         {
-            // Play mode is centrally managed by SpriteStudioUpdateManager.
-            // Only the edit-mode (ExecuteAlways) static preview is updated here. Start() does not run in edit
-            // mode and SetupAnimation is never called, so right after placement an empty frame is built and it
-            // "flashes and disappears". Explicitly set up -> pin the start frame, and rebuild/reassert every
-            // frame without advancing (ApplyAndRender every frame rather than dirty-once, so the mesh keeps
-            // showing even after uGUI clears the CanvasRenderer's mesh).
+            // Play mode is driven by SpriteStudioUpdateManager. In edit mode, rebuild the preview every frame
+            // without advancing, so it survives uGUI clearing the CanvasRenderer's mesh.
             if (_unloadPending)
             {
                 _unloadPending = false;
@@ -1161,10 +1199,12 @@ namespace SpriteStudio.Runtime
         internal void PrepareFrame(float deltaTime, out System.IntPtr handle, out float drawFrame)
         {
             if (_core.Internal == null) { handle = System.IntPtr.Zero; drawFrame = 0f; return; }
+            if (_startAfterSwap) StartPlayback();
             // Before the frame is prepared: a fit that changed drops the cache that would skip the build.
             ApplyFit();
-            _core.Internal.PrepareFrameData(deltaTime, true, out handle, out drawFrame);
-            _core.EndUpdate();
+            // In a finally: a handler that throws out of the update has still had its landing frame reported.
+            try { _core.Internal.PrepareFrameData(deltaTime, true, out handle, out drawFrame); }
+            finally { _core.EndUpdate(); }
         }
 
         /// <inheritdoc/>
@@ -1245,8 +1285,8 @@ namespace SpriteStudio.Runtime
             var submeshes = _core.Internal.Submeshes;
 
             // Multi-atlas is not supported on the Canvas path: one CanvasRenderer = one mesh + one
-            // material. Interim guard: draw with the first atlas only and warn once (other atlases
-            // sample the wrong texture but never crash).
+            // material. Draw with the first atlas only and warn once (other atlases sample the wrong
+            // texture but never crash).
             if (!_warnedMultiTexture && _animeAsset.Textures != null && _animeAsset.Textures.Count > 1)
             {
                 Debug.LogWarning($"[SpriteStudioGraphic] '{_animeAsset.name}' uses {_animeAsset.Textures.Count} atlases. " +
@@ -1255,7 +1295,7 @@ namespace SpriteStudio.Runtime
                 _warnedMultiTexture = true;
             }
 
-            uint texHash = submeshes[0].TextureHash;
+            uint texHash = CanvasAtlasHash(submeshes, subCount);
 
             uint signature = texHash + 1u; // +1 so a valid hash never collides with the empty sentinel 0
             // A reimport destroys the asset's canvas materials: a new revision re-resolves the atlas material,
@@ -1267,6 +1307,17 @@ namespace SpriteStudio.Runtime
                 _materialAssetRevision = _animeAsset.Revision;
                 _canvasMaterialDirty = false;
             }
+        }
+
+        // The atlas the one material binds: the first a draw names. A part with no cell (hash 0) may come
+        // first; it draws with white whatever is bound, so it must not leave the rest with no atlas.
+        internal static uint CanvasAtlasHash(Unity.Collections.NativeArray<SubmeshInfo> submeshes, int count)
+        {
+            for (int s = 0; s < count; s++)
+            {
+                if (submeshes[s].TextureHash != 0) return submeshes[s].TextureHash;
+            }
+            return 0;
         }
 
         private void RebuildCanvasMaterial(uint texHash)

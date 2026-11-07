@@ -64,7 +64,7 @@ Shader "SpriteStudio/MaskWrite"
                 float4 vertex   : POSITION;
                 float4 color    : COLOR;
                 float2 texcoord : TEXCOORD0;
-                float4 texcoord1: TEXCOORD1; // [rate, blend_idx, isNormalized, reserved]
+                float4 texcoord1: TEXCOORD1; // [rate, blend_idx, isNormalized, isAdditive]
             };
 
             struct v2f
@@ -150,7 +150,7 @@ Shader "SpriteStudio/MaskWrite"
                 float4 vertex   : POSITION;
                 float4 color    : COLOR;
                 float2 texcoord : TEXCOORD0;
-                float4 texcoord1: TEXCOORD1; // [rate, blend_idx, isNormalized, reserved]
+                float4 texcoord1: TEXCOORD1; // [rate, blend_idx, isNormalized, isAdditive]
             };
 
             struct v2f

@@ -10,7 +10,7 @@ namespace SpriteStudio.Editor
     /// </summary>
     /// <remarks>
     /// The setting lives in <see cref="EditorUserSettings"/> (UserSettings/EditorUserSettings.asset),
-    /// so it is per project and per person -- see docs/*/workflow/import.md.
+    /// so it is per project and per person.
     /// </remarks>
     internal static class SpriteStudioOutputFolder
     {
@@ -82,7 +82,7 @@ namespace SpriteStudio.Editor
         /// <summary>
         /// The folder one .sspj converts into. Null when there is no usable output folder.
         /// A reconvert started from an existing .ssab does not come through here -- it writes back into
-        /// the folder that .ssab lives in, which the docs allow to have been moved or renamed since.
+        /// the folder that .ssab lives in, which may have been moved or renamed since.
         /// </summary>
         public static string ResolveConversionDir(string sspjPath)
         {

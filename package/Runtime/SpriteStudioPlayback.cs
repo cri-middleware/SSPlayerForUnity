@@ -59,15 +59,9 @@ namespace SpriteStudio.Runtime
     }
 
     /// <summary>
-    /// The four corner colors of a gradient override, in one value.
+    /// The four corner colors of a gradient override, in one value, so each corner is named rather than
+    /// passed by position.
     /// </summary>
-    /// <remarks>
-    /// One argument rather than four, so the color overrides read the same shape
-    /// whether they take one color or four. The Brain's
-    /// left-top / right-top / left-bottom / right-bottom order is carried by the
-    /// field names instead of by position, where swapping two of them silently
-    /// mirrored the gradient.
-    /// </remarks>
     public readonly struct SpriteStudioCornerColors
     {
         public readonly UnityEngine.Color LeftTop;

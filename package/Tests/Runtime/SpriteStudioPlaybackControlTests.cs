@@ -10,9 +10,9 @@ using UnityEngine.UI;
 namespace SpriteStudio.Runtime.Tests
 {
     /// <summary>
-    /// Verifies the playback-control API added to SpriteStudioPlayer / SpriteStudioGraphic in Tier 1
-    /// (IsPlaying / IsPaused / Pause / Stop / FrameNo / TotalFrames /
-    ///  FrameRate / Reverse / PingPong / SetAnimationSection).
+    /// Verifies the playback-control API of SpriteStudioPlayer / SpriteStudioGraphic
+    /// (IsPlaying / IsPausing / Pause / Resume / Stop / FrameNo / TotalFrames /
+    ///  FrameRate / PlaybackDirection / PlaybackStyle / SetAnimationSection).
     ///
     /// These are thin delegations to the internal player (Rust runtime), so we check them at two layers:
     ///   (A) Component layer — delegations that synchronously reflect native state, round-trips, and null safety.
@@ -110,8 +110,7 @@ namespace SpriteStudio.Runtime.Tests
             Assume.That(player.TotalFrames, Is.GreaterThan(4), "walk is too short for a 1..3 section");
 
             player.SetAnimationSection(1, 3);
-            // Both ends inclusive: 1, 2, 3. This used to report `end + 1` (= 4), counting from frame 0
-            // whatever the section started at, which is the one shape no sibling Player uses.
+            // Both ends inclusive: 1, 2, 3.
             Assert.AreEqual(3, player.TotalFrames);
         }
 
@@ -231,7 +230,7 @@ namespace SpriteStudio.Runtime.Tests
         public void Pause_IsIdempotent_AndResumeLiftsIt()
         {
             // Pause is a hold, not a toggle: pausing twice leaves it held, and Resume is what lifts it
-            // (Play would rewind). This test used to assert the toggle semantics an older API had.
+            // (Play would rewind).
             var player = MakePlayingPlayer();
             player.Pause();
             player.Pause();
@@ -255,8 +254,7 @@ namespace SpriteStudio.Runtime.Tests
 
             Assert.IsTrue(player.SetAnimation("walk"), "re-asserting the current animation still succeeds");
 
-            // A switch with nothing to switch to. Before this was a no-op it ran a full setup_animation,
-            // which rewound the playhead and returned the controller to Stopped.
+            // A switch with nothing to switch to.
             Assert.AreEqual(frame, player.FrameNo, 0.001f, "the playhead must not rewind");
             Assert.IsTrue(player.IsPlaying, "playback must not be returned to Stopped");
         }
@@ -278,9 +276,8 @@ namespace SpriteStudio.Runtime.Tests
 
             player.SetAnimation("walk");
 
-            // Writing the loop count re-arms the budget, and the old code wrote it on every call. A state
-            // machine re-asserting its clip each frame would reset the budget each frame, so a finite
-            // LoopCount would never run out.
+            // Writing the loop count re-arms the budget. A state machine re-asserting its clip each frame
+            // would reset the budget each frame, so a finite LoopCount would never run out.
             Assert.AreEqual(remaining, player.InternalPlayer.GetRemainLoops(),
                 "re-asserting the current animation must not restart the loop budget");
         }
@@ -410,8 +407,8 @@ namespace SpriteStudio.Runtime.Tests
         [Test]
         public void ReverseAndPingPong_AreIndependent()
         {
-            // The Reverse / PingPong setters read the orthogonal axis (direction / style) from native and preserve it.
-            // Verify that setting one doesn't clobber the other (regression test for the custom logic added in Tier 1).
+            // The direction / style setters read the orthogonal axis from native and preserve it.
+            // Verify that setting one doesn't clobber the other.
             var player = MakePlayingPlayer();
             player.PlaybackDirection = SpriteStudioPlaybackDirection.Backward;
             player.PlaybackStyle = SpriteStudioPlaybackStyle.PingPong;
@@ -1007,7 +1004,6 @@ namespace SpriteStudio.Runtime.Tests
                 int last = player.GetAnimationSectionEnd();
                 Assume.That(last, Is.GreaterThan(0), "walk needs more than one frame");
 
-                // This used to fall back to the whole animation.
                 Assert.IsTrue(player.SetAnimationSection(last, last));
                 Assert.AreEqual(last, player.GetAnimationSectionStart(), "The section starts on the last frame");
                 Assert.AreEqual(last, player.GetAnimationSectionEnd());

@@ -6,6 +6,7 @@ using System;
 
 namespace SpriteStudio.Editor
 {
+    /// <summary>Which .sspj each .ssab was converted from, kept in ProjectSettings so a team can commit it. Reconvert reads it.</summary>
     public static class SpriteStudioSourceMap
     {
         private const string MAP_FILE_PATH = "ProjectSettings/SpriteStudioSourceMap.json";
@@ -26,6 +27,7 @@ namespace SpriteStudio.Editor
 
         private static DateTime MapFileTime() => File.Exists(MAP_FILE_PATH) ? File.GetLastWriteTimeUtc(MAP_FILE_PATH) : DateTime.MinValue;
 
+        /// <summary>The links as .ssab path to .sspj path, both project-relative where they can be. Read again when the file has changed.</summary>
         public static Dictionary<string, string> GetMap()
         {
             if (_map != null && MapFileTime() == _mapFileTime) return _map;
@@ -54,6 +56,7 @@ namespace SpriteStudio.Editor
             return _map;
         }
 
+        /// <summary>Writes the links to ProjectSettings/SpriteStudioSourceMap.json.</summary>
         public static void SaveMap()
         {
             if (_map == null) return;
@@ -128,6 +131,7 @@ namespace SpriteStudio.Editor
             return true;
         }
 
+        /// <summary>The absolute path of the .sspj a .ssab was converted from, or null when it has no link.</summary>
         public static string GetSspjForSsab(string ssabAbsolutePath)
         {
             var map = GetMap();
@@ -139,16 +143,16 @@ namespace SpriteStudio.Editor
             return null;
         }
 
+        /// <summary>Project-root-relative path with '/' separators; the absolute path unchanged when it cannot be made relative (e.g. a different drive).</summary>
         public static string GetRelativePath(string absolutePath)
         {
             string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
             absolutePath = Path.GetFullPath(absolutePath);
 
-            // Path.GetRelativePath returns the absolute path unchanged when it can't be made relative (e.g. a different drive)
-            // (equivalent to the old Uri.MakeRelativeUri fallback). Normalize separators to '/'.
             return Path.GetRelativePath(projectRoot, absolutePath).Replace('\\', '/');
         }
 
+        /// <summary>The absolute path of a project-relative one; an already absolute path comes back unchanged.</summary>
         public static string GetAbsolutePath(string relativePath)
         {
             if (Path.IsPathRooted(relativePath))

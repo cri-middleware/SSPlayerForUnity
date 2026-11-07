@@ -677,8 +677,6 @@ MonoBehaviour:
   _playAudio: 1
   _audioVolume: 1
   _audioBackend: {fileID: 0}
-  _sortingLayerName: Default
-  _sortingOrder: 0
   _animationName: attack1
   _autoPlay: 1
   _loopCount: -1

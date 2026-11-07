@@ -102,8 +102,7 @@ namespace SpriteStudio.Editor
 
         /// <summary>
         /// The animation a newly placed object starts on: the asset's first. Placement has to select one,
-        /// because with the name left empty every draw path (Start / the edit-mode preview) early-returns
-        /// and the object stays invisible until one is picked in the Inspector. Null when the asset lists none.
+        /// because Play mode draws nothing for an empty animation name. Null when the asset lists none.
         /// </summary>
         private static string GetDefaultAnimationName(SpriteStudioAnimeAsset asset)
         {

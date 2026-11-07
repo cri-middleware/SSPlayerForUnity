@@ -82,7 +82,6 @@ namespace SpriteStudio.Editor
             }
 
             // Follow .ssab moves/deletes to re-key/prune the source map (prevents stale entries).
-            // Under Model B, .sspj files live at arbitrary external paths, so they never appear in Unity's move/delete events.
             bool sourceMapDirty = false;
             for (int i = 0; i < movedAssets.Length; i++)
             {
@@ -251,7 +250,16 @@ namespace SpriteStudio.Editor
             foreach (var t in textures)
             {
                 if (t.Texture == null) continue;
-                if (AssetDatabase.LoadAssetAtPath<Material>(t.MatPath) != null) continue;
+                var existing = AssetDatabase.LoadAssetAtPath<Material>(t.MatPath);
+                if (existing != null)
+                {
+                    if (RelinkBrokenTexture(existing, t.Texture))
+                    {
+                        EditorUtility.SetDirty(existing);
+                        AssetDatabase.SaveAssetIfDirty(existing);
+                    }
+                    continue;
+                }
 
                 if (shader == null)
                 {
@@ -265,6 +273,15 @@ namespace SpriteStudio.Editor
             }
 
             return createdAny;
+        }
+
+        // A kept .mat whose texture reference broke (its PNG came back with a new GUID) would draw every part
+        // white with no error. Only the missing reference is restored: the shader and properties stay the user's.
+        internal static bool RelinkBrokenTexture(Material mat, Texture texture)
+        {
+            if (!mat.HasProperty("_MainTex") || mat.mainTexture != null) return false;
+            mat.mainTexture = texture;
+            return true;
         }
 
         [InitializeOnLoadMethod]
@@ -291,7 +308,7 @@ namespace SpriteStudio.Editor
 
             // Dirty check: don't reconvert an unchanged .sspj (matching mtime) on every import.
             // Prevents wasteful reconversion (chaining) on no-op reimports or on the Refresh after a
-            // conversion completes. If the mtime changed, convert. If it can't be read, convert as before to be safe.
+            // conversion completes. If the mtime changed, convert. If it can't be read, convert to be safe.
             try
             {
                 var mtime = File.GetLastWriteTimeUtc(sspjAbsolutePath);
@@ -301,7 +318,7 @@ namespace SpriteStudio.Editor
                 }
                 convertedSspjMtime[sspjAbsolutePath] = mtime;
             }
-            catch { /* If the mtime can't be read, convert as before */ }
+            catch { /* If the mtime can't be read, convert */ }
 
             SpriteStudioImporterWindow.RunConvertDirect(sspjAbsolutePath);
             return true;

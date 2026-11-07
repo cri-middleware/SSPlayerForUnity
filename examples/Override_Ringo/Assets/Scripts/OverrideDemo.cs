@@ -88,12 +88,9 @@ public class OverrideDemo : MonoBehaviour
         {
             _status = "No cellmap in the loaded asset — nothing to demo.";
             Debug.LogWarning($"[Override Demo] {_status}");
-
-//            isBooted = false;
             yield break;
         }
         string cellmap = cellmaps[0]; // "Ringo"
-//        Debug.Log($"[Override Demo] cellmap: {cellmap} / cells: {string.Join(", ", _player.GetCellNames(cellmap))}");
 
         // The same part is overridden over and over, so resolve its index once and reuse it
         // (indices are stable within an asset, and addressing by index skips the name lookup).
@@ -102,8 +99,6 @@ public class OverrideDemo : MonoBehaviour
         {
             _status = $"Part '{_partName}' is not in this animation.";
             Debug.LogWarning($"[Override Demo] {_status}");
-
-//            isBooted = false;
             yield break;
         }
 
@@ -138,7 +133,6 @@ public class OverrideDemo : MonoBehaviour
     private IEnumerator Step(string text, float seconds)
     {
         _status = text;
-//        Debug.Log($"[Override Demo] {text}");
         yield return new WaitForSeconds(seconds);
     }
 }

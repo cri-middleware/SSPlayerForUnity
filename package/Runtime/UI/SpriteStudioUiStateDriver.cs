@@ -48,8 +48,8 @@ namespace SpriteStudio.UI
             // A graphic enabled again comes back with a new runtime, set up on the animation last shown, which
             // may be a clip's; the animation the states are read from stays while the pack still has it.
             if (!samePlayer) _reported.Clear();
-            // An animation the driver did not set was chosen by the scene or a script, and is the one to read the
-            // states from from now on.
+            // An animation the driver did not set was chosen by the scene or a script, and the states are read
+            // from it now.
             if (_base == null || (current != null && current != _shownAnimation) || graphic.GetLabelTable(_base) == null)
             {
                 _base = current;
@@ -69,9 +69,8 @@ namespace SpriteStudio.UI
             graphic.SetAnimationSection(section.StartFrame, section.EndFrame);
             if (section.Hold)
             {
-                // Stopped rather than paused, so the held frame fires no events.
-                graphic.Stop();
-                graphic.FrameNo = section.StartFrame;
+                // Stopped rather than paused, with the landing frame's report dropped, so the held frame fires no events.
+                graphic.HoldFrame(section.StartFrame);
             }
             else
             {

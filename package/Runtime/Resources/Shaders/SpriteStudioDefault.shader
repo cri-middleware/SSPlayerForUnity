@@ -5,14 +5,13 @@ Shader "SpriteStudio/Default"
         _MainTex ("Sprite Texture", 2D) = "white" {}
 
         // --- Blend state (set by the C# MaterialKey per the per-blend blend-factor table) ---
-        // Defaults are Mix + PMA output = equivalent to the previous behavior. The MaterialKey
-        // overrides these per ssab BlendType.
+        // Defaults are Mix + PMA output. The MaterialKey overrides these per ssab BlendType.
         [Enum(UnityEngine.Rendering.BlendMode)] _SrcBlend ("Src Blend", Float) = 1   // One
         [Enum(UnityEngine.Rendering.BlendMode)] _DstBlend ("Dst Blend", Float) = 10  // OneMinusSrcAlpha
         [Enum(UnityEngine.Rendering.BlendOp)]   _BlendOp  ("Blend Op",  Float) = 0   // Add
         // PMA / discard are uniform branches (not keywords), so variants collapse to one.
         _InputPMA   ("Input PMA",   Float) = 0   // 1 = texture is premultiplied -> un-premultiply
-        _OutputPMA  ("Output PMA",  Float) = 1   // 1 = emit premultiplied alpha (previous behavior)
+        _OutputPMA  ("Output PMA",  Float) = 1   // 1 = emit premultiplied alpha
         _NotDiscard ("Not Discard", Float) = 0   // 1 = keep transparent pixels (Mul/Invert)
 
         // --- Stencil state (mask test; property-driven, bit-isolated; set by C# per submesh) ---
@@ -32,8 +31,8 @@ Shader "SpriteStudio/Default"
     // pass's LightMode. URP selects this SubShader via the RenderPipeline tag; the Built-in pipeline
     // falls through to the second SubShader.
     // The colour pass is SRPDefaultUnlit, as URP's own Sprite-Unlit-Default is: the Universal Renderer
-    // draws it, and so does the 2D Renderer, which draws only Universal2D and SRPDefaultUnlit. Tagged
-    // UniversalForward, a player under the 2D Renderer drew nothing.
+    // draws it, and so does the 2D Renderer, which draws only Universal2D and SRPDefaultUnlit, not
+    // UniversalForward.
     SubShader
     {
         Tags

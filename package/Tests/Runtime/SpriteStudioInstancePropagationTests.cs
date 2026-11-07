@@ -11,7 +11,7 @@ using SpriteStudio.Runtime;
 namespace SpriteStudio.Runtime.Tests
 {
     /// <summary>
-    /// End-to-end guard for masking that crosses an instance boundary (SS7.5 InstancePropagation).
+    /// End-to-end guard for masking that crosses an instance boundary (SpriteStudio 7.5 InstancePropagation).
     ///
     /// A clipping mask written inside an instance child must keep clipping the parent animation's parts
     /// drawn after the instance - the child's restore is carried past the instance boundary to the parent's
@@ -73,6 +73,31 @@ namespace SpriteStudio.Runtime.Tests
 #endif
             }
             yield return null;
+        }
+
+        [Test]
+        public void SubFrameEnabled_ReachesTheInstanceChildren_ThatAlreadyExist()
+        {
+            byte[] parent = TryGetSsab(ParentAssetPath, ParentSsabPath);
+            byte[] child = TryGetSsab(ChildAssetPath, ChildSsabPath);
+            if (parent == null || child == null)
+            {
+                Assert.Ignore("InstancePropagation fixtures unavailable (uncommitted, SDK 'overall' source not generated).");
+            }
+
+            using (var player = new SpriteStudioInternalPlayer())
+            {
+                player.LoadSsab(parent, (packHash, nameHash) => child);
+                Assert.Greater(player._instancePartCount, 0);
+
+                player.SubFrameEnabled = true;
+
+                for (int k = 0; k < player._instancePartCount; k++)
+                {
+                    var c = player._instanceChildren[player._instancePartIndices[k]].Player;
+                    Assert.IsTrue(c.SubFrameEnabled, "a child's frame comes from its own setting");
+                }
+            }
         }
 
         [Test]

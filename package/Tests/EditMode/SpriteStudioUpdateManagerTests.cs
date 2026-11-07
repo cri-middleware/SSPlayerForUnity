@@ -1,6 +1,9 @@
 using System;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using Unity.Collections;
+using UnityEngine;
+using UnityEngine.TestTools;
 using UnityEngine.TestTools.Constraints;
 using SpriteStudio.Runtime;
 using Is = UnityEngine.TestTools.Constraints.Is; // for AllocatingGCMemory (aliased because it collides with NUnit's Is)
@@ -82,6 +85,37 @@ namespace SpriteStudio.Runtime.EditModeTests
             Assert.AreEqual(1, b.PrepareCount);
             Assert.AreEqual(1, a.ApplyCount);
             Assert.AreEqual(1, b.ApplyCount);
+        }
+
+        [Test]
+        public void AThrowingHandler_CostsOnlyItsOwnPlayerTheFrame()
+        {
+            var thrower = new FakeRenderable { OnPrepare = () => throw new InvalidOperationException("from a handler") };
+            var other = new FakeRenderable();
+            SpriteStudioUpdateManager.Register(thrower);
+            SpriteStudioUpdateManager.Register(other);
+
+            LogAssert.Expect(LogType.Exception, new Regex("from a handler"));
+            SpriteStudioUpdateManager.Schedule(0.016f);
+            SpriteStudioUpdateManager.Apply();
+
+            Assert.AreEqual(1, other.PrepareCount, "the player after it is still prepared");
+            Assert.AreEqual(1, other.ApplyCount, "and applied");
+        }
+
+        [Test]
+        public void AThrowingApply_DoesNotStopTheOtherPlayers()
+        {
+            var thrower = new FakeRenderable { OnApply = () => throw new InvalidOperationException("from an apply") };
+            var other = new FakeRenderable();
+            SpriteStudioUpdateManager.Register(thrower);
+            SpriteStudioUpdateManager.Register(other);
+
+            LogAssert.Expect(LogType.Exception, new Regex("from an apply"));
+            SpriteStudioUpdateManager.Schedule(0.016f);
+            SpriteStudioUpdateManager.Apply();
+
+            Assert.AreEqual(1, other.ApplyCount);
         }
 
         [Test]
