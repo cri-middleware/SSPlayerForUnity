@@ -47,20 +47,24 @@ namespace SpriteStudio.Editor
         }
 
         /// <summary>Scans the directories asynchronously and, on completion, calls onComplete with the collected .sspj list.</summary>
-        public static void Start(IList<string> dirs, bool interactive, Action<List<string>> onComplete)
+        public static SpriteStudioDirectoryScan Start(IList<string> dirs, bool interactive, Action<List<string>> onComplete)
         {
             var session = new SpriteStudioDirectoryScan(dirs, interactive, onComplete);
             session._progressId = Progress.Start("SpriteStudio Scan", "Scanning for .sspj ...");
-            Progress.RegisterCancelCallback(session._progressId, session.OnCancel);
+            Progress.RegisterCancelCallback(session._progressId, session.Cancel);
             EditorApplication.update += session.Poll;
             // A domain reload mid-scan would drop the session, and onComplete with it: the scan never
             // converts what it found. Script reloads wait until it ends.
             EditorApplication.LockReloadAssemblies();
             session._reloadLocked = true;
             session.PumpNextDir();
+            return session;
         }
 
-        private bool OnCancel()
+        /// <summary>Whether the session has ended, by finishing or by being canceled.</summary>
+        internal bool IsFinished { get; private set; }
+
+        internal bool Cancel()
         {
             _canceled = true;
             AbortCurrent();
@@ -120,7 +124,7 @@ namespace SpriteStudio.Editor
                     _ctx = IntPtr.Zero;
                 }
                 _canceled = true;
-                Finish();
+                Finish(complete: true);
             }
         }
 
@@ -181,7 +185,8 @@ namespace SpriteStudio.Editor
             // No context is scanning and the queue is drained or canceled -> end the session
             if (_ctx == IntPtr.Zero && (_canceled || _dirs.Count == 0))
             {
-                Finish();
+                // A canceled session converts nothing, what it found so far included.
+                Finish(complete: !_canceled);
             }
         }
 
@@ -221,7 +226,7 @@ namespace SpriteStudio.Editor
 
         private bool _reloadLocked;
 
-        private void Finish()
+        private void Finish(bool complete)
         {
             EditorApplication.update -= Poll;
             if (_reloadLocked)
@@ -234,7 +239,8 @@ namespace SpriteStudio.Editor
                 Progress.Remove(_progressId);
                 _progressId = -1;
             }
-            _onComplete?.Invoke(_results);
+            IsFinished = true;
+            if (complete) _onComplete?.Invoke(_results);
         }
 
         private static unsafe string PtrToStringUtf8(byte* p)

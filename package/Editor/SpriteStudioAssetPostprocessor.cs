@@ -250,7 +250,16 @@ namespace SpriteStudio.Editor
             foreach (var t in textures)
             {
                 if (t.Texture == null) continue;
-                if (AssetDatabase.LoadAssetAtPath<Material>(t.MatPath) != null) continue;
+                var existing = AssetDatabase.LoadAssetAtPath<Material>(t.MatPath);
+                if (existing != null)
+                {
+                    if (RelinkBrokenTexture(existing, t.Texture))
+                    {
+                        EditorUtility.SetDirty(existing);
+                        AssetDatabase.SaveAssetIfDirty(existing);
+                    }
+                    continue;
+                }
 
                 if (shader == null)
                 {
@@ -264,6 +273,15 @@ namespace SpriteStudio.Editor
             }
 
             return createdAny;
+        }
+
+        // A kept .mat whose texture reference broke (its PNG came back with a new GUID) would draw every part
+        // white with no error. Only the missing reference is restored: the shader and properties stay the user's.
+        internal static bool RelinkBrokenTexture(Material mat, Texture texture)
+        {
+            if (!mat.HasProperty("_MainTex") || mat.mainTexture != null) return false;
+            mat.mainTexture = texture;
+            return true;
         }
 
         [InitializeOnLoadMethod]
