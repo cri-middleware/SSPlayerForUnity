@@ -237,7 +237,15 @@ namespace SpriteStudio.Runtime
             totalIndices += ic;
         }
 
-        public unsafe ulong ComputeTopologySignature(int vertexCount, int indexCount)
+        /// <summary>
+        /// The signature that decides whether the indices already on the GPU are still right. Besides the
+        /// batch and submesh layout it folds in what decides each part's indices: the batch totals do not say
+        /// how the parts share them, so two Mesh parts swapped by a PRIO key, a Mesh hidden for another of the
+        /// same size, or a centre vertex passing from one Normal part to another would leave them all alone.
+        /// A Mesh part's indices are static per part, a Shape's fan follows its vertex count.
+        /// </summary>
+        public unsafe ulong ComputeTopologySignature(int vertexCount, int indexCount,
+            ushort* drawOrder, PartStateData* partStates, int* shapeVertexCounts, int partCount)
         {
             ulong sig = 14695981039346656037UL;
             const ulong prime = 1099511628211UL;
@@ -250,6 +258,17 @@ namespace SpriteStudio.Runtime
                 sig = (sig ^ (ulong)(uint)b.IndexCount) * prime;
                 sig = (sig ^ (ulong)(uint)b.EffectPartIndex) * prime;
                 sig = (sig ^ ((ulong)b.EffectQuadCount | ((ulong)b.EffectParticleOffset << 32))) * prime;
+
+                if (b.Kind != SsDrawBatchKind.Normal && b.Kind != SsDrawBatchKind.Shape && b.Kind != SsDrawBatchKind.Mesh) continue;
+                for (int k = 0; k < b.Count; k++)
+                {
+                    int p = drawOrder[b.StartRank + k];
+                    if (p >= partCount) continue;
+                    ulong key = b.Kind == SsDrawBatchKind.Mesh ? (ulong)p
+                        : b.Kind == SsDrawBatchKind.Shape ? (ulong)(uint)shapeVertexCounts[p]
+                        : (partStates[p].UpdateFlag & SsUpdateFlag.NeedsCenterMask) != 0 ? 1UL : 0UL;
+                    sig = (sig ^ key) * prime;
+                }
             }
             sig = (sig ^ (ulong)(uint)_submeshCount) * prime;
             for (int i = 0; i < _submeshCount; i++)

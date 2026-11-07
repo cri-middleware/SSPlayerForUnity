@@ -676,7 +676,8 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 // Topology signature for the index upload cache (if identical to the previous frame, the
                 // index/submesh need no re-upload). For effects, QuadCount/Offset change every frame and
                 // naturally mismatch = not cached.
-                _topologySignature = _batchBuilder.ComputeTopologySignature(totalVertices, totalIndices);
+                _topologySignature = _batchBuilder.ComputeTopologySignature(totalVertices, totalIndices,
+                    order, pStates, frame.ShapeVertexCounts, partsLength);
 
                 // Fold each visible instance child's own topology signature into ours. EmitInstanceBatch records
                 // a child as a single opaque block (kind + total vertex/index count), so the batch signature is
