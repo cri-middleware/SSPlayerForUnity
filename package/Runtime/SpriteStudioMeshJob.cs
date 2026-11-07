@@ -376,7 +376,10 @@ namespace SpriteStudio.Runtime
             float* out_x = stackalloc float[5] { part_verts[0], part_verts[2], part_verts[4], part_verts[6], part_verts[8] };
             float* out_y = stackalloc float[5] { part_verts[1], part_verts[3], part_verts[5], part_verts[7], part_verts[9] };
 
-            Color32* corner_colors = stackalloc Color32[4] { new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255) };
+            // A part colour's corners already carry the part's opacity, its parents' included: the runtime
+            // multiplies it in, so only the white default takes it here.
+            byte alphaByte = (byte)(math.clamp(part.Alpha, 0f, 1f) * 255f);
+            Color32* corner_colors = stackalloc Color32[4] { new Color32(255, 255, 255, alphaByte), new Color32(255, 255, 255, alphaByte), new Color32(255, 255, 255, alphaByte), new Color32(255, 255, 255, alphaByte) };
             float* corner_rates = stackalloc float[4] { 0f, 0f, 0f, 0f };
             int blend_idx = 0;
 
@@ -389,13 +392,6 @@ namespace SpriteStudio.Runtime
                 corner_colors[3] = pc.Rb.Rgba; corner_rates[3] = pc.Rb.Rate;
                 blend_idx = pc.BlendType;
                 if (blend_idx > 3) blend_idx = 0;
-            }
-
-            // Apply part alpha
-            byte alphaByte = (byte)(math.clamp(part.Alpha, 0f, 1f) * 255f);
-            for (int i = 0; i < 4; i++)
-            {
-                corner_colors[i].a = (byte)((corner_colors[i].a * alphaByte) / 255);
             }
 
             for (int i = 0; i < 4; i++)
@@ -473,11 +469,6 @@ namespace SpriteStudio.Runtime
                 corner_colors[1] = pc.Rt.Rgba;
                 corner_colors[2] = pc.Lb.Rgba;
                 corner_colors[3] = pc.Rb.Rgba;
-                
-                for (int i = 0; i < 4; i++)
-                {
-                    corner_colors[i].a = (byte)((corner_colors[i].a * alphaByte) / 255);
-                }
             }
 
             for (int i = 0; i < part_shape_count; i++)
@@ -548,7 +539,6 @@ namespace SpriteStudio.Runtime
             {
                 var pc = PartColors[part.PartColorIndex];
                 meshColor = pc.Lt.Rgba;
-                meshColor.a = (byte)((meshColor.a * alphaByte) / 255);
                 meshRate = pc.Lt.Rate;
                 blendIdx = pc.BlendType;
                 if (blendIdx > 3) blendIdx = 0;
