@@ -1257,7 +1257,7 @@ namespace SpriteStudio.Runtime
                 _warnedMultiTexture = true;
             }
 
-            uint texHash = submeshes[0].TextureHash;
+            uint texHash = CanvasAtlasHash(submeshes, subCount);
 
             uint signature = texHash + 1u; // +1 so a valid hash never collides with the empty sentinel 0
             // A reimport destroys the asset's canvas materials: a new revision re-resolves the atlas material,
@@ -1269,6 +1269,17 @@ namespace SpriteStudio.Runtime
                 _materialAssetRevision = _animeAsset.Revision;
                 _canvasMaterialDirty = false;
             }
+        }
+
+        // The atlas the one material binds: the first a draw names. A part with no cell (hash 0) may come
+        // first; it draws with white whatever is bound, so it must not leave the rest with no atlas.
+        internal static uint CanvasAtlasHash(Unity.Collections.NativeArray<SubmeshInfo> submeshes, int count)
+        {
+            for (int s = 0; s < count; s++)
+            {
+                if (submeshes[s].TextureHash != 0) return submeshes[s].TextureHash;
+            }
+            return 0;
         }
 
         private void RebuildCanvasMaterial(uint texHash)

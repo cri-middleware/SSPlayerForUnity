@@ -192,5 +192,19 @@ namespace SpriteStudio.Runtime.EditModeTests
             Assert.AreEqual(Blue, _mesh.colors32[0]);
             CollectionAssert.AreEqual(Quad, _mesh.GetIndices(0));
         }
+
+        [Test]
+        public void TheAtlas_IsTheFirstADrawNames_NotAPartWithNoCell()
+        {
+            using (var submeshes = new NativeArray<SubmeshInfo>(3, Allocator.Temp))
+            {
+                var array = submeshes;
+                array[1] = new SubmeshInfo { TextureHash = 0x1234u };
+                array[2] = new SubmeshInfo { TextureHash = 0x5678u };
+
+                Assert.AreEqual(0x1234u, SpriteStudioGraphic.CanvasAtlasHash(submeshes, 3));
+                Assert.AreEqual(0u, SpriteStudioGraphic.CanvasAtlasHash(submeshes, 1), "only parts with no cell: no atlas");
+            }
+        }
     }
 }

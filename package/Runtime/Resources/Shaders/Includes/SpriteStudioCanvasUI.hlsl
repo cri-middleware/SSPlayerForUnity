@@ -42,6 +42,7 @@ struct ss_canvas_v2f
     float4 partcolorVarg : TEXCOORD1; // xyz = PartColor varg (branchless), w = output alpha multiplier
     half3  partColor     : TEXCOORD2;
     float4 mask          : TEXCOORD3; // RectMask2D: xy = position against _ClipRect, zw = edge falloff
+    float  noCell        : TEXCOORD4; // 1 for a part with no cell (a Shape), which draws with white
 };
 
 // Standard SpriteStudio Canvas uniforms. A custom shader gets these by including this file; it only
@@ -81,6 +82,7 @@ ss_canvas_v2f ss_canvas_vert(ss_canvas_appdata IN)
         OUT.color.rgb = UIGammaToLinear(OUT.color.rgb);
     }
     OUT.partColor = IN.texcoord2;
+    OUT.noCell = step(blendIdx, -0.5);
 #ifdef UNITY_UI_CLIP_RECT
     // As UI/Default computes it: the vertex against the rect in canvas space, and a falloff one pixel
     // wide (plus the softness) at the rect's edges.
@@ -101,10 +103,12 @@ ss_canvas_v2f ss_canvas_vert(ss_canvas_appdata IN)
 }
 
 // Sample the texture (un-premultiplying when requested). The SS per-vertex PartColor channels are
-// resolved into IN.partcolorVarg in the vertex stage; a custom shader reads `tex` here.
+// resolved into IN.partcolorVarg in the vertex stage; a custom shader reads `tex` here. The one material
+// binds an atlas for every part, so a part with no cell takes white instead of the atlas's corner.
 float4 ss_canvas_sample(ss_canvas_v2f IN)
 {
-    return ss_input_mediate(ss_tex2D(_MainTex, IN.texcoord), _InputPMA);
+    float4 tex = ss_input_mediate(ss_tex2D(_MainTex, IN.texcoord), _InputPMA);
+    return lerp(tex, float4(1.0, 1.0, 1.0, 1.0), IN.noCell);
 }
 
 // Default SpriteStudio RGB composition (branchless; effect tint is already folded into varg). A custom

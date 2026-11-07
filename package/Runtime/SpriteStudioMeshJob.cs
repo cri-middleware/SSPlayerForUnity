@@ -99,6 +99,10 @@ namespace SpriteStudio.Runtime
 
     internal struct SsVertex
     {
+        // TexCoord1.y of a part with no cell (a Shape). It resolves to Mix as 0 does; the Canvas shader, whose
+        // one material binds an atlas for every part, reads it as "draw with white".
+        public const float BlendIdxNoCell = -1f;
+
         public Vector3 Position;
         public Color32 Color;
         public Vector2 TexCoord0;
@@ -461,7 +465,6 @@ namespace SpriteStudio.Runtime
                 new Color32(255, 255, 255, alphaByte)
             };
             float* corner_rates = stackalloc float[4] { 1f, 1f, 1f, 1f };
-            int blend_idx = 0;
 
             if ((part.UpdateFlag & SsUpdateFlag.AttributePartColor) != 0 && part.PartColorIndex >= 0 && part.PartColorIndex < PartColorCount)
             {
@@ -505,7 +508,7 @@ namespace SpriteStudio.Runtime
                         0f),
                     Color = new Color32(r, g, b, a),
                     TexCoord0 = new Vector2(0f, 0f),
-                    TexCoord1 = new Vector4(v_rate, blend_idx, 0f, isAdditive)
+                    TexCoord1 = new Vector4(v_rate, SsVertex.BlendIdxNoCell, 0f, isAdditive)
                 };
             }
 
