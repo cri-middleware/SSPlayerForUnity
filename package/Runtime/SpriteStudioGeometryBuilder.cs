@@ -1085,7 +1085,12 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                             continue;
                         }
                         _batchBuilder.EmitSubmesh(instanceIndexBase + cs.IndexStart, cs.IndexCount, cs.TextureHash, cs.BlendType,
-                            cs.Role, cs.StencilOp, cs.StencilComp, cs.StencilRef, cs.StencilReadMask, cs.StencilWriteMask, cs.MaskThreshold);
+                            cs.Role, cs.StencilOp, cs.StencilComp, cs.StencilRef, cs.StencilReadMask, cs.StencilWriteMask, cs.MaskThreshold, cs.ShaderHash);
+                        if (cs.ShaderHash != 0)
+                        {
+                            _batchBuilder.SetLastSubmeshAddOnParams(cs.P0, cs.P1, cs.P2, cs.P3, cs.P4, cs.P5, cs.P6, cs.P7);
+                            _batchBuilder.SetLastSubmeshCellRect(cs.CellL, cs.CellT, cs.CellR, cs.CellB);
+                        }
                     }
 
                     totalVertices += cvc;
@@ -1160,6 +1165,35 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             }
         }
 
+        // The id hash of the per-part AddOn a part draws with, or 0 for the shared default path. Built-in
+        // AddOns resolve with no project setup; the (optional) user catalog overrides.
+        private unsafe uint PerPartAddOn(int p_idx, ss.runtime.FrameData frameData, RawPartState* rawParts, int shadersLength,
+            out ss.runtime.PartAttributeShader attr)
+        {
+            attr = default;
+            int sIdx = rawParts[p_idx].Shader;
+            if (sIdx < 0 || sIdx >= shadersLength) return 0;
+            attr = frameData.Shaders(sIdx).Value;
+            uint idHash = attr.IdHash;
+            return idHash != 0 && SpriteStudioAddOnRegistry.TryGetIsPerPart(idHash, _player.ShaderCatalog, out bool isPerPart) && isPerPart
+                ? idHash : 0;
+        }
+
+        // Stamp a per-part AddOn's params and cell rectangle onto the submesh just emitted for it.
+        private unsafe void StampAddOn(in ss.runtime.PartAttributeShader attr, byte kind, int p_idx, ref DrawFrame frame)
+        {
+            _batchBuilder.SetLastSubmeshAddOnParams(attr.Param0, attr.Param1, attr.Param2, attr.Param3,
+                attr.Param4, attr.Param5, attr.Param6, attr.Param7);
+            // Cell rectangle (pixel UVs) for cell-rect AddOns (ss-circle / ss-spot). Only Normal
+            // parts carry a cell quad in LocalUvs (layout [lt.u,lt.v, rt, lb, rb.u@6,rb.v@7, center]);
+            // Shape/Mesh leave it 0 so those AddOns degenerate (discard).
+            if (kind == SsDrawBatchKind.Normal && frame.LocalUvs != null && (p_idx * 10 + 7) < (int)frame.LocalUvsLen)
+            {
+                float* uvp = frame.LocalUvs + p_idx * 10;
+                _batchBuilder.SetLastSubmeshCellRect(uvp[0], uvp[1], uvp[6], uvp[7]);
+            }
+        }
+
         private unsafe void ProcessNormalShapeMeshBatch(in RawDrawBatch b, int partsLength, ref DrawFrame frame, ss.runtime.FrameData frameData,
             RawPartState* rawParts, int shadersLength, ref int totalVertices, ref int totalIndices)
         {
@@ -1208,8 +1242,11 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     }
                     else
                     {
+                        // Only a part the stencil does not touch takes its AddOn: a masked part draws plain.
+                        uint addOn = PerPartAddOn(p_idx, frameData, rawParts, shadersLength, out var shAttr);
                         _batchBuilder.EmitMaskStep(kind, rank, pvc, pic, textureHash, blendType,
-                            StencilRole.None, 0, 0, 0f, ref totalVertices, ref totalIndices);
+                            StencilRole.None, 0, 0, 0f, ref totalVertices, ref totalIndices, addOn);
+                        if (addOn != 0) StampAddOn(in shAttr, kind, p_idx, ref frame);
                     }
                     // Its own colour is already emitted above, whatever the mask says: a clipping part
                     // draws either way, and only the stencil write is switched off. Phase C closes this
@@ -1236,8 +1273,6 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             // mesh job fills exactly the same geometry — only the submesh granularity differs.
             if (shadersLength > 0)
             {
-                // Built-in AddOns resolve with no project setup; the (optional) user catalog overrides.
-                var userCatalog = _player.ShaderCatalog;
                 int runStart = startRank;   // first rank of the current shared run (rank-span based)
                 int runVc = 0, runIc = 0;
                 for (int k = 0; k < count; k++)
@@ -1249,21 +1284,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                                  && _maskPlanner.MaskPartVcIc(p_idx, kind, frame, _partStates, out pvc, out pic);
                     if (!valid) continue; // skipped parts add no geometry; their rank stays in the run span
 
-                    uint shaderHash = 0;
-                    float ap0 = 0, ap1 = 0, ap2 = 0, ap3 = 0, ap4 = 0, ap5 = 0, ap6 = 0, ap7 = 0;
-                    int sIdx = rawParts[p_idx].Shader;
-                    if (sIdx >= 0 && sIdx < shadersLength)
-                    {
-                        var shAttr = frameData.Shaders(sIdx).Value;
-                        uint idHash = shAttr.IdHash;
-                        if (idHash != 0 && SpriteStudioAddOnRegistry.TryGetIsPerPart(idHash, userCatalog, out bool isPerPart) && isPerPart)
-                        {
-                            shaderHash = idHash;
-                            ap0 = shAttr.Param0; ap1 = shAttr.Param1; ap2 = shAttr.Param2; ap3 = shAttr.Param3;
-                            ap4 = shAttr.Param4; ap5 = shAttr.Param5; ap6 = shAttr.Param6; ap7 = shAttr.Param7;
-                        }
-                    }
-
+                    uint shaderHash = PerPartAddOn(p_idx, frameData, rawParts, shadersLength, out var shAttr);
                     if (shaderHash != 0)
                     {
                         // Flush the pending shared run [runStart, rank), then emit this part on its own.
@@ -1271,15 +1292,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         if (runCount > 0 && runIc > 0)
                             _batchBuilder.EmitDrawBatch((ushort)runStart, (ushort)runCount, runVc, runIc, kind, textureHash, blendType, 0u, ref totalVertices, ref totalIndices);
                         _batchBuilder.EmitDrawBatch((ushort)rank, 1, pvc, pic, kind, textureHash, blendType, shaderHash, ref totalVertices, ref totalIndices);
-                        _batchBuilder.SetLastSubmeshAddOnParams(ap0, ap1, ap2, ap3, ap4, ap5, ap6, ap7);
-                        // Cell rectangle (pixel UVs) for cell-rect AddOns (ss-circle / ss-spot). Only Normal
-                        // parts carry a cell quad in LocalUvs (layout [lt.u,lt.v, rt, lb, rb.u@6,rb.v@7, center]);
-                        // Shape/Mesh leave it 0 so those AddOns degenerate (discard).
-                        if (kind == SsDrawBatchKind.Normal && frame.LocalUvs != null && (p_idx * 10 + 7) < (int)frame.LocalUvsLen)
-                        {
-                            float* uvp = frame.LocalUvs + p_idx * 10;
-                            _batchBuilder.SetLastSubmeshCellRect(uvp[0], uvp[1], uvp[6], uvp[7]);
-                        }
+                        StampAddOn(in shAttr, kind, p_idx, ref frame);
                         runStart = rank + 1; runVc = 0; runIc = 0;
                     }
                     else

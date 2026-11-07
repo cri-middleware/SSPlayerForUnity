@@ -53,6 +53,7 @@
 - 組み込み AddOn は設定不要で動作します。パッケージには既定カタログ `Runtime/Resources/SpriteStudioAddOnCatalog.asset` が同梱されており、これが自動的に解決します。
 - 独自のカスタムシェーダを追加するには、プロジェクトにカタログを作ってプレイヤーに持たせます。**Assets > Create > SpriteStudio > Shader Catalog** でカタログを作り、SpriteStudio エディタでパーツに設定したシェーダ ID と一致する **Id Name** と、AddOn 契約（`SpriteStudioAddOn.hlsl`）に従う **Shader** を持つエントリを追加して、プレイヤーの **Shader Catalog** に割り当ててください。プレイヤーは ID をまずこのカタログで引き、載っていないものは組み込み AddOn に回します。既定カタログはインストールされたパッケージの一部なので編集できません。
 - AddOn パーツは `MaterialPropertyBlock` を使わず、パーツごとに専用のマテリアルで描画します。そのため **SRP Batcher を阻害しません**。
+- マスクで切り抜かれるパーツには AddOn が効きません。マスクの影響を受けないパーツには効きます。
 
 > AddOn 経路は URP / Built-in の両方に対応しています。
 

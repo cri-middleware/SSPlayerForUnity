@@ -168,7 +168,7 @@ namespace SpriteStudio.Runtime
 
         public unsafe void EmitMaskStep(byte kind, int rank, int vc, int ic, uint texHash, byte blend,
             StencilRole role, byte stencilOp, byte stencilComp, float threshold,
-            ref int totalVertices, ref int totalIndices)
+            ref int totalVertices, ref int totalIndices, uint shaderHash = 0)
         {
             EnsureDrawBatchCapacity();
             ((DrawBatchData*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
@@ -186,7 +186,7 @@ namespace SpriteStudio.Runtime
             // helper - the two must agree or a writer would be undone on the wrong plane.
             EmitSubmesh(totalIndices, ic, texHash, blend, role, stencilOp, stencilComp, 0,
                 SpriteStudioMaterial.MaskStencilMask,
-                role == StencilRole.Write ? SpriteStudioMaterial.MaskWriteMaskForOp(stencilOp) : (byte)0, threshold);
+                role == StencilRole.Write ? SpriteStudioMaterial.MaskWriteMaskForOp(stencilOp) : (byte)0, threshold, shaderHash);
             totalVertices += vc;
             totalIndices += ic;
         }
