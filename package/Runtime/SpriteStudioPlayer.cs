@@ -100,22 +100,6 @@ namespace SpriteStudio.Runtime
 
         private MeshRenderer SortingRenderer => _meshRenderer != null ? _meshRenderer : GetComponent<MeshRenderer>();
 
-        // The sorting this component used to keep as well, and copied onto the renderer on every enable. A
-        // scene or prefab saved then still carries it: hand it to the renderer once, then forget it. Empty /
-        // zero on anything created since.
-        [SerializeField, HideInInspector] private string _sortingLayerName;
-        [SerializeField, HideInInspector] private int _sortingOrder;
-
-        private void MigrateSortingToRenderer()
-        {
-            if (string.IsNullOrEmpty(_sortingLayerName) && _sortingOrder == 0) return;
-            var r = SortingRenderer;
-            if (!string.IsNullOrEmpty(_sortingLayerName)) r.sortingLayerName = _sortingLayerName;
-            r.sortingOrder = _sortingOrder;
-            _sortingLayerName = null;
-            _sortingOrder = 0;
-        }
-
         [Header("Playback Settings")]
         [Tooltip("Name of the animation to play, as listed in the asset.")]
         [SerializeField] private string _animationName = "";
@@ -933,7 +917,6 @@ namespace SpriteStudio.Runtime
         {
             _meshFilter = GetComponent<MeshFilter>();
             _meshRenderer = GetComponent<MeshRenderer>();
-            MigrateSortingToRenderer();
 
             // Build the single mesh for zero-allocation rendering (do not recreate it)
             if (_sharedMesh == null)

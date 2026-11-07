@@ -16,32 +16,25 @@ namespace SpriteStudio.Runtime
         // Stencil compare for the mask-test variant (UnityEngine.Rendering.CompareFunction). 0 =
         // Disabled = a plain colour material with no stencil test (the default / non-masked case).
         public readonly byte StencilComp;
-        // Per-part AddOn shader id hash (FrameData PartAttributeShader.IdHash). 0 = the shared default
-        // shader (SpriteStudio/Default). Non-zero selects an AddOn shader variant from the catalog.
-        public readonly uint ShaderHash;
 
         public SpriteStudioMaterialKey(uint textureHash, byte blendType)
-            : this(textureHash, blendType, 0, 0) { }
+            : this(textureHash, blendType, 0) { }
 
         public SpriteStudioMaterialKey(uint textureHash, byte blendType, byte stencilComp)
-            : this(textureHash, blendType, stencilComp, 0) { }
-
-        public SpriteStudioMaterialKey(uint textureHash, byte blendType, byte stencilComp, uint shaderHash)
         {
             TextureHash = textureHash;
             BlendType = blendType;
             StencilComp = stencilComp;
-            ShaderHash = shaderHash;
         }
 
         public bool Equals(SpriteStudioMaterialKey other)
-            => TextureHash == other.TextureHash && BlendType == other.BlendType && StencilComp == other.StencilComp && ShaderHash == other.ShaderHash;
+            => TextureHash == other.TextureHash && BlendType == other.BlendType && StencilComp == other.StencilComp;
 
         public override bool Equals(object obj)
             => obj is SpriteStudioMaterialKey k && Equals(k);
 
         public override int GetHashCode()
-            => unchecked(((((int)TextureHash * 397) ^ BlendType) * 397 ^ StencilComp) * 397 ^ (int)ShaderHash);
+            => unchecked(((((int)TextureHash * 397) ^ BlendType) * 397 ^ StencilComp));
     }
 
     /// <summary>
