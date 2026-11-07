@@ -174,7 +174,7 @@ namespace SpriteStudio.Runtime
         //   maskInfluence=0 -> Incr / DecrWrap   -> counter plane 0x07 (overlap depth up to 7)
         //
         // Coverage stays "any isolated bit set" (Ref 0 + Equal/NotEqual over ReadMask 0x0F), which reads
-        // the two planes as a union - matching SpriteStudio 7.5, where mixed maskInfluence composes as a union.
+        // the two planes as a union - matching SpriteStudio 7.6, where mixed maskInfluence composes as a union.
         public const byte MaskStencilMask = 0x0F;
 
         /// <summary>Parity plane (Invert writers, maskInfluence=1). Overlap composes as XOR/parity.</summary>

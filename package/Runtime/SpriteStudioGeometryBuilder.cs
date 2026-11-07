@@ -19,7 +19,7 @@ namespace SpriteStudio.Runtime
         private readonly SpriteStudioMaskPlanner _maskPlanner = new SpriteStudioMaskPlanner();
         // --- Instance ---
 internal NativeArray<InstanceMeshPointer> _instanceMeshes;
-        // Instance-internal clipping masks carry past the instance boundary (SpriteStudio 7.5): the child's Phase C
+        // Instance-internal clipping masks carry past the instance boundary (SpriteStudio 7.6): the child's Phase C
         // restores are collected here and flushed at THIS player's Phase C, after its own parts, instead of
         // being drawn at the child's boundary. Grow-only; reset each ConsumeFrameData.
         private NativeArray<SubmeshInfo> _deferredCloses;
@@ -639,7 +639,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         _batchBuilder.EmitMaskStep(md.DrawKind, w.DrawRank, wvc, wic, _maskPlanner.GetPartTexHash(wp), _maskPlanner.GetPartBlend(wp),
                             StencilRole.Write, rop, 0, threshold, ref totalVertices, ref totalIndices);
                         // Tag as a deferrable close: if THIS player is itself an instance child, its parent
-                        // carries this restore past the instance boundary (SpriteStudio 7.5) instead of closing here.
+                        // carries this restore past the instance boundary (SpriteStudio 7.6) instead of closing here.
                         _batchBuilder.MarkLastSubmeshDeferrableClose();
                     }
                 }
@@ -1255,7 +1255,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     {
                         // The op/plane follows the writer's EFFECTIVE maskInfluence (own AND the instance
                         // part's above), so a mask directly inside a maskInfluence=0 instance lands on the
-                        // counter plane (union) instead of the parity plane (XOR) - SpriteStudio 7.5's mixed-influence union.
+                        // counter plane (union) instead of the parity plane (XOR) - SpriteStudio 7.6's mixed-influence union.
                         byte wop = SpriteStudioInternalPlayer.EffectiveMaskInfluence(md, _player._inheritedMaskInfluence)
                             ? StencilOpInvert : StencilOpIncr;
                         float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - rawParts[p_idx].Mask) / 255f;

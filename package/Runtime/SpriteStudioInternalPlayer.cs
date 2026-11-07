@@ -181,7 +181,7 @@ internal struct MaskPartData
         // buffer is left to uGUI's own Mask/RectMask2D. The world (MeshRenderer) path leaves it false.
         internal bool _suppressInternalMask;
 
-        // Mask flags of the instance part that draws this player. SpriteStudio 7.5 composes a part's own
+        // Mask flags of the instance part that draws this player. SpriteStudio 7.6 composes a part's own
         // maskInfluence (AND) and visibleInsideMask (OR) with the instance part DIRECTLY above it - one
         // level only, and whether or not the caller is itself masked. Values further up do not chain: an
         // instance part with maskInfluence=0 exempts its own sub-animation's parts, but a grandchild is
@@ -207,7 +207,7 @@ internal struct MaskPartData
         // True when some part has to be stencil-tested this frame even though this asset has no writer of
         // its own: a covering mask may come from outside (_outerMaskCoverage), or a part draws inside the
         // mask - such a part draws only where a mask covers it, so with no mask at all it must be tested
-        // and fail rather than be drawn untested (SpriteStudio 7.5 hides it even in an animation with no masks).
+        // and fail rather than be drawn untested (SpriteStudio 7.6 hides it even in an animation with no masks).
         // Effective maskInfluence=0 on every part (the instance part above said 0) needs no test.
         private bool NeedsTargetTest
             => _inheritedMaskInfluence
@@ -249,7 +249,7 @@ internal struct MaskPartData
             }
         }
 
-        // === Mask composition rules (SpriteStudio 7.5) ================================================
+        // === Mask composition rules (SpriteStudio 7.6) ================================================
         // Kept here, as small statics, so the geometry builder and the tests share one definition of the
         // rules instead of restating them at each decision site.
 
@@ -269,7 +269,7 @@ internal struct MaskPartData
             => md.VisibleInsideMask || inheritedVisibleInsideMask;
 
         /// <summary>
-        /// The flags an instance part hands to the player it draws: its own, verbatim. SpriteStudio 7.5 composes a
+        /// The flags an instance part hands to the player it draws: its own, verbatim. SpriteStudio 7.6 composes a
         /// part with the instance part directly above it only, so what the caller itself inherited is not
         /// passed on, and the caller being masked or not makes no difference.
         /// </summary>
@@ -286,7 +286,7 @@ internal struct MaskPartData
         /// follows this, not the raw own flag: influence=1 -> Invert (parity plane, self-inverse),
         /// influence=0 -> Incr/Decr (counter plane, union). So a mask directly inside a maskInfluence=0
         /// instance moves to the counter plane and composes with an outer mask as a union - which is what
-        /// SpriteStudio 7.5 does when maskInfluence is mixed - while a maskInfluence=0 further up does not reach it.
+        /// SpriteStudio 7.6 does when maskInfluence is mixed - while a maskInfluence=0 further up does not reach it.
         /// A root player passes the AND identity (true), leaving a standalone asset's planes unchanged.
         /// </summary>
         internal static bool EffectiveMaskInfluence(in MaskPartData md, bool inheritedMaskInfluence)

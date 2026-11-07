@@ -11,7 +11,7 @@ using SpriteStudio.Runtime;
 namespace SpriteStudio.Runtime.Tests
 {
     /// <summary>
-    /// End-to-end guard for masking that crosses an instance boundary (SpriteStudio 7.5 InstancePropagation).
+    /// End-to-end guard for masking that crosses an instance boundary (SpriteStudio 7.6 InstancePropagation).
     ///
     /// A clipping mask written inside an instance child must keep clipping the parent animation's parts
     /// drawn after the instance - the child's restore is carried past the instance boundary to the parent's

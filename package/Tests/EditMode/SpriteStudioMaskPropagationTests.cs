@@ -7,7 +7,7 @@ namespace SpriteStudio.Runtime.EditModeTests
     /// <summary>
     /// Regression guard for how masking composes across an instance boundary.
     ///
-    /// SpriteStudio 7.5 composes a part's maskInfluence (AND) and visibleInsideMask (OR) with the instance part
+    /// SpriteStudio 7.6 composes a part's maskInfluence (AND) and visibleInsideMask (OR) with the instance part
     /// DIRECTLY above it - one level only, and whether or not the caller is masked, so a maskInfluence=0
     /// instance exempts only its own sub-animation's parts.
     ///
@@ -71,7 +71,7 @@ namespace SpriteStudio.Runtime.EditModeTests
         public void MaskInfluence_DoesNotChain_AGrandchildIsJudgedByTheInstancePartThatDrawsIt()
         {
             // caller (maskInfluence=0) -> middle instance part (maskInfluence=1) -> leaf part (maskInfluence=1).
-            // SpriteStudio 7.5 (Tired3_NoHole): the Source01 checker inside an MI=0 Tired3 block is still cut, because
+            // SpriteStudio 7.6 (Tired3_NoHole): the Source01 checker inside an MI=0 Tired3 block is still cut, because
             // the Source01 instance part above it has MI=1.
             SpriteStudioInternalPlayer.ComposeInheritedContext(Part(false, false), out bool afterCaller, out _);
             Assert.IsFalse(afterCaller, "the middle animation's own parts are exempt");
@@ -132,7 +132,7 @@ namespace SpriteStudio.Runtime.EditModeTests
         // ---- writer op / plane: own maskInfluence AND the instance part's above -------------------
         // A mask writer's op (and therefore its stencil bit plane) follows its EFFECTIVE maskInfluence,
         // so a mask directly inside a maskInfluence=0 instance moves from the parity plane (Invert, XOR) to
-        // the counter plane (Incr/Decr, union). SpriteStudio 7.5 (S01_Overlap / OV_Top) takes this from one level too.
+        // the counter plane (Incr/Decr, union). SpriteStudio 7.6 (S01_Overlap / OV_Top) takes this from one level too.
 
         private static byte PlaneFor(bool influence)
             => SpriteStudioMaterial.MaskWriteMaskForOp(
@@ -173,7 +173,7 @@ namespace SpriteStudio.Runtime.EditModeTests
         public void WriterTwoLevelsBelowAMaskInfluenceZeroInstance_StaysOnTheParityPlane()
         {
             // OV_Top: MI=0 at the top, MI=1 on the instance part that draws the writer. The overlap of two
-            // inverting clips still cancels in SpriteStudio 7.5, so the writer keeps inverting.
+            // inverting clips still cancels in SpriteStudio 7.6, so the writer keeps inverting.
             var writer = Part(maskInfluence: true, visibleInsideMask: false, maskWrite: true);
             SpriteStudioInternalPlayer.ComposeInheritedContext(Part(false, false), out _, out _);
             SpriteStudioInternalPlayer.ComposeInheritedContext(Part(true, false), out bool middleInfluence, out _);
@@ -196,7 +196,7 @@ namespace SpriteStudio.Runtime.EditModeTests
         [Test]
         public void AnInsideTarget_IsTestedEvenWithNoMaskAnywhere()
         {
-            // SpriteStudio 7.5 (S01_NoWriters): a visibleInsideMask=1 part draws only where a mask covers it, so with
+            // SpriteStudio 7.6 (S01_NoWriters): a visibleInsideMask=1 part draws only where a mask covers it, so with
             // no mask at all it is hidden - it has to go through the stencil test, not be drawn untested.
             using (var p = PlayerWith(influenced: true, inside: true))
             {
