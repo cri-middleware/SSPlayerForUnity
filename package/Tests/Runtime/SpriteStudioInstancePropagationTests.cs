@@ -76,6 +76,31 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
+        public void SubFrameEnabled_ReachesTheInstanceChildren_ThatAlreadyExist()
+        {
+            byte[] parent = TryGetSsab(ParentAssetPath, ParentSsabPath);
+            byte[] child = TryGetSsab(ChildAssetPath, ChildSsabPath);
+            if (parent == null || child == null)
+            {
+                Assert.Ignore("InstancePropagation fixtures unavailable (uncommitted, SDK 'overall' source not generated).");
+            }
+
+            using (var player = new SpriteStudioInternalPlayer())
+            {
+                player.LoadSsab(parent, (packHash, nameHash) => child);
+                Assert.Greater(player._instancePartCount, 0);
+
+                player.SubFrameEnabled = true;
+
+                for (int k = 0; k < player._instancePartCount; k++)
+                {
+                    var c = player._instanceChildren[player._instancePartIndices[k]].Player;
+                    Assert.IsTrue(c.SubFrameEnabled, "a child's frame comes from its own setting");
+                }
+            }
+        }
+
+        [Test]
         public void InstanceInternalClippingMask_CarriesPastTheBoundary_AndComposesAsUnion()
         {
             byte[] parent = TryGetSsab(ParentAssetPath, ParentSsabPath);

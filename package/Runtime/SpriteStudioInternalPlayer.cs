@@ -1121,7 +1121,22 @@ internal struct MaskPartData
         public void SetSkipFrames(bool skip) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_skip_frames(_handle.ptr, skip); } }
         public bool IsFrameSkipEnabled() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_get_track_skip_frames(_handle.ptr, 0); } }
 
-        public bool SubFrameEnabled { get; set; } = false;
+        /// <summary>Whether to draw between frames. Instance children follow it: a child's frame comes from its own setting.</summary>
+        public bool SubFrameEnabled
+        {
+            get => _subFrameEnabled;
+            set
+            {
+                _subFrameEnabled = value;
+                if (_instanceChildren == null) return;
+                for (int i = 0; i < _instanceChildren.Length; i++)
+                {
+                    var c = _instanceChildren[i].Player;
+                    if (c != null) c.SubFrameEnabled = value;
+                }
+            }
+        }
+        private bool _subFrameEnabled;
         #endregion
 
         #region Part Overrides
