@@ -62,7 +62,7 @@ namespace SpriteStudio.Runtime
         /// <param name="inheritedMaskInfluence">maskInfluence of the instance part directly above this player
         /// (one level, not chained). A writer's op/plane follows its EFFECTIVE maskInfluence, not just its
         /// own: an instance part with maskInfluence=0 puts its child's writers on the counter plane (union),
-        /// which is what SpriteStudio 7.5 does when maskInfluence is mixed. Root players pass the AND identity (true),
+        /// which is what SpriteStudio 7.6 does when maskInfluence is mixed. Root players pass the AND identity (true),
         /// so this is a no-op there.</param>
         public unsafe void BuildWriters(RawPartState* parts, NativeArray<ushort> drawOrder,
             bool hasMaskParts, SpriteStudioInternalPlayer.MaskPartData[] maskPartData, int drawOrderLength, int partsLength,

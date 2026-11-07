@@ -37,7 +37,7 @@ namespace SpriteStudio.Runtime
         public float MaskThreshold;
 
         // A Phase C clipping-mask restore (ColorMask 0 stencil revert). An enclosing instance parent
-        // relocates such a submesh to after its own parts - SpriteStudio 7.5 carries an instance-internal mask past
+        // relocates such a submesh to after its own parts - SpriteStudio 7.6 carries an instance-internal mask past
         // the instance boundary, so the restore waits until the parent animation's own restore at the very
         // end - instead of drawing it in place at the child's boundary. Data-only: the render path treats
         // it exactly like Role == Write.

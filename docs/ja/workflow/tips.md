@@ -64,7 +64,7 @@ SpriteStudio のマスク / クリッピング（パーツ単位）に、ステ�
 - **ワールド経路（`SpriteStudioPlayer`）**: SpriteStudio 内部のマスク機構を用いてステンシルで描画します。URP では SSAO / Deferred / Decal と併用してもマスクが破綻しないよう、使用するステンシルビットを限定しています。
 - **Canvas 経路（`SpriteStudioGraphic`）**: SpriteStudio 内部のマスクは抑止し、代わりに uGUI の **Mask** / **Rect Mask 2D** に追従します（親にマスクを置くと、このグラフィックがクリップされます。グラフィック自身に **Mask** を置くと、その子がクリップされます）。
 
-ワールド経路では、SpriteStudio 7.5 の描画と同じ規則でマスクを解決します。マスクの内側に描く設定のパーツは、アニメーションにマスクが 1 つも無い場合でも、覆うマスクが無いところでは描かれません。インスタンスパーツの中のマスクの規則は、ランタイムの [マスクのガイド](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/libs/ssruntime/docs/40_parts/40_mask.ja.md) にあります。
+ワールド経路では、SpriteStudio の描画と同じ規則でマスクを解決します。マスクの内側に描く設定のパーツは、アニメーションにマスクが 1 つも無い場合でも、覆うマスクが無いところでは描かれません。インスタンスパーツの中のマスクの規則は、ランタイムの [マスクのガイド](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/libs/ssruntime/docs/40_parts/40_mask.ja.md) にあります。
 
 ## Canvas (uGUI) 経路の制約
 
