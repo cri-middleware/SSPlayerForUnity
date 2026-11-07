@@ -148,7 +148,16 @@ namespace SpriteStudio.Runtime
             int n = 0;
             for (int i = 0; i < count; i++)
             {
-                _tickBuffer[i].PrepareFrame(deltaTime, out var handle, out var drawFrame);
+                IntPtr handle;
+                float drawFrame;
+                // PrepareFrame fires the player's events. A handler that throws costs that player its frame,
+                // as an exception in its own Update would, and not every other player theirs.
+                try { _tickBuffer[i].PrepareFrame(deltaTime, out handle, out drawFrame); }
+                catch (Exception e)
+                {
+                    LogException(e, _tickBuffer[i]);
+                    continue;
+                }
                 if (handle != IntPtr.Zero)
                 {
                     _jobHandles[n] = handle;
@@ -205,10 +214,14 @@ namespace SpriteStudio.Runtime
             // Consume the obtained frame-data pointers and issue the mesh-build Jobs.
             for (int i = 0; i < n; i++)
             {
-                _pending[i].ConsumeFrame(_jobOutPtr[i], _jobOutLen[i], deltaTime);
+                try { _pending[i].ConsumeFrame(_jobOutPtr[i], _jobOutLen[i], deltaTime); }
+                catch (Exception e) { LogException(e, _pending[i]); }
                 _pending[i] = null; // do not keep the snapshot reference alive
             }
         }
+
+        private static void LogException(Exception e, ISpriteStudioRenderable renderable)
+            => Debug.LogException(e, renderable as UnityEngine.Object);
 
         /// <summary>
         /// Drop from the parallel get_frame_data input set every player whose captured handle no longer
@@ -327,7 +340,11 @@ namespace SpriteStudio.Runtime
             if (_tickCount == 0) return;
 
             // Phase 2: wait for every instance's Job + apply to the meshes.
-            for (int i = 0; i < _tickCount; i++) _tickBuffer[i]?.ApplyAndRender();
+            for (int i = 0; i < _tickCount; i++)
+            {
+                try { _tickBuffer[i]?.ApplyAndRender(); }
+                catch (Exception e) { LogException(e, _tickBuffer[i]); }
+            }
 
             // Do not keep the snapshot references alive.
             for (int i = 0; i < _tickCount; i++) _tickBuffer[i] = null;
