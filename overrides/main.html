@@ -92,9 +92,9 @@
   a subpath rather than a URL (see partials/alternate.html), the Japanese entry on Japanese
   pages would resolve to /ja/ja/.
 
-  Jinja cannot replace one line of a block, so this is the theme's `site_meta` block copied
-  from Zensical 0.0.74 base.html with only the alternate links changed. Re-copy it when
-  bumping Zensical if the stock block has moved.
+  Jinja cannot replace one line of a block, so this is a copy of the `site_meta` block from
+  the theme's base.html with only the alternate links changed. Re-copy it when bumping
+  Zensical if the stock block has moved.
 
   Each link names this same page in that locale, as an absolute URL - search engines want
   hreflang targets fully qualified. The root shared by both locales is `site_url` minus
