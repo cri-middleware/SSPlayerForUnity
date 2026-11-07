@@ -1,11 +1,230 @@
+using System.Collections;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using SpriteStudio.Runtime;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace SpriteStudio.Runtime.Tests
 {
     public class SpriteStudioPlayerTests
     {
+        private SpriteStudioPlayer MakeRingoPlayer(string animation = "walk")
+        {
+            var asset = Resources.Load<SpriteStudioAnimeAsset>("Ringo/Ringo");
+            Assert.IsNotNull(asset, "Ringo.ssab is required.");
+            var player = _go.AddComponent<SpriteStudioPlayer>();
+            player.AnimeAsset = asset;
+            player.CurrentAnimation = animation;
+            return player;
+        }
+
+        // Start runs on the frame after AddComponent; the build and upload come in that frame's LateUpdate, which
+        // the frame after that resumes behind.
+        private static IEnumerator ThroughABuild()
+        {
+            yield return null;
+            yield return null;
+        }
+
+        private static SpriteStudioAnimeAsset AnotherAssetLike(SpriteStudioAnimeAsset asset)
+        {
+            var other = ScriptableObject.CreateInstance<SpriteStudioAnimeAsset>();
+            other.SsabData = asset.SsabData;
+            other.Materials = asset.Materials;
+            other.Textures = asset.Textures;
+            return other;
+        }
+
+        [UnityTest]
+        public IEnumerator Start_DoesNotRewindAPlayFromAFrame()
+        {
+            var player = MakeRingoPlayer();
+            int started = 0;
+            player.OnAnimationStarted += () => started++;
+            Assert.IsTrue(player.SetAnimation("walk"));
+            player.Play(30f);
+
+            yield return null;
+
+            Assert.IsTrue(player.IsPlaying);
+            Assert.GreaterOrEqual(player.FrameNo, 30f, "Start must not head back to the first frame");
+            Assert.AreEqual(1, started, "and must not report a second start");
+        }
+
+        [UnityTest]
+        public IEnumerator Start_DoesNotLiftAPause()
+        {
+            var player = MakeRingoPlayer();
+            Assert.IsTrue(player.SetAnimation("walk"));
+            player.Play();
+            player.Pause();
+
+            yield return null;
+
+            Assert.IsTrue(player.IsPausing);
+        }
+
+        [UnityTest]
+        public IEnumerator AnotherAsset_StartsAnimationName_OnTheNextFrame()
+        {
+            var player = MakeRingoPlayer();
+            yield return null;
+            Assert.IsTrue(player.IsPlaying);
+            var other = AnotherAssetLike(player.AnimeAsset);
+            try
+            {
+                player.AnimeAsset = other;
+
+                yield return ThroughABuild();
+
+                Assert.IsTrue(player.IsPlaying, "a script that only swapped the asset gets the animation it was playing");
+                Assert.AreEqual("walk", player.InternalPlayer.CurrentAnimationName);
+            }
+            finally
+            {
+                Object.DestroyImmediate(other);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator AnotherAsset_ThenAnAnimationSelected_StartsNothingOfItsOwn()
+        {
+            var player = MakeRingoPlayer();
+            yield return null;
+            var other = AnotherAssetLike(player.AnimeAsset);
+            try
+            {
+                int started = 0;
+                player.OnAnimationStarted += () => started++;
+                player.AnimeAsset = other;
+                Assert.IsTrue(player.SetAnimation("wait1"));
+
+                yield return ThroughABuild();
+
+                Assert.AreEqual("wait1", player.InternalPlayer.CurrentAnimationName);
+                Assert.AreEqual(0, started, "selecting an animation does not start it, and the swap has nothing left to do");
+                Assert.IsFalse(player.IsPlaying);
+            }
+            finally
+            {
+                Object.DestroyImmediate(other);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator Disabling_StopsDrawing_AndEnablingDrawsAgain()
+        {
+            var player = MakeRingoPlayer();
+            var mesh = _go.GetComponent<MeshFilter>();
+            var renderer = _go.GetComponent<MeshRenderer>();
+            yield return ThroughABuild();
+            Assert.Greater(mesh.sharedMesh.vertexCount, 0, "the player has drawn");
+            Assert.Greater(renderer.sharedMaterials.Length, 0);
+
+            player.enabled = false;
+
+            Assert.AreEqual(0, mesh.sharedMesh.vertexCount, "the MeshRenderer must not keep the last frame");
+            Assert.AreEqual(0, renderer.sharedMaterials.Length, "nor materials the player has destroyed");
+
+            player.enabled = true;
+            yield return ThroughABuild();
+
+            Assert.Greater(mesh.sharedMesh.vertexCount, 0);
+            Assert.Greater(renderer.sharedMaterials.Length, 0);
+        }
+
+        [Test]
+        public void TotalFrames_WithNoAnimationSetUp_IsZero()
+        {
+            var player = MakeRingoPlayer();
+            Assert.AreEqual(0, player.TotalFrames);
+
+            Assert.IsTrue(player.SetAnimation("walk"));
+            Assert.Greater(player.TotalFrames, 0);
+        }
+
+        [Test]
+        public void Play_WithNoRuntime_SaysSoOnce()
+        {
+            var player = _go.AddComponent<SpriteStudioPlayer>();
+            player.AutoPlay = false;
+            player.enabled = false;
+
+            LogAssert.Expect(LogType.Warning, new Regex("Play did nothing"));
+            player.Play();
+            player.Play();
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        [Test]
+        public void Play_WithNoRuntime_UnderAutoPlay_IsLeftToTheEnable()
+        {
+            var player = _go.AddComponent<SpriteStudioPlayer>();
+            player.enabled = false;
+
+            player.Play();
+
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        [Test]
+        public void ShaderCatalog_IsBoundBeforeTheBuild()
+        {
+            var player = MakeRingoPlayer();
+            var catalog = ScriptableObject.CreateInstance<SpriteStudioShaderCatalog>();
+            try
+            {
+                typeof(SpriteStudioPlayer).GetField("_shaderCatalog", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                    .SetValue(player, catalog);
+
+                player.PrepareFrame(0f, out _, out _);
+
+                Assert.AreSame(catalog, player.InternalPlayer.ShaderCatalog);
+            }
+            finally
+            {
+                Object.DestroyImmediate(catalog);
+            }
+        }
+
+        private static int CountAddOnSubmeshes(SpriteStudioInternalPlayer player)
+        {
+            int count = 0;
+            var submeshes = player.Submeshes;
+            for (int s = 0; s < player.SubmeshCount; s++)
+            {
+                if (submeshes[s].ShaderHash != 0) count++;
+            }
+            return count;
+        }
+
+        [Test]
+        public void AnAddOnPart_KeepsItsShader_InAnAnimationWithMasks()
+        {
+            var asset = Resources.Load<SpriteStudioAnimeAsset>("overall/Shader");
+            if (asset == null) Assert.Ignore("Shader.ssab is generated from the SDK's overall project.");
+
+            using (var player = new SpriteStudioInternalPlayer())
+            {
+                player.LoadSsab(asset.SsabData, null);
+                Assert.IsTrue(player.SetupAnimation(player.GetAnimationName(0)));
+                player.ScheduleMeshUpdate(0f);
+                player.CurrentUpdateJobHandle.Complete();
+                int plain = CountAddOnSubmeshes(player);
+                Assert.Greater(plain, 0, "the fixture draws parts with AddOns");
+
+                // The per-part path masks take, with no part the mask clips: what maskInfluence=0 parts see.
+                player._hasMaskParts = true;
+                player._inheritedMaskInfluence = false;
+                player._geometryBuilder.InvalidateFrameCache();
+                player.ScheduleMeshUpdate(0f);
+                player.CurrentUpdateJobHandle.Complete();
+
+                Assert.AreEqual(plain, CountAddOnSubmeshes(player));
+            }
+        }
+
         private GameObject _go;
 
         [SetUp]

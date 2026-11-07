@@ -69,9 +69,8 @@ namespace SpriteStudio.UI
             graphic.SetAnimationSection(section.StartFrame, section.EndFrame);
             if (section.Hold)
             {
-                // Stopped rather than paused, so the held frame fires no events.
-                graphic.Stop();
-                graphic.FrameNo = section.StartFrame;
+                // Stopped rather than paused, with the landing frame's report dropped, so the held frame fires no events.
+                graphic.HoldFrame(section.StartFrame);
             }
             else
             {

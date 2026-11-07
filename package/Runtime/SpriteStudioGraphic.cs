@@ -30,7 +30,11 @@ namespace SpriteStudio.Runtime
         // Per-player, draw-time replacement map derived from _cellmapTextureOverrides (never serialized).
         private readonly SpriteStudioTextureOverride _textureOverride = new SpriteStudioTextureOverride();
 
-        /// <summary>The animation asset to play. Assigning null unloads it, and the graphic draws nothing.</summary>
+        /// <summary>
+        /// The animation asset to play. Assigning null unloads it, and the graphic draws nothing. Another asset
+        /// loses what the runtime held for the last one (overrides, tracks, section), and on the next frame
+        /// starts Animation Name as an enable does, unless a script selects an animation first.
+        /// </summary>
         public SpriteStudioAnimeAsset AnimeAsset
         {
             get => _animeAsset;
@@ -44,11 +48,13 @@ namespace SpriteStudio.Runtime
                 else if (_core.Internal != null)
                 {
                     _core.ReloadAsset(_animeAsset);
+                    _startAfterSwap = _started;
                 }
                 else if (isActiveAndEnabled)
                 {
                     // The runtime went with the pack a null asset let go of; this one brings it back.
                     EnsureCore();
+                    _startAfterSwap = _started;
                 }
                 // The cellmap name->hash table belongs to the new asset: re-resolve name-keyed replacements.
                 _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
@@ -213,6 +219,7 @@ namespace SpriteStudio.Runtime
             if (ok)
             {
                 ApplyPlaybackSettings();
+                _startAfterSwap = false;
                 // Another animation may bring another canvas, which is the size a layout asks for.
                 SetLayoutDirty();
             }
@@ -238,10 +245,28 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>Starts playing the currently set-up animation from the beginning.</summary>
-        public void Play() { _core.Play(); }
+        public void Play()
+        {
+            // With Auto Play on, the enable that creates the runtime starts it all the same.
+            if (!_autoPlay) _core.ReportNotEnabled(nameof(Play), this);
+            _core.Play();
+        }
 
         /// <summary>Starts playing the currently set-up animation from the specified frame.</summary>
-        public void Play(float startFrame) { _core.Play(startFrame); }
+        public void Play(float startFrame)
+        {
+            _core.ReportNotEnabled(nameof(Play), this);
+            _core.Play(startFrame);
+        }
+
+        // Stops on a frame with nothing reported for it, for the UI adapter's reduced motion: a stopped playhead
+        // reports the frame a seek lands on all the same, and a held state fires no event.
+        internal void HoldFrame(float frame)
+        {
+            Stop();
+            _core.Seek(frame);
+            _core.DropLandingReport();
+        }
 
         #region Playback Control
         // Thinly expose, as the component's public API, the playback controls the internal player (Rust
@@ -317,6 +342,7 @@ namespace SpriteStudio.Runtime
         /// </summary>
         public void Pause()
         {
+            _core.ReportNotEnabled(nameof(Pause), this);
             _core.Internal?.Pause();
         }
 
@@ -340,7 +366,11 @@ namespace SpriteStudio.Runtime
         public float FrameNo
         {
             get => _core.Internal?.GetFrame() ?? 0f;
-            set => _core.Seek(value);
+            set
+            {
+                _core.ReportNotEnabled(nameof(FrameNo), this);
+                _core.Seek(value);
+            }
         }
 
         /// <summary>
@@ -822,13 +852,19 @@ namespace SpriteStudio.Runtime
         // returns to its default state and a Play On Awake particle system plays again.
         [System.NonSerialized] private bool _started;
 
+        // An asset was assigned after Start. Waiting for the next frame lets a script that assigns it and then
+        // selects an animation, as most do, do so with no warning about the old name and no extra started event.
+        [System.NonSerialized] private bool _startAfterSwap;
+
         private void StartPlayback()
         {
+            _startAfterSwap = false;
             if (string.IsNullOrEmpty(_animationName)) return;
             // Always call SetAnimation so the first frame is posed even when AutoPlay is off; actually start
             // playback only when AutoPlay is on. SetAnimation pushes the serialized loop/speed/skip itself,
-            // so the order is simply animation -> play.
-            if (SetAnimation(_animationName) && _autoPlay) Play();
+            // so the order is simply animation -> play. A script may have played it already, between the enable
+            // and this first Start: Play would rewind what it asked for.
+            if (SetAnimation(_animationName) && _autoPlay && !IsPlaying) Play();
         }
 
         private readonly SpriteStudioPlaybackCore _core = new SpriteStudioPlaybackCore();
@@ -1163,10 +1199,12 @@ namespace SpriteStudio.Runtime
         internal void PrepareFrame(float deltaTime, out System.IntPtr handle, out float drawFrame)
         {
             if (_core.Internal == null) { handle = System.IntPtr.Zero; drawFrame = 0f; return; }
+            if (_startAfterSwap) StartPlayback();
             // Before the frame is prepared: a fit that changed drops the cache that would skip the build.
             ApplyFit();
-            _core.Internal.PrepareFrameData(deltaTime, true, out handle, out drawFrame);
-            _core.EndUpdate();
+            // In a finally: a handler that throws out of the update has still had its landing frame reported.
+            try { _core.Internal.PrepareFrameData(deltaTime, true, out handle, out drawFrame); }
+            finally { _core.EndUpdate(); }
         }
 
         /// <inheritdoc/>

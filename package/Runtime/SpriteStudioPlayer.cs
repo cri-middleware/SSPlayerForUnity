@@ -50,7 +50,11 @@ namespace SpriteStudio.Runtime
         // Per-player, draw-time replacement map derived from _cellmapTextureOverrides (never serialized).
         private readonly SpriteStudioTextureOverride _textureOverride = new SpriteStudioTextureOverride();
 
-        /// <summary>The animation asset to play. Assigning null unloads it, and the player draws nothing.</summary>
+        /// <summary>
+        /// The animation asset to play. Assigning null unloads it, and the player draws nothing. Another asset
+        /// loses what the runtime held for the last one (overrides, tracks, section), and on the next frame
+        /// starts Animation Name as an enable does, unless a script selects an animation first.
+        /// </summary>
         public SpriteStudioAnimeAsset AnimeAsset
         {
             get => _animeAsset;
@@ -64,12 +68,15 @@ namespace SpriteStudio.Runtime
                 else if (_core.Internal != null)
                 {
                     _core.ReloadAsset(_animeAsset);
+                    _timelineCurrentAnim = null;
+                    _startAfterSwap = _started;
                 }
                 else if (isActiveAndEnabled)
                 {
                     // The runtime went with the pack a null asset let go of; this one brings it back.
                     _core.EnsureCreated(_animeAsset, _subFrameEnabled);
                     ApplyPixelsPerUnit();
+                    _startAfterSwap = _started;
                 }
                 // The cellmap name->hash table belongs to the new asset: re-resolve name-keyed replacements.
                 _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
@@ -284,7 +291,14 @@ namespace SpriteStudio.Runtime
             bool ok = _core.SetAnimation(_animationName, this);
             // The runtime resets the loop count on every setup, so a switch would otherwise turn a
             // configured `LoopCount = 1` back into looping forever.
-            if (ok) ApplyPlaybackSettings();
+            if (ok)
+            {
+                ApplyPlaybackSettings();
+                _startAfterSwap = false;
+                // While a Timeline drives this player its clip decides track 0: the clip that set its animation
+                // up sets it up again at the next evaluation.
+                _timelineCurrentAnim = null;
+            }
             return ok;
         }
 
@@ -307,10 +321,19 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>Starts playing the currently set-up animation from the beginning.</summary>
-        public void Play() { _core.Play(); }
+        public void Play()
+        {
+            // With Auto Play on, the enable that creates the runtime starts it all the same.
+            if (!_autoPlay) _core.ReportNotEnabled(nameof(Play), this);
+            _core.Play();
+        }
 
         /// <summary>Starts playing the currently set-up animation from the specified frame.</summary>
-        public void Play(float startFrame) { _core.Play(startFrame); }
+        public void Play(float startFrame)
+        {
+            _core.ReportNotEnabled(nameof(Play), this);
+            _core.Play(startFrame);
+        }
 
         #region Playback Control
         // Thinly expose, as the component's public API, the playback controls the internal player (Rust
@@ -386,6 +409,7 @@ namespace SpriteStudio.Runtime
         /// </summary>
         public void Pause()
         {
+            _core.ReportNotEnabled(nameof(Pause), this);
             _core.Internal?.Pause();
         }
 
@@ -409,7 +433,11 @@ namespace SpriteStudio.Runtime
         public float FrameNo
         {
             get => _core.Internal?.GetFrame() ?? 0f;
-            set => _core.Seek(value);
+            set
+            {
+                _core.ReportNotEnabled(nameof(FrameNo), this);
+                _core.Seek(value);
+            }
         }
 
         /// <summary>
@@ -841,13 +869,19 @@ namespace SpriteStudio.Runtime
         // returns to its default state and a Play On Awake particle system plays again.
         [System.NonSerialized] private bool _started;
 
+        // An asset was assigned after Start. Waiting for the next frame lets a script that assigns it and then
+        // selects an animation, as most do, do so with no warning about the old name and no extra started event.
+        [System.NonSerialized] private bool _startAfterSwap;
+
         private void StartPlayback()
         {
+            _startAfterSwap = false;
             if (string.IsNullOrEmpty(_animationName)) return;
             // Always call SetAnimation so the first frame is posed even when AutoPlay is off; actually start
             // playback only when AutoPlay is on. SetAnimation pushes the serialized loop/speed/skip itself,
-            // so the order is simply animation -> play.
-            if (SetAnimation(_animationName) && _autoPlay) Play();
+            // so the order is simply animation -> play. A script may have played it already, between the enable
+            // and this first Start: Play would rewind what it asked for.
+            if (SetAnimation(_animationName) && _autoPlay && !IsPlaying) Play();
         }
 
         private readonly SpriteStudioPlaybackCore _core = new SpriteStudioPlaybackCore();
@@ -986,7 +1020,7 @@ namespace SpriteStudio.Runtime
             _core.OnUserData -= InvokeUserData;
             _core.OnSignal -= InvokeSignal;
             _core.OnAudio -= InvokeAudio;
-            ReleasePack();
+            UnloadAsset();
         }
 
         // Let go of everything that came from the loaded pack: its sounds, the material instances made for
@@ -1008,9 +1042,10 @@ namespace SpriteStudio.Runtime
             ReleaseTimelineControl();
         }
 
-        // A null asset draws nothing. The renderer would otherwise keep the last mesh and its materials,
-        // which an Addressables release destroys with the asset (the parts then draw magenta), and the
-        // runtime would keep building the old pack every frame.
+        // A null asset, or a player not enabled, draws nothing. The MeshRenderer, a component of its own, would
+        // otherwise keep drawing the last mesh with materials that are gone: the ones ReleasePack destroys, and
+        // the ones an Addressables release destroys with the asset (the parts then draw magenta). And with a
+        // null asset the runtime would keep building the old pack every frame.
         private void UnloadAsset()
         {
             ReleasePack();
@@ -1191,6 +1226,7 @@ namespace SpriteStudio.Runtime
         private void DrawEditFrame()
         {
             if (!_core.Internal.HasSsab) return;
+            _core.Internal.BindShaderCatalog(_shaderCatalog);
             _core.Internal.ScheduleMeshUpdate(0f);
             ApplyAndRender();
         }
@@ -1252,9 +1288,14 @@ namespace SpriteStudio.Runtime
         internal void PrepareFrame(float deltaTime, out System.IntPtr handle, out float drawFrame)
         {
             if (_core.Internal == null) { handle = System.IntPtr.Zero; drawFrame = 0f; return; }
+            if (_startAfterSwap && !_timelineControlled) StartPlayback();
+            // Bind the per-part shader catalog before the build so the geometry builder can carve out
+            // is-per-part AddOn parts.
+            _core.Internal.BindShaderCatalog(_shaderCatalog);
             // Under Timeline control, render the frame set by SetTime, so do not auto-advance (advance=false)
-            _core.Internal.PrepareFrameData(deltaTime, !_timelineControlled, out handle, out drawFrame);
-            _core.EndUpdate();
+            // In a finally: a handler that throws out of the update has still had its landing frame reported.
+            try { _core.Internal.PrepareFrameData(deltaTime, !_timelineControlled, out handle, out drawFrame); }
+            finally { _core.EndUpdate(); }
         }
 
         /// <inheritdoc/>
@@ -1278,10 +1319,6 @@ namespace SpriteStudio.Runtime
         internal void ApplyAndRender()
         {
             if (_core.Internal == null) return;
-
-            // Bind the per-part shader catalog before the build so the geometry builder can carve out
-            // is-per-part AddOn parts (cheap reference assignment; null = no per-part dispatch).
-            _core.Internal.ShaderCatalog = _shaderCatalog;
 
             // Split SubMeshes per batch and apply a separate material per texture
             _core.Internal.ApplyToMesh(_sharedMesh, true);
@@ -1828,9 +1865,16 @@ namespace SpriteStudio.Runtime
 #if UNITY_EDITOR
             _editPreviewAnimation = null;
 #endif
-            if (!_core.Internal.SetupAnimation(animationName)) return false;
+            if (!_core.SetAnimation(animationName, this)) return false;
             ApplyPlaybackSettings();
             return true;
+        }
+
+        // A clip's seeks leave a report of the last frame due on the next update, which is the player's own once
+        // the clip lets go. Under a clip no event fires, and that frame is the clip's.
+        private void DropTimelineLanding()
+        {
+            if (_timelineControlled) _core.DropLandingReport();
         }
 
         // Clip-local time counts from the animation's first frame, not from frame 0.
@@ -1843,6 +1887,7 @@ namespace SpriteStudio.Runtime
 
         public void OnControlTimeStop()
         {
+            DropTimelineLanding();
             _timelineControlled = false;
 #if UNITY_EDITOR
             if (!Application.isPlaying) _editPreviewDirty = true;
@@ -1885,6 +1930,7 @@ namespace SpriteStudio.Runtime
         /// <summary>Releases Timeline control (on mixer graph teardown / track deactivation).</summary>
         internal void ReleaseTimelineControl()
         {
+            DropTimelineLanding();
             _timelineControlled = false;
             _timelineCurrentAnim = null;
 #if UNITY_EDITOR

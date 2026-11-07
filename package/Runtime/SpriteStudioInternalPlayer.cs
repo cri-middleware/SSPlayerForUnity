@@ -155,7 +155,27 @@ internal struct MaskPartData
         // Optional user catalog of per-part shaders, set by the owning world player; null falls back to
         // the built-in AddOns. The geometry builder consults it to carve out is-per-part shader parts; the
         // player resolves their material.
-        public SpriteStudioShaderCatalog ShaderCatalog;
+        public SpriteStudioShaderCatalog ShaderCatalog { get; private set; }
+        private int _shaderCatalogVersion;
+
+        /// <summary>
+        /// Binds the catalog here and on the instance children, before a build reads it. Another catalog, or
+        /// an edited one, can carve the parts differently, so it drops the cache that would skip the rebuild.
+        /// </summary>
+        public void BindShaderCatalog(SpriteStudioShaderCatalog catalog)
+        {
+            int version = catalog != null ? catalog.Version : 0;
+            if (ReferenceEquals(ShaderCatalog, catalog) && _shaderCatalogVersion == version) return;
+            ShaderCatalog = catalog;
+            _shaderCatalogVersion = version;
+            _geometryBuilder?.InvalidateFrameCache();
+            if (_instanceChildren == null) return;
+            for (int i = 0; i < _instanceChildren.Length; i++)
+            {
+                var c = _instanceChildren[i].Player;
+                if (c != null) c.BindShaderCatalog(catalog);
+            }
+        }
 
         // When true (the Canvas/uGUI path), SpriteStudio internal masking is suppressed and the stencil
         // buffer is left to uGUI's own Mask/RectMask2D. The world (MeshRenderer) path leaves it false.
@@ -670,6 +690,7 @@ internal struct MaskPartData
                             // Inherit the parent's suppression so children (re)created on load match the
                             // Canvas/world choice; the public setter also propagates to existing children.
                             childPlayer._suppressInternalMask = _suppressInternalMask;
+                            childPlayer.BindShaderCatalog(ShaderCatalog);
                             childPlayer._ancestorPackHashes = chain;
                             childPlayer.LoadSsab(childSsab, _assetResolver);
 
@@ -839,7 +860,7 @@ internal struct MaskPartData
         {
             unsafe
             {
-                if (!_handle.IsValid) return 0;
+                if (!_handle.IsValid || CurrentAnimationName == null) return 0;
                 return NativeMethods.ss_runtime_get_end_frame(_handle.ptr) - NativeMethods.ss_runtime_get_start_frame(_handle.ptr) + 1;
             }
         }

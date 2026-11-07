@@ -40,7 +40,7 @@ _player.Play();
 | `StopAllSounds()` | メソッド | 組み込み再生が鳴らしたすべての音を止める。ほかに音を止めるものはありません（イベント通知の注記を参照） |
 | `IsPlaying` | `bool`（読取） | 再生セッションが有効か（一時停止中でも `true`） |
 | `IsPausing` | `bool`（読取） | 一時停止中か |
-| `IsFinished` | `bool`（読取） | 設定したループを全て再生し終えたか。パルスではなく**状態**で、完了時に latch され次の `Play()` / `SetAnimation()` まで保持されます。そのため `Play(); yield return new WaitUntil(() => player.IsFinished);` は今開始した再生を待てます。`LoopCount` が無限のときは立たず、**`Stop()` でも立ちません** —— 命令された停止は完了ではないからで、そこが `!IsPlaying` との違いです |
+| `IsFinished` | `bool`（読取） | 設定したループを全て再生し終えたか。パルスではなく**状態**で、完了時に latch され次の `Play()` か別のアニメーションへの切り替えまで保持されます。そのため `Play(); yield return new WaitUntil(() => player.IsFinished);` は今開始した再生を待てます。`LoopCount` が無限のときは立たず、**`Stop()` でも立ちません** —— 命令された停止は完了ではないからで、そこが `!IsPlaying` との違いです |
 | `IsPlayingForward` | `bool`（読取） | 再生ヘッドが**実際に**進んでいる向き。`PlaybackDirection` は設定した向きに過ぎず、`PlaybackStyle.PingPong` の戻りの脚では `PlaybackDirection` が `Forward` のままでもこれは `false` になります。**音声はこれでゲートしてください**（SpriteStudio に逆再生音声は無いため、後ろ向きの脚で跨いだキーは鳴らすべきものではありません） |
 | `FrameNo` | `float` | 現在フレーム。`set` で任意フレームへシーク（小数可） |
 | `TotalFrames` | `int`（読取） | 再生中の区間のフレーム数（両端を含む）。`SetAnimationSection` で区間を設定していればその区間（未ロード時 `0`） |
@@ -87,13 +87,15 @@ _player.Play();
 
 > `PlaybackDirection` / `PlaybackStyle` は `SetAnimation()` を跨いで保持されます。インスペクタ側の既定値は無いため、スクリプトで指定するまでは Forward / Normal です。これらはシリアライズされずランタイムが保持するため、コンポーネントを無効化する（または `AnimeAsset` を `null` にする）と破棄され、再び有効にしたコンポーネントは Forward / Normal から始まります。有効になった後で設定し直してください。`FrameRate` の上書きも同じく破棄されます。切り替えでリセットされるのは往復再生の進行中の向きだけで、新しいアニメーションは必ず往路から始まります。方向とスタイルは `SetPlaybackDirection(direction, style)` で 1 回にまとめて設定することもできます。
 
+> コンポーネントを無効化する（または `AnimeAsset` を `null` にする）と、ランタイムごと保持していたものが破棄されます。これらのほかに、パーツオーバーライド（`Permanent` も含む）、トラックスタック、区間、一時停止、再生位置も失われます。描画も止まります（両コンポーネントとも）。シリアライズされている **Cellmap Texture Overrides** だけが残ります。
+
 ## 再生パラメータのプロパティ
 
 インスペクタ項目に対応するプロパティです。実行時に変更するとランタイムへ即時反映されます。インスペクタの項目（**Flip X**・**Offset**・**Speed Scale** など）は AnimationClip や Timeline の Animation Track でキーを打つこともでき、`SpriteRenderer` のキーを打った **Flip X** と同じく、評価のたびにプレイヤーへ反映されます。
 
 | プロパティ | 型 | 説明 |
 |---|---|---|
-| `AnimeAsset` | `SpriteStudioAnimeAsset` | 再生対象アセット（差し替え可） |
+| `AnimeAsset` | `SpriteStudioAnimeAsset` | 再生対象アセット（差し替え可）。古いアセットについてランタイムが保持していたものは引き継がれず、スクリプトが先にアニメーションを選んでいなければ、次のフレームで再度有効にしたときと同じように **Animation Name** を開始します |
 | `CurrentAnimation` | `string` | アニメーション名（読み取り専用。切り替えは `SetAnimation()` で行います） |
 | `AnimationNames` | `string[]` | アセットに含まれるアニメーションの名前（読み取り専用。アセット未設定のときは空） |
 | `AutoPlay` | `bool` | 起動時と再有効化時の自動再生 |
@@ -444,7 +446,7 @@ player.ClearAllPartOverrides();
 |---|---|
 | `OverwriteOnNextKeyframe` | アニメーションデータが当該アトリビュートを更新するまで、オーバーライドが適用される（新しいアニメーションを設定すると解除される） |
 | `HoldUntilNextAnimation`（既定） | 現在のアニメーション中は勝ち続け、新しいアニメーションを設定するとオーバーライドが解除される |
-| `Permanent` | 同じアニメーションデータ（.ssab）である間、オーバーライドが適用される (アニメーション変更をまたいでも持続) |
+| `Permanent` | 同じアニメーションデータ（.ssab）を読み込み、コンポーネントが有効である間、オーバーライドが適用される (アニメーション変更をまたいでも持続) |
 
 ### 注意点
 
