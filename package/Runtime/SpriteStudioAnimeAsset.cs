@@ -26,8 +26,7 @@ namespace SpriteStudio.Runtime
         [Tooltip("List of animation names contained in the file")]
         public string[] AnimationNames;
 
-        [Tooltip("The 'mouth' for playing ssab sounds (referenced by EventAudio). Only the two addressing hashes + the resolved AudioClip. " +
-                 "Metadata such as name/source path/duration lives in SsabData, so it is not duplicated here. Empty for packs with no sound.")]
+        [Tooltip("AudioClips the asset's audio events refer to, resolved at import. Empty for packs with no sound.")]
         public List<SoundClipEntry> Sounds = new List<SoundClipEntry>();
 
         [HideInInspector]

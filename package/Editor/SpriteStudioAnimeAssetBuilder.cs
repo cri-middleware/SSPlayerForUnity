@@ -11,10 +11,8 @@ namespace SpriteStudio.Editor
     /// <summary>
     /// Shared logic for interpreting the .ssab FlatBuffers and resolving textures, plus the
     /// SpriteStudioAnimeAsset build routine for SpriteStudioSsabImporter.
-    /// Centralizes the parse / path resolution / de-duplication that was duplicated between the
-    /// importer and SpriteStudioAssetPostprocessor.
     ///
-    /// Material policy is unchanged: use a per-texture "shared .mat".
+    /// Material policy: use a per-texture "shared .mat".
     /// The importer references an adjacent shared .mat if one exists, otherwise falls back to a
     /// provisional embedded material. Auto-generating the shared .mat itself is handled by
     /// SpriteStudioAssetPostprocessor.
@@ -351,10 +349,7 @@ namespace SpriteStudio.Editor
                 if (anim.HasValue) asset.AnimationNames[i] = anim.Value.Name;
             }
 
-            // 5b. Resolve sounds (SoundList/SoundFile) to AudioClips and store them in the "slot".
-            //     Runtime playback is not implemented yet, but the ScriptableObject only holds what playback
-            //     needs: the two address hashes + the AudioClip instance (name/path/duration live in SsabData,
-            //     so they are not duplicated here).
+            // 5b. Resolve sounds (SoundList/SoundFile) to AudioClips.
             //     Like textures, AudioClips are hard-referenced + dependency-registered to prevent build
             //     stripping. Sounds that cannot be resolved are warned about and skipped, like textures
             //     (= Sounds only contains the playable entries).
@@ -390,9 +385,8 @@ namespace SpriteStudio.Editor
             }
 
             // 6. Resolve dependencies on external animations (Instance).
-            //    The external_instances vector can be omitted by the converter (it was actually empty for
-            //    Ringo_tyu), so scan the parts' PartTypeInstance directly to collect cross-pack references
-            //    (the authoritative source).
+            //    The external_instances vector can be omitted by the converter, so scan the parts'
+            //    PartTypeInstance directly to collect cross-pack references (the authoritative source).
             //    Also follow other packs that the external assets reference in turn (transitive).
             {
                 var seenAssets = new HashSet<SpriteStudioAnimeAsset>();
@@ -462,7 +456,6 @@ namespace SpriteStudio.Editor
                 {
                     // Not reported: a pack the conversion has not written or imported yet lands here too. A target
                     // still missing when the Instance plays is reported by SpriteStudioAnimeAsset.ResolveExternalSsab.
-                    // ctx.LogImportWarning($"[SpriteStudioSsabImporter] Instance target '{packName}' not found (tried '{extPath}'). The Instance parts that play it are skipped.");
                     continue;
                 }
                 if (!seenAssets.Add(extAsset)) continue;

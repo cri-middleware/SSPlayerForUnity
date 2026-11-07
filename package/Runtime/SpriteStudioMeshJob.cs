@@ -8,17 +8,16 @@ using UnityEngine;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// Share the frame-data enum values (ss.runtime.UpdateAttributeFlags) by deriving them from the generated
-    /// enum rather than from literals. Having the accounting side (SpriteStudioInternalPlayer) and the Burst Job
-    /// (UpdateMeshJob) reference the same definition prevents the "edit one side and the values drift" accident
-    /// (a mismatch between the vertex-count accounting and the Job).
+    /// The frame-data enum values (ss.runtime.UpdateAttributeFlags), derived from the generated enum rather
+    /// than from literals. Shared by the vertex-count accounting (SpriteStudioGeometryBuilder,
+    /// SpriteStudioMaskPlanner) and the Burst job (UpdateMeshJob), so the two cannot drift.
     /// Burst inlines const, so the Job can reference it too.
     /// </summary>
     internal static class SsUpdateFlag
     {
         public const ulong AttributeVertex = (ulong)ss.runtime.UpdateAttributeFlags.AttributeVertex;
         public const ulong AttributePartColor = (ulong)ss.runtime.UpdateAttributeFlags.AttributePartColor;
-        // Center vertex needed = a frame where vertex deform or part color is active (same condition as SDK core/framedata.rs).
+        // A frame with vertex deform or part color active carries a centre vertex.
         public const ulong NeedsCenterMask = AttributeVertex | AttributePartColor;
     }
 
@@ -103,7 +102,7 @@ namespace SpriteStudio.Runtime
         public Vector3 Position;
         public Color32 Color;
         public Vector2 TexCoord0;
-        public Vector4 TexCoord1; // [rate, blend_idx, pma_flag, reserved]
+        public Vector4 TexCoord1; // [rate, blend_idx, isNormalized, isAdditive]
     }
 
     /// <summary>

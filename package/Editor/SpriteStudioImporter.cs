@@ -59,8 +59,8 @@ namespace SpriteStudio.Editor
         /// <summary>
         /// Reconverts one .sspj back into an output folder that already exists, instead of into the folder
         /// the <c>&lt;output folder&gt;/&lt;stem&gt;</c> rule would name.
-        /// The generated folder may be moved or renamed after it is created (the docs say so, and the
-        /// source map follows the move), so a reconvert started from an existing .ssab has to write where
+        /// The generated folder may be moved or renamed after it is created (the source map follows the
+        /// move), so a reconvert started from an existing .ssab has to write where
         /// that .ssab is -- writing by the rule instead would recreate the original folder and leave the
         /// asset the user asked about untouched.
         /// </summary>

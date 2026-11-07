@@ -10,18 +10,16 @@ using SpriteStudio.Runtime;
 namespace SpriteStudio.Runtime.Tests
 {
     /// <summary>
-    /// Regression guard for the clipping-mask stencil-leak fix (BuildGeometry "Phase C").
+    /// Guards the clipping-mask stencil restore (ConsumeFrameData's Phase C).
     ///
     /// A clipping mask (MaskWrite &amp;&amp; !PureMask) writes its isolated stencil bits at its own rank to
-    /// clip the parts drawn after it. Unlike a pure mask - pre-written in Phase A and removed at its own
-    /// rank - it used to have no removal step, so its bits stayed set past the object's draw and leaked
-    /// into other SpriteStudio objects sharing the stencil buffer that frame. The fix appends an inverse
-    /// write at the end of the draw so every writer is balanced.
+    /// clip the parts drawn after it. Without an inverse write at the end of the draw, its bits would stay
+    /// set past the object's draw and leak into other SpriteStudio objects sharing the stencil buffer that
+    /// frame.
     ///
     /// Invariant asserted: every stencil writer (pure or clipping) contributes exactly TWO Write-role
-    /// submeshes - a write and its restore - so <c>writeSubmeshCount == 2 * writerCount</c>. Before the
-    /// fix a clipping writer contributes only one (no restore), so the count falls short by the number of
-    /// clipping writers. Exercised with the real Mask animation from the SDK's "overall" test project,
+    /// submeshes - a write and its restore - so <c>writeSubmeshCount == 2 * writerCount</c>.
+    /// Exercised with the real Mask animation from the SDK's "overall" test project,
     /// which contains 2 clipping writers.
     ///
     /// Note on why a simpler op-parity check is insufficient: those clipping writers use the Invert op

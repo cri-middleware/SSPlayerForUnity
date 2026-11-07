@@ -15,11 +15,11 @@ namespace SpriteStudio.Runtime
         private readonly SpriteStudioEffectPlanBuffer _effectBuffer = new SpriteStudioEffectPlanBuffer();
 
         // --- Mask: MaskPlanner owns the writer list / per-part (texHash,blend) / vc-ic computation ---
-        // (the actual draw batch / submesh emission = EmitMaskStep / Phase A/B touches shared state, so it stays in the builder)
+        // (the Phase A/B loops that emit the batches and submeshes stay in the builder)
         private readonly SpriteStudioMaskPlanner _maskPlanner = new SpriteStudioMaskPlanner();
         // --- Instance ---
 internal NativeArray<InstanceMeshPointer> _instanceMeshes;
-        // Instance-internal clipping masks carry past the instance boundary (SS7.5): the child's Phase C
+        // Instance-internal clipping masks carry past the instance boundary (SpriteStudio 7.5): the child's Phase C
         // restores are collected here and flushed at THIS player's Phase C, after its own parts, instead of
         // being drawn at the child's boundary. Grow-only; reset each ConsumeFrameData.
         private NativeArray<SubmeshInfo> _deferredCloses;
@@ -321,7 +321,6 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             // Ensure the previous frame's job is complete before overwriting the persistent buffers.
             _updateJobHandle.Complete();
 
-            // ss_runtime_update takes delta in milliseconds (update_interval = 1000/fps).
             if (advance)
             {
                 _player.UpdateRuntime(deltaTime);
@@ -359,9 +358,8 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         /// Invalidate the frame-skip cache so the next PrepareFrameData rebuilds geometry even when the draw
         /// frame number is unchanged. Must be called after setup_animation: that resets the native world
         /// matrices to identity, so a new animation whose start frame number matches the last built frame
-        /// would otherwise be skipped, leaving matrices/geometry stale (seen as part trackers snapping to
-        /// the local origin, and a stale mesh preview). The root transform (scale, flip, offset) is folded
-        /// into the geometry, so a change to it calls this too.
+        /// would otherwise be skipped, leaving matrices/geometry stale. The root transform (scale, flip,
+        /// offset) is folded into the geometry, so a change to it calls this too.
         /// </summary>
         public void InvalidateFrameCache() => _lastBuiltDrawFrameNo = float.NaN;
 
@@ -566,8 +564,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     }
                 }
 
-                // Build the per-frame mask writer list (mirrors _build_mask_writers). Behaviour-neutral
-                // until the stencil submesh pipeline consumes it.
+                // Build the per-frame mask writer list.
                 _maskPlanner.BuildWriters(rawParts, _drawOrder, _player._hasMaskParts, _player._maskPartData, drawOrderLength, partsLength,
                     _player._inheritedMaskInfluence);
 
@@ -642,7 +639,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                         _batchBuilder.EmitMaskStep(md.DrawKind, w.DrawRank, wvc, wic, _maskPlanner.GetPartTexHash(wp), _maskPlanner.GetPartBlend(wp),
                             StencilRole.Write, rop, 0, threshold, ref totalVertices, ref totalIndices);
                         // Tag as a deferrable close: if THIS player is itself an instance child, its parent
-                        // carries this restore past the instance boundary (SS7.5) instead of closing here.
+                        // carries this restore past the instance boundary (SpriteStudio 7.5) instead of closing here.
                         _batchBuilder.MarkLastSubmeshDeferrableClose();
                     }
                 }
@@ -955,14 +952,9 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
 
                 if (step.visible)
                 {
-                    // For an independent instance the Rust-side controller is the sole frame truth, and
-                    // SetFrame(=set_frame_no) rewrites that controller directly. The next frame's
-                    // child_ctx.update() advances by delta from the written-back current frame, so writing back a
-                    // Floor/Clamp'd value here truncates every frame the fractional progress of an independent
-                    // child that advances 1tick<1frame, so it cannot cross an integer frame and freezes. Hence
-                    // write the raw child_frame_no back to the controller (irrelevant for non-independent, which
-                    // recomputes from parent_frame via set_frame_relative).
-                    // The display-side frame-range clamp is unneeded here because the child's own PrepareFrameData does it before get_frame_data.
+                    // The controller is an independent child's only frame source, so SetFrame below writes
+                    // back the raw child_frame_no: a floored value would stall a child that advances less
+                    // than one frame per tick.
                     // Hand this instance part's mask context down before the child builds: the child bakes
                     // the composed roles into its own submeshes, so the parent never patches them afterwards.
                     PropagateMaskContext(i, childPlayer, outerCoverage);
@@ -994,7 +986,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
         {
             // Eliminate the per-element nested accessor (frameData.PartsColor(i)) and read the contiguous
             // parts_color struct-vector (vtable offset 8, 36B stride) directly via the RawPartColor mirror.
-            // U8Color is in ARGB byte order, so reorder into Color32(R,G,B,A) (identical to the prior behavior).
+            // U8Color is in ARGB byte order, so reorder into Color32(R,G,B,A).
             int vecOff = tFrame.__offset(PartsColorVtoff);
             if (vecOff == 0) return;
             RawPartColor* raw = (RawPartColor*)(frameDataPtr + tFrame.__vector(vecOff));
@@ -1012,24 +1004,12 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
             }
         }
 
-        /// <summary>
-        /// Compute the FNV-1a signature for the index-upload cache decision from the current draw batch /
-        /// submesh structure. Call after _vertexCount / _indexCount are finalized.
-        /// </summary>
-        
-
         // Stencil op / compare values used by the mask path (UnityEngine.Rendering enums as bytes).
         private const byte StencilOpIncr = (byte)UnityEngine.Rendering.StencilOp.IncrementWrap;   // 7
         private const byte StencilOpDecr = (byte)UnityEngine.Rendering.StencilOp.DecrementWrap;   // 8
         private const byte StencilOpInvert = (byte)UnityEngine.Rendering.StencilOp.Invert;        // 5
         private const byte StencilCompEqual = (byte)UnityEngine.Rendering.CompareFunction.Equal;       // 3 (draw outside mask)
         private const byte StencilCompNotEqual = (byte)UnityEngine.Rendering.CompareFunction.NotEqual; // 6 (draw inside mask)
-
-        /// <summary>
-        /// Emit one mask render step: a single-part geometry batch (built by the mesh job) plus a
-        /// submesh carrying its stencil role/params. Geometry is rebuilt per step, so a writer that
-        /// both writes and later restores costs two builds (cheap; masks are few).
-        /// </summary>
 
         /// <summary>
         /// Hand an instance child the mask context it is drawn in, before the child builds: the flags of
@@ -1089,11 +1069,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     _batchBuilder.EmitInstanceBatch(p_idx, cvc, cic);
 
                     // The child already resolved each submesh's stencil role against the context handed to
-                    // it in PropagateMaskContext, so take them verbatim. (This used to patch every
-                    // role-less child submesh to the instance part's own role instead, which is neither
-                    // the OR of visibleInsideMask nor the AND of maskInfluence that SS7.5 composes: a child
-                    // part carrying its own role overrode the caller, and a role-less one was forced to the
-                    // caller's polarity even when its own said otherwise.)
+                    // it in PropagateMaskContext, so take them verbatim.
                     for (int sm = 0; sm < childPlayer.SubmeshCount; sm++)
                     {
                         var cs = childPlayer.Submeshes[sm];
@@ -1241,7 +1217,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                     {
                         // The op/plane follows the writer's EFFECTIVE maskInfluence (own AND the instance
                         // part's above), so a mask directly inside a maskInfluence=0 instance lands on the
-                        // counter plane (union) instead of the parity plane (XOR) - SS7.5's mixed-influence union.
+                        // counter plane (union) instead of the parity plane (XOR) - SpriteStudio 7.5's mixed-influence union.
                         byte wop = SpriteStudioInternalPlayer.EffectiveMaskInfluence(md, _player._inheritedMaskInfluence)
                             ? StencilOpInvert : StencilOpIncr;
                         float th = kind == SsDrawBatchKind.Shape ? -1f : (255f - rawParts[p_idx].Mask) / 255f;
@@ -1371,8 +1347,7 @@ internal NativeArray<InstanceMeshPointer> _instanceMeshes;
                 // Every pure mask has a Mask batch at its own rank: the only batch of a Mask part, and the
                 // twin the runtime emits ahead of a draw_as_mask part's colour batch (kept even when that
                 // part is hidden). Removing here rather than at the colour batch covers every kind alike -
-                // a Nines draw_as_mask has no colour path in this builder, so Phase A's write used to stay
-                // set past its rank.
+                // a Nines draw_as_mask has no colour path in this builder.
                 if (!md.PureMask) continue;
                 // Phase B: the removal that pairs with Phase A's write, so a writer Phase A left out -
                 // switched off with mask == 0, or hidden - must be left out here too.

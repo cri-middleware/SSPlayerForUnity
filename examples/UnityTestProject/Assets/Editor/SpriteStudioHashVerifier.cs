@@ -13,8 +13,7 @@ namespace SpriteStudioDev
     ///
     /// A full match confirms ss_runtime_hash_string is the converter's canonical name hash, so the
     /// SpriteStudioShaderCatalog can resolve per-part shader ids by hashing the catalog's id names
-    /// (every name_hash in the .ssab — including the shader id_hash — uses the same hash). A mismatch
-    /// means we must fall back to per-asset baking from the ssab's PartAttributeShader.Id strings.
+    /// (every name_hash in the .ssab — including the shader id_hash — uses the same hash).
     /// Editor-only dev tool; it lives in the example project and is never part of the package.
     /// </summary>
     public static class SpriteStudioHashVerifier

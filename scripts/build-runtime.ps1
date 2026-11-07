@@ -10,7 +10,6 @@ if ($rawArch -match "ARM64") {
 }
 $HOST_PLATFORM = "windows"
 
-# Godot options
 $default_opts = @{
     arch = $HOST_ARCH
     platform = $HOST_PLATFORM
@@ -97,9 +96,7 @@ foreach ($pluginsDir in @("$rootDirectory/package/Runtime/Plugins", "$rootDirect
 # .meta is ignored by Unity inside an immutable package folder (see that README).
 echo "Copying C# bindings..."
 # The generating build scripts live in the *-ffi crates and write beside
-# themselves, so these are `libs/<crate>-ffi/target/`. They moved there with the
-# SDK's "split the binary faces into *-ffi crates" refactor; the old
-# `libs/<crate>/target/` paths are written by nothing now.
+# themselves, so these are `libs/<crate>-ffi/target/`.
 Copy-Item "$SDK_DIR/libs/ssruntime-ffi/target/SSRuntimeMethods.g.cs" "$rootDirectory/package/Runtime/Bindings/" -Force
 Copy-Item "$baseDirectory/upm-meta/SSRuntimeMethods.g.cs.meta" "$rootDirectory/package/Runtime/Bindings/" -Force
 $editorBindingsDir = "$rootDirectory/package/Editor/Bindings"

@@ -48,8 +48,8 @@ namespace SpriteStudio.UI
             // A graphic enabled again comes back with a new runtime, set up on the animation last shown, which
             // may be a clip's; the animation the states are read from stays while the pack still has it.
             if (!samePlayer) _reported.Clear();
-            // An animation the driver did not set was chosen by the scene or a script, and is the one to read the
-            // states from from now on.
+            // An animation the driver did not set was chosen by the scene or a script, and the states are read
+            // from it now.
             if (_base == null || (current != null && current != _shownAnimation) || graphic.GetLabelTable(_base) == null)
             {
                 _base = current;

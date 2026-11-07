@@ -6,11 +6,8 @@ using UnityEngine;
 namespace SpriteStudio.Runtime.Tests
 {
     /// <summary>
-    /// An Instance part whose child SSAB resolves back to a pack already being loaded used to make
-    /// LoadSsab -> SetupSlots recurse until the stack died, taking the Editor with it. Resolution
-    /// reaches that state on its own: when an import leaves <c>ExternalReferences</c> unpopulated the
-    /// pack-hash lookup misses, and the animation-name-hash fallback then finds the requested name in
-    /// the *asking* SSAB whenever both packs happen to share an animation name.
+    /// An Instance part whose child SSAB resolves back to a pack already being loaded is skipped, not
+    /// recursed into.
     /// </summary>
     public class SpriteStudioInstanceCycleTests
     {

@@ -143,10 +143,7 @@ echo "local" > ${EDITOR_DIR}/VERSION
 # .meta is ignored by Unity inside an immutable package folder (see that README).
 echo "Copying C# bindings..."
 # The generating build scripts live in the *-ffi crates and write beside
-# themselves, so these are `libs/<crate>-ffi/target/`. They moved there with the
-# SDK's "split the binary faces into *-ffi crates" refactor; the old
-# `libs/<crate>/target/` paths are written by nothing now, and a checkout that
-# still has one is holding a leftover from before that split.
+# themselves, so these are `libs/<crate>-ffi/target/`.
 cp ${SDK_DIR}/libs/ssruntime-ffi/target/SSRuntimeMethods.g.cs ${ROOTDIR}/package/Runtime/Bindings/
 cp ${BASEDIR}/upm-meta/SSRuntimeMethods.g.cs.meta ${ROOTDIR}/package/Runtime/Bindings/
 mkdir -p ${ROOTDIR}/package/Editor/Bindings/

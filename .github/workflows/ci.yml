@@ -36,8 +36,7 @@ permissions:
   contents: read
 
 jobs:
-  # Declaring the shell once per job, the way SSPlayerForGodot does, rather than
-  # repeating it on every step.
+  # Declaring the shell once per job rather than repeating it on every step.
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -237,7 +236,7 @@ jobs:
   # the current toolchain and keeps the Rust cache seeded, and then saves a
   # marker under the key. A pull request whose key has a marker skips the
   # build; one that bumps the submodule, or changes any of the rest, misses
-  # and builds as before.
+  # and builds.
   runtime:
     name: 🐧 Runtime (Linux)
     runs-on: ubuntu-latest

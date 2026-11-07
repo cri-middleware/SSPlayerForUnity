@@ -11,7 +11,7 @@ namespace SpriteStudio.Runtime.Tests
 {
     /// <summary>
     /// Verifies the runtime cellmap texture-replacement feature (a Player-side override, separate from the
-    /// Override Layer API) ported from ForGodot's set_cellmap_texture.
+    /// Override Layer API).
     ///
     /// Three layers:
     ///   (A) Asset layer — name discovery and name→hash resolution parsed from the .ssab (cellmaps AND

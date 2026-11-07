@@ -8,10 +8,8 @@ using SpriteStudio.SsRuntime;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// Layer 2: shared logic layer (Internal Player).
-    /// Holds the FFI context (void*) to the native (Rust) side and manages the
-    /// animation Tick and Job System-based mesh construction.
-    /// Enforces strict lifecycle management (IDisposable) to prevent memory leaks.
+    /// Owns the native runtime handle and drives one pack: tick, events, part overrides, the track stack
+    /// and the geometry build.
     /// </summary>
     internal class SpriteStudioInternalPlayer : IDisposable
     {
@@ -124,7 +122,7 @@ internal struct MaskPartData
             public bool MaskWrite;         // clipping writer flag
             public bool MaskInfluence;     // writer OP (false=increment / true=invert); on a drawn target = mask opt-in
             public bool VisibleInsideMask; // target polarity (draw where masked == VisibleInsideMask)
-            // Derived (static), mirroring _build_mask_writers:
+            // Derived (static):
             public bool PureMask;          // IsMaskPart || DrawAsMask: draws no colour, masks parts drawn BEFORE it
             public bool Writes;            // PureMask || MaskWrite: contributes stencil coverage
             public bool IsClipping;        // MaskWrite && !PureMask: draws normally, masks parts drawn AFTER it
@@ -151,19 +149,19 @@ internal struct MaskPartData
         // its Length is capacity, not the part count.
         private int _partCount;
         // True when this ssab has at least one mask writer (pure mask or clipping). When false the
-        // whole mask path is skipped, like _build_mask_writers returning empty.
+        // whole mask path is skipped.
         internal bool _hasMaskParts;
 
-        // Per-part AddOn shader catalog (set by the owning world player each frame before the build).
-        // null = no per-part shader dispatch (the Canvas/Graphic path leaves this null). The geometry
-        // builder consults it to carve out is-per-part shader parts; the player resolves their material.
+        // Optional user catalog of per-part shaders, set by the owning world player; null falls back to
+        // the built-in AddOns. The geometry builder consults it to carve out is-per-part shader parts; the
+        // player resolves their material.
         public SpriteStudioShaderCatalog ShaderCatalog;
 
         // When true (the Canvas/uGUI path), SpriteStudio internal masking is suppressed and the stencil
         // buffer is left to uGUI's own Mask/RectMask2D. The world (MeshRenderer) path leaves it false.
         internal bool _suppressInternalMask;
 
-        // Mask flags of the instance part that draws this player. SS7.5 composes a part's own
+        // Mask flags of the instance part that draws this player. SpriteStudio 7.5 composes a part's own
         // maskInfluence (AND) and visibleInsideMask (OR) with the instance part DIRECTLY above it - one
         // level only, and whether or not the caller is itself masked. Values further up do not chain: an
         // instance part with maskInfluence=0 exempts its own sub-animation's parts, but a grandchild is
@@ -189,7 +187,7 @@ internal struct MaskPartData
         // True when some part has to be stencil-tested this frame even though this asset has no writer of
         // its own: a covering mask may come from outside (_outerMaskCoverage), or a part draws inside the
         // mask - such a part draws only where a mask covers it, so with no mask at all it must be tested
-        // and fail rather than be drawn untested (SS7.5 hides it even in an animation with no masks).
+        // and fail rather than be drawn untested (SpriteStudio 7.5 hides it even in an animation with no masks).
         // Effective maskInfluence=0 on every part (the instance part above said 0) needs no test.
         private bool NeedsTargetTest
             => _inheritedMaskInfluence
@@ -231,7 +229,7 @@ internal struct MaskPartData
             }
         }
 
-        // === Mask composition rules (SS7.5) ================================================
+        // === Mask composition rules (SpriteStudio 7.5) ================================================
         // Kept here, as small statics, so the geometry builder and the tests share one definition of the
         // rules instead of restating them at each decision site.
 
@@ -251,7 +249,7 @@ internal struct MaskPartData
             => md.VisibleInsideMask || inheritedVisibleInsideMask;
 
         /// <summary>
-        /// The flags an instance part hands to the player it draws: its own, verbatim. SS7.5 composes a
+        /// The flags an instance part hands to the player it draws: its own, verbatim. SpriteStudio 7.5 composes a
         /// part with the instance part directly above it only, so what the caller itself inherited is not
         /// passed on, and the caller being masked or not makes no difference.
         /// </summary>
@@ -268,7 +266,7 @@ internal struct MaskPartData
         /// follows this, not the raw own flag: influence=1 -> Invert (parity plane, self-inverse),
         /// influence=0 -> Incr/Decr (counter plane, union). So a mask directly inside a maskInfluence=0
         /// instance moves to the counter plane and composes with an outer mask as a union - which is what
-        /// SS7.5 does when maskInfluence is mixed - while a maskInfluence=0 further up does not reach it.
+        /// SpriteStudio 7.5 does when maskInfluence is mixed - while a maskInfluence=0 further up does not reach it.
         /// A root player passes the AND identity (true), leaving a standalone asset's planes unchanged.
         /// </summary>
         internal static bool EffectiveMaskInfluence(in MaskPartData md, bool inheritedMaskInfluence)
@@ -576,7 +574,7 @@ internal struct MaskPartData
                     _partSkinnedMesh[i] = SpriteStudioSsabFormat.IsSkinnedMeshPart(p);
 
                     // Cache the static mask flags for every part (any Normal/Mesh/Shape/Mask part can
-                    // be a writer or a target). Derivation mirrors _build_mask_writers exactly.
+                    // be a writer or a target).
                     {
                         bool isMaskPart = p.PartTypeType == ss.format.PartType.PartTypeMask;
                         bool drawAsMask = p.DrawAsMask;
@@ -811,8 +809,7 @@ internal struct MaskPartData
         public bool IsFinished() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_is_finished(_handle.ptr); } }
         /// <summary>
         /// Whether the last update crossed a loop boundary. A <b>pulse</b>: the runtime clears it at the
-        /// top of every update, so it only reads true inside the tick that crossed — which is why it is
-        /// not named <c>IsLooped</c>, here or in the Brain, whose C ABI spells it <c>ss_runtime_just_looped</c>. Reading it a tick late reads false.
+        /// top of every update, so it only reads true inside the tick that crossed. Reading it a tick late reads false.
         /// A frame that did not update (a Timeline seek) reports none, as <see cref="TrackJustLooped"/> does.
         /// </summary>
         public bool JustLooped() { unsafe { return _tickRan && _handle.IsValid && NativeMethods.ss_runtime_just_looped(_handle.ptr); } }
@@ -836,8 +833,7 @@ internal struct MaskPartData
 
         /// <summary>
         /// Frames in the range being played, both ends inclusive — the <b>section</b> when one is set, the
-        /// whole animation otherwise. Matches every sibling Player's `end - start + 1`; it used to be
-        /// `end + 1`, which counts from frame 0 whatever the section starts at.
+        /// whole animation otherwise.
         /// </summary>
         public int GetTotalFrames()
         {
@@ -1120,9 +1116,8 @@ internal struct MaskPartData
         /// </summary>
         public int GetRemainLoops() { unsafe { return _handle.IsValid ? NativeMethods.ss_runtime_get_remaining_loops(_handle.ptr) : 0; } }
 
-        // skip_frames (real-time following) state is held on the Rust side
-        // (track 0's playback settings). This is a thin pass-through; PlaybackCore.Play re-applies the
-        // desired value together with the other playback parameters (loop/style/speed).
+        // skip_frames (real-time following) lives on the runtime's track 0; the components push their
+        // serialized value in ApplyPlaybackSettings.
         public void SetSkipFrames(bool skip) { unsafe { if (_handle.IsValid) NativeMethods.ss_runtime_set_skip_frames(_handle.ptr, skip); } }
         public bool IsFrameSkipEnabled() { unsafe { return _handle.IsValid && NativeMethods.ss_runtime_get_track_skip_frames(_handle.ptr, 0); } }
 
@@ -1137,7 +1132,7 @@ internal struct MaskPartData
         // reset / new ssab clears everything), so the player keeps no copy and never re-applies.
         //
         // Parts are addressed by index. Indices are positional over the asset's parts and stable
-        // within one asset, so callers resolve a name once via ResolvePartIndex and reuse the index.
+        // within one asset, so callers resolve a name once via FindPartIndex and reuse the index.
         // The name-based overloads here do exactly that; an unknown name resolves to -1 and the call
         // is a no-op returning false.
         //
@@ -1708,9 +1703,7 @@ internal struct MaskPartData
         /// <summary>
         /// Why the last native call that tracks a reason failed, or null when it succeeded.
         /// <para>
-        /// The runtime's own wording, not a code. It is for reporting, not for branching: branching would
-        /// mean hard-coding the integers from <c>SSRuntimeError::as_code</c>, which the C ABI publishes as a
-        /// compatibility surface but exports no constants for (unlike <c>SS_RUNTIME_TRACK_BLEND_*</c>).
+        /// The runtime's own wording, for reporting only; the integer codes are not exported.
         /// </para>
         /// <para>
         /// Read it straight after the call that returned false — it describes the LAST failure, not a log.
@@ -1780,9 +1773,8 @@ internal struct MaskPartData
         }
 
         /// <summary>
-        /// Per-frame animation update.
+        /// Advances the runtime by <paramref name="deltaTime"/> seconds and fires the events that passed.
         /// </summary>
-        /// <param name="deltaTime">Elapsed time.</param>
         public void Tick(float deltaTime, bool subFrameEnabled)
         {
             // Reliably wait for the Job scheduled last frame to finish (for a pure zero-copy pipeline).
@@ -2073,8 +2065,6 @@ internal struct MaskPartData
             try { _geometryBuilder?.Dispose(); }
             catch (Exception e) { Debug.LogException(e); }
         }
-
-        // Read the effect draw_plan (native FlatBuffers) in the same manner as frame-data, and
 
         public void PrepareFrameData(float deltaTime, bool advance, out System.IntPtr handle, out float drawFrame)
         {

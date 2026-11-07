@@ -88,9 +88,7 @@ namespace SpriteStudio.Editor
         /// <summary>
         /// Takes the field's new value only when it is a folder this package can write into, and rolls the
         /// field back to the folder the next import will actually use when it is not. An ObjectField of
-        /// DefaultAsset accepts files as well as folders -- a .sspj has no importer, so it is one -- and
-        /// clearing it used to leave the stored setting untouched, both of which left the window naming a
-        /// destination the import never used.
+        /// DefaultAsset accepts files as well as folders -- a .sspj has no importer, so it is one.
         /// </summary>
         private void CommitOutputFolder(DefaultAsset picked)
         {
@@ -231,7 +229,7 @@ namespace SpriteStudio.Editor
                     }
 
                     // Left click -> Reconvert (the button reports the press directly).
-                    // Dim the row background a little (0.9x) so it sits below the default brightness.
+                    // Dim the row background a little so it sits below the default brightness.
                     Color prevBg = GUI.backgroundColor;
                     GUI.backgroundColor = prevBg * 0.85f;
                     bool clicked = GUI.Button(rect, label, rowStyle);
@@ -246,7 +244,7 @@ namespace SpriteStudio.Editor
             GUILayout.EndScrollView();
         }
 
-        // Show the libssconverter version at the bottom of the window.
+        // Show the player and libssconverter versions at the bottom of the window.
         private void DrawFooter()
         {
             GUILayout.BeginHorizontal(EditorStyles.helpBox);
@@ -344,10 +342,8 @@ namespace SpriteStudio.Editor
         }
 
         /// <summary>
-        /// Existing API that converts a single .sspj (non-interactive) into the Output Folder.
-        /// Called from AssetPostprocessor when a .sspj inside the project is imported, so the signature is kept.
-        /// The actual work is delegated to the batch import infrastructure (<see cref="SpriteStudioImporter"/>).
-        /// A reconvert anchored on an existing .ssab goes to <see cref="SpriteStudioImporter.ReconvertInto"/>
+        /// Converts one .sspj into the Output Folder without prompting. Called when a .sspj inside the project
+        /// is imported. A reconvert anchored on an existing .ssab goes to <see cref="SpriteStudioImporter.ReconvertInto"/>
         /// instead, so that it writes back into the folder that .ssab lives in.
         /// </summary>
         public static void RunConvertDirect(string sspjPath)

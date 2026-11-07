@@ -35,17 +35,11 @@
 
 {#-
   Open Graph / Twitter Card metadata. The theme emits none of this on its own, so a link
-  shared into Slack, X, or Discord previews as a bare URL.
+  shared into Slack, X, or Discord previews as a bare URL. With no image, `summary` is the
+  card type that renders: `summary_large_image` without one renders as nothing.
 
-  No og:image yet - the only SpriteStudio artwork here is the SVG favicon, and link previews
-  do not show SVG. Adding one means dropping a PNG or JPEG into docs/en/assets/ and
-  docs/ja/assets/ and un-commenting the tag below. Until
-  then `summary` is the correct card type; `summary_large_image` without an image renders
-  as nothing.
-
-  The <style> styles the two GitHub callouts that are not built-in admonition types, the
-  way `mkdocs-callouts` did before Zensical parsed them natively: IMPORTANT as `tip`,
-  CAUTION as `warning`.
+  The <style> styles the two GitHub callouts that are not built-in admonition types:
+  IMPORTANT as `tip`, CAUTION as `warning`.
 -#}
 {% block extrahead %}
   {%- set og_description = page.meta.description if page.meta and page.meta.description else config.site_description -%}
@@ -55,7 +49,6 @@
   <meta property="og:description" content="{{ og_description }}">
   <meta property="og:url" content="{{ page.canonical_url }}">
   <meta property="og:locale" content="{{ 'ja_JP' if config.theme.language == 'ja' else 'en_US' }}">
-  {#- <meta property="og:image" content="{{ 'assets/og-image.png' | url }}"> -#}
   <meta name="twitter:card" content="summary">
   {#- Attributes the card to the account linked from the footer; keep in sync with extra.social. -#}
   <meta name="twitter:site" content="@spritestudio">

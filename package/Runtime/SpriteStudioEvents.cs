@@ -5,6 +5,7 @@ using UnityEngine.Events;
 
 namespace SpriteStudio.Runtime
 {
+    /// <summary>A user-data key the playhead reached, as <c>OnUserData</c> reports it.</summary>
     [Serializable]
     public struct SpriteStudioUserData
     {
@@ -13,27 +14,38 @@ namespace SpriteStudio.Runtime
         /// since one tick can step across several.
         /// </summary>
         public int FrameNo;
+        /// <summary>The part the key is on.</summary>
         public string PartName;
+        /// <summary>That part's index, as <c>FindPartIndex</c> returns it.</summary>
         public int PartIndex;
         /// <summary>
         /// The source that fired the event: a handle as <c>GetTrackMainSource</c> and <c>AddTrackSource</c>
         /// return them. Without the track stack in use it is always track 0's main source.
         /// </summary>
         public int Source;
-        
+
+        /// <summary>Whether the key carries an integer, in <see cref="IntValue"/>.</summary>
         public bool HasInt;
+        /// <summary>The integer, when <see cref="HasInt"/> is true.</summary>
         public int IntValue;
-        
+
+        /// <summary>Whether the key carries a string, in <see cref="StringValue"/>.</summary>
         public bool HasString;
+        /// <summary>The string, when <see cref="HasString"/> is true.</summary>
         public string StringValue;
-        
+
+        /// <summary>Whether the key carries a rectangle, in <see cref="RectValue"/>.</summary>
         public bool HasRect;
+        /// <summary>The rectangle, when <see cref="HasRect"/> is true.</summary>
         public Rect RectValue;
-        
+
+        /// <summary>Whether the key carries a point, in <see cref="PointValue"/>.</summary>
         public bool HasPoint;
+        /// <summary>The point, when <see cref="HasPoint"/> is true.</summary>
         public Vector2 PointValue;
     }
 
+    /// <summary>The <see cref="SpriteStudioUserData"/> event, for wiring up in the Inspector.</summary>
     [Serializable]
     public class UserDataUnityEvent : UnityEvent<SpriteStudioUserData> {}
 
@@ -71,6 +83,7 @@ namespace SpriteStudio.Runtime
         public string AsText => _text;
     }
 
+    /// <summary>A signal key the playhead reached, as <c>OnSignal</c> reports it.</summary>
     [Serializable]
     public struct SpriteStudioSignal
     {
@@ -79,14 +92,18 @@ namespace SpriteStudio.Runtime
         /// since one tick can step across several.
         /// </summary>
         public int FrameNo;
+        /// <summary>The part the key is on.</summary>
         public string PartName;
+        /// <summary>That part's index, as <c>FindPartIndex</c> returns it.</summary>
         public int PartIndex;
         /// <summary>
         /// The source that fired the event: a handle as <c>GetTrackMainSource</c> and <c>AddTrackSource</c>
         /// return them. Without the track stack in use it is always track 0's main source.
         /// </summary>
         public int Source;
+        /// <summary>Always true: an inactive signal is not reported.</summary>
         public bool Active;
+        /// <summary>The command id set on the key.</summary>
         public string CommandId;
 
         // Backing store for the parameters, owned and reused by the player (grow-only, no per-signal
@@ -136,9 +153,11 @@ namespace SpriteStudio.Runtime
         }
     }
 
+    /// <summary>The <see cref="SpriteStudioSignal"/> event, for wiring up in the Inspector.</summary>
     [Serializable]
     public class SignalUnityEvent : UnityEvent<SpriteStudioSignal> {}
 
+    /// <summary>An audio key the playhead reached, as <c>OnAudio</c> reports it.</summary>
     [Serializable]
     public struct SpriteStudioAudio
     {
@@ -147,19 +166,26 @@ namespace SpriteStudio.Runtime
         /// since one tick can step across several.
         /// </summary>
         public int FrameNo;
+        /// <summary>The part the key is on.</summary>
         public string PartName;
+        /// <summary>That part's index, as <c>FindPartIndex</c> returns it.</summary>
         public int PartIndex;
         /// <summary>
         /// The source that fired the event: a handle as <c>GetTrackMainSource</c> and <c>AddTrackSource</c>
         /// return them. Without the track stack in use it is always track 0's main source.
         /// </summary>
         public int Source;
+        /// <summary>Hash of the sound list's name.</summary>
         public uint SoundListNameHash;
+        /// <summary>Hash of the sound's name.</summary>
         public uint SoundNameHash;
+        /// <summary>The sound's name.</summary>
         public string SoundName;
+        /// <summary>How many times the sound plays.</summary>
         public int LoopNum;
     }
 
+    /// <summary>The <see cref="SpriteStudioAudio"/> event, for wiring up in the Inspector.</summary>
     [Serializable]
     public class AudioUnityEvent : UnityEvent<SpriteStudioAudio> {}
 

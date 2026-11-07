@@ -82,7 +82,6 @@ namespace SpriteStudio.Editor
             }
 
             // Follow .ssab moves/deletes to re-key/prune the source map (prevents stale entries).
-            // Under Model B, .sspj files live at arbitrary external paths, so they never appear in Unity's move/delete events.
             bool sourceMapDirty = false;
             for (int i = 0; i < movedAssets.Length; i++)
             {
@@ -291,7 +290,7 @@ namespace SpriteStudio.Editor
 
             // Dirty check: don't reconvert an unchanged .sspj (matching mtime) on every import.
             // Prevents wasteful reconversion (chaining) on no-op reimports or on the Refresh after a
-            // conversion completes. If the mtime changed, convert. If it can't be read, convert as before to be safe.
+            // conversion completes. If the mtime changed, convert. If it can't be read, convert to be safe.
             try
             {
                 var mtime = File.GetLastWriteTimeUtc(sspjAbsolutePath);
@@ -301,7 +300,7 @@ namespace SpriteStudio.Editor
                 }
                 convertedSspjMtime[sspjAbsolutePath] = mtime;
             }
-            catch { /* If the mtime can't be read, convert as before */ }
+            catch { /* If the mtime can't be read, convert */ }
 
             SpriteStudioImporterWindow.RunConvertDirect(sspjAbsolutePath);
             return true;

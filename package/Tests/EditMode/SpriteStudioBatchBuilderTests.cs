@@ -8,9 +8,7 @@ namespace SpriteStudio.Runtime.EditModeTests
     ///
     /// An instance parent copies its child's submeshes in but carries the child's clipping restores to its
     /// own end, so the child's last colour run and the next thing the parent emits are no longer adjacent
-    /// in the index buffer. Merging them by growing the first range drew the restore's geometry in
-    /// between as colour (OV_Top: a clipping checker drawn over the arrow above it) and dropped the
-    /// second range.
+    /// in the index buffer, and must not merge.
     /// </summary>
     public class SpriteStudioBatchBuilderTests
     {

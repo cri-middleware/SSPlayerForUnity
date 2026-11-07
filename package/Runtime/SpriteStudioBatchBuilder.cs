@@ -5,9 +5,7 @@ using SpriteStudio.SsRuntime;
 
 namespace SpriteStudio.Runtime
 {
-    // BlendType is the ssab BlendType (0..7) used to resolve the per-blend material variant.
-    // Effect submeshes keep Mix here; their additive path is handled in-shader.
-    // Stencil role of a submesh. None = a plain colour submesh (existing behaviour). Write =
+    // Stencil role of a submesh. None = a plain colour submesh. Write =
     // the SpriteStudio/MaskWrite pass (ColorMask 0) that increments/decrements/inverts the
     // isolated stencil bits (covers both the pure-mask "write" and its "restore"; the op
     // distinguishes them). Test = a colour submesh that is kept/discarded by a stencil compare.
@@ -23,6 +21,8 @@ namespace SpriteStudio.Runtime
         // path (SpriteStudio/Default). Non-zero = an individual per-part draw whose material uses the
         // AddOn shader resolved from the SpriteStudioShaderCatalog.
         public uint ShaderHash;
+        // The ssab BlendType (0..7), which resolves the per-blend material variant. Effect submeshes keep
+        // Mix here; their additive path is handled in-shader.
         public byte BlendType;
 
         // Stencil state (only meaningful when Role != None). Op/Comp hold the corresponding
@@ -37,7 +37,7 @@ namespace SpriteStudio.Runtime
         public float MaskThreshold;
 
         // A Phase C clipping-mask restore (ColorMask 0 stencil revert). An enclosing instance parent
-        // relocates such a submesh to after its own parts - SS7.5 carries an instance-internal mask past
+        // relocates such a submesh to after its own parts - SpriteStudio 7.5 carries an instance-internal mask past
         // the instance boundary, so the restore waits until the parent animation's own restore at the very
         // end - instead of drawing it in place at the child's boundary. Data-only: the render path treats
         // it exactly like Role == Write.
@@ -78,15 +78,15 @@ namespace SpriteStudio.Runtime
                 var pSub = (SubmeshInfo*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_submeshes);
                 ref var last = ref pSub[_submeshCount - 1];
                 // Only merge shared (non-AddOn) runs.
-				// A per-part AddOn part (shaderHash != 0) must stay its own submesh
-				//   so it carries its own material instance and params — even two adjacent
-				//   parts using the same AddOn shader can have different params, so they must not merge.
-				// The two ranges must also be contiguous: growing the last one covers every index in between.
-				//   An instance parent carries its child's clipping restores to its own end, so the child's
-				//   last colour run and whatever the parent emits next are separated by those restores'
-				//   indices - merging them drew a restore's geometry as colour.
-				// A Test submesh only reads the stencil, so the next one under the same stencil state
-				//   joins it. A writer between them is a Write submesh of its own, which ends the run.
+                // A per-part AddOn part (shaderHash != 0) must stay its own submesh
+                //   so it carries its own material instance and params — even two adjacent
+                //   parts using the same AddOn shader can have different params, so they must not merge.
+                // The two ranges must also be contiguous: growing the last one covers every index in between.
+                //   An instance parent carries its child's clipping restores to its own end, so the child's
+                //   last colour run and whatever the parent emits next are separated by those restores'
+                //   indices. Merging across that gap would draw the restores as colour.
+                // A Test submesh only reads the stencil, so the next one under the same stencil state
+                //   joins it. A writer between them is a Write submesh of its own, which ends the run.
                 if (last.Role == role && shaderHash == 0 && last.ShaderHash == 0
                     && last.TextureHash == textureHash && last.BlendType == blendType
                     && last.IndexStart + last.IndexCount == indexStart

@@ -10,11 +10,8 @@ namespace SpriteStudio.Runtime
     /// is consulted first (so a project can override or add custom shaders); the built-in table is the
     /// fallback.
     ///
-    /// Only AddOns whose shader has actually been ported are listed here; ids not in the table (nor in
-    /// the user catalog) fold to the shared default path. The shader is located by name with Shader.Find
-    /// and cached. NOTE: in a player build, Shader.Find only finds shaders kept in the build — the AddOn
-    /// shaders still need a build-inclusion anchor (Always Included Shaders or a referencing asset);
-    /// that is a separate packaging step and does not affect the Editor.
+    /// Ids not in the table (nor in the user catalog) fold to the shared default path. The shader is
+    /// located by name with Shader.Find and cached.
     /// </summary>
     public static class SpriteStudioAddOnRegistry
     {
@@ -29,7 +26,7 @@ namespace SpriteStudio.Runtime
             }
         }
 
-        // Add an entry here when an AddOn shader is ported (id string must match the SpriteStudio editor).
+        // Each id string must match the SpriteStudio editor.
         private static readonly Builtin[] s_builtins =
         {
             new Builtin("ss-sepia", "SpriteStudio/AddOn/Sepia", true),
@@ -45,8 +42,7 @@ namespace SpriteStudio.Runtime
             new Builtin("ss-scatter", "SpriteStudio/AddOn/Scatter", true),
             new Builtin("ss-circle", "SpriteStudio/AddOn/Circle", true), // uses _SsCellRect
             new Builtin("ss-spot", "SpriteStudio/AddOn/Spot", true),     // uses _SsCellRect
-            new Builtin("TestStub", "SpriteStudio/AddOn/TestStub", true), // dev dispatch check
-            // All 13 SS6 standard AddOns are ported. Custom user shaders go through SpriteStudioShaderCatalog.
+            new Builtin("TestStub", "SpriteStudio/AddOn/TestStub", true), // dev dispatch check; the shader is not shipped
         };
 
         // Built-in table accessor for the editor that generates the default catalog .asset (Resources).

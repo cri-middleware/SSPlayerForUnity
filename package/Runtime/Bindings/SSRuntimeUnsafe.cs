@@ -5,8 +5,7 @@ using SpriteStudio.SsRuntime;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// Wrapper struct for safely handling a native pointer (void*) from within an ECS
-    /// (Entities) IComponentData or a Burst Job.
+    /// The native runtime handle held by SpriteStudioNativeContext. <see cref="IsValid"/> is false once it is released.
     /// </summary>
     public unsafe struct SsPlayerHandle
     {

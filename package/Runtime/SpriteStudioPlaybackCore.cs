@@ -156,10 +156,9 @@ namespace SpriteStudio.Runtime
                 if (_reportedMissingAnimation != animationName)
                 {
                     _reportedMissingAnimation = animationName;
-                    // The runtime's own reason, verbatim. This used to say "has no animation", which is the
-                    // common case and not the only one: the same call fails with "SSAB data is not loaded"
-                    // on a player still waiting for its asset to finish importing, and telling that reader
-                    // the name is missing sends them to look at the wrong thing.
+                    // The runtime's own reason, verbatim: a missing name is the common case and not the only
+                    // one. The same call fails with "SSAB data is not loaded" on a player still waiting for
+                    // its asset to finish importing.
                     string reason = Internal.LastErrorMessage;
                     string because = reason == null ? "" : $" -- {reason}";
                     Debug.LogWarning(

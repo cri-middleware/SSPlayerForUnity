@@ -7,7 +7,7 @@ namespace SpriteStudio.Runtime
     /// <summary>
     /// Identifies a unique material variant: a base texture combined with a draw blend mode.
     /// PMA and discard are a function of the blend type (see <see cref="SpriteStudioBlendTable"/>),
-    /// so they are not separate key axes. Mask axes will be added here later.
+    /// so they are not separate key axes.
     /// </summary>
     internal readonly struct SpriteStudioMaterialKey : IEquatable<SpriteStudioMaterialKey>
     {
@@ -92,8 +92,8 @@ namespace SpriteStudio.Runtime
                 case 7: // Invert
                     return new State { Src = BlendMode.OneMinusDstColor, Dst = BlendMode.Zero, Op = BlendOp.Add, InputPMA = 0, OutputPMA = 0, NotDiscard = 0 };
                 // The SS6-era "2" variants have no fixed-function equivalent. Mul2 and Screen2 draw as Mul and
-                // Screen, as SSPlayerForWeb, SSPlayerForWgpu and SSPlayerForGodot draw them; Div2 and Overlay2
-                // need the backdrop, which no blend state reaches, and fall back to Mix with anything unknown.
+                // Screen; Div2 and Overlay2 need the backdrop, which no blend state reaches, and fall back to
+                // Mix with anything unknown.
                 case 8: // Mul2
                     goto case 1;
                 case 10: // Screen2
@@ -181,7 +181,7 @@ namespace SpriteStudio.Runtime
         //   maskInfluence=0 -> Incr / DecrWrap   -> counter plane 0x07 (overlap depth up to 7)
         //
         // Coverage stays "any isolated bit set" (Ref 0 + Equal/NotEqual over ReadMask 0x0F), which reads
-        // the two planes as a union - matching SS7.5, where mixed maskInfluence composes as a union.
+        // the two planes as a union - matching SpriteStudio 7.5, where mixed maskInfluence composes as a union.
         public const byte MaskStencilMask = 0x0F;
 
         /// <summary>Parity plane (Invert writers, maskInfluence=1). Overlap composes as XOR/parity.</summary>
