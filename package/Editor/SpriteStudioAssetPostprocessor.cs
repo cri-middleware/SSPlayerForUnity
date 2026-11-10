@@ -29,6 +29,8 @@ namespace SpriteStudio.Editor
                         textureImporter.mipmapEnabled = false;
                         // Prevent edge bleeding
                         textureImporter.wrapMode = TextureWrapMode.Clamp;
+                        // Set explicitly instead of relying on the importer's default
+                        textureImporter.filterMode = FilterMode.Bilinear;
                         // We use custom meshes, not standard Unity sprites
                         textureImporter.spriteImportMode = SpriteImportMode.None;
                         // For standard Straight Alpha, this prevents black fringes around edges

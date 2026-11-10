@@ -16,7 +16,7 @@ When an optimized binary (`.ssab`) to be used in Unity is added to the project, 
 
 This automatic configuration works correctly in both cases: **when the file was converted and output from the SS Importer window**, and **when a `.ssab` already converted by an external tool such as `ssconverter-cli` is manually copied (imported) into the Unity project**.
 
-- **Texture import settings**: For textures (image files) in the same folder as the `.ssab`, optimal import settings for 2D animation (uncompressed, Clamp, Mipmap disabled, alpha transparency, etc.) are applied automatically.
+- **Texture import settings**: For textures (image files) in the same folder as the `.ssab`, optimal import settings for 2D animation (uncompressed, Clamp, Mipmap disabled, alpha transparency, etc.) are applied automatically. They are applied the first time Unity imports a texture, and only if a `.ssab` or `.sspj` is already in its folder at that moment: copy the textures in **together with** their `.ssab`, not before it. Textures that came in first keep Unity's defaults (compressed, mipmaps on, Repeat); set them in the Inspector by hand.
 - **Automatic shared material generation**: A single `.mat` file corresponding to each texture referenced by the `.ssab` is automatically generated adjacent to the texture.
 
 ## Batch conversion of folders
