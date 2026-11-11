@@ -440,9 +440,42 @@ namespace SpriteStudio.Runtime
         [System.NonSerialized] internal int Revision;
         private static int s_revisions;
 
+        // The references to the shared runtime base materials, one per entry of Textures, taken in OnEnable
+        // and handed back in OnDisable. Kept rather than recomputed so that what is handed back is exactly
+        // what was taken, whatever happened to Textures in between.
+        [System.NonSerialized] private SpriteStudioBaseMaterialCache.Ref[] _baseMaterialRefs;
+
+        /// <summary>
+        /// The shared base material made at runtime for <c>Textures[textureIndex]</c>, for a texture that has
+        /// no material asset. Null when the index is out of range or the texture is missing.
+        /// </summary>
+        internal Material GetRuntimeBaseMaterial(int textureIndex)
+        {
+            if (_baseMaterialRefs == null || textureIndex < 0 || textureIndex >= _baseMaterialRefs.Length) return null;
+            return SpriteStudioBaseMaterialCache.Get(_baseMaterialRefs[textureIndex]);
+        }
+
+        private void AcquireBaseMaterials()
+        {
+            int n = Textures != null ? Textures.Count : 0;
+            _baseMaterialRefs = new SpriteStudioBaseMaterialCache.Ref[n];
+            for (int i = 0; i < n; i++)
+            {
+                _baseMaterialRefs[i] = SpriteStudioBaseMaterialCache.Acquire(Textures[i], null);
+            }
+        }
+
+        private void ReleaseBaseMaterials()
+        {
+            if (_baseMaterialRefs == null) return;
+            foreach (var r in _baseMaterialRefs) SpriteStudioBaseMaterialCache.Release(r);
+            _baseMaterialRefs = null;
+        }
+
         private void OnEnable()
         {
             Revision = ++s_revisions;
+            AcquireBaseMaterials();
 #if UNITY_EDITOR
             // An edit-mode player rebuilds its preview in LateUpdate, which the editor runs only when
             // something asks for it; a reimport should show without the user touching the scene.
@@ -455,6 +488,7 @@ namespace SpriteStudio.Runtime
         // serialized base materials must not be touched here.
         private void OnDisable()
         {
+            ReleaseBaseMaterials();
             InvalidateCellmapTable();
             _hashToMaterial = null;
             _soundToClip = null;
