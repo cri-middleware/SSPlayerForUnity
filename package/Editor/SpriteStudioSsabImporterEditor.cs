@@ -31,18 +31,15 @@ namespace SpriteStudio.Editor
             EditorGUILayout.LabelField("Material Settings", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(_generateMaterials, new GUIContent(
                 "Generate Materials",
-                "Use a shared per-texture material (.mat). When OFF, no material is assigned."));
+                "Write a shared per-texture material (.mat) next to each texture and use it. When OFF, no .mat is written or used: the materials are made at runtime, and an existing .mat is left in place but no longer referenced."));
 
-            using (new EditorGUI.DisabledScope(!_generateMaterials.boolValue))
-            {
-                EditorGUILayout.PropertyField(_overrideShader, new GUIContent(
-                    "Override Shader",
-                    "Shader a newly created .mat uses; SpriteStudio/Default when unset. A .mat that already exists keeps its own shader: change it on the .mat."));
-            }
+            EditorGUILayout.PropertyField(_overrideShader, new GUIContent(
+                "Override Shader",
+                "Shader a newly created .mat and a material made at runtime use; SpriteStudio/Default when unset. A .mat that already exists keeps its own shader: change it on the .mat."));
 
             EditorGUILayout.HelpBox(
-                "Materials are treated as shared per-texture .mat assets. " +
-                "Multiple .ssab files referencing the same texture share the same .mat.",
+                "Each texture's material is shared by every .ssab that uses the texture, " +
+                "whether it is a .mat or made at runtime.",
                 MessageType.None);
 
             serializedObject.ApplyModifiedProperties();
