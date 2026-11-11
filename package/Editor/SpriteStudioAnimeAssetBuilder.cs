@@ -13,9 +13,9 @@ namespace SpriteStudio.Editor
     /// SpriteStudioAnimeAsset build routine for SpriteStudioSsabImporter.
     ///
     /// Material policy: use a per-texture "shared .mat".
-    /// The importer references an adjacent shared .mat if one exists, otherwise falls back to a
-    /// provisional embedded material. Auto-generating the shared .mat itself is handled by
-    /// SpriteStudioAssetPostprocessor.
+    /// The importer references an adjacent shared .mat if one exists; a texture without one is drawn with
+    /// a base material made at runtime (SpriteStudioBaseMaterialCache). Auto-generating the shared .mat
+    /// itself is handled by SpriteStudioAssetPostprocessor.
     /// </summary>
     internal static class SpriteStudioAnimeAssetBuilder
     {
@@ -262,10 +262,17 @@ namespace SpriteStudio.Editor
             // 3. Register texture dependencies and assign materials (guards against build stripping / Addressables)
             var dependency = ArtifactDependency(ctx);
             var textures = CollectTextures(ssab, baseDir, dependency);
-            Shader shader = null;
 
-            // Resolved texture path -> index into Materials
-            var pathToMaterialIndex = new Dictionary<string, int>();
+            // A texture with no .mat -- Generate Materials is off, or the postprocessor has not written the
+            // .mat yet -- is drawn with a base material made at runtime with this shader. The asset holds the
+            // shader only when the user chose one, so the package's own shader is not pulled into bundles.
+            if (importer.OverrideShader != null)
+            {
+                asset.OverrideShader = ResolveShader(importer.OverrideShader, dependency);
+            }
+
+            // Resolved texture path -> index into Textures (and Materials, which runs parallel to it)
+            var pathToTextureIndex = new Dictionary<string, int>();
 
             foreach (var t in textures)
             {
@@ -276,39 +283,26 @@ namespace SpriteStudio.Editor
                 }
 
                 asset.Textures.Add(t.Texture);
+                pathToTextureIndex[t.TexPath] = asset.Textures.Count - 1;
 
-                if (!importer.GenerateMaterials) continue;
-
-                // Use the shared .mat if it exists (the postprocessor is expected to auto-generate it).
-                // Register a dependency so this is re-imported when the .mat is generated.
-                dependency(t.MatPath);
-                var externalMat = AssetDatabase.LoadAssetAtPath<Material>(t.MatPath);
-                if (externalMat != null)
+                Material externalMat = null;
+                if (importer.GenerateMaterials)
                 {
-                    asset.Materials.Add(externalMat);
-                    pathToMaterialIndex[t.TexPath] = asset.Materials.Count - 1;
-                    continue;
+                    // Use the shared .mat if it exists (the postprocessor is expected to auto-generate it).
+                    // Register a dependency so this is re-imported when the .mat is generated.
+                    dependency(t.MatPath);
+                    externalMat = AssetDatabase.LoadAssetAtPath<Material>(t.MatPath);
                 }
-
-                // Provisional embedded material used until the shared .mat is generated. The shader is
-                // resolved (and depended on) only for this, the one place the import uses it.
-                if (shader == null) shader = ResolveShader(importer.OverrideShader, dependency);
-                if (shader != null)
-                {
-                    var mat = new Material(shader) { name = t.Texture.name + "_Material", mainTexture = t.Texture };
-                    ctx.AddObjectToAsset("Mat_" + asset.Materials.Count, mat);
-                    asset.Materials.Add(mat);
-                    pathToMaterialIndex[t.TexPath] = asset.Materials.Count - 1;
-                }
+                asset.Materials.Add(externalMat);
             }
 
-            // 4. Build the DrawBatch.TextureHash -> Material index lookup table.
+            // 4. Build the DrawBatch.TextureHash -> Textures index lookup table.
             //    So any hash that arrives at runtime can be looked up, map the cellmap's
-            //    NameHash/ImagePathHash and the external NameHash all (= the material the same texture resolves to).
-            if (importer.GenerateMaterials && pathToMaterialIndex.Count > 0)
+            //    NameHash/ImagePathHash and the external NameHash all (= the texture they resolve to).
+            if (pathToTextureIndex.Count > 0)
             {
                 var hashKeys = new List<uint>();
-                var hashMaterialIndices = new List<int>();
+                var hashTextureIndices = new List<int>();
                 var hashSeen = new HashSet<uint>();
 
                 int cellmapLen = ssab.CellmapsLength;
@@ -317,10 +311,10 @@ namespace SpriteStudio.Editor
                     var cm = ssab.Cellmaps(i);
                     if (!cm.HasValue) continue;
                     string path = ResolveTexturePath(baseDir, cm.Value.ImagePath, out _, null);
-                    if (path != null && pathToMaterialIndex.TryGetValue(path, out int mi))
+                    if (path != null && pathToTextureIndex.TryGetValue(path, out int mi))
                     {
-                        RecordHash(hashKeys, hashMaterialIndices, hashSeen, cm.Value.NameHash, mi);
-                        RecordHash(hashKeys, hashMaterialIndices, hashSeen, cm.Value.ImagePathHash, mi);
+                        RecordHash(hashKeys, hashTextureIndices, hashSeen, cm.Value.NameHash, mi);
+                        RecordHash(hashKeys, hashTextureIndices, hashSeen, cm.Value.ImagePathHash, mi);
                     }
                 }
 
@@ -330,14 +324,14 @@ namespace SpriteStudio.Editor
                     var extTex = ssab.ExternalTextures(i);
                     if (!extTex.HasValue) continue;
                     string path = ResolveTexturePath(baseDir, extTex.Value.Name, out _, null);
-                    if (path != null && pathToMaterialIndex.TryGetValue(path, out int mi))
+                    if (path != null && pathToTextureIndex.TryGetValue(path, out int mi))
                     {
-                        RecordHash(hashKeys, hashMaterialIndices, hashSeen, extTex.Value.NameHash, mi);
+                        RecordHash(hashKeys, hashTextureIndices, hashSeen, extTex.Value.NameHash, mi);
                     }
                 }
 
                 asset.TextureHashKeys = hashKeys.ToArray();
-                asset.TextureHashMaterialIndices = hashMaterialIndices.ToArray();
+                asset.TextureHashTextureIndices = hashTextureIndices.ToArray();
             }
 
             // 5. Extract animation names
@@ -395,19 +389,19 @@ namespace SpriteStudio.Editor
             }
 
             if (VerboseImportLog)
-                Debug.Log($"[SS-IMPORT] {ctx.assetPath} -> textures:{asset.Textures.Count} materials:{asset.Materials.Count} extRefs:{asset.ExternalReferences.Count} sounds:{asset.Sounds.Count}");
+                Debug.Log($"[SS-IMPORT] {ctx.assetPath} -> textures:{asset.Textures.Count} materials:{asset.Materials.FindAll(m => m != null).Count}extRefs:{asset.ExternalReferences.Count} sounds:{asset.Sounds.Count}");
 
             ctx.AddObjectToAsset("MainAsset", asset);
             ctx.SetMainObject(asset);
         }
 
-        /// <summary>Records a hash -> material mapping. Ignores 0 (unset) and already-seen hashes (first wins).</summary>
-        private static void RecordHash(List<uint> keys, List<int> indices, HashSet<uint> seen, uint hash, int materialIndex)
+        /// <summary>Records a hash -> texture mapping. Ignores 0 (unset) and already-seen hashes (first wins).</summary>
+        private static void RecordHash(List<uint> keys, List<int> indices, HashSet<uint> seen, uint hash, int textureIndex)
         {
             if (hash == 0) return;
             if (!seen.Add(hash)) return;
             keys.Add(hash);
-            indices.Add(materialIndex);
+            indices.Add(textureIndex);
         }
 
         /// <summary>

@@ -84,6 +84,19 @@ graph LR
 - **Paths are only searched at import time**: the importer looks for textures and sound files in the same folder as the `.ssab`, and uses the `.mat` adjacent to each texture. The `.ssab` an Instance part plays is looked for in that folder first, then by file name in the whole project. Move the files in a folder together.
 - The **Textures** edge above covers two kinds: the cell map atlases, and the textures a **texture change (TCHG)** swaps in. The importer collects both and references them by GUID, so neither can go missing from a bundle on its own.
 - **The shader** lives under `Runtime/Resources` in the package, so it is always included in the player build. The shader a `.mat` is created with can be chosen in the import settings shown when a `.ssab` is selected (**Generate Materials** / **Override Shader**). It applies when a `.mat` is created; a `.mat` that already exists keeps its own shader, so change that on the `.mat` itself.
+- A texture with no `.mat` is drawn with a material the Player makes at runtime, the same as the `.mat` would be. That covers **Generate Materials** turned off, and the moment between a `.ssab`'s import and its `.mat` being written.
+
+### Bundles without a `.mat`
+
+A `.mat` references the shader, so a bundle containing a `.mat` also carries **its own copy of the shader**, next to the one in the player build. Turning **Generate Materials** off in the `.ssab`'s import settings avoids that:
+
+- No `.mat` is written or used. The asset references only its textures, and the Player makes each texture's material at runtime from the shader in the player build. The bundle carries no shader.
+- An existing `.mat` is left in place, but the asset stops referencing it, so it no longer goes into a bundle.
+- Every `.ssab` drawing a texture shares one runtime material for it, as they share one `.mat`.
+- A shader set in **Override Shader** is referenced by the asset and goes into the bundle with it.
+
+> [!IMPORTANT]
+> A runtime material keeps its texture until every asset using the texture is destroyed. **Destroy or release the `.ssab` assets before unloading the bundle holding their textures**: unloading the textures first leaves those assets drawing without them, and the textures' memory stays in use.
 
 ---
 

@@ -20,8 +20,11 @@ namespace SpriteStudio.Runtime
         [Tooltip("External animation references (for Instance parts)")]
         public List<SpriteStudioAnimeAsset> ExternalReferences = new List<SpriteStudioAnimeAsset>();
 
-        [Tooltip("Material dictionary: references to the base materials needed for rendering")]
+        [Tooltip("The material asset (.mat) of each entry of Textures, in the same order. An entry with none is null, and that texture is drawn with a base material made at runtime.")]
         public List<Material> Materials = new List<Material>();
+
+        [Tooltip("The shader base materials made at runtime use. Null: SpriteStudio/Default. Set from the importer's Override Shader.")]
+        public Shader OverrideShader;
 
         [Tooltip("List of animation names contained in the file")]
         public string[] AnimationNames;
@@ -76,33 +79,50 @@ namespace SpriteStudio.Runtime
             return null;
         }
 
-        // DrawBatch.TextureHash -> Materials index mapping table (serialized as parallel arrays).
+        // DrawBatch.TextureHash -> Textures index mapping table (serialized as parallel arrays).
         // A single texture can correspond to multiple candidate hashes (the cellmap's NameHash/ImagePathHash,
         // the external NameHash), so all candidates are registered so any of them can look it up.
+        // The indices used to point into Materials. An asset imported then had one material per found
+        // texture, in the same order, so the old indices still point at the right texture.
         [HideInInspector] public uint[] TextureHashKeys;
-        [HideInInspector] public int[] TextureHashMaterialIndices;
+        [HideInInspector, UnityEngine.Serialization.FormerlySerializedAs("TextureHashMaterialIndices")]
+        public int[] TextureHashTextureIndices;
 
-        [System.NonSerialized] private Dictionary<uint, int> _hashToMaterial;
+        [System.NonSerialized] private Dictionary<uint, int> _hashToTexture;
 
         /// <summary>
-        /// Return the Materials index corresponding to a DrawBatch's texture hash.
+        /// Return the Textures index corresponding to a DrawBatch's texture hash.
         /// Returns -1 if no correspondence is found (the caller falls back to material[0], etc.).
         /// </summary>
-        internal int GetMaterialIndexForHash(uint textureHash)
+        internal int GetTextureIndexForHash(uint textureHash)
         {
-            if (_hashToMaterial == null)
+            if (_hashToTexture == null)
             {
-                _hashToMaterial = new Dictionary<uint, int>();
-                if (TextureHashKeys != null && TextureHashMaterialIndices != null)
+                _hashToTexture = new Dictionary<uint, int>();
+                if (TextureHashKeys != null && TextureHashTextureIndices != null)
                 {
-                    int n = Mathf.Min(TextureHashKeys.Length, TextureHashMaterialIndices.Length);
+                    int n = Mathf.Min(TextureHashKeys.Length, TextureHashTextureIndices.Length);
                     for (int i = 0; i < n; i++)
                     {
-                        _hashToMaterial[TextureHashKeys[i]] = TextureHashMaterialIndices[i];
+                        _hashToTexture[TextureHashKeys[i]] = TextureHashTextureIndices[i];
                     }
                 }
             }
-            return _hashToMaterial.TryGetValue(textureHash, out int index) ? index : -1;
+            return _hashToTexture.TryGetValue(textureHash, out int index) ? index : -1;
+        }
+
+        /// <summary>
+        /// The base material of <c>Textures[textureIndex]</c>: its material asset if it has one, otherwise the
+        /// shared base material made at runtime. Null when the index is out of range or there is neither.
+        /// </summary>
+        internal Material GetBaseMaterial(int textureIndex)
+        {
+            if (textureIndex < 0) return null;
+            if (Materials != null && textureIndex < Materials.Count && Materials[textureIndex] != null)
+            {
+                return Materials[textureIndex];
+            }
+            return GetRuntimeBaseMaterial(textureIndex);
         }
 
         /// <summary>
@@ -114,10 +134,11 @@ namespace SpriteStudio.Runtime
         /// </summary>
         internal Material ResolveMaterialForHash(uint textureHash)
         {
-            int mi = GetMaterialIndexForHash(textureHash);
-            if (mi >= 0 && Materials != null && mi < Materials.Count)
+            int ti = GetTextureIndexForHash(textureHash);
+            if (ti >= 0)
             {
-                return Materials[mi];
+                var own = GetBaseMaterial(ti);
+                if (own != null) return own;
             }
 
             if (ExternalReferences != null)
@@ -126,15 +147,20 @@ namespace SpriteStudio.Runtime
                 {
                     var ext = ExternalReferences[i];
                     if (ext == null) continue;
-                    int emi = ext.GetMaterialIndexForHash(textureHash);
-                    if (emi >= 0 && ext.Materials != null && emi < ext.Materials.Count)
-                    {
-                        return ext.Materials[emi];
-                    }
+                    int eti = ext.GetTextureIndexForHash(textureHash);
+                    if (eti < 0) continue;
+                    var m = ext.GetBaseMaterial(eti);
+                    if (m != null) return m;
                 }
             }
             return null;
         }
+
+        /// <summary>
+        /// The material a player draws a batch with when its texture hash resolves to nothing: the base
+        /// material of the first texture. Null when the asset has no texture.
+        /// </summary>
+        internal Material GetFallbackMaterial() => GetBaseMaterial(0);
 
         // Cellmap / external-texture name -> the candidate DrawBatch.TextureHash values it can appear as.
         // Built lazily from SsabData (like the sound tables) and used by the runtime texture-replacement
@@ -262,15 +288,15 @@ namespace SpriteStudio.Runtime
         private Material GetWhiteBaseMaterial()
         {
             if (_whiteBaseMaterial != null) return _whiteBaseMaterial;
-            Shader shader = null;
-            if (Materials != null)
+            Shader shader = OverrideShader;
+            if (shader == null && Materials != null)
             {
                 for (int i = 0; i < Materials.Count; i++)
                 {
                     if (Materials[i] != null) { shader = Materials[i].shader; break; }
                 }
             }
-            if (shader == null) shader = Shader.Find("SpriteStudio/Default");
+            if (shader == null) shader = SpriteStudioBaseMaterialCache.DefaultShader;
             if (shader == null) return null;
             _whiteBaseMaterial = new Material(shader) { hideFlags = HideFlags.HideAndDontSave, name = "SpriteStudio_WhiteBase" };
             return _whiteBaseMaterial;
@@ -440,9 +466,42 @@ namespace SpriteStudio.Runtime
         [System.NonSerialized] internal int Revision;
         private static int s_revisions;
 
+        // The references to the shared runtime base materials, one per entry of Textures, taken in OnEnable
+        // and handed back in OnDisable. Kept rather than recomputed so that what is handed back is exactly
+        // what was taken, whatever happened to Textures in between.
+        [System.NonSerialized] private SpriteStudioBaseMaterialCache.Ref[] _baseMaterialRefs;
+
+        /// <summary>
+        /// The shared base material made at runtime for <c>Textures[textureIndex]</c>, for a texture that has
+        /// no material asset. Null when the index is out of range or the texture is missing.
+        /// </summary>
+        internal Material GetRuntimeBaseMaterial(int textureIndex)
+        {
+            if (_baseMaterialRefs == null || textureIndex < 0 || textureIndex >= _baseMaterialRefs.Length) return null;
+            return SpriteStudioBaseMaterialCache.Get(_baseMaterialRefs[textureIndex]);
+        }
+
+        private void AcquireBaseMaterials()
+        {
+            int n = Textures != null ? Textures.Count : 0;
+            _baseMaterialRefs = new SpriteStudioBaseMaterialCache.Ref[n];
+            for (int i = 0; i < n; i++)
+            {
+                _baseMaterialRefs[i] = SpriteStudioBaseMaterialCache.Acquire(Textures[i], OverrideShader);
+            }
+        }
+
+        private void ReleaseBaseMaterials()
+        {
+            if (_baseMaterialRefs == null) return;
+            foreach (var r in _baseMaterialRefs) SpriteStudioBaseMaterialCache.Release(r);
+            _baseMaterialRefs = null;
+        }
+
         private void OnEnable()
         {
             Revision = ++s_revisions;
+            AcquireBaseMaterials();
 #if UNITY_EDITOR
             // An edit-mode player rebuilds its preview in LateUpdate, which the editor runs only when
             // something asks for it; a reimport should show without the user touching the scene.
@@ -455,8 +514,9 @@ namespace SpriteStudio.Runtime
         // serialized base materials must not be touched here.
         private void OnDisable()
         {
+            ReleaseBaseMaterials();
             InvalidateCellmapTable();
-            _hashToMaterial = null;
+            _hashToTexture = null;
             _soundToClip = null;
             if (_whiteBaseMaterial != null)
             {

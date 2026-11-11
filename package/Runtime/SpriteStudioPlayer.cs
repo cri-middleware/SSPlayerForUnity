@@ -1634,8 +1634,7 @@ namespace SpriteStudio.Runtime
 
                 // Fallback for the unresolved case. Even if our own Materials is empty, an external reference
                 // may still resolve, so do not early-return here; resolve per submesh instead.
-                var mats = _animeAsset.Materials;
-                Material fallback = (mats != null && mats.Count > 0) ? mats[0] : null;
+                Material fallback = _animeAsset.GetFallbackMaterial();
 
                 for (int s = 0; s < subCount; s++)
                 {
