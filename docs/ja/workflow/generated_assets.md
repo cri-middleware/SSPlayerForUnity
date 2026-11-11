@@ -98,6 +98,36 @@ graph LR
 > [!IMPORTANT]
 > 実行時のマテリアルは、そのテクスチャを使うアセットがすべて破棄されるまで、テクスチャを保持します。**テクスチャを含むバンドルをアンロードする前に、`.ssab` のアセットを破棄（解放）してください**。テクスチャを先にアンロードすると、それらのアセットはテクスチャなしで描かれ、テクスチャのメモリも解放されません。
 
+### インポートしていない `.ssab` を読み込む
+
+`.ssab` は、ただのバイト列として配布することもできます。たとえば `.bytes` に名前を変えて `TextAsset` として読み込むか、ダウンロードして、`SpriteStudioAnimeAssetLoader` で実行時にアセットを組み立てます。テクスチャとサウンドは、通常どおりインポートしたアセットのままで、自分で読み込みます。実行時にパスで探すことはしないので、それらを渡してください。
+
+```csharp
+using SpriteStudio.Runtime;
+
+byte[] bytes = ssabBytes.bytes;
+
+// 1. .ssab が必要とするもの: テクスチャ、サウンド、Instance パーツが再生する別のアニメーションパック。
+foreach (var dep in SpriteStudioAnimeAssetLoader.GetDependencies(bytes))
+    Debug.Log(dep); // 例: "Texture: Ringo.png"
+
+// 2. それらを好きな方法（AssetBundle、Addressables など）で読み込んでから、アセットを組み立てる。
+Texture2D[] textures = bundle.LoadAllAssets<Texture2D>();
+SpriteStudioAnimeAsset asset = SpriteStudioAnimeAssetLoader.Create(bytes, textures);
+player.AnimeAsset = asset;
+
+// 3. 使い終わったら、アセットを破棄してから、テクスチャをアンロードする。
+Destroy(asset);
+```
+
+- **名前の照合。** `.ssab` は、各ファイルを `.sspj` からの相対パスで名指しします。上の版は、拡張子を除いたファイル名で、大文字と小文字を区別せずに照合します。`images/Ringo.png` は、`Ringo` という名前の `Texture2D` に一致します。ファイル名だけでは `.ssab` の名前を区別できない場合（`a/body.png` と `b/body.png`）や、渡したテクスチャに同じ名前のものが複数ある場合は、`ArgumentException` を投げます。そのときは、名前から `Texture2D` を返す関数を渡してください。関数は名前ごとに 1 回だけ呼ばれます。
+- **同じ画像には同じ `Texture2D` を渡してください。** 実行時のマテリアルは `Texture2D` のオブジェクトごとに共有されます。1 つの画像を 2 回読み込むと 2 つのテクスチャになり、共有されなくなります。
+- **テクスチャのインポート設定。** 2D アニメーション向けの設定が自動で当たるのは、Unity が画像を初めて取り込むときに、同じフォルダに `.ssab` か `.sspj` がある場合だけです（[各種コンバート機能と CI/CD](./import.md)を参照）。画像はコンバーターの出力フォルダで `.ssab` の隣に置いたまま取り込み、そこからバンドルに入れてください。ほかの場所で取り込んだ画像は Unity の既定の設定のままなので、Inspector で次のように設定してください: Compression を **None**、ミップマップの生成をオフ、Wrap Mode を **Clamp**、Filter Mode を **Bilinear**、**Alpha Is Transparency** をオン、Max Size を **8192**、Non-Power of 2 を **None**。アプリが実行時に作るテクスチャ（`Texture2D.LoadImage` などで作るもの）にはインポート設定がありません。ミップマップなしで作り、`wrapMode` を `TextureWrapMode.Clamp` にしてください。
+- **足りないファイル。** 渡さなかったテクスチャは報告され、そのパーツは正しく描かれません。インポートでテクスチャが見つからなかったときと同じです。渡さなかったサウンドは報告され、鳴りません。サウンドを 1 つも渡さなければ、サウンドのないアセットになります。
+- **別のパックを再生する Instance パーツ。** アセットが必要とするパックをすべて組み立ててから、まとめて `SpriteStudioAnimeAssetLoader.LinkExternalReferences` に渡してください。インポートと同じように各 Instance を相手のパックに結び付け、足りないパックを報告します。結び付けは再生する前に行ってください。
+- **作ったものはアプリが管理します。** アセットは普通の `ScriptableObject` で、シーンと一緒には破棄されません。使い終わったら、それぞれ `Destroy` してください。破棄すると、実行時のマテリアルの参照も返されます。上のインポートしたアセットと同じく、テクスチャをアンロードする前にアセットを破棄してください。
+- **Override Shader。** 最後の引数にシェーダーを渡すと、`SpriteStudio/Default` の代わりにそれで描きます。
+
 ---
 
 ## 再コンバートで上書きされるもの・されないもの
