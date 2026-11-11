@@ -98,6 +98,36 @@ A `.mat` references the shader, so a bundle containing a `.mat` also carries **i
 > [!IMPORTANT]
 > A runtime material keeps its texture until every asset using the texture is destroyed. **Destroy or release the `.ssab` assets before unloading the bundle holding their textures**: unloading the textures first leaves those assets drawing without them, and the textures' memory stays in use.
 
+### Loading a `.ssab` that was not imported
+
+A `.ssab` can also be shipped as plain bytes, for example renamed to `.bytes` and loaded as a `TextAsset`, or downloaded, and built into an asset at runtime with `SpriteStudioAnimeAssetLoader`. The textures and sounds stay ordinary imported assets that you load yourself. Nothing is looked up by path at runtime, so you hand them over.
+
+```csharp
+using SpriteStudio.Runtime;
+
+byte[] bytes = ssabBytes.bytes;
+
+// 1. What the .ssab needs: textures, sounds, and the other anime packs its Instance parts play.
+foreach (var dep in SpriteStudioAnimeAssetLoader.GetDependencies(bytes))
+    Debug.Log(dep); // e.g. "Texture: Ringo.png"
+
+// 2. Load those however you like (AssetBundle, Addressables...), then build the asset.
+Texture2D[] textures = bundle.LoadAllAssets<Texture2D>();
+SpriteStudioAnimeAsset asset = SpriteStudioAnimeAssetLoader.Create(bytes, textures);
+player.AnimeAsset = asset;
+
+// 3. When done: destroy the asset, then unload the textures.
+Destroy(asset);
+```
+
+- **Matching names.** The `.ssab` names each file by its path relative to the `.sspj`. The overload above matches by file name, without the extension and ignoring case: `images/Ringo.png` matches a `Texture2D` named `Ringo`. When file names cannot tell two of the `.ssab`'s names apart (`a/body.png` and `b/body.png`), or two textures given share a name, it throws `ArgumentException`. Pass a function from name to `Texture2D` instead in that case. It is called once per name.
+- **Give the same `Texture2D` for the same image.** The runtime materials are shared per `Texture2D` object. Loading one image twice makes two textures, and they no longer share.
+- **Texture import settings.** The settings suited to 2D animation are applied only to an image Unity first imports into a folder that holds a `.ssab` or `.sspj` (see [Conversion Features and CI/CD](./import.md)). Import the images in the converter's output folder, next to their `.ssab`, and bundle them from there. An image imported anywhere else keeps Unity's defaults, so set it in the Inspector: Compression **None**, mipmap generation off, Wrap Mode **Clamp**, Filter Mode **Bilinear**, **Alpha Is Transparency** on, Max Size **8192**, Non-Power of 2 **None**. A texture the application makes at runtime, for example with `Texture2D.LoadImage`, has no import settings: make it without mipmaps and set its `wrapMode` to `TextureWrapMode.Clamp`.
+- **Missing files.** A texture you do not provide is reported, and its parts do not draw correctly, as when the import cannot find a texture. A sound you do not provide is reported and stays silent. Passing no sounds at all builds an asset with none.
+- **Instance parts that play another pack.** Build every pack the asset needs, then pass them all to `SpriteStudioAnimeAssetLoader.LinkExternalReferences`. It points each Instance at its pack, as the import does, and reports the packs that are missing. Link the assets before they play.
+- **You own what you create.** The assets are plain `ScriptableObject`s and are not destroyed with the scene. `Destroy` each one when done. That hands back its share of the runtime materials. Destroy the assets before unloading their textures, as for imported assets above.
+- **Override Shader.** Pass a shader as the last argument to draw with it instead of `SpriteStudio/Default`.
+
 ---
 
 ## What a reconvert overwrites, and what it leaves alone

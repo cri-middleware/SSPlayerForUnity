@@ -47,7 +47,8 @@ namespace SpriteStudio.Runtime
         /// Guessing by animation name instead would be worse than no answer — SpriteStudio names every
         /// animation in a pack independently, so a project where each pack holds one "anime_1" makes every
         /// such guess land on whichever pack happens to be first, silently playing the wrong animation.
-        /// A miss means the ExternalReferences are incomplete; reimporting the asset is what fixes it.
+        /// A miss means the ExternalReferences are incomplete; reimporting the asset is what fixes it (for an asset
+        /// built at runtime, SpriteStudioAnimeAssetLoader.LinkExternalReferences).
         /// </summary>
         /// <param name="packHash">Name hash of the referenced anime pack (PartTypeInstance.RefAnimePackHash).</param>
         /// <param name="nameHash">Name hash of the referenced animation. Used by SetupAnimationByHash after resolution.</param>
@@ -75,7 +76,7 @@ namespace SpriteStudio.Runtime
             // The part named a pack that is neither ours nor in our external references, so there is no
             // answer to give. Report the pack that is missing and let the caller skip the part: a wrong
             // animation played silently costs far more to track down than a missing one.
-            Debug.LogWarning($"[SpriteStudioAnimeAsset] '{name}': Instance reference (pack=0x{packHash:X8}, name=0x{nameHash:X8}) is not among this asset's {(ExternalReferences == null ? 0 : ExternalReferences.Count)} external references. The Instance part will be skipped — reimport this .ssab to repopulate them.");
+            Debug.LogWarning($"[SpriteStudioAnimeAsset] '{name}': Instance reference (pack=0x{packHash:X8}, name=0x{nameHash:X8}) is not among this asset's {(ExternalReferences == null ? 0 : ExternalReferences.Count)} external references. The Instance part will be skipped — reimport this .ssab to repopulate them, or, for an asset built at runtime, pass it with the pack it plays to SpriteStudioAnimeAssetLoader.LinkExternalReferences.");
             return null;
         }
 
@@ -497,6 +498,19 @@ namespace SpriteStudio.Runtime
             foreach (var r in _baseMaterialRefs) SpriteStudioBaseMaterialCache.Release(r);
             _baseMaterialRefs = null;
         }
+
+        /// <summary>
+        /// Take the runtime state afresh after the serialized fields were filled in on an asset that is already
+        /// enabled, as the runtime loader does: the same as being reloaded.
+        /// </summary>
+        internal void ReloadRuntimeState()
+        {
+            OnDisable();
+            OnEnable();
+        }
+
+        /// <summary>Tell the players that what they resolved from this asset may have changed.</summary>
+        internal void MarkChanged() => Revision = ++s_revisions;
 
         private void OnEnable()
         {
