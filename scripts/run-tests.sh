@@ -8,9 +8,10 @@ Usage: run-tests.sh [--help]
   PlayMode again in a standalone player build. Close the Editor first: batchmode
   cannot take the project lock (use the Unity Test Runner while it is open).
 
-  Needs the Editor examples/UnityTestProject pins in ProjectVersion.txt, with an
-  activated licence, and the native plugins plus the csbindgen binding placed by
-  scripts/build-runtime.sh (or scripts/download-sdk.sh).
+  Needs the Editor examples/UnityTestProject pins in ProjectVersion.txt, installed
+  through Unity Hub (in its default folder or the install location set in its
+  preferences) with an activated licence, and the native plugins plus the
+  csbindgen binding placed by scripts/build-runtime.sh (or scripts/download-sdk.sh).
 
   Each suite prints its counts from its NUnit result file. Skipped and
   inconclusive tests are counted there, never as passes.
@@ -51,18 +52,34 @@ if [ ! -f "$PROJECT_PATH/ProjectSettings/ProjectVersion.txt" ]; then
 fi
 UNITY_VERSION=$(grep 'm_EditorVersion:' "$PROJECT_PATH/ProjectSettings/ProjectVersion.txt" | awk '{print $2}')
 
-# Determine Unity Executable Path
+# Determine Unity Executable Path: the Hub's default install folder, then the install location set in the
+# Hub's preferences, which the Hub keeps in secondaryInstallPath.json as a JSON string ("" when unset).
 if [ "$OS" == "mac" ]; then
-    UNITY_PATH="/Applications/Unity/Hub/Editor/$UNITY_VERSION/Unity.app/Contents/MacOS/Unity"
+    HUB_DEFAULT="/Applications/Unity/Hub/Editor"
+    HUB_SETTINGS="$HOME/Library/Application Support/UnityHub/secondaryInstallPath.json"
+    EDITOR_EXE="Unity.app/Contents/MacOS/Unity"
     NATIVE_PLUGINS="package/Runtime/Plugins/macOS/ssruntime.bundle package/Editor/Plugins/macOS/libssconverter.dylib"
 elif [ "$OS" == "win" ]; then
-    UNITY_PATH="C:/Program Files/Unity/Hub/Editor/$UNITY_VERSION/Editor/Unity.exe"
+    HUB_DEFAULT="C:/Program Files/Unity/Hub/Editor"
+    HUB_SETTINGS="${APPDATA//\\//}/UnityHub/secondaryInstallPath.json"
+    EDITOR_EXE="Editor/Unity.exe"
     NATIVE_PLUGINS="package/Runtime/Plugins/Windows/x86_64/ssruntime.dll package/Editor/Plugins/Windows/x86_64/ssconverter.dll"
 fi
 
-if [ ! -f "$UNITY_PATH" ]; then
-    echo "Error: Unity executable not found at $UNITY_PATH"
-    echo "Please ensure Unity Hub and the required Editor version ($UNITY_VERSION) are installed."
+UNITY_CANDIDATES=("$HUB_DEFAULT/$UNITY_VERSION/$EDITOR_EXE")
+if [ -f "$HUB_SETTINGS" ]; then
+    # Unquote the JSON string, unescape its backslashes, and use forward slashes, which Git Bash also takes.
+    HUB_INSTALL_DIR=$(sed -e 's/^[[:space:]]*"//' -e 's/"[[:space:]]*$//' -e 's/\\\\/\//g' -e 's/\/*$//' "$HUB_SETTINGS")
+    [ -n "$HUB_INSTALL_DIR" ] && UNITY_CANDIDATES+=("$HUB_INSTALL_DIR/$UNITY_VERSION/$EDITOR_EXE")
+fi
+UNITY_PATH=""
+for candidate in "${UNITY_CANDIDATES[@]}"; do
+    if [ -f "$candidate" ]; then UNITY_PATH="$candidate"; break; fi
+done
+
+if [ -z "$UNITY_PATH" ]; then
+    echo "Error: Unity $UNITY_VERSION not found at: $(printf '%s, ' "${UNITY_CANDIDATES[@]}" | sed 's/, $//')"
+    echo "Please install that Editor version through Unity Hub."
     exit 2
 fi
 
