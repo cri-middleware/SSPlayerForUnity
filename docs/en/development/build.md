@@ -119,10 +119,11 @@ compile. **Changing the native core** is the steps at the top of this page: `bui
 
 `scripts/run-tests.sh` runs EditMode, PlayMode and a standalone player build headless, in
 `examples/UnityTestProject`. It needs macOS or Windows; the Editor version that project names,
-installed through Unity Hub in its default location, with an activated licence; and the native
-libraries and bindings already in place (`download-sdk` or `build-runtime`). Close the Editor first:
-batchmode cannot take the project lock while it is open. When the test fixtures are missing it
-converts them from the SDK submodule before the suites start, so the submodule must be checked out.
+installed through Unity Hub in its default location or the install location set in its preferences,
+with an activated licence; and the native libraries and bindings already in place (`download-sdk` or
+`build-runtime`). Close the Editor first: batchmode cannot take the project lock while it is open.
+When the test fixtures are missing it converts them from the SDK submodule before the suites start,
+so the submodule must be checked out.
 
 - **Opening the project directly deletes the `.meta` of every native plugin this machine lacks**
   — not an error, a deletion, which only `git status` shows. `run-tests.sh` puts them back; after

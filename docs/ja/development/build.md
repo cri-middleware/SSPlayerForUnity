@@ -111,7 +111,7 @@ SDK 側で `.fbs` スキーマが変更された際は、`package/Runtime/Format
 
 ## 実際のホストで確かめる
 
-`scripts/run-tests.sh` は、`examples/UnityTestProject` で、EditMode・PlayMode・スタンドアロンのプレイヤーのビルドをヘッドレスで回します。動くのは macOS と Windows で、必要なのは、そのプロジェクトが指定する版のエディタ（Unity Hub の既定の場所にインストールし、ライセンスを有効化したもの）と、配置済みのネイティブライブラリとバインディング（`download-sdk` か `build-runtime`）です。先にエディタを閉じてください。開いている間は batchmode がプロジェクトのロックを取れません。テスト用のデータが無いときは、スイートの前に SDK のサブモジュールから変換するので、サブモジュールを取得しておく必要があります。
+`scripts/run-tests.sh` は、`examples/UnityTestProject` で、EditMode・PlayMode・スタンドアロンのプレイヤーのビルドをヘッドレスで回します。動くのは macOS と Windows で、必要なのは、そのプロジェクトが指定する版のエディタ（Unity Hub で、既定の場所か、Hub の設定で指定したインストール場所にインストールし、ライセンスを有効化したもの）と、配置済みのネイティブライブラリとバインディング（`download-sdk` か `build-runtime`）です。先にエディタを閉じてください。開いている間は batchmode がプロジェクトのロックを取れません。テスト用のデータが無いときは、スイートの前に SDK のサブモジュールから変換するので、サブモジュールを取得しておく必要があります。
 
 - **プロジェクトを直接開くと、このマシンに無いネイティブプラグインの `.meta` が消えます。** エラーではなく削除なので、`git status` でしか分かりません。`run-tests.sh` は自分で戻しますが、自分でプロジェクトを開いたあとは `git checkout -- package/Runtime/Plugins package/Editor/Plugins` で戻してください。
 - **エディタは一度読み込んだネイティブプラグインを読み直しません。** `build-runtime` や `download-sdk` のあとは再起動してください。しないと、直したのに直っていないように見えます。

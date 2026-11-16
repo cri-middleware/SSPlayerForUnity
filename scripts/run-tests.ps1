@@ -6,9 +6,10 @@ Usage: run-tests.ps1 [--help]
   PlayMode again in a standalone player build. Close the Editor first: batchmode
   cannot take the project lock (use the Unity Test Runner while it is open).
 
-  Needs the Editor examples/UnityTestProject pins in ProjectVersion.txt, with an
-  activated licence, and the native plugins plus the csbindgen binding placed by
-  scripts/build-runtime.ps1 (or scripts/download-sdk.ps1).
+  Needs the Editor examples/UnityTestProject pins in ProjectVersion.txt, installed
+  through Unity Hub (in its default folder or the install location set in its
+  preferences) with an activated licence, and the native plugins plus the
+  csbindgen binding placed by scripts/build-runtime.ps1 (or scripts/download-sdk.ps1).
 
   Each suite prints its counts from its NUnit result file. Skipped and
   inconclusive tests are counted there, never as passes.
@@ -58,17 +59,32 @@ if ($null -eq $VersionLine) {
 }
 $UnityVersion = ($VersionLine.Line -split '\s+')[1]
 
-# Determine Unity Executable Path
+# Determine Unity Executable Path: the Hub's default install folder, then the install location set in the
+# Hub's preferences, which the Hub keeps in secondaryInstallPath.json as a JSON string ("" when unset).
 if ($IsMac) {
-    $UnityPath = "/Applications/Unity/Hub/Editor/$UnityVersion/Unity.app/Contents/MacOS/Unity"
+    $HubDefault = "/Applications/Unity/Hub/Editor"
+    $HubSettings = "$HOME/Library/Application Support/UnityHub/secondaryInstallPath.json"
+    $EditorExe = "Unity.app/Contents/MacOS/Unity"
     $NativePlugins = @("package/Runtime/Plugins/macOS/ssruntime.bundle", "package/Editor/Plugins/macOS/libssconverter.dylib")
 } else {
-    $UnityPath = "C:/Program Files/Unity/Hub/Editor/$UnityVersion/Editor/Unity.exe"
+    $HubDefault = "C:/Program Files/Unity/Hub/Editor"
+    $HubSettings = "$env:APPDATA/UnityHub/secondaryInstallPath.json"
+    $EditorExe = "Editor/Unity.exe"
     $NativePlugins = @("package/Runtime/Plugins/Windows/x86_64/ssruntime.dll", "package/Editor/Plugins/Windows/x86_64/ssconverter.dll")
 }
 
-if (-not (Test-Path $UnityPath)) {
-    [Console]::Error.WriteLine("Error: Unity executable not found at $UnityPath`nPlease ensure Unity Hub and the required Editor version ($UnityVersion) are installed.")
+$UnityCandidates = @("$HubDefault/$UnityVersion/$EditorExe")
+if (Test-Path $HubSettings) {
+    $HubInstallDir = $null
+    try { $HubInstallDir = Get-Content -Raw $HubSettings | ConvertFrom-Json } catch { }
+    if ($HubInstallDir -is [string] -and $HubInstallDir -ne "") {
+        $UnityCandidates += "$($HubInstallDir.TrimEnd('\', '/'))/$UnityVersion/$EditorExe"
+    }
+}
+$UnityPath = $UnityCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+if ($null -eq $UnityPath) {
+    [Console]::Error.WriteLine("Error: Unity $UnityVersion not found at: $($UnityCandidates -join ', ')`nPlease install that Editor version through Unity Hub.")
     exit 2
 }
 
