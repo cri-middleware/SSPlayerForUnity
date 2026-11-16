@@ -11,7 +11,7 @@ This page explains how to add SpriteStudio Player for Unity to your project: ins
 | Unity version | **Unity 6.3 LTS (6000.3)** or later |
 | Render pipeline | Universal (URP) / Built-in (BRP) |
 | Dependent packages | Burst / Mathematics / Collections / Timeline / uGUI (automatically resolved by Package Manager) |
-| Supported platforms | Windows / macOS / Linux / Android / iOS / WebGL |
+| Supported platforms | [The table below](#supported-platforms) |
 | Unity Editor | Windows / macOS / Linux. The SS Importer window converts on Windows and macOS only; on Linux, convert with `ssconverter-cli` ([Conversion Features and CI/CD](../workflow/import.md)) and copy the output folder into the project |
 | SpriteStudio projects | Authored in **SpriteStudio 7.6** or later |
 
@@ -20,6 +20,19 @@ All dependent packages are standard Unity packages, so Package Manager resolves 
 The project template you start from can be **either 2D or 3D**. What this package requires is that the render pipeline is URP or Built-in, not a particular template. On URP the animation draws under the **Universal Renderer** and under the **2D Renderer** the 2D template sets up alike. It draws unlit under both: Light 2D does not light it, as it does not light a sprite that uses Sprite-Unlit-Default.
 
 > **If you are asked to restart during installation:** if the Burst version in your project changes while the editor is running, Unity shows a **Burst Package Update Detected** dialog. This is not an error specific to this package — restart the editor (**Restart Now**, or **OK** and then restart it yourself, depending on the Burst version). Burst compilation stays shut down until you do, which makes playback far slower.
+
+### Supported Platforms
+
+| Platform | Support |
+|---|---|
+| Windows / macOS / Linux | ✅ |
+| Android / iOS | ✅ |
+| WebGL | ✅ |
+| Nintendo Switch / Nintendo Switch 2 | Planned |
+| PlayStation 5 | Planned |
+| Xbox Series X\|S | Planned |
+
+Console builds are not part of the public package. To discuss a console, including one not yet supported, use the [inquiry form](https://www.webtech.co.jp/contact/en.html).
 
 ---
 
