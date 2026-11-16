@@ -47,6 +47,10 @@ Behaving like a UI element in the host's UI system, not merely drawing inside on
 - [ ] **Multi-atlas on the Canvas path** — one `CanvasRenderer` is one mesh and one material, so the graphic draws
   the first atlas only and warns. A UI screen is exactly where several atlases meet.
 
+## Platforms
+
+- [ ] **Game consoles** — Nintendo Switch, Nintendo Switch 2, PlayStation 5 and Xbox Series X|S.
+
 ## Distribution & verification
 
 - [ ] **API reference page** — the docs site has no `api/` section, so the public surface is only discoverable by

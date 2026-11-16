@@ -11,7 +11,7 @@
 | Unity バージョン | **Unity 6.3 LTS (6000.3)** 以降 |
 | レンダーパイプライン | Universal (URP) / Built-in (BRP) |
 | 依存パッケージ | Burst / Mathematics / Collections / Timeline / uGUI（Package Manager が自動解決） |
-| 対応プラットフォーム | Windows / macOS / Linux / Android / iOS / WebGL |
+| 対応プラットフォーム | [下の表](#対応プラットフォーム) |
 | Unity エディタ | Windows / macOS / Linux。SS Importer ウィンドウでの変換は Windows と macOS のみです。Linux では `ssconverter-cli` で変換し（[各種コンバート機能と CI/CD](../workflow/import.md)）、出力フォルダをプロジェクトへコピーしてください |
 | SpriteStudio プロジェクト | **SpriteStudio 7.6** 以上で作成したもの |
 
@@ -20,6 +20,19 @@
 プロジェクト作成時のテンプレートは **2D / 3D のどちらでも構いません**。本パッケージが要求するのはレンダーパイプラインが URP または Built-in であることで、テンプレートの種別ではありません。URP では **Universal Renderer** でも、2D テンプレートが設定する **2D Renderer** でも同じように描画されます。どちらでもライティングは受けず、Sprite-Unlit-Default を使うスプライトと同じく Light 2D の影響を受けません。
 
 > **導入時に再起動を求められた場合:** エディタの起動中にプロジェクトの Burst が別バージョンへ変わると、Unity が **Burst Package Update Detected** ダイアログを表示します。本パッケージ固有のエラーではありません。**Restart Now**（Burst のバージョンによっては **OK** を選んでから手動で）エディタを再起動してください。再起動するまでは Burst コンパイルが停止したままになり、再生が大幅に遅くなります。
+
+### 対応プラットフォーム
+
+| プラットフォーム | 対応 |
+|---|---|
+| Windows / macOS / Linux | ✅ |
+| Android / iOS | ✅ |
+| WebGL | ✅ |
+| Nintendo Switch / Nintendo Switch 2 | 順次対応予定 |
+| PlayStation 5 | 順次対応予定 |
+| Xbox Series X\|S | 順次対応予定 |
+
+コンソール向けは公開のパッケージに含まれません。対応前のプラットフォームも含め、[お問い合わせフォーム](https://www.webtech.co.jp/help/ja/spritestudio7/inquiries/ssplayer_tool/)からご相談ください。
 
 ---
 
