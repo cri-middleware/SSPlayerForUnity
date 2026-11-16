@@ -84,6 +84,23 @@ namespace SpriteStudio.Runtime.EditModeTests
         }
 
         [Test]
+        public void ACellLessPart_DrawsWithTheMatsShader_ThenTheOverrideShader()
+        {
+            var t = NewTexture("t");
+            var overrideShader = Shader.Find("SpriteStudio/MaskWrite");
+            Assume.That(overrideShader, Is.Not.Null);
+
+            // A .mat that kept the default shader after the Override Shader changed: the textured parts draw with
+            // the .mat, so the cell-less ones must too.
+            var mat = Make(new Material(SpriteStudioBaseMaterialCache.DefaultShader) { mainTexture = t });
+            var withMat = Imported(new[] { t }, new[] { mat }, new[] { HashA }, overrideShader);
+            Assert.AreEqual(mat.shader, withMat.ResolveMaterial(0, SpriteStudioMaterial.BlendMix).shader);
+
+            var withoutMat = Imported(new[] { t }, new Material[] { null }, new[] { HashA }, overrideShader);
+            Assert.AreEqual(overrideShader, withoutMat.ResolveMaterial(0, SpriteStudioMaterial.BlendMix).shader);
+        }
+
+        [Test]
         public void ATextureOnlyAnInstanceTargetHas_ResolvesThroughIt()
         {
             var own = NewTexture("own");

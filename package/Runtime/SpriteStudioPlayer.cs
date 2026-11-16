@@ -1598,6 +1598,17 @@ namespace SpriteStudio.Runtime
             // Fold in the asset's revision: a reimport destroys the material variants in the list, and the
             // layout alone would keep drawing with them (the error shader) until the player was re-enabled.
             signature = signature * 31u + (uint)_animeAsset.Revision;
+            // And each external pack's: an Instance part's Mix draw uses that pack's base material itself, not a
+            // copy, so when that pack alone is reloaded or destroyed, the list would keep the destroyed material.
+            var externals = _animeAsset.ExternalReferences;
+            if (externals != null)
+            {
+                for (int i = 0; i < externals.Count; i++)
+                {
+                    var ext = externals[i];
+                    signature = signature * 31u + (ext != null ? (uint)ext.Revision : 0u);
+                }
+            }
             // And the catalog's version: an edited catalog can resolve an AddOn part to a different shader.
             signature = signature * 31u + (uint)(_shaderCatalog != null ? _shaderCatalog.Version : 0);
             // Fold in the texture-replacement version so changing a replacement rebuilds the material list

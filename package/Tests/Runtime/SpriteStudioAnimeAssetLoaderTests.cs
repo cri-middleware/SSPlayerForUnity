@@ -181,6 +181,41 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
+        public void APlayer_DropsTheOtherPacksMaterial_WhenThatPackAloneIsReloaded()
+        {
+            var tyuImported = Imported("Ringo/Ringo_tyu");
+            var ringoImported = Imported("Ringo/Ringo");
+            var tyu = Made(SpriteStudioAnimeAssetLoader.Create(tyuImported.SsabData, tyuImported.Textures));
+            // Textures no other asset holds, so Ringo's runtime material is Ringo's alone and reloading Ringo
+            // replaces it. With the imported ones, the imported Ringo would keep the same material alive.
+            var fresh = new Dictionary<string, Texture2D>();
+            var ringo = Made(SpriteStudioAnimeAssetLoader.Create(ringoImported.SsabData,
+                name => fresh.TryGetValue(name, out var t) ? t : fresh[name] = Made(new Texture2D(2, 2) { name = name })));
+            SpriteStudioAnimeAssetLoader.LinkExternalReferences(new[] { tyu, ringo });
+            Assume.That(tyu.Textures, Is.Empty, "Ringo_tyu draws nothing of its own");
+
+            _go = new GameObject("LoaderInstancePlayer");
+            var player = _go.AddComponent<SpriteStudioPlayer>();
+            player.AnimeAsset = tyu;
+            Assert.IsTrue(player.SetAnimation(tyu.AnimationNames[0]));
+            player.Play();
+            player.InternalPlayer.ScheduleMeshUpdate(0f);
+            player.ApplyAndRender();
+            var renderer = _go.GetComponent<MeshRenderer>();
+            var before = ringo.GetFallbackMaterial();
+            Assume.That(renderer.sharedMaterials, Has.Member(before), "precondition: the Instance draws with Ringo's material");
+
+            ringo.ReloadRuntimeState();
+            var after = ringo.GetFallbackMaterial();
+            Assume.That(after, Is.Not.SameAs(before));
+
+            player.InternalPlayer.ScheduleMeshUpdate(0f);
+            player.ApplyAndRender();
+            Assert.That(renderer.sharedMaterials, Has.Member(after));
+            Assert.That(renderer.sharedMaterials, Has.No.Member(before), "the material Ringo let go of stays on the renderer");
+        }
+
+        [Test]
         public void Link_ReportsAPackThatIsMissing_AndRefusesOnePackTwice()
         {
             var tyuImported = Imported("Ringo/Ringo_tyu");
