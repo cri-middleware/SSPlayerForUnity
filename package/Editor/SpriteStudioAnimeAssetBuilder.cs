@@ -389,7 +389,7 @@ namespace SpriteStudio.Editor
             }
 
             if (VerboseImportLog)
-                Debug.Log($"[SS-IMPORT] {ctx.assetPath} -> textures:{asset.Textures.Count} materials:{asset.Materials.FindAll(m => m != null).Count}extRefs:{asset.ExternalReferences.Count} sounds:{asset.Sounds.Count}");
+                Debug.Log($"[SS-IMPORT] {ctx.assetPath} -> textures:{asset.Textures.Count} materials:{asset.Materials.FindAll(m => m != null).Count} extRefs:{asset.ExternalReferences.Count} sounds:{asset.Sounds.Count}");
 
             ctx.AddObjectToAsset("MainAsset", asset);
             ctx.SetMainObject(asset);

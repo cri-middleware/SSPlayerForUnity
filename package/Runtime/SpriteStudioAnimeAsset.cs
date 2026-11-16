@@ -289,14 +289,18 @@ namespace SpriteStudio.Runtime
         private Material GetWhiteBaseMaterial()
         {
             if (_whiteBaseMaterial != null) return _whiteBaseMaterial;
-            Shader shader = OverrideShader;
-            if (shader == null && Materials != null)
+            // A .mat's shader first: the textured parts draw with it, and a .mat keeps its shader when the
+            // Override Shader changes later or the user edits the .mat, so taking the Override Shader first
+            // would draw only the cell-less parts with a different shader.
+            Shader shader = null;
+            if (Materials != null)
             {
                 for (int i = 0; i < Materials.Count; i++)
                 {
                     if (Materials[i] != null) { shader = Materials[i].shader; break; }
                 }
             }
+            if (shader == null) shader = OverrideShader;
             if (shader == null) shader = SpriteStudioBaseMaterialCache.DefaultShader;
             if (shader == null) return null;
             _whiteBaseMaterial = new Material(shader) { hideFlags = HideFlags.HideAndDontSave, name = "SpriteStudio_WhiteBase" };
