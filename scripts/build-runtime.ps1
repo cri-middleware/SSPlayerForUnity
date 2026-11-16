@@ -57,13 +57,27 @@ $SDK_DIR = "$rootDirectory/SpriteStudio-SDK"
 
 pushd $SDK_DIR
 
+# A native command's failure does not stop PowerShell, so without this a failed build went on to copy
+# whatever an earlier build left in target/ and exited 0: the tests then ran against stale libraries.
+# Stop as build-runtime.sh does under set -e.
+function Assert-Built([string]$what) {
+    $code = $LASTEXITCODE
+    if ($null -ne $code -and $code -ne 0) {
+        popd
+        [Console]::Error.WriteLine("Error: $what failed (exit $code). Nothing was copied.")
+        exit $code
+    }
+}
+
 $CARGO_FLAGS = @()
 if ($BUILD_MODE -eq "release") { $CARGO_FLAGS = @("--release") }
 
 if ($IS_HOST_BUILD) {
     # Windows host: invoke cargo directly so artifacts land in target/$BUILD_MODE/
     & cargo build @CARGO_FLAGS
+    Assert-Built "cargo build"
     & cargo build @CARGO_FLAGS -p ssruntime-ffi --features libc_alloc,panic-handler
+    Assert-Built "cargo build -p ssruntime-ffi"
 } else {
     # Cross-compilation: dispatch to SDK release scripts
     if ($PLATFORM -eq "windows") {
@@ -71,12 +85,16 @@ if ($IS_HOST_BUILD) {
         if ($ARCH -eq "arm64") { $script = "./scripts/release-windows-arm64.ps1" }
         echo "Executing $script $BUILD_MODE..."
         & $script $BUILD_MODE
+        Assert-Built $script
     } elseif ($PLATFORM -eq "ios") {
         & sh ./scripts/release-ios-xcframework.sh $BUILD_MODE
+        Assert-Built "release-ios-xcframework.sh"
     } elseif ($PLATFORM -eq "web") {
         & sh ./scripts/release-emscripten.sh $BUILD_MODE
+        Assert-Built "release-emscripten.sh"
     } else {
         & sh "./scripts/release-$PLATFORM.sh" $BUILD_MODE
+        Assert-Built "release-$PLATFORM.sh"
     }
 }
 popd
