@@ -8,6 +8,10 @@
   "changelogUrl": "https://github.com/cri-middleware/SSPlayerForUnity/blob/main/CHANGELOG.md",
   "licensesUrl": "https://github.com/cri-middleware/SSPlayerForUnity/blob/main/LICENSE.md",
   "license": "BSD-3-Clause",
+  "homepage": "https://github.com/cri-middleware/SSPlayerForUnity/tree/main/package#readme",
+  "bugs": {
+    "url": "https://github.com/cri-middleware/SSPlayerForUnity/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cri-middleware/SSPlayerForUnity.git"
