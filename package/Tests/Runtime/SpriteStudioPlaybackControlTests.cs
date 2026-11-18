@@ -10,16 +10,16 @@ using UnityEngine.UI;
 namespace SpriteStudio.Runtime.Tests
 {
     /// <summary>
-    /// Verifies the playback-control API added to SpriteStudioPlayer / SpriteStudioGraphic in Tier 1
-    /// (IsPlaying / IsPaused / Pause / Stop / CurrentFrame / TotalFrames /
-    ///  FrameRate / Reverse / PingPong / SetAnimationSection).
+    /// Verifies the playback-control API of SpriteStudioPlayer / SpriteStudioGraphic
+    /// (IsPlaying / IsPausing / Pause / Resume / Stop / FrameNo / TotalFrames /
+    ///  FrameRate / PlaybackDirection / PlaybackStyle / SetAnimationSection).
     ///
     /// These are thin delegations to the internal player (Rust runtime), so we check them at two layers:
     ///   (A) Component layer — delegations that synchronously reflect native state, round-trips, and null safety.
     ///       Thanks to [ExecuteAlways], AddComponent runs OnEnable and executes AnimeAsset assignment through Play
     ///       synchronously, so we can verify deterministically without frame driving (UpdateManager / yield).
-    ///   (B) Internal-player layer — advance behavior via manual Tick (Pause toggle halts / re-toggle resumes at
-    ///       the current frame / reverse playback decreases the frame / section settings are reflected). This
+    ///   (B) Internal-player layer — advance behavior via manual Tick (Pause halts / Resume carries on at the
+    ///       current frame / reverse playback decreases the frame / section settings are reflected). This
     ///       nails down the semantics that the component's Pause etc. delegate to.
     ///
     /// The fixture reuses the existing Ringo. Assumptions that depend on animation length are guarded with Assume
@@ -92,7 +92,7 @@ namespace SpriteStudio.Runtime.Tests
         {
             var player = MakePlayingPlayer();
             Assert.IsTrue(player.IsPlaying, "Should be playing after Play");
-            Assert.IsFalse(player.IsPaused, "Should not be paused right after Play");
+            Assert.IsFalse(player.IsPausing, "Should not be paused right after Play");
         }
 
         [Test]
@@ -104,22 +104,266 @@ namespace SpriteStudio.Runtime.Tests
         }
 
         [Test]
+        public void TotalFrames_CountsTheSection_NotFromFrameZero()
+        {
+            var player = MakePlayingPlayer();
+            Assume.That(player.TotalFrames, Is.GreaterThan(4), "walk is too short for a 1..3 section");
+
+            player.SetAnimationSection(1, 3);
+            // Both ends inclusive: 1, 2, 3.
+            Assert.AreEqual(3, player.TotalFrames);
+        }
+
+        [Test]
+        public void SpeedScale_ReadsBackTheStopThatANegativeRateBecame()
+        {
+            var player = MakePlayingPlayer();
+
+            player.SpeedScale = 0.5f;
+            Assert.AreEqual(0.5f, player.SpeedScale, 0.0001f, "A positive rate reads back as itself");
+
+            // The runtime clamps a zero or negative rate to a stop — reverse playback is Reverse's
+            // business, not the speed's — so the host must be able to see the stop it actually got.
+            // Reading a cached -1 back would say the opposite of what playback is doing.
+            player.SpeedScale = -1f;
+            Assert.AreEqual(0f, player.SpeedScale, 0.0001f, "A negative rate reads back as the stop it became");
+        }
+
+        [Test]
+        public void IsFinished_LatchesOnCompletion_AndIsNotRaisedByStop()
+        {
+            var player = MakePlayingPlayer();
+            Assert.IsFalse(player.IsFinished, "A fresh play has not finished");
+
+            // Re-arm with a finite count. The runtime resets the loop counter on setup, so the count
+            // has to be in effect when Play heads out.
+            player.LoopCount = 1;
+            player.Play();
+            Assert.IsFalse(player.IsFinished, "Play re-arms the latch");
+
+            int guard = 0;
+            while (player.IsPlaying && guard++ < 5000) player.InternalPlayer.Tick(1f / 60f, false);
+            Assume.That(player.IsPlaying, Is.False, "one loop should complete within the tick budget");
+
+            Assert.IsTrue(player.IsFinished, "Every configured loop has played");
+
+            // Sticky, unlike JustLooped: this is the whole reason for publishing it next to the
+            // OnAnimationFinished edge. A caller that was not subscribed can still ask afterwards.
+            for (int i = 0; i < 120; i++) player.InternalPlayer.Tick(1f / 60f, false);
+            Assert.IsTrue(player.IsFinished, "The state holds until the next play/setup");
+
+            player.Play();
+            Assert.IsFalse(player.IsFinished, "Play re-arms it again");
+        }
+
+        [Test]
+        public void IsFinished_SeparatesACompletedRunFromAStoppedOne()
+        {
+            // The distinction !IsPlaying cannot make, and the reason substituting it for completion
+            // is a defect.
+            var player = MakePlayingPlayer();
+            player.LoopCount = 1;
+            player.Play();
+
+            player.InternalPlayer.Tick(1f / 60f, false);
+            player.Stop();
+
+            Assert.IsFalse(player.IsPlaying, "Stop ends playback");
+            Assert.IsFalse(player.IsFinished, "...but a commanded stop is not a completion");
+        }
+
+        [Test]
+        public void GetPartNames_IsIndexAlignedWithFindPartIndex()
+        {
+            var player = MakePlayingPlayer();
+            var names = player.GetPartNames();
+
+            Assume.That(names.Length, Is.GreaterThan(0), "Ringo has parts");
+
+            // Length is the part count -- there is no separate accessor, and this is what makes the
+            // list a replacement for one rather than an addition next to it.
+            for (int i = 0; i < names.Length; i++)
+            {
+                if (string.IsNullOrEmpty(names[i])) continue;   // unnamed parts hold their slot
+                Assert.AreEqual(i, player.FindPartIndex(names[i]),
+                    $"names[{i}] must resolve back to {i}");
+            }
+
+            // The array is a copy: handing out the live cache would let a caller corrupt the table the
+            // event dispatch path reads.
+            names[0] = "clobbered";
+            Assert.AreNotEqual("clobbered", player.GetPartNames()[0]);
+        }
+
+        [Test]
+        public void TryGetPartSkinnedMesh_FlagsSkinnedMeshesButNotBonesNullsOrUnknowns()
+        {
+            var player = MakePlayingPlayer();
+
+            // Ringo's hand_r is a bone-skinned mesh: its vertices are driven by the arm bones while its own
+            // node sits near the root, which is exactly why a tracker on it lands off the art. This both
+            // exercises the flag and cross-checks that diagnosis.
+            Assert.IsTrue(player.TryGetPartSkinnedMesh("hand_r", out bool handSkinned), "hand_r should resolve");
+            Assert.IsTrue(handSkinned, "hand_r is a bone-skinned mesh");
+
+            // A bone (armature) and the root (null) are proper track targets — not skinned meshes.
+            Assert.IsTrue(player.TryGetPartSkinnedMesh("bone_14", out bool boneSkinned), "bone_14 should resolve");
+            Assert.IsFalse(boneSkinned, "an armature bone is not a skinned mesh");
+            Assert.IsTrue(player.TryGetPartSkinnedMesh("root", out bool rootSkinned), "root should resolve");
+            Assert.IsFalse(rootSkinned, "a null part is not a skinned mesh");
+
+            // Unknown part: returns false, out defaults to false.
+            Assert.IsFalse(player.TryGetPartSkinnedMesh("does_not_exist", out bool unknownSkinned));
+            Assert.IsFalse(unknownSkinned);
+        }
+
+        [Test]
         public void Pause_SetsPaused_ButStillPlaying()
         {
             var player = MakePlayingPlayer();
             player.Pause();
-            Assert.IsTrue(player.IsPaused, "Should be paused after Pause");
+            Assert.IsTrue(player.IsPausing, "Should be paused after Pause");
             Assert.IsTrue(player.IsPlaying, "The playback session should stay active (IsPlaying=true) even while paused");
         }
 
         [Test]
-        public void Pause_Toggle_ClearsPaused()
+        public void Pause_IsIdempotent_AndResumeLiftsIt()
+        {
+            // Pause is a hold, not a toggle: pausing twice leaves it held, and Resume is what lifts it
+            // (Play would rewind).
+            var player = MakePlayingPlayer();
+            player.Pause();
+            player.Pause();
+            Assert.IsTrue(player.IsPausing, "Pause is idempotent — a second call must not lift the hold");
+            Assert.IsTrue(player.IsPlaying);
+
+            player.Resume();
+            Assert.IsFalse(player.IsPausing, "Resume lifts the hold");
+            Assert.IsTrue(player.IsPlaying);
+        }
+
+        [Test]
+        public void SetAnimation_WithTheAnimationAlreadySetUp_ChangesNothing()
         {
             var player = MakePlayingPlayer();
-            player.Pause(); // toggle: playing -> paused
-            player.Pause(); // toggle: paused -> playing
-            Assert.IsFalse(player.IsPaused, "Calling Pause again (toggle) should clear the paused state");
-            Assert.IsTrue(player.IsPlaying);
+            player.FrameSkipEnabled = false;   // one Tick = one frame
+            for (int i = 0; i < 3; i++) player.InternalPlayer.Tick(1f / 60f, false);
+
+            float frame = player.FrameNo;
+            Assume.That(frame, Is.GreaterThan(0f), "playback should have advanced before we re-assert");
+
+            Assert.IsTrue(player.SetAnimation("walk"), "re-asserting the current animation still succeeds");
+
+            // A switch with nothing to switch to.
+            Assert.AreEqual(frame, player.FrameNo, 0.001f, "the playhead must not rewind");
+            Assert.IsTrue(player.IsPlaying, "playback must not be returned to Stopped");
+        }
+
+        [Test]
+        public void SetAnimation_WithTheAnimationAlreadySetUp_DoesNotReArmTheLoopBudget()
+        {
+            var player = MakePlayingPlayer();
+            player.LoopCount = 2;
+            player.FrameSkipEnabled = false;
+            player.Play();
+            Assume.That(player.InternalPlayer.GetRemainLoops(), Is.EqualTo(2));
+
+            // Burn one whole cycle, so the budget has visibly counted down.
+            int total = player.TotalFrames;
+            for (int i = 0; i < total + 2; i++) player.InternalPlayer.Tick(1f / 60f, false);
+            int remaining = player.InternalPlayer.GetRemainLoops();
+            Assume.That(remaining, Is.EqualTo(1), "one cycle should have completed");
+
+            player.SetAnimation("walk");
+
+            // Writing the loop count re-arms the budget. A state machine re-asserting its clip each frame
+            // would reset the budget each frame, so a finite LoopCount would never run out.
+            Assert.AreEqual(remaining, player.InternalPlayer.GetRemainLoops(),
+                "re-asserting the current animation must not restart the loop budget");
+        }
+
+        [Test]
+        public void SetAnimation_SetsUpAgainAfterAnotherPackIsBound()
+        {
+            var player = MakePlayingPlayer();
+            Assume.That(player.InternalPlayer.CurrentAnimationName, Is.EqualTo("walk"));
+
+            // A different asset — which, being built from the same bytes here, names an animation "walk"
+            // too. Nothing is set up on it, so the name matching the PREVIOUS pack's selection must not
+            // be taken for "already set up", or the new pack is left bound and unplayable.
+            player.AnimeAsset = MakeAsset();
+            Assert.IsNull(player.InternalPlayer.CurrentAnimationName, "a load clears what was set up");
+
+            Assert.IsTrue(player.SetAnimation("walk"));
+            Assert.AreEqual("walk", player.InternalPlayer.CurrentAnimationName);
+            Assert.Greater(player.TotalFrames, 0, "the new pack is playable");
+        }
+
+        [Test]
+        public void SetAnimation_KeepsTheConfiguredLoopCount()
+        {
+            var go = new GameObject("LoopRetentionPlayer");
+            _objects.Add(go);
+            var player = go.AddComponent<SpriteStudioPlayer>();
+            player.AnimeAsset = MakeAsset();
+            player.LoopCount = 1;
+
+            Assert.IsTrue(player.SetAnimation("walk"));
+            // Read the runtime, not the component's field: the field is what we just set and would agree
+            // with itself either way. setup_animation resets the runtime's own count to the infinite
+            // sentinel, so the component has to push its configuration back — and did not, which turned
+            // a "play once" into a forever loop on any runtime animation switch.
+            Assert.AreEqual(1, player.InternalPlayer.GetLoop(),
+                "A runtime SetAnimation must not revert the configured loop count to infinite");
+
+            // Again across a second switch, which is the shape a state machine actually uses.
+            Assert.IsTrue(player.SetAnimation("walk"));
+            Assert.AreEqual(1, player.InternalPlayer.GetLoop());
+        }
+
+        // Assigning the animation-name property (the field the inspector labels "Animation Name") is a plain
+        // field write with no side effect: it does NOT re-set-up the runtime, and Play() replays whatever is
+        // already set up rather than adopting the field. Only SetAnimation() switches the runtime. This is the
+        // asymmetry a QA report hit — the inspector switches on edit (via OnValidate) while the script property
+        // does not — so it is pinned here as intended behaviour.
+        [Test]
+        public void AnimationNameProperty_DoesNotSwitchTheRuntime_OnlySetAnimationDoes()
+        {
+            var player = MakePlayingPlayer("walk");
+            Assume.That(player.InternalPlayer.CurrentAnimationName, Is.EqualTo("walk"),
+                "precondition: the player is set up on walk");
+
+            // (1) Writing the property updates the serialized field but leaves the runtime on walk.
+            player.CurrentAnimation = "attack1";
+            Assert.AreEqual("attack1", player.CurrentAnimation, "the field reads back what was written");
+            Assert.AreEqual("walk", player.InternalPlayer.CurrentAnimationName,
+                "the property setter has no side effect — the runtime is still on the old animation");
+
+            // (2) Play() replays the currently set-up animation; it does not read the field.
+            player.Play();
+            Assert.AreEqual("walk", player.InternalPlayer.CurrentAnimationName,
+                "Play() restarts the set-up animation (walk); it does not adopt the property value");
+
+            // (3) SetAnimation is the switch.
+            Assert.IsTrue(player.SetAnimation("attack1"), "attack1 should be found in Ringo");
+            Assert.AreEqual("attack1", player.InternalPlayer.CurrentAnimationName,
+                "SetAnimation is what actually switches the runtime animation");
+        }
+
+        [Test]
+        public void Graphic_SetAnimation_KeepsTheConfiguredLoopCount()
+        {
+            var go = new GameObject("LoopRetentionGraphic");
+            _objects.Add(go);
+            go.AddComponent<Canvas>();
+            go.AddComponent<CanvasRenderer>();
+            var graphic = go.AddComponent<SpriteStudioGraphic>();
+            graphic.AnimeAsset = MakeAsset();
+            graphic.LoopCount = 1;
+
+            Assert.IsTrue(graphic.SetAnimation("walk"));
+            Assert.AreEqual(1, graphic.InternalPlayer.GetLoop(),
+                "The uGUI component owes the same guarantee as the world one");
         }
 
         [Test]
@@ -136,44 +380,44 @@ namespace SpriteStudio.Runtime.Tests
             var player = MakePlayingPlayer();
             player.Pause(); // pause so the value doesn't change from advancing
             float target = Mathf.Min(2f, Mathf.Max(0f, player.TotalFrames - 1));
-            player.CurrentFrame = target;
-            Assert.AreEqual(target, player.CurrentFrame, 0.001f, "The seeked value should be readable");
+            player.FrameNo = target;
+            Assert.AreEqual(target, player.FrameNo, 0.001f, "The seeked value should be readable");
         }
 
         [Test]
         public void Reverse_Property_RoundTrips()
         {
             var player = MakePlayingPlayer();
-            player.Reverse = true;
-            Assert.IsTrue(player.Reverse, "Reverse=true should be reflected");
-            player.Reverse = false;
-            Assert.IsFalse(player.Reverse, "Reverse=false should be reflected");
+            player.PlaybackDirection = SpriteStudioPlaybackDirection.Backward;
+            Assert.AreEqual(SpriteStudioPlaybackDirection.Backward, player.PlaybackDirection, "Backward should be reflected");
+            player.PlaybackDirection = SpriteStudioPlaybackDirection.Forward;
+            Assert.AreEqual(SpriteStudioPlaybackDirection.Forward, player.PlaybackDirection, "Forward should be reflected");
         }
 
         [Test]
         public void PingPong_Property_RoundTrips()
         {
             var player = MakePlayingPlayer();
-            player.PingPong = true;
-            Assert.IsTrue(player.PingPong, "PingPong=true should be reflected");
-            player.PingPong = false;
-            Assert.IsFalse(player.PingPong, "PingPong=false should be reflected");
+            player.PlaybackStyle = SpriteStudioPlaybackStyle.PingPong;
+            Assert.AreEqual(SpriteStudioPlaybackStyle.PingPong, player.PlaybackStyle, "PingPong should be reflected");
+            player.PlaybackStyle = SpriteStudioPlaybackStyle.Normal;
+            Assert.AreEqual(SpriteStudioPlaybackStyle.Normal, player.PlaybackStyle, "Normal should be reflected");
         }
 
         [Test]
         public void ReverseAndPingPong_AreIndependent()
         {
-            // The Reverse / PingPong setters read the orthogonal axis (direction / style) from native and preserve it.
-            // Verify that setting one doesn't clobber the other (regression test for the custom logic added in Tier 1).
+            // The direction / style setters read the orthogonal axis from native and preserve it.
+            // Verify that setting one doesn't clobber the other.
             var player = MakePlayingPlayer();
-            player.Reverse = true;
-            player.PingPong = true;
-            Assert.IsTrue(player.Reverse, "Setting PingPong should not clear Reverse");
-            Assert.IsTrue(player.PingPong, "Setting Reverse should not clear PingPong");
+            player.PlaybackDirection = SpriteStudioPlaybackDirection.Backward;
+            player.PlaybackStyle = SpriteStudioPlaybackStyle.PingPong;
+            Assert.AreEqual(SpriteStudioPlaybackDirection.Backward, player.PlaybackDirection, "Setting the style should not clear the direction");
+            Assert.AreEqual(SpriteStudioPlaybackStyle.PingPong, player.PlaybackStyle, "Setting the direction should not clear the style");
 
-            player.Reverse = false;
-            Assert.IsFalse(player.Reverse);
-            Assert.IsTrue(player.PingPong, "Clearing Reverse should not clear PingPong");
+            player.PlaybackDirection = SpriteStudioPlaybackDirection.Forward;
+            Assert.AreEqual(SpriteStudioPlaybackDirection.Forward, player.PlaybackDirection);
+            Assert.AreEqual(SpriteStudioPlaybackStyle.PingPong, player.PlaybackStyle, "Clearing the direction should not clear the style");
         }
 
         [Test]
@@ -181,6 +425,38 @@ namespace SpriteStudio.Runtime.Tests
         {
             var player = MakePlayingPlayer();
             Assert.DoesNotThrow(() => player.SetAnimationSection(1, 3));
+        }
+
+        [Test]
+        public void SetAnimationSection_EndingBeforeItsStart_IsRefusedOnce_AndChangesNothing()
+        {
+            var player = MakePlayingPlayer();
+            Assume.That(player.TotalFrames, Is.GreaterThan(4), "walk is too short for a 1..3 section");
+            Assert.IsTrue(player.SetAnimationSection(1, 3));
+            float playhead = player.FrameNo;
+
+            int lines = 0;
+            Application.LogCallback count = (message, _, type) =>
+            {
+                if (type == LogType.Warning && message.Contains("(3, 1)")) lines++;
+            };
+            Application.logMessageReceived += count;
+            try
+            {
+                // Both ends inside the animation, the end before the start. A state machine re-stating it
+                // every frame must not fill the Console, so the second call is refused without a line.
+                Assert.IsFalse(player.SetAnimationSection(3, 1));
+                Assert.IsFalse(player.SetAnimationSection(3, 1));
+            }
+            finally
+            {
+                Application.logMessageReceived -= count;
+            }
+
+            Assert.AreEqual(1, lines, "The refusal is reported once, naming the start and the end");
+            Assert.AreEqual(1, player.InternalPlayer.GetAnimationSectionStart(), "The section start stays");
+            Assert.AreEqual(3, player.InternalPlayer.GetAnimationSectionEnd(), "The section end stays");
+            Assert.AreEqual(playhead, player.FrameNo, 0.0001f, "The playhead stays");
         }
 
         [Test]
@@ -203,11 +479,11 @@ namespace SpriteStudio.Runtime.Tests
 
             // Even when never played / never loaded, the state accessors return sane defaults without breaking.
             Assert.IsFalse(player.IsPlaying);
-            Assert.IsFalse(player.IsPaused);
+            Assert.IsFalse(player.IsPausing);
             Assert.AreEqual(0, player.FrameRate);
-            Assert.AreEqual(0f, player.CurrentFrame, 0.001f);
-            Assert.IsFalse(player.Reverse);
-            Assert.IsFalse(player.PingPong);
+            Assert.AreEqual(0f, player.FrameNo, 0.001f);
+            Assert.AreEqual(SpriteStudioPlaybackDirection.Forward, player.PlaybackDirection);
+            Assert.AreEqual(SpriteStudioPlaybackStyle.Normal, player.PlaybackStyle);
             // TotalFrames can fall back to the native default (end_frame=0 → 1) when not loaded, so we don't
             // assert its value — only that the getters/setters don't throw.
 
@@ -215,8 +491,8 @@ namespace SpriteStudio.Runtime.Tests
             {
                 _ = player.TotalFrames;
                 player.Pause(); player.Pause(); player.Stop();
-                player.CurrentFrame = 5f; player.FrameRate = 30;
-                player.Reverse = true; player.PingPong = true;
+                player.FrameNo = 5f; player.FrameRate = 30;
+                player.PlaybackDirection = SpriteStudioPlaybackDirection.Backward; player.PlaybackStyle = SpriteStudioPlaybackStyle.PingPong;
                 player.SetAnimationSection(0, 1);
             });
         }
@@ -233,8 +509,8 @@ namespace SpriteStudio.Runtime.Tests
             Assert.DoesNotThrow(() =>
             {
                 player.Pause(); player.Pause(); player.Stop();
-                _ = player.CurrentFrame; player.CurrentFrame = 1f;
-                _ = player.Reverse; player.Reverse = true;
+                _ = player.FrameNo; player.FrameNo = 1f;
+                _ = player.PlaybackDirection; player.PlaybackDirection = SpriteStudioPlaybackDirection.Backward;
                 player.SetAnimationSection(0, 1);
             });
         }
@@ -259,18 +535,387 @@ namespace SpriteStudio.Runtime.Tests
             Assert.Greater(graphic.TotalFrames, 0);
 
             graphic.Pause();
-            Assert.IsTrue(graphic.IsPaused);
+            Assert.IsTrue(graphic.IsPausing);
 
             graphic.Stop();
             Assert.IsFalse(graphic.IsPlaying);
 
-            graphic.Reverse = true;
-            Assert.IsTrue(graphic.Reverse);
+            graphic.PlaybackDirection = SpriteStudioPlaybackDirection.Backward;
+            Assert.AreEqual(SpriteStudioPlaybackDirection.Backward, graphic.PlaybackDirection);
+        }
+
+        // ============================================================
+        // A null asset lets go of the pack: the renderer keeps nothing of it, the runtime stops building
+        // it, and the next asset is loaded as the first one was.
+        // ============================================================
+
+        [Test]
+        public void NullAsset_LeavesNothingOfThePackOnTheRenderer()
+        {
+            var player = MakePlayingPlayer();
+            player.InternalPlayer.ScheduleMeshUpdate(0f);
+            player.ApplyAndRender();
+            var renderer = player.GetComponent<MeshRenderer>();
+            var mesh = player.GetComponent<MeshFilter>().sharedMesh;
+            Assume.That(renderer.sharedMaterials.Length, Is.GreaterThan(0), "precondition: the player drew its pack");
+
+            player.AnimeAsset = null;
+
+            Assert.IsNull(player.InternalPlayer, "the runtime holding the old pack should be gone");
+            Assert.AreEqual(0, renderer.sharedMaterials.Length, "no material of the released asset should stay on the renderer");
+            Assert.AreEqual(0, mesh.vertexCount, "the old pack's geometry should not stay drawn");
+            Assert.IsFalse(player.IsPlaying);
+            Assert.DoesNotThrow(() => { player.SetAnimation("walk"); player.Play(); player.ApplyAndRender(); });
+            Assert.AreEqual(0, renderer.sharedMaterials.Length, "nothing is built without an asset");
+        }
+
+        [Test]
+        public void AnAssetAfterNull_IsLoadedAndPlays()
+        {
+            var player = MakePlayingPlayer();
+            player.AnimeAsset = null;
+
+            player.AnimeAsset = MakeAsset();
+
+            Assert.IsNotNull(player.InternalPlayer, "the runtime should come back with the asset");
+            Assert.IsTrue(player.InternalPlayer.HasSsab);
+            Assert.IsTrue(player.SetAnimation("walk"));
+            player.Play();
+            Assert.IsTrue(player.IsPlaying);
+        }
+
+        [Test]
+        public void NullAsset_OnADisabledPlayer_ClearsWhatItLastDrew()
+        {
+            var player = MakePlayingPlayer();
+            player.InternalPlayer.ScheduleMeshUpdate(0f);
+            player.ApplyAndRender();
+            var renderer = player.GetComponent<MeshRenderer>();
+            player.enabled = false;
+
+            player.AnimeAsset = null;
+
+            Assert.AreEqual(0, renderer.sharedMaterials.Length, "the renderer still draws while the player is disabled");
+            player.enabled = true;
+            Assert.IsFalse(player.InternalPlayer != null && player.InternalPlayer.HasSsab, "re-enabling loads nothing");
+        }
+
+#if UNITY_EDITOR
+        [Test]
+        public void InspectorNone_LetsGoOfThePack()
+        {
+            var player = MakePlayingPlayer();
+            player.InternalPlayer.ScheduleMeshUpdate(0f);
+            player.ApplyAndRender();
+            var renderer = player.GetComponent<MeshRenderer>();
+
+            // What the Inspector does: write the field, then OnValidate. Releasing waits for LateUpdate.
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            typeof(SpriteStudioPlayer).GetField("_animeAsset", flags).SetValue(player, null);
+            typeof(SpriteStudioPlayer).GetMethod("OnValidate", flags).Invoke(player, null);
+            typeof(SpriteStudioPlayer).GetMethod("LateUpdate", flags).Invoke(player, null);
+
+            Assert.IsFalse(player.InternalPlayer != null && player.InternalPlayer.HasSsab, "no pack should stay loaded");
+            Assert.AreEqual(0, renderer.sharedMaterials.Length);
+        }
+#endif
+
+        // ============================================================
+        // (A''') Enabling again: OnDisable disposes the native player, so each later enable has to set the
+        // configured animation up again and honour AutoPlay, as Start did the first time.
+        // ============================================================
+
+        [UnityTest]
+        public IEnumerator ReEnable_SetsTheAnimationUpAgain_AndAutoPlays()
+        {
+            if (!Application.isPlaying) Assert.Ignore("Start and AutoPlay run in Play mode only.");
+            var go = new GameObject("ReEnablePlayer");
+            _objects.Add(go);
+            go.SetActive(false);
+            var player = go.AddComponent<SpriteStudioPlayer>();
+            player.AnimeAsset = MakeAsset();
+            player.CurrentAnimation = "walk";
+            go.SetActive(true);
+            yield return null; // Start
+
+            Assert.IsTrue(player.IsPlaying, "AutoPlay should have started walk");
+            go.SetActive(false);
+            go.SetActive(true);
+
+            Assert.AreEqual("walk", player.InternalPlayer.CurrentAnimationName, "The re-created native player should have walk set up");
+            Assert.IsTrue(player.IsPlaying, "AutoPlay should start it again");
+        }
+
+        [UnityTest]
+        public IEnumerator ReEnable_WithoutAutoPlay_PosesTheAnimationButDoesNotPlay()
+        {
+            if (!Application.isPlaying) Assert.Ignore("Start and AutoPlay run in Play mode only.");
+            var go = new GameObject("ReEnablePlayerNoAutoPlay");
+            _objects.Add(go);
+            go.SetActive(false);
+            var player = go.AddComponent<SpriteStudioPlayer>();
+            player.AnimeAsset = MakeAsset();
+            player.CurrentAnimation = "walk";
+            player.AutoPlay = false;
+            go.SetActive(true);
+            yield return null; // Start
+
+            go.SetActive(false);
+            go.SetActive(true);
+
+            Assert.AreEqual("walk", player.InternalPlayer.CurrentAnimationName);
+            Assert.IsFalse(player.IsPlaying);
+        }
+
+        [Test]
+        public void TimelineClip_KeepsTheConfiguredLoopCount()
+        {
+            var player = MakePlayingPlayer();
+            player.LoopCount = 1;
+
+            player.EvaluateTimelineClip("run", 0.0);
+            Assert.AreEqual(1, player.InternalPlayer.GetLoop(), "the Timeline's setup should keep LoopCount");
+
+            // After the cutscene the animation is already set up, so SetAnimation changes nothing and Play
+            // runs with whatever loop count the runtime holds.
+            player.ReleaseTimelineControl();
+            player.SetAnimation("run");
+            player.Play();
+            Assert.AreEqual(1, player.InternalPlayer.GetLoop());
+        }
+
+        [Test]
+        public void ControlTrack_KeepsTheConfiguredLoopCount()
+        {
+            var player = MakePlayingPlayer();
+            player.LoopCount = 1;
+
+            player.OnControlTimeStart();
+            player.SetTime(0.1);
+
+            Assert.AreEqual(1, player.InternalPlayer.GetLoop());
+            player.OnControlTimeStop();
+        }
+
+        // ============================================================
+        // (A'''') Keyed fields: an Animator writes the serialized fields directly, then calls
+        // OnDidApplyAnimationProperties.
+        // ============================================================
+
+        [Test]
+        public void KeyedFields_ReachTheRuntime_WithoutReArmingTheLoops()
+        {
+            var player = MakePlayingPlayer();
+            player.LoopCount = 3;
+            var ip = player.InternalPlayer;
+            ip.Tick((player.TotalFrames + 1f) / player.FrameRate, false);
+            Assume.That(ip.GetRemainLoops(), Is.EqualTo(2), "one loop should have been used");
+
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            typeof(SpriteStudioPlayer).GetField("_flipX", flags).SetValue(player, true);
+            typeof(SpriteStudioPlayer).GetField("_speedScale", flags).SetValue(player, 2f);
+            player.SendMessage("OnDidApplyAnimationProperties");
+
+            Assert.IsTrue(ip.FlipX, "a keyed Flip X should reach the runtime");
+            Assert.AreEqual(2f, ip.GetSpeed(), 1e-4f, "a keyed Speed Scale should reach the runtime");
+            Assert.AreEqual(2, ip.GetRemainLoops(), "an unchanged Loop Count must not re-arm the loops left");
+        }
+
+        [UnityTest]
+        public IEnumerator AnimationClip_KeyingFlipX_MirrorsThePlayer()
+        {
+            if (!Application.isPlaying) Assert.Ignore("An Animation component evaluates in Play mode only.");
+            var player = MakePlayingPlayer();
+            var clip = new AnimationClip { legacy = true };
+            _assets.Add(clip);
+            clip.SetCurve("", typeof(SpriteStudioPlayer), "_flipX", AnimationCurve.Constant(0f, 1f, 1f));
+            var anim = player.gameObject.AddComponent<Animation>();
+            anim.AddClip(clip, "flip");
+            anim.Play("flip");
+            yield return null;
+            yield return null;
+
+            Assert.IsTrue(player.FlipX, "the clip should have written the field");
+            Assert.IsTrue(player.InternalPlayer.FlipX, "the player should have pushed it to the runtime");
+        }
+
+        [Test]
+        public void ReloadedAsset_MaterialsAreResolvedAgain()
+        {
+            // A reimport reloads the asset in place and can destroy the material the player drew with (the
+            // provisional one the importer embeds until the shared .mat exists). The player has to resolve
+            // again rather than keep drawing with the destroyed one.
+            var player = MakePlayingPlayer();
+            var asset = player.AnimeAsset;
+            var shader = Shader.Find("SpriteStudio/Default");
+            var provisional = new Material(shader);
+            var shared = new Material(shader);
+            _assets.Add(shared);
+            asset.Materials.Add(provisional);
+            player.InternalPlayer.ScheduleMeshUpdate(0f);
+            player.ApplyAndRender();
+            var renderer = player.GetComponent<MeshRenderer>();
+            Assume.That(renderer.sharedMaterials, Has.Member(provisional));
+
+            // What the reimport does: the provisional material goes, the shared one takes its place, and the
+            // asset is loaded again.
+            Object.DestroyImmediate(provisional);
+            asset.Materials[0] = shared;
+            typeof(SpriteStudioAnimeAsset).GetMethod("OnEnable", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .Invoke(asset, null);
+            player.ApplyAndRender();
+
+            Assert.That(renderer.sharedMaterials, Has.No.Null, "no slot should keep the destroyed material");
+            Assert.That(renderer.sharedMaterials, Has.Member(shared));
+        }
+
+        // ============================================================
+        // Part trackers deactivate a target for an absent or hidden part, and activate again only what they
+        // deactivated.
+        // ============================================================
+
+        private static void BuildOnce(SpriteStudioPlayer player)
+        {
+            player.InternalPlayer.ScheduleMeshUpdate(0f);
+            player.ApplyAndRender();
+        }
+
+        [Test]
+        public void PartTracker_LeavesATargetTheUserDeactivatedInactive()
+        {
+            if (!Application.isPlaying) Assert.Ignore("Trackers change the active state in Play mode only.");
+            var player = MakePlayingPlayer();
+            var weapon = new GameObject("Weapon");
+            _objects.Add(weapon);
+            player.RegisterPartTracker(player.GetPartNames()[1], weapon.transform);
+            weapon.SetActive(false); // holstered until picked up
+
+            BuildOnce(player);
+
+            Assert.IsFalse(weapon.activeSelf, "the tracker must not show a target it did not hide");
+        }
+
+        [Test]
+        public void PartTracker_ActivatesAgainWhatItDeactivated()
+        {
+            if (!Application.isPlaying) Assert.Ignore("Trackers change the active state in Play mode only.");
+            var player = MakePlayingPlayer();
+            var target = new GameObject("Follower");
+            _objects.Add(target);
+            var tracker = player.RegisterPartTracker("no such part", target.transform);
+
+            BuildOnce(player);
+            Assert.IsFalse(target.activeSelf, "an absent part deactivates the target");
+
+            tracker.partName = player.GetPartNames()[1];
+            tracker.ResolvedIndex = SpriteStudioPartTracker.ResolveDirty;
+            BuildOnce(player);
+            Assert.IsTrue(target.activeSelf, "the target comes back once its part is there");
+        }
+
+        [Test]
+        public void PartTracker_Unregistered_ActivatesWhatItDeactivated()
+        {
+            if (!Application.isPlaying) Assert.Ignore("Trackers change the active state in Play mode only.");
+            var player = MakePlayingPlayer();
+            var target = new GameObject("Follower");
+            _objects.Add(target);
+            player.RegisterPartTracker("no such part", target.transform);
+            BuildOnce(player);
+            Assume.That(target.activeSelf, Is.False);
+
+            Assert.AreEqual(1, player.UnregisterPartTracker(target.transform));
+            Assert.IsTrue(target.activeSelf, "a target the tracker hid goes back as it was found");
+        }
+
+        // Seeks the player from a default-order Update, then records in its own LateUpdate -- which runs
+        // after the runner's (-100) -- which frame the player built this frame.
+        private sealed class SeekFromUpdate : MonoBehaviour
+        {
+            public SpriteStudioPlayer Player;
+            public float Target;
+            public float BuiltThisFrame = float.NaN;
+            private bool _sought;
+
+            private void Update()
+            {
+                Player.FrameNo = Target;
+                _sought = true;
+            }
+
+            private void LateUpdate()
+            {
+                if (_sought && float.IsNaN(BuiltThisFrame))
+                    BuiltThisFrame = Player.InternalPlayer._geometryBuilder._lastBuiltDrawFrameNo;
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator SeekFromUpdate_IsBuiltInTheSameFrame()
+        {
+            if (!Application.isPlaying) Assert.Ignore("The update runner drives players in Play mode only.");
+            var player = MakePlayingPlayer();
+            // Paused after Start, whose AutoPlay plays again: a player still running advances by the
+            // frame's delta before it builds, which is a whole frame at 60 Hz.
+            yield return null;
+            player.Pause();
+            Assume.That(player.TotalFrames, Is.GreaterThan(5), "walk needs more than five frames");
+
+            var probe = player.gameObject.AddComponent<SeekFromUpdate>();
+            probe.Player = player;
+            probe.Target = 5f;
+            yield return null;
+            yield return null;
+
+            Assert.AreEqual(5f, probe.BuiltThisFrame, 0.001f, "A seek made in Update should be built before that frame's LateUpdate");
+        }
+
+        [UnityTest]
+        public IEnumerator Graphic_ReEnable_SetsTheAnimationUpAgain_AndAutoPlays()
+        {
+            if (!Application.isPlaying) Assert.Ignore("Start and AutoPlay run in Play mode only.");
+            var go = new GameObject("ReEnableGraphic");
+            _objects.Add(go);
+            go.SetActive(false);
+            go.AddComponent<Canvas>();
+            var graphic = go.AddComponent<SpriteStudioGraphic>();
+            graphic.AnimeAsset = MakeAsset();
+            graphic.CurrentAnimation = "walk";
+            go.SetActive(true);
+            yield return null; // Start
+
+            Assert.IsTrue(graphic.IsPlaying, "AutoPlay should have started walk");
+            go.SetActive(false);
+            go.SetActive(true);
+
+            Assert.AreEqual("walk", graphic.InternalPlayer.CurrentAnimationName, "The re-created native player should have walk set up");
+            Assert.IsTrue(graphic.IsPlaying, "AutoPlay should start it again");
         }
 
         // ============================================================
         // (B) Internal-player layer: advance behavior via manual Tick (deterministic)
         // ============================================================
+
+        [Test]
+        public void Internal_SetupAnimation_CompletesTheScheduledMeshJobFirst()
+        {
+            // Setup clears and resizes the buffers the mesh job reads through raw pointers, so a job still
+            // scheduled when a script switches animation has to finish before the runtime touches them.
+            Assert.IsNotNull(_ringo, "Ringo.ssab is required.");
+            using (var player = new SpriteStudioInternalPlayer())
+            {
+                player.LoadSsab(_ringo);
+                Assert.IsTrue(player.SetupAnimation("walk"));
+                player.ScheduleMeshUpdate(0f);
+
+                Assert.IsTrue(player.SetupAnimation("run"));
+                Assert.IsTrue(player.CurrentUpdateJobHandle.IsCompleted, "SetupAnimation should complete the job first");
+
+                player.ScheduleMeshUpdate(0f);
+                Assert.IsTrue(player.SetupAnimationByHash(SpriteStudioInternalPlayer.HashName("walk")));
+                Assert.IsTrue(player.CurrentUpdateJobHandle.IsCompleted, "SetupAnimationByHash should complete the job first");
+            }
+        }
 
         [Test]
         public void Internal_Pause_Halts_And_Resume_ContinuesFromCurrentFrame()
@@ -292,16 +937,16 @@ namespace SpriteStudio.Runtime.Tests
                 float f0 = player.GetFrame();
                 Assert.Greater(f0, 0f, "Playback should advance the frame");
 
-                // No advance while paused (native pause() toggles is_pausing)
+                // No advance while paused (native pause() raises is_pausing and holds the timeline)
                 player.Pause();
                 for (int i = 0; i < step; i++) player.Tick(1f / 60f, false);
                 Assert.AreEqual(f0, player.GetFrame(), 0.5f, "The frame should not advance while paused");
 
-                // Resume: play() rewinds to the start so it can't be used. Re-toggling pause() resumes while
-                // keeping the current frame (the same path the component's Pause() toggle delegates to).
-                player.Pause(); // toggle: paused -> playing
+                // Resume: play() rewinds to the start so it can't be used. resume() lifts the hold while
+                // keeping the current frame (the same path the component's Resume() delegates to).
+                player.Resume();
                 for (int i = 0; i < step; i++) player.Tick(1f / 60f, false);
-                Assert.Greater(player.GetFrame(), f0, "Resume (pause toggle) should continue from the current frame (not return to the start)");
+                Assert.Greater(player.GetFrame(), f0, "Resume should continue from the current frame (not return to the start)");
             }
         }
 
@@ -345,6 +990,32 @@ namespace SpriteStudio.Runtime.Tests
                 player.SetAnimationSection(1, end);
                 Assert.AreEqual(1, player.GetAnimationSectionStart(), "The section start should be reflected");
                 Assert.AreEqual(end, player.GetAnimationSectionEnd(), "The section end should be reflected");
+            }
+        }
+
+        [Test]
+        public void Internal_SetAnimationSection_StartingOnTheLastFrame_HoldsIt()
+        {
+            Assert.IsNotNull(_ringo, "Ringo.ssab is required.");
+            using (var player = new SpriteStudioInternalPlayer())
+            {
+                player.LoadSsab(_ringo);
+                Assert.IsTrue(player.SetupAnimation("walk"));
+                int last = player.GetAnimationSectionEnd();
+                Assume.That(last, Is.GreaterThan(0), "walk needs more than one frame");
+
+                Assert.IsTrue(player.SetAnimationSection(last, last));
+                Assert.AreEqual(last, player.GetAnimationSectionStart(), "The section starts on the last frame");
+                Assert.AreEqual(last, player.GetAnimationSectionEnd());
+                Assert.IsTrue(player.SetAnimationSection(last, -1), "An end of -1 is the last frame, so this is that frame too");
+                Assert.AreEqual(last, player.GetAnimationSectionStart());
+                Assert.AreEqual(last, player.GetAnimationSectionEnd());
+
+                player.SetLoop(-1);
+                player.Play();
+                player.SetSkipFrames(false);
+                for (int i = 0; i < 5; i++) player.Tick(1f / 60f, false);
+                Assert.AreEqual(last, Mathf.FloorToInt(player.GetFrame()), "Playback holds the one frame");
             }
         }
     }

@@ -10,7 +10,6 @@ if ($rawArch -match "ARM64") {
 }
 $HOST_PLATFORM = "windows"
 
-# Godot options
 $default_opts = @{
     arch = $HOST_ARCH
     platform = $HOST_PLATFORM
@@ -58,13 +57,27 @@ $SDK_DIR = "$rootDirectory/SpriteStudio-SDK"
 
 pushd $SDK_DIR
 
+# A native command's failure does not stop PowerShell, so without this a failed build went on to copy
+# whatever an earlier build left in target/ and exited 0: the tests then ran against stale libraries.
+# Stop as build-runtime.sh does under set -e.
+function Assert-Built([string]$what) {
+    $code = $LASTEXITCODE
+    if ($null -ne $code -and $code -ne 0) {
+        popd
+        [Console]::Error.WriteLine("Error: $what failed (exit $code). Nothing was copied.")
+        exit $code
+    }
+}
+
 $CARGO_FLAGS = @()
 if ($BUILD_MODE -eq "release") { $CARGO_FLAGS = @("--release") }
 
 if ($IS_HOST_BUILD) {
     # Windows host: invoke cargo directly so artifacts land in target/$BUILD_MODE/
     & cargo build @CARGO_FLAGS
-    & cargo build @CARGO_FLAGS -p ssruntime --features libc_alloc,panic-handler
+    Assert-Built "cargo build"
+    & cargo build @CARGO_FLAGS -p ssruntime-ffi --features libc_alloc,panic-handler
+    Assert-Built "cargo build -p ssruntime-ffi"
 } else {
     # Cross-compilation: dispatch to SDK release scripts
     if ($PLATFORM -eq "windows") {
@@ -72,23 +85,43 @@ if ($IS_HOST_BUILD) {
         if ($ARCH -eq "arm64") { $script = "./scripts/release-windows-arm64.ps1" }
         echo "Executing $script $BUILD_MODE..."
         & $script $BUILD_MODE
+        Assert-Built $script
     } elseif ($PLATFORM -eq "ios") {
         & sh ./scripts/release-ios-xcframework.sh $BUILD_MODE
+        Assert-Built "release-ios-xcframework.sh"
     } elseif ($PLATFORM -eq "web") {
         & sh ./scripts/release-emscripten.sh $BUILD_MODE
+        Assert-Built "release-emscripten.sh"
     } else {
         & sh "./scripts/release-$PLATFORM.sh" $BUILD_MODE
+        Assert-Built "release-$PLATFORM.sh"
     }
 }
 popd
 
-# 1. Collect C# Bindings
+# Plugins/VERSION names the SDK release download-sdk installed, and everything
+# below replaces files with this local build. Stamp both "local" first, so a
+# later download-sdk sees a mismatch and reinstalls instead of skipping as up to
+# date. Overwritten rather than removed: each has a committed .meta, which Unity
+# deletes when its asset is gone.
+foreach ($pluginsDir in @("$rootDirectory/package/Runtime/Plugins", "$rootDirectory/package/Editor/Plugins")) {
+    New-Item -ItemType Directory -Path $pluginsDir -Force | Out-Null
+    Set-Content -Path "$pluginsDir/VERSION" -Value "local"
+}
+
+# 1. Collect C# Bindings. Each .g.cs also gets its committed .meta from scripts/upm-meta:
+# the .g.cs are gitignored so their .meta cannot live next to them, and a script with no
+# .meta is ignored by Unity inside an immutable package folder (see that README).
 echo "Copying C# bindings..."
-Copy-Item "$SDK_DIR/libs/ssruntime/target/SSRuntimeMethods.g.cs" "$rootDirectory/package/Runtime/Bindings/" -Force
+# The generating build scripts live in the *-ffi crates and write beside
+# themselves, so these are `libs/<crate>-ffi/target/`.
+Copy-Item "$SDK_DIR/libs/ssruntime-ffi/target/SSRuntimeMethods.g.cs" "$rootDirectory/package/Runtime/Bindings/" -Force
+Copy-Item "$baseDirectory/upm-meta/SSRuntimeMethods.g.cs.meta" "$rootDirectory/package/Runtime/Bindings/" -Force
 $editorBindingsDir = "$rootDirectory/package/Editor/Bindings"
 New-Item -ItemType Directory -Path $editorBindingsDir -Force | Out-Null
-if (Test-Path "$SDK_DIR/libs/ssconverter/target/SSConverterMethods.g.cs") {
-    Copy-Item "$SDK_DIR/libs/ssconverter/target/SSConverterMethods.g.cs" "$editorBindingsDir/" -Force
+if (Test-Path "$SDK_DIR/libs/ssconverter-ffi/target/SSConverterMethods.g.cs") {
+    Copy-Item "$SDK_DIR/libs/ssconverter-ffi/target/SSConverterMethods.g.cs" "$editorBindingsDir/" -Force
+    Copy-Item "$baseDirectory/upm-meta/SSConverterMethods.g.cs.meta" "$editorBindingsDir/" -Force
 }
 
 # 1.5. Collect Licenses

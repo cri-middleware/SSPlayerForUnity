@@ -116,25 +116,25 @@ public struct Vec2 : IFlatbufferObject
   }
 }
 
-public struct U8Rect : IFlatbufferObject
+public struct U8Color : IFlatbufferObject
 {
   private Struct __p;
   public ByteBuffer ByteBuffer { get { return __p.bb; } }
   public void __init(int _i, ByteBuffer _bb) { __p = new Struct(_i, _bb); }
-  public U8Rect __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
+  public U8Color __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
 
   public byte A { get { return __p.bb.Get(__p.bb_pos + 0); } }
   public byte R { get { return __p.bb.Get(__p.bb_pos + 1); } }
   public byte G { get { return __p.bb.Get(__p.bb_pos + 2); } }
   public byte B { get { return __p.bb.Get(__p.bb_pos + 3); } }
 
-  public static Offset<ss.runtime.U8Rect> CreateU8Rect(FlatBufferBuilder builder, byte A, byte R, byte G, byte B) {
+  public static Offset<ss.runtime.U8Color> CreateU8Color(FlatBufferBuilder builder, byte A, byte R, byte G, byte B) {
     builder.Prep(1, 4);
     builder.PutByte(B);
     builder.PutByte(G);
     builder.PutByte(R);
     builder.PutByte(A);
-    return new Offset<ss.runtime.U8Rect>(builder.Offset);
+    return new Offset<ss.runtime.U8Color>(builder.Offset);
   }
 }
 
@@ -145,7 +145,7 @@ public struct SsAttributePartColorKeyValueColor : IFlatbufferObject
   public void __init(int _i, ByteBuffer _bb) { __p = new Struct(_i, _bb); }
   public SsAttributePartColorKeyValueColor __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
 
-  public ss.runtime.U8Rect Rgba { get { return (new ss.runtime.U8Rect()).__assign(__p.bb_pos + 0, __p.bb); } }
+  public ss.runtime.U8Color Rgba { get { return (new ss.runtime.U8Color()).__assign(__p.bb_pos + 0, __p.bb); } }
   public float Rate { get { return __p.bb.GetFloat(__p.bb_pos + 4); } }
 
   public static Offset<ss.runtime.SsAttributePartColorKeyValueColor> CreateSsAttributePartColorKeyValueColor(FlatBufferBuilder builder, byte rgba_A, byte rgba_R, byte rgba_G, byte rgba_B, float Rate) {
@@ -359,7 +359,7 @@ public struct PartState : IFlatbufferObject
   public float LocalScaleY { get { return __p.bb.GetFloat(__p.bb_pos + 44); } }
   public float Alpha { get { return __p.bb.GetFloat(__p.bb_pos + 48); } }
   public float LocalAlpha { get { return __p.bb.GetFloat(__p.bb_pos + 52); } }
-  public float Priority { get { return __p.bb.GetFloat(__p.bb_pos + 56); } }
+  public int Priority { get { return __p.bb.GetInt(__p.bb_pos + 56); } }
   public float PivotX { get { return __p.bb.GetFloat(__p.bb_pos + 60); } }
   public float PivotY { get { return __p.bb.GetFloat(__p.bb_pos + 64); } }
   public float AnchorX { get { return __p.bb.GetFloat(__p.bb_pos + 68); } }
@@ -388,7 +388,7 @@ public struct PartState : IFlatbufferObject
   public bool ImgFlipH { get { return 0!=__p.bb.Get(__p.bb_pos + 139); } }
   public bool ImgFlipV { get { return 0!=__p.bb.Get(__p.bb_pos + 140); } }
 
-  public static Offset<ss.runtime.PartState> CreatePartState(FlatBufferBuilder builder, ss.runtime.UpdateAttributeFlags UpdateFlag, float PositionX, float PositionY, float PositionZ, float RotationX, float RotationY, float RotationZ, float ScaleX, float ScaleY, float LocalScaleX, float LocalScaleY, float Alpha, float LocalAlpha, float Priority, float PivotX, float PivotY, float AnchorX, float AnchorY, float SizeX, float SizeY, float UvTranslationX, float UvTranslationY, float UvRotationZ, float UvScaleX, float UvScaleY, float BoundingRadius, float Mask, float SkewX, float SkewY, uint Texture, short PartIndex, short Cell, short PartColor, short Shader, short Vertex, short Deform, bool FlipH, bool FlipV, bool Hide, bool ImgFlipH, bool ImgFlipV) {
+  public static Offset<ss.runtime.PartState> CreatePartState(FlatBufferBuilder builder, ss.runtime.UpdateAttributeFlags UpdateFlag, float PositionX, float PositionY, float PositionZ, float RotationX, float RotationY, float RotationZ, float ScaleX, float ScaleY, float LocalScaleX, float LocalScaleY, float Alpha, float LocalAlpha, int Priority, float PivotX, float PivotY, float AnchorX, float AnchorY, float SizeX, float SizeY, float UvTranslationX, float UvTranslationY, float UvRotationZ, float UvScaleX, float UvScaleY, float BoundingRadius, float Mask, float SkewX, float SkewY, uint Texture, short PartIndex, short Cell, short PartColor, short Shader, short Vertex, short Deform, bool FlipH, bool FlipV, bool Hide, bool ImgFlipH, bool ImgFlipV) {
     builder.Prep(8, 144);
     builder.Pad(3);
     builder.PutBool(ImgFlipV);
@@ -418,7 +418,7 @@ public struct PartState : IFlatbufferObject
     builder.PutFloat(AnchorX);
     builder.PutFloat(PivotY);
     builder.PutFloat(PivotX);
-    builder.PutFloat(Priority);
+    builder.PutInt(Priority);
     builder.PutFloat(LocalAlpha);
     builder.PutFloat(Alpha);
     builder.PutFloat(LocalScaleY);

@@ -1,3 +1,3 @@
-# ライセンス (License)
+# ⚖️ ライセンス (License)
 
---8<-- "LICENSE.md"
+--8<-- "LICENSE.ja.md"

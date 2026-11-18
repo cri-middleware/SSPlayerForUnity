@@ -26,32 +26,36 @@ namespace SpriteStudio.Editor
 
             if (ssabPaths.Count == 0) return;
 
-            var sspjToReconvert = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            // Keyed by the pair, not by the .sspj: several .ssab in one folder are one conversion, while the
+            // same .sspj converted into two folders (a copied output) is two, and each writes where it is.
+            var planned = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var targets = new List<(string Sspj, string Dir)>();
             var dirsHandled = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var ssab in ssabPaths)
             {
+                string dir = (Path.GetDirectoryName(ssab) ?? string.Empty).Replace('\\', '/');
+
                 string sspj = SpriteStudioSourceMap.GetSspjForSsab(ssab);
-                if (!string.IsNullOrEmpty(sspj) && File.Exists(sspj))
+                if (string.IsNullOrEmpty(sspj) || !File.Exists(sspj))
                 {
-                    sspjToReconvert.Add(Path.GetFullPath(sspj));
-                    continue;
+                    // Missing link → attempt a relink once per output folder
+                    if (!dirsHandled.Add(dir)) continue;
+
+                    sspj = RelinkDirectory(ssab);
+                    if (string.IsNullOrEmpty(sspj)) continue;
                 }
 
-                // Missing link → attempt a relink once per output folder
-                string dir = (Path.GetDirectoryName(ssab) ?? string.Empty).Replace('\\', '/');
-                if (!dirsHandled.Add(dir)) continue;
-
-                string relinked = RelinkDirectory(ssab);
-                if (!string.IsNullOrEmpty(relinked))
+                sspj = Path.GetFullPath(sspj);
+                if (planned.Add($"{sspj}|{dir}"))
                 {
-                    sspjToReconvert.Add(Path.GetFullPath(relinked));
+                    targets.Add((sspj, dir));
                 }
             }
 
-            foreach (var sspj in sspjToReconvert)
+            foreach (var target in targets)
             {
-                SpriteStudioImporter.ImportPaths(new[] { sspj }, interactive: false);
+                SpriteStudioImporter.ReconvertInto(target.Sspj, target.Dir);
             }
         }
 
@@ -72,7 +76,7 @@ namespace SpriteStudio.Editor
             string sspj = RelinkDirectory(ssabAssetPath);
             if (!string.IsNullOrEmpty(sspj))
             {
-                SpriteStudioImporter.ImportPaths(new[] { Path.GetFullPath(sspj) }, interactive: false);
+                SpriteStudioImporter.ReconvertInto(sspj, Path.GetDirectoryName(ssabAssetPath));
             }
         }
 

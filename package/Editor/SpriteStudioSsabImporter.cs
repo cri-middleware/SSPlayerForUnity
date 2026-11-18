@@ -8,14 +8,14 @@ namespace SpriteStudio.Editor
     /// Skips the conversion step and directly creates a ScriptableObject (SpriteStudioAnimeAsset).
     /// The build work is delegated to <see cref="SpriteStudioAnimeAssetBuilder"/>.
     /// </summary>
-    [ScriptedImporter(4, "ssab")]
-    [UnityEngine.Icon("Packages/jp.co.cri-mw.optpix.ssplayer-unity/Editor/Icons/ssab_icon.png")]
+    [ScriptedImporter(1, "ssab")]
+    [UnityEngine.Icon("Packages/jp.co.cri-mw.spritestudio.ssplayer-unity/Editor/Icons/ssab_icon.png")]
     public class SpriteStudioSsabImporter : ScriptedImporter
     {
         [Tooltip("Use a shared per-texture material (.mat). When OFF, no material is assigned.")]
         public bool GenerateMaterials = true;
 
-        [Tooltip("Shader used for material generation. When unset, SpriteStudio/Default is used.")]
+        [Tooltip("Shader a newly created .mat uses; SpriteStudio/Default when unset. A .mat that already exists keeps its own shader: change it on the .mat.")]
         public Shader OverrideShader;
 
         public override void OnImportAsset(AssetImportContext ctx)

@@ -1,238 +1,88 @@
-# SpriteStudioPlayer for Unity — Player Roadmap
+# SpriteStudio Player for Unity — Roadmap
 
-This is the **C# Player** roadmap for SSPlayerForUnity. It is the counterpart to
-`SpriteStudio-SDK/ROADMAP.md`, which tracks the **Rust runtime/converter** (`ssruntime` / `ssconverter`).
-Runtime-side work lives in the SDK roadmap; this file tracks the Unity Player work.
+This file lists unfinished work only. Technical constraints live in the [limitations page](./docs/en/limitations.md);
+runtime and converter work lives in the
+[SpriteStudio-SDK roadmap](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/ROADMAP.md).
 
-Most items **selectively bring** worthwhile capabilities from the legacy **SS6PlayerForUnity** into this
-SS7-based player — reimagined for SS7, **not ported verbatim** (see *Design principle* below). Each task is
-written to be actionable from a cold start: it names the target files, the SS6 reference, the FFI / FlatBuffer
-accessors involved, concrete steps, and a "Done when".
+## Playback & rendering
 
-## Design principle — selective, SS7-native porting
+- [ ] **Events and sound while a Timeline plays** — a clip seeks the player to a frame and never advances it, so under
+  a `SpriteStudioTrack` or a ControlTrack no UserData / Signal / Audio event fires and no built-in sound plays, in Play
+  mode too. Advance through the frames a Playback evaluation crosses, as an AnimationTrack fires a clip's
+  AnimationEvents, and keep scrubbing silent.
+- [ ] **`SpriteStudioTrack` clips that know their animation** — a clip starts at Timeline's default length rather than
+  the animation's, so Match Content has nothing to snap to; `ClipCaps.None` turns off Clip In, Speed Multiplier and
+  Looping, none of which involve blending; and Animation Name is free text, with no list to pick from.
+- [ ] **Flip / offset on `SpriteStudioGraphic`** — mirror or shift what the graphic draws without moving the
+  `RectTransform`, as `SpriteStudioPlayer` does with `FlipX` / `FlipY` / `Offset`; the uGUI player exposes none of them.
+- [ ] **Player-level tint / opacity, and a choice of clock** — `SpriteStudioPlayer` has no tint or opacity
+  (`SpriteStudioGraphic` takes `Graphic.color`). The update loop advances every player by scaled `Time.deltaTime`, so
+  `Time.timeScale = 0` freezes UI animation along with the world; unscaled time and a clock shared by a group of
+  players are not available.
+- [ ] **Per-player effect seed** — an effect part's seed comes from its part index and the effect name, so every
+  player built from the same asset draws the identical particle pattern. Vary it per player behind a serialized seed
+  field (0 = pick one), so a run stays reproducible; `ss_effect_slot_create` already takes the seed and the runtime
+  honours an authored `is_lock_rand_seed` ahead of it, so the work is Player-side only.
+- [ ] **Instance children's mesh jobs in one schedule** — every visible instance child schedules an `UpdateMeshJob` of
+  its own from the main thread, about half a microsecond a child: with twenty players of overall `Instance`, 150
+  children a frame, that is about a seventh of the frame. Starts as a study of whether children join their parent's job
+  or small ones build on the main thread, without changing the order meshes are written and uploaded in; implemented
+  once the study settles the design and measures the gain.
+- [ ] **Instance children's frames on the worker threads** — top-level players fetch their frame in the parallel pass,
+  but each instance child fetches its own on the main thread, inside its parent's `ConsumeFrameData`, one after
+  another: about 6% of the frame with twenty players of overall `Instance` or `InstancePropagation`. A child's frame
+  comes from its parent's evaluation, so the pass needs one more stage per level of nesting, and `Play`, `SetFrame` and
+  the mask context handed down must keep their order. Starts as a design study; implemented once that settles.
 
-SS6PlayerForUnity and this player have **different architectures** (managed C# vs Rust `ssruntime` + Burst
-geometry), so features rarely map 1:1. Treat SS6 as the **capability / use-case reference** — *what* a feature is
-for — and design each one to **fit SS7's idioms** instead of copying its API shape. For every task: first decide
-whether the capability is worth bringing, then design it SS7-native.
+## UI integration
 
-Adapt to SS7 conventions rather than copying verbatim:
-- **Argument style**: prefer explicit methods/overloads and nullable/optional params over sentinel values
-  (SS6 used e.g. `idParts 0`=root / `-1`=all, `float.NaN` / `int.MinValue`="keep previous").
-- **Override semantics**: keep them minimal; adopt SS6's `KindIgnoreAttribute` 3-mode priority only if a concrete
-  need appears.
-- **Multi-track**: prefer exposing SS7's per-part blending + state-machine primitives (SDK Phase 3) directly,
-  rather than reproducing SS6's `AnimationTrack` abstraction 1:1.
-- **Instance multipliers**: SS6's `RateOpacity` / `RateScaleLocal` are parent→child plumbing tied to its instance
-  model; re-evaluate against SS7's instance model and add only if justified.
-- **Naming**: use C# properties (this player's established style) rather than `Get`/`Set`-suffixed methods.
+Behaving like a UI element in the host's UI system, not merely drawing inside one.
 
-When a task's "worth bringing?" answer is "no" or "unclear", note that in the task and leave it unstarted rather
-than porting for completeness.
+- [ ] **`Nines` and `Text` parts** — the two part kinds authored for UI; `SpriteStudioGeometryBuilder` draws neither.
+  Nines is a geometry path and nothing more, since the runtime hands over finished vertices, while Text arrives as a
+  batch with no geometry plus the authored string, to map onto TextMeshPro with the string substitutable at runtime
+  so a UI label can be localized.
+- [ ] **`SpriteStudioVisualElement` for UI Toolkit** — uGUI and UI Toolkit are separate systems, and the graphic and
+  the `SpriteStudio.UI` button, toggle and raycast filter reach only the former.
+- [ ] **Multi-atlas on the Canvas path** — one `CanvasRenderer` is one mesh and one material, so the graphic draws
+  the first atlas only and warns. A UI screen is exactly where several atlases meet.
 
-## Status legend
+## Platforms
 
-- ✅ **Done**
-- ☐ **Ready** — Player-only, no SDK dependency; can start now
-- ⛔ **Blocked on SDK** — needs an `SpriteStudio-SDK/ROADMAP.md` phase first (phase noted)
-- 🕒 **Deferred ("あとで")** — intentionally postponed; detailed here so it can be picked up later
+- [ ] **Game consoles** — Nintendo Switch, Nintendo Switch 2, PlayStation 5 and Xbox Series X|S.
 
----
+## Distribution & verification
 
-## Cold-start primer (read first)
+- [ ] **API reference page** — the docs site has no `api/` section, so the public surface is only discoverable by
+  reading the usage pages or the source; the sibling players (Godot, Flutter, Web) each publish one. Either
+  hand-write a `docs/*/api/player.md` covering `SpriteStudioPlayer` / `SpriteStudioGraphic` (as Godot does),
+  or generate it from the XML doc comments, which are already written throughout `package/Runtime/`.
+- [ ] **Restore full `.ssab` structural verification** — `LoadSsab` checks only the `"SSAB"` file identifier
+  before handing the buffer to the native runtime: a format sanity check, not validation of the buffer's
+  contents. Bump the FlatBuffers version `scripts/download-flatbuffers.sh` pulls and switch `LoadSsab` to a full
+  `SsAnimeBinary.VerifySsAnimeBinary` gate, so a malformed or crafted `.ssab` is rejected with a friendly error
+  instead of risking an out-of-bounds read in native code, and drop the partial-validation note from `SECURITY.md` (EN / JA)
+  with it. Blocked on: the FlatBuffers verifier fix
+  ([google/flatbuffers#8975], for [#8937]).
 
-**Architecture (per `AGENTS.md`).** The player is a thin C# layer over the Rust `ssruntime` via FFI; geometry
-is built with Burst jobs and uploaded zero-alloc.
+## Needs SDK
 
-**Key files**
-- `package/Runtime/SpriteStudioPlayer.cs` — world/MeshRenderer player component.
-- `package/Runtime/SpriteStudioGraphic.cs` — uGUI (Canvas) player component. Mirror every public API change here.
-- `package/Runtime/SpriteStudioPlaybackCore.cs` — `internal sealed` shared playback logic; both components hold one
-  (`_core`) and delegate. Exposes `Internal` (`SpriteStudioInternalPlayer`).
-- `package/Runtime/SpriteStudioInternalPlayer.cs` — owns the native handle + FFI calls + `IDisposable`. Holds
-  `_ssab` (`SsAnimeBinary`), `_currentAnimation` (`AnimationData`), `_partNameToIndex`. This is where new FFI
-  wrappers / ssab reads go.
-- `package/Runtime/SpriteStudioGeometryBuilder.cs` + `SpriteStudioMeshJob.cs` — per-frame mesh/vertex build.
-- `package/Runtime/SpriteStudioMaterial.cs` / `SpriteStudioAnimeAsset.cs` — material/texture resolution
-  (`ResolveMaterial`, `Textures`, `Materials`).
-- `package/Runtime/Bindings/SSRuntimeMethods.g.cs` — **generated** FFI (`ss_runtime_*`). Do NOT hand-edit;
-  regenerate with `./scripts/build-runtime.sh` (or `generate-runtime-code.sh`) after the SDK adds an FFI.
-- `package/Runtime/Format/ssab_generated.cs` — **generated** FlatBuffer accessors for the `.ssab` (animations,
-  parts, labels, etc.). Player-side data reads go through these.
-- `package/Editor/*Editor.cs` — custom inspectors. `SpriteStudioConversionRunner.cs` — `.sspj`→`.ssab` driver.
+Wait on a runtime capability from the SDK roadmap.
 
-**Tests.** `package/Tests/Runtime/` (PlayMode). Fixtures are generated on demand (no `.ssab` is committed):
-see `SpriteStudioRingoPlaybackTests.cs` / `SpriteStudioAudioEventTests.cs` for the
-`SpriteStudioConversionRunner.Enqueue(sspj, outDir)` + poll pattern (SS7 SDK projects live at
-`../SpriteStudio-SDK/tests/<name>/<name>.sspj`). Components are `[ExecuteAlways]`, so
-`AddComponent → AnimeAsset = … → Play("walk")` runs synchronously and native state can be asserted without
-ticking. You cannot run Unity headlessly while the Editor is open — ask the user to run the Test Runner.
+- [ ] **Loops, ping-pong and direction under a Timeline** — clip time becomes a frame clamped to the section, so a
+  looping animation under a ControlTrack plays once and holds its last frame, where a particle system under the same
+  track keeps looping. The runtime's `set_frame_relative` applies the section, the loops, the style and the direction
+  to an elapsed time, but the C ABI does not export it. Waits for: a C ABI export of `set_frame_relative`, which has no
+  entry in the SDK ROADMAP.
+- [ ] **Sequence playback** — play `.ssqb` playlists with step control. Waits for: State machine implementation
+  (its Sequence playback entry).
+- [ ] **Crowd / mesh sharing** — render one shared evaluation at many transforms. Waits for: Instance Lifecycle API
+  (Animation Instancing).
+- [ ] **Runtime instance swap** — change the animation mounted on an Instance part at runtime. Waits for: Instance
+  Lifecycle API (Dynamic instance swap, built on the shared resource registry that item introduces).
+- [ ] **Stretch a 9-slice part to a layout rect** — the step after drawing one at all (the UI-integration item above):
+  the Override Layer covers color / cell / visibility only, so nothing can resize a Nines part from the host, and a UI
+  panel that cannot follow its container is a picture of a panel. Waits for: Per-part size override.
 
-**Hard constraints (from `AGENTS.md`).** Zero GC alloc in the Tick/mesh loop; FFI safety (always
-`JobHandle.Complete()` before freeing native); only standard Unity packages (Burst/Mathematics/Collections/
-Timeline); keep struct layouts intact for Burst/FFI.
-
-**Runtime gotchas (verified from `ssruntime`)**
-- `ss_runtime_pause()` is a **toggle** of `is_pausing`; `ss_runtime_play()` **restarts from the start frame**
-  (not a resume); `is_pausing` defaults `true`. To resume from the current frame, toggle `pause()` again. The
-  Tier 1 `Pause`/`Resume`/`IsPaused` already encode this — reuse the same pattern for any new playback control.
-
-**SS6 reference layout** — in the SS6PlayerForUnity repo, under `Assets/SpriteStudio6/`
-- `Script/Root/FunctionParts.cs` — `HideSet`, `PartsColorChange`, `FlipSetParts`.
-- `Script/Root/FunctionCell.cs` / `FunctionMaterial.cs` — `CellChangeParts`, material/texture swap.
-- `Script/Root/FunctionAnimation.cs` — label-range / frame-offset play.
-- `Script/Root/FunctionTrack.cs`, `Library/Control/AnimationTrack.cs` — multi-track.
-- `Script/Script_SpriteStudio6_{Collider,Collider2D,Replicate,RootEffect,Sequence}.cs`, `Library/Library_SpriteStudio6.cs`.
-
----
-
-> **Tier 1 (playback control) has shipped** and is intentionally not listed as a task here. It is the reference
-> pattern for new playback APIs — see the primer's runtime gotchas and
-> `package/Tests/Runtime/SpriteStudioPlaybackControlTests.cs` (`IsPlaying`/`IsPaused`/`Pause`/`Resume`/`Stop`/
-> `CurrentFrame`/`TotalFrames`/`FrameRate`/`Reverse`/`PingPong`/`SetAnimationSection` on both components).
-
-## ☐ Tier 4 — Label / frame-range / index playback  (Player-only — no SDK dependency)
-
-- **Goal**: play a named label range and start-offset; play by animation index. SS6 equiv:
-  `AnimationPlay(..., labelRangeStart, frameRangeOffsetStart, labelRangeEnd, frameRangeOffsetEnd, frameOffset)`,
-  `IndexGetAnimation(name)`.
-- **Key fact**: labels are already in the `.ssab`. `AnimationData.Labels(j)` / `LabelsLength` /
-  `LabelsByKey(uint)`; each `ss.format.Label` = `{ Name, NameHash, Time }`. `PartAttributeInstance` also carries
-  `StartLabelHash` / `EndLabelHash`. The Player already holds `_currentAnimation`. **No runtime/SDK change.**
-- **Steps**:
-  1. `SpriteStudioInternalPlayer`: add `bool TryResolveLabelFrame(string name, out float frame)` — iterate
-     `_currentAnimation.Value.Labels(i)` matching `Label.Name` (robust; avoids hash-algorithm assumptions), return
-     `Label.Time`. (Optionally also a hash overload via `LabelsByKey`.)
-  2. Components: add `bool PlayRange(string startLabel, int startOffset, string endLabel, int endOffset)` that
-     resolves both labels to frames, calls `SetAnimationSection(start, end)`, seeks `CurrentFrame = start`, and
-     starts playback. Add `bool PlayByIndex(int index)` (resolve via `GetAnimationName(index)` then `Play`).
-  3. Optional `Play(string anim, float startFrame)` overload (frame-offset start) — note `play()` restarts, so set
-     the frame after starting.
-- **Done when**: a PlayMode test loads a fixture with named labels, resolves one, and asserts the cursor stays
-  within `[start, end]` while playing.
-
-## ☐ Tier 5 — Hierarchical color / scale & custom time  (Player-only — needs design)
-
-- **Goal**: port SS6 `AdditionalColor` (hierarchical per-vertex color/opacity multiply), `RateOpacity` /
-  `RateScaleLocal` (parent→child multipliers), and `FunctionTimeElapse` (per-player custom delta time).
-- **SS6 reference**: `FunctionMisc.cs` / `Library_SpriteStudio6.cs` (callbacks), `Script_SpriteStudio6_Root.cs`
-  (`RateOpacity`, `RateScaleLocal`).
-- **Steps / investigation**:
-  1. **Custom delta**: `SpriteStudioUpdateManager` passes `deltaTime` into `ISpriteStudioRenderable.PrepareFrame`.
-     Add an optional `System.Func<float,float>` (or `TimeScale`) on the component applied to that delta before
-     `_core` advances — enables slow-mo / pause-groups independent of `SpeedScale`. (`SpeedScale` already covers
-     simple scaling; only add if per-player wall-clock control is needed.)
-  2. **Opacity/tint**: uGUI `SpriteStudioGraphic` already multiplies by `Graphic.color` (partial). For the world
-     player, investigate the vertex-color path in `SpriteStudioMeshJob` and expose a player-level tint/opacity —
-     via `MaterialPropertyBlock` or a uniform — rather than per-vertex CPU writes (keep zero-alloc).
-  3. **RateScaleLocal**: `SpriteStudioInternalPlayer.VertexScale` already applies a uniform 1/PPU scale; a
-     parent-controlled local-scale multiplier can fold in there. Mostly relevant once nested players exist
-     (see Multi-track / Replicate) — low priority standalone.
-- **Done when**: world-player tint/opacity verified visually + a test on the delta hook; document any SS6 feature
-  intentionally dropped.
-
-## ✅ Tier 2 — Per-part runtime overrides (color / cell / visibility)  (SDK Phase 2)
-
-- **Shipped**: the SDK's Override Layer API (per-part color / cell / visibility, applied on the resolved pose
-  so an override wins over both keyframe and blend) is exposed on the Player.
-- **Surface**: `SetPartColorOverride` (single color + four-corner form), `SetPartCellOverride`,
-  `SetPartVisibilityOverride` (force-hide + cascade), their `Clear*` counterparts, `ClearAllPartOverrides`,
-  `FindPartIndex`, and `GetCellMapNames` / `GetCellNames` for discovering cell-override targets. Each takes a
-  part **name or index** and returns `false` when the part is unknown or the runtime rejects the call.
-  Priority mode (`SpriteStudioOverridePriority`: overwrite-on-next-keyframe / hold-until-next-animation /
-  permanent) applies to color and cell; visibility is a plain force-hide flag, cleared by any new animation.
-- **Where**: wrappers in `SpriteStudioInternalPlayer` (part name→index via `ResolvePartIndex`), component API
-  mirrored on `SpriteStudioPlayer` and `SpriteStudioGraphic`, enums in `SpriteStudioPartOverride.cs`. The
-  runtime owns the override table and its lifecycle, so the Player caches nothing and never re-applies.
-  Cell names are hashed with the runtime's own `ss_runtime_hash_string` (FNV-1a). A set/clear invalidates the
-  frame-skip cache so an override also shows on a paused / static frame.
-- **Tests**: `package/Tests/Runtime/SpriteStudioPartOverrideTests.cs` — the validation contract plus read-back
-  of the resolved pose (hide flag / part color / cell identity), incl. cascade, and the priority-mode
-  lifecycle (hold-until-next-animation cleared by `SetupAnimation`, permanent survives it).
-- **Note**: **Flip** (`FlipSetParts`) is intentionally NOT part of this — SDK ROADMAP keeps flip as Player-side
-  post-processing (scale negation + UV swap). Implement it here as a separate small Player task if needed.
-
-## ☐/⛔ Tier 3 — Runtime texture / material swap
-
-- **Goal**: SS6 `TextureSetCellMap` (swap a cell-map's texture) and per-instance material replacement.
-- **Split**:
-  - **Material/texture override (☐ Player-only)**: the component resolves materials in `UpdateSubmeshMaterials`
-    (world) / `UpdateCanvasMaterials` (uGUI) via `_animeAsset.ResolveMaterial(textureHash, blend)`. Add a per-key
-    override map (textureHash[/blend] → Material or Texture) consulted there, plus a public setter. Owns instances
-    like the existing per-part AddOn material instances (destroy on disable).
-  - **Cell-reference swap (⛔ SDK Phase 2)**: changing *which cell* a part draws is part of the Override Layer
-    API (Tier 2), not a texture swap.
-- **Done when**: a test swaps a material/texture at runtime and the submesh material list reflects it.
-
-## ☐ Collider / Collider2D + collision callbacks  (Player-only — sizeable)
-
-- **Goal**: port SS6 `Script_SpriteStudio6_Collider` / `Collider2D` — per-part Unity colliders sized each frame
-  from the part, with Enter/Stay/Exit callbacks.
-- **Key difference**: SS7 parts are not GameObjects (see `SpriteStudioPartTracker` — it drives a user Transform
-  from `TryGetPartLocalMatrix`). SDK keeps per-part AABB off-roadmap ("Player can derive from vertex positions").
-- **Design note (worth it?)**: SS6 attaches a Unity collider (via a GameObject) per part. In SS7, first check
-  whether the use case is already covered by `SpriteStudioPartTracker` (the user attaches their own Unity collider
-  to a tracked Transform). Add a dedicated component only if auto-sized per-part colliders + callbacks are
-  genuinely needed, and keep it lean (avoid a GameObject-per-part where possible).
-- **Steps**:
-  1. New `SpriteStudioCollider`/`SpriteStudioCollider2D` component: for each configured part, maintain a child
-     GameObject with a `BoxCollider`/`CapsuleCollider` (3D) or `BoxCollider2D`/`CircleCollider2D` (2D).
-  2. Each frame, resolve the part (`ResolvePartIndex` + `TryGetPartLocalMatrix`/`TryGetPartState`) and size/place
-     the collider from the part's bounds (derive AABB from the part's quad/vertices).
-  3. Relay Unity `OnTrigger*`/`OnCollision*` (and 2D) to user events, mirroring SS6's
-     `FunctionCollider{Enter,Exit,Stay}` payload (part name/id + collision info).
-- **Done when**: a PlayMode test with two overlapping configured parts fires the enter callback.
-
----
-
-## 🕒 Deferred ("あとで")
-
-These are intentionally postponed. Detailed for later pickup.
-
-### 🕒 Sequence player component  (⛔ SDK Phase 3)
-
-- **SS6**: `Script_SpriteStudio6_Sequence` — `.ssqe` playlists; `Play/Stop/PauseSet/StepSet`, `FunctionDecodeStep`
-  (conditional next-step jump), loop types Last/Keep/Top.
-- **Blocked on**: SDK Phase 3 **State machine → Sequence (`.ssqb`) playback** (runtime auto-advancing playlist).
-- **SS7 status**: importer/data side partly exists — `SpriteStudioSequenceAsset.cs`, `Format/ssqb_generated.cs`,
-  `Editor/SpriteStudioSsqbImporter.cs`.
-- **Task (after SDK)**: thin C# component wrapping the runtime sequence/state-machine API; surface step control +
-  a decode-step callback.
-
-### 🕒 Replicate (crowd / mesh sharing)  (⛔ SDK Phase 3 — shared FrameData)
-
-- **SS6**: `Script_SpriteStudio6_Replicate` — mirrors another player's `sharedMesh` + `MaterialPropertyBlock` at
-  this object's transform; `OriginalSet(Root/RootEffect/Sequence)`, `Stop()`, static `ReplicateGet`.
-- **Blocked on**: SDK Phase 3 **Instance Lifecycle → Animation Instancing** — a *shared evaluation context* that
-  lets **multiple Players share one computed `FrameData`** (animate once, render N times at different transforms).
-  This is the intended SS7 crowd path; build Replicate **on top of it, not before it**.
-- **Task (after SDK)**: a component that binds to a shared eval context (or to an "original" player that drives it)
-  and renders the shared `FrameData`/mesh at its own transform; provide `OriginalSet` / `Stop` /
-  `ReplicateGet`-equivalents.
-- **Note**: SS6 did this purely Player-side by copying the original's `_sharedMesh` + `MaterialPropertyBlock`
-  every frame. That approach needs no SDK change, but is not the chosen path for SS7 — prefer waiting for the
-  shared-`FrameData` feature so each frame is evaluated once and reused, instead of every replica re-copying a mesh.
-
-### 🕒 Multi-track + transition (SS6 `AnimationTrack`)  (⛔ SDK Phase 3 for full per-part)
-
-- **SS6**: N parallel animation tracks; `TrackReboot(count)`, `TrackConnectParts(idParts, track)`,
-  `TrackTransition(primary, secondary, time)` (TRS crossfade), per-track Play/RateTime/Pause.
-- **SS7 mapping** (runtime pieces are in SDK ROADMAP Phase 3, decomposed — no single "multi-track" item):
-  - N weighted animations → `Animation Mixing/Blending` (whole-animation weighted blend) — **`[x]` done**.
-  - Different animation per part (`TrackConnectParts`) → `Per-part animation blending (layered / per-bone mask)` —
-    Phase 3 `[ ]`. (A per-part mask at weight 1 degenerates to SS6's selection semantics.)
-  - Crossfade (`TrackTransition`) → `State machine` / crossfade primitives — Phase 3 `[ ]`.
-- **Task (Player side)**: once per-part blending + crossfade FFI exist, build the SS6-style **track abstraction**
-  in C# (`AnimationTrack`, `TrackReboot`, `TrackConnectParts`, `TrackTransition`, per-track playback) as an
-  ergonomic layer over those primitives. The abstraction itself is untracked Player work.
-
-### 🕒 Instance (nested-animation) runtime swap  (⛔ SDK Phase 3)
-
-- **SS6**: `AnimationChangeInstance` — replace the animation mounted on an Instance part at runtime.
-- **Blocked on**: SDK Phase 3 **Instance Lifecycle → Dynamic instance swap** (uses the shared SSAB registry).
-- **Task (after SDK)**: expose a component API to swap an Instance part's animation by name/hash.
-
----
-
-*Keep this roadmap tidy: delete a task once it ships (don't leave checked-off entries), and update the SDK
-phase references if `SpriteStudio-SDK/ROADMAP.md` changes.*
+[google/flatbuffers#8975]: https://github.com/google/flatbuffers/pull/8975
+[#8937]: https://github.com/google/flatbuffers/issues/8937

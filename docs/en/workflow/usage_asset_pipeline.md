@@ -1,10 +1,10 @@
-# Asset Import and Editor Integration
+# 🗂️ Asset Import and Editor Integration
 
 [← Back to documentation index](../index.md)
 
 This page explains the **initial procedure for importing (converting) a `.sspj` into a Unity project**, and the workflow for iterating quickly by moving back and forth between SpriteStudio and Unity.
 
-SpriteStudioPlayer for Unity does not just play back animations; it provides a **powerful asset pipeline that lets you move seamlessly between SpriteStudio and Unity**. This lets you iterate quickly, from editing an animation to reflecting it in your game.
+Besides playing animations, SpriteStudio Player for Unity lets you move between SpriteStudio and Unity as you iterate, from editing an animation to seeing it in your game.
 
 ---
 
@@ -17,17 +17,18 @@ If no `.ssab` yet exists in the Unity project, perform the initial conversion wi
 
 1. From the Unity menu, open **Window > SpriteStudio > Importer**.
 2. Check the output destination (**Output Folder**, default `Assets/ssab_generated`).
-3. From Explorer or Finder, **drag and drop the target `.sspj` file onto the drop area of the SpriteStudio Importer window**.
+3. From Explorer or Finder, **drag and drop the target `.sspj` file onto the SS Importer window** — the box in the middle lights up while you drag.
 
 That alone runs the conversion, generating a `SpriteStudioAnimeAsset` (a ScriptableObject containing the `.ssab`) at the specified output destination.
+The result is `Assets/ssab_generated/<sspj name>/`; the file to drag is the `.ssab` (the one with the SpriteStudio icon, for example `Ringo.ssab`).
 Drag and drop the generated asset onto the Hierarchy window or Scene view to place a `SpriteStudioPlayer` / `SpriteStudioGraphic` (see [Basic Usage](./usage_basic.md) for details).
 
 > [!TIP]
 > 
 > <video autoplay loop muted playsinline width="100%">
->   <source src="../../assets/1-sspj_import.webm" type="video/webm">
+>   <source src="../assets/1-sspj_import.webm" type="video/webm">
 > </video>
-> <img src="../../assets/1-sspj_import.webp" width="100%" style="display: none;">
+> <img src="../assets/1-sspj_import.webp" width="100%" style="display: none;" loading="lazy">
 
 > [!TIP]
 > If you drop a whole folder, the `.sspj` files inside it are recursively batch-converted to `.ssab`. See [Conversion Features and CI/CD](./import.md) for details.
@@ -39,79 +40,82 @@ Drag and drop the generated asset onto the Hierarchy window or Scene view to pla
 If, while working in Unity, you think "I'd like to fine-tune the animation a bit more," there is no need to launch SpriteStudio separately and hunt for the project.
 
 1. In the Project window, **select the `SpriteStudioAnimeAsset`** you want to edit.
-2. At the top of the Inspector, **"Source SSPJ"** shows the path to the original `.sspj`.
+2. In the Inspector, under **Imported Object**, **"Source SSPJ"** shows the path to the original `.sspj`.
 3. Click the **"Open SSPJ" button** below it.
 
 This launches SpriteStudio, opens the original `.sspj` file, and lets you start editing right away.
 
+A `SpriteStudioPlayer` or `SpriteStudioGraphic` in the scene has the same **Open SSPJ** button under its **Anime Asset** field, so you can keep the character selected in the Hierarchy instead of finding its asset in the Project window.
+
 > [!NOTE]
-> ![Opening SSPJ from the Inspector](../../assets/5-open_sspj_from_inspector.png)
+> ![Opening SSPJ from the Inspector](../assets/5-open_sspj_from_inspector.png)
 
 > [!NOTE]
 > The equivalent operation is also available from the **Recent SSPJs** list in **Window > SpriteStudio > Importer** (right-click a row → "Open SSPJ").
 
 ---
 
-## 3. Powerful Asset Pipeline (Seamless Editor-to-Editor Integration)
+## 3. Reconverting After Saving in SpriteStudio
 
 Once you have edited and saved the animation on the SpriteStudio side, return to the Unity Editor.
 With just the following operation, your changes are reflected instantly in the game (and in the preview in the Editor).
 
-1. As before, in the Project window select the target **`SpriteStudioAnimeAsset`**.
+1. As before, select the target **`SpriteStudioAnimeAsset`** in the Project window, or the `SpriteStudioPlayer` / `SpriteStudioGraphic` in the scene.
 2. Click the **"Reconvert" button** next to the "Open SSPJ" button in the Inspector.
 
 > [!IMPORTANT]
 > **The shortest "Open" → "Save" → "Reconvert" workflow**
-> With the asset still selected, you can invoke SpriteStudio from the Inspector, and immediately after editing, reflect (reconvert) the latest changes into the `.ssab` in Unity. This **powerful asset pipeline that lets you move seamlessly between SpriteStudio and Unity** dramatically lowers the cost of trial and error when adjusting animations.
+>
+> With the character still selected in the scene, you can invoke SpriteStudio from the Inspector, reconvert as soon as you have saved, and play the result with **Play in Edit Mode** in the same Inspector (see [Preview in edit mode](./usage_basic.md#preview-in-edit-mode)).
 
 > [!TIP]
-> You can also reconvert from **Recent SSPJs** in the SpriteStudio Importer window (click a row, or right-click → "Reconvert"). A `.sspj` with identical content (same modification date) skips unnecessary reconversion.
+> You can also reconvert from **Recent SSPJs** in the SS Importer window (click a row, or right-click → "Reconvert").
 
 > [!TIP]
 > 
 > <video autoplay loop muted playsinline width="100%">
->   <source src="../../assets/2-fast_iteration_inspector.webm" type="video/webm">
+>   <source src="../assets/2-fast_iteration_inspector.webm" type="video/webm">
 > </video>
-> <img src="../../assets/2-fast_iteration_inspector.webp" width="100%" style="display: none;">
+> <img src="../assets/2-fast_iteration_inspector.webp" width="100%" style="display: none;" loading="lazy">
 
 ---
 
 ## The Generated `SpriteStudioAnimeAsset` (.ssab)
 
-This is the final product of the import (the actual converted `.ssab` data). It holds all the information needed for playback and also serves as a hard reference to prevent stripping (removal of unused assets) at build time.
+This is the final product of the import: it holds the converted `.ssab` data and everything needed to play it, and keeps its textures in the build. Its Inspector shows these fields, in this order:
 
 | Field | Description |
 |---|---|
-| **Ssab Data** | The converted `.ssab` binary itself |
-| **Animation Names** | The list of animation names contained in this asset |
-| **Textures** | Referenced textures (hard references to prevent stripping) |
-| **Materials** | The base materials used for rendering |
+| **Textures** | Referenced textures |
 | **External References** | External animations referenced by Instance parts (a `SpriteStudioAnimeAsset` from another pack) |
+| **Materials** | The base materials used for rendering |
+| **Animation Names** | The list of animation names contained in this asset |
 | **Sounds** | The `AudioClip`s referenced by Audio events |
 
 > [!NOTE]
 > When an animation references another animation (an Instance part), that reference is resolved into **External References**. At runtime it simply follows the hard reference without loading a file, so it works safely with Resources, AssetBundle, or Addressables.
 
-When a `.ssab` is imported, a **shared material (`.mat`)** corresponding to the referenced texture is automatically generated in an adjacent location and bundled into the asset. In addition, textures in the same folder as the `.sspj` / `.ssab` automatically have import settings suited to 2D animation applied (uncompressed, Clamp, Mipmap disabled, and so on).
+When a `.ssab` is imported, a **shared material (`.mat`)** corresponding to the referenced texture is automatically generated in an adjacent location and bundled into the asset. In addition, textures in the same folder as the `.ssab` automatically have import settings suited to 2D animation applied (uncompressed, Clamp, Mipmap disabled, and so on).
+
+> [!TIP]
+> [Generated Assets and AssetBundle](./generated_assets.md) covers what each generated file is responsible for, how they depend on each other, what changes in the game when you update one, and how to split them across AssetBundles / Addressables.
 
 ---
 
 ## Limitations and Notes for Team Development
 
-This powerful editor-to-editor integration feature (`Open SSPJ` and `Reconvert`) is very convenient, but by its nature it has some limitations. Be especially careful when doing team development.
+`Open SSPJ` and `Reconvert` have some limitations. Keep them in mind, especially when working in a team.
 
 > [!WARNING]
 > **SpriteStudio must be installed**
-> Pressing the `Open SSPJ` button launches SpriteStudio via the OS file association. Therefore, [OPTPiX SpriteStudio 7](https://www.webtech.co.jp/spritestudio/) must be installed on the PC you are operating.
+>
+> Pressing the `Open SSPJ` button launches SpriteStudio via the OS file association. Therefore, [SpriteStudio](https://www.webtech.co.jp/spritestudio/) must be installed on the PC you are operating.
 
 > [!TIP]
 > **File path sharing and smart relinking in team development**
 >
-> The integration information from importing via the SpriteStudio Importer window (the `.ssab` ↔ `.sspj` binding) and the **Output Folder setting** are saved as **project-relative paths** in `ProjectSettings/SpriteStudioSourceMap.json` directly under the Unity project (only paths that cannot be relativized — such as a `.sspj` on another drive — fall back to absolute paths).
+> The integration information from importing via the SS Importer window (the `.ssab` ↔ `.sspj` binding) is saved as a **relative path** in `ProjectSettings/SpriteStudioSourceMap.json` directly under the Unity project.
 >
-> By sharing this file through a version control system such as Git, the path integration is maintained even when another team member does `git clone` on their PC, and they can use `Open SSPJ` and `Reconvert` as-is.
+> By sharing this file through a version control system such as Git, the path integration is maintained when another team member does `git clone` and has the `.sspj` at the same relative location from the Unity project, and they can use `Open SSPJ` and `Reconvert` as-is.
 >
-> Even if the link to a `.sspj` breaks—for example, due to a change in folder structure—it is easy to repair. Pressing the **"Relink SSPJ..."** button shown in the `SpriteStudioAnimeAsset` Inspector opens a dialog asking for the new location of the `.sspj`. Simply relinking a single file here also **smart-relinks and reconverts, all at once,** the other related `.ssab` files in the same output folder, so repair takes little effort.
-
-> [!NOTE]
-> The **Recent SSPJs** history in the Importer window is personal workflow state, so it is not shared: it is stored in `UserSettings/SpriteStudioRecentFiles.json` (`UserSettings/` is excluded from Git by Unity convention).
+> Even if the link to a `.sspj` breaks—for example, due to a change in folder structure—it is easy to repair. Pressing the **"Relink SSPJ..."** button, which the Inspector shows in place of **Open SSPJ** and **Reconvert**, opens a dialog asking for the new location of the `.sspj`. Simply relinking a single file here also **smart-relinks and reconverts, all at once,** the other related `.ssab` files in the same output folder, so repair takes little effort.

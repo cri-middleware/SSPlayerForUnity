@@ -1,6 +1,6 @@
 // Shared library of SpriteStudio-specific color composition, PMA, and part-color
-// mediation. The single source of truth, #included by both the Built-in hand-written
-// HLSL shaders and URP (Shader Graph Custom Function).
+// mediation. The single source of truth, #included by the hand-written shaders of both
+// pipelines (Built-in and URP).
 //
 // Policy:
 //  - Keyword-gated #define macros (#if defined(PS_*)) would cause shader-variant explosion /
@@ -28,7 +28,7 @@
 //               exactly cancels the hardware sRGB decode (read) / encode (write).
 //  Default: NONE in Gamma projects, EXACT in Linear. Define SS_COLORSPACE_CONV_MODE before this header
 //  to override per shader. RULES (do not relax): operate on RGB ONLY - alpha is ALWAYS linear and must
-//  never be gamma-adjusted (a past special-order build did and it ruins linear compositing). PartColor /
+//  never be gamma-adjusted (it ruins linear compositing). PartColor /
 //  vertex-colour RGB is sRGB by spec and is NOT routed through these (it is already in the right space).
 //  These functions MUST stay texture-free / gradient-free: never sample inside them, so they are safe to
 //  call from inside the dynamic [loop] AddOns (ss-move) without forcing an implicit-gradient unroll.
@@ -101,7 +101,7 @@ float4 ss_tex2Dlod(sampler2D tex, float2 uv)
 //  SAMPLE_TEXTURE2D on URP) so this stays render-pipeline agnostic. Gated on color space: in Gamma
 //  it is a no-op (touching the input there brightens/shifts the InputPMA modes -
 //  Mix/Mul/Mulalpha/Invert - at antialiased edges).
-//  The sRGB<->linear adjust (pow on input/output) now lives in the colorspace seam:
+//  The sRGB<->linear adjust (pow on input/output) lives in the colorspace seam:
 //  ss_tex2D re-encodes sampled RGB to sRGB on input, ss_output_color decodes to linear on output.
 //  This function does only the inverse-PMA mediation; it never touches the colorspace itself.
 float4 ss_input_mediate(float4 c, float inputPMA)
@@ -118,8 +118,6 @@ float4 ss_input_mediate(float4 c, float inputPMA)
 // [part-color coefficient table] Per-blend coefficients (Mix/Mul/Add/Sub), from the SS6 SDK reference
 //  (ss_library_vs.glsl `_PartColorCoef`). The vertex stage resolves these
 //  into `varg`; the fragment then composites with a single branchless formula (ss_partcolor_blend).
-//  Implementation method: vertex-resolved table + branchless pixel formula, avoiding per-platform
-//  spec drift before the all-platform release.
 static const float4 _SsPartColorCoef[4] =
 {
     float4(-1.0,  1.0, 0.0, 0.0), // Mix
@@ -145,8 +143,8 @@ float3 ss_partcolor_varg(float rate, float blendIdx, float isNormalized)
 // [part-color composition | PIXEL stage] Branchless generic compositing. `varg.xyz` is resolved per
 //  vertex by ss_partcolor_varg (the .w slot is unused here; callers reuse it as an alpha carrier).
 //  Formula (ss_library_fs.glsl): pixel*varg.x + lerp(1, pixel, varg.z)*color*varg.y.
-//  Reproduces Mix/Mul/Add/Sub exactly. NOTE: Add/Sub are intentionally NOT saturated
-//  (the previous Unity implementation saturated them). The 4-corner colours are already
+//  Reproduces Mix/Mul/Add/Sub exactly. NOTE: Add/Sub are intentionally NOT saturated.
+//  The 4-corner colours are already
 //  mediated on the CPU and folded into the vertex colour; this only applies the result.
 float3 ss_partcolor_blend(float3 pixelRGB, float3 colorRGB, float4 varg)
 {

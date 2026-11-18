@@ -11,11 +11,10 @@ namespace SpriteStudio.Runtime
     [Serializable]
     public class SpriteStudioPlayableAsset : PlayableAsset, ITimelineClipAsset
     {
-        [Tooltip("Name of the SpriteStudio animation to play back over this clip range (pack name/animation name)")]
+        [Tooltip("Name of the animation to play over this clip range, as listed in the asset.")]
         public string AnimationName = "";
 
-        // SpriteStudio cannot blend two skeletal animations, so clip blending/interpolation is not exposed
-        // (the mixer deterministically adopts the single highest-weight clip).
+        // Clips are not blended on the Timeline: the mixer plays the single highest-weight clip.
         public ClipCaps clipCaps => ClipCaps.None;
 
         public override Playable CreatePlayable(PlayableGraph graph, GameObject owner)

@@ -16,7 +16,7 @@ namespace SpriteStudio.Editor
     /// far as making the .ssqb recognizable and referenceable as data by Unity.
     /// </summary>
     [ScriptedImporter(1, "ssqb")]
-    [UnityEngine.Icon("Packages/jp.co.cri-mw.optpix.ssplayer-unity/Editor/Icons/ssqb_icon.png")]
+    [UnityEngine.Icon("Packages/jp.co.cri-mw.spritestudio.ssplayer-unity/Editor/Icons/ssqb_icon.png")]
     public class SpriteStudioSsqbImporter : ScriptedImporter
     {
         public override void OnImportAsset(AssetImportContext ctx)
@@ -76,20 +76,13 @@ namespace SpriteStudio.Editor
                     });
 
                     // Resolve the referenced anime pack (.ssab) to a project asset and hard-reference it.
-                    // The resolution logic is shared with the .ssab importer (ResolveSsabPath). Even if it is
-                    // unresolved (e.g. not yet imported), the dependency is registered, so it is re-imported and
-                    // resolved once the target appears.
+                    // The resolution logic is shared with the .ssab importer (ResolveSsabPath), and so is the
+                    // artifact dependency that makes the referenced pack import first (ArtifactDependency).
                     if (!string.IsNullOrEmpty(it.RefAnimePack) && seenPacks.Add(it.RefAnimePack))
                     {
-                        SpriteStudioAnimeAssetBuilder.ResolveSsabPath(baseDir, it.RefAnimePack, out var animeAsset, ctx.DependsOnSourceAsset);
-                        if (animeAsset != null)
-                        {
-                            if (seenAssets.Add(animeAsset)) asset.ReferencedAnimeAssets.Add(animeAsset);
-                        }
-                        else
-                        {
-                            Debug.LogWarning($"[SpriteStudioSsqbImporter] Referenced anime pack not found: '{it.RefAnimePack}' (sequence '{seq.Name}')");
-                        }
+                        SpriteStudioAnimeAssetBuilder.ResolveSsabPath(baseDir, it.RefAnimePack, out var animeAsset, SpriteStudioAnimeAssetBuilder.ArtifactDependency(ctx));
+                        // A missing pack is not reported: one the conversion has not written or imported yet lands here too.
+                        if (animeAsset != null && seenAssets.Add(animeAsset)) asset.ReferencedAnimeAssets.Add(animeAsset);
                     }
                 }
 

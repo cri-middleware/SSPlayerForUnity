@@ -8,8 +8,9 @@ namespace SpriteStudio.Editor
 {
     public class SpriteStudioImporterWindow : EditorWindow
     {
+        // The field's value only ever comes from SpriteStudioOutputFolder, so what the window shows is
+        // what the next import writes into. See CommitOutputFolder.
         private DefaultAsset outputFolder = null;
-        private const string DEFAULT_OUTPUT_PATH = "Assets/ssab_generated";
 
         private Vector2 scrollPosition;
 
@@ -17,39 +18,39 @@ namespace SpriteStudio.Editor
         private string converterVersion;
         private string playerVersion;
 
+        private bool dragInWindow;
+
         [MenuItem("Window/SpriteStudio/Importer")]
         public static void ShowWindow()
         {
-            var window = GetWindow<SpriteStudioImporterWindow>("SSImporter");
+            var window = GetWindow<SpriteStudioImporterWindow>("SS Importer");
             window.minSize = new Vector2(400, 500);
         }
 
         private void OnEnable()
         {
-            string savedPath = SpriteStudioSourceMap.GetOutputFolder(DEFAULT_OUTPUT_PATH);
-            if (string.IsNullOrEmpty(savedPath) || !AssetDatabase.IsValidFolder(savedPath))
-            {
-                savedPath = DEFAULT_OUTPUT_PATH;
-            }
-
-            if (!AssetDatabase.IsValidFolder(savedPath) && savedPath == DEFAULT_OUTPUT_PATH)
-            {
-                AssetDatabase.CreateFolder("Assets", "ssab_generated");
-            }
-            outputFolder = AssetDatabase.LoadAssetAtPath<DefaultAsset>(savedPath);
+            outputFolder = LoadOutputFolderAsset();
 
             converterVersion = LoadConverterVersion();
             playerVersion = LoadPlayerVersion();
         }
 
+        private static DefaultAsset LoadOutputFolderAsset()
+        {
+            string assetPath = SpriteStudioOutputFolder.GetAssetPath();
+            return assetPath == null ? null : AssetDatabase.LoadAssetAtPath<DefaultAsset>(assetPath);
+        }
+
         private void OnGUI()
         {
+            TrackDrag(Event.current);
             DrawOutputSection();
             EditorGUILayout.Space();
             DrawDropArea();
             EditorGUILayout.Space();
             DrawRecentFilesSection();
             DrawFooter();
+            AcceptDrop(Event.current);
         }
 
         private void DrawOutputSection()
@@ -60,23 +61,16 @@ namespace SpriteStudio.Editor
             GUILayout.Label("Output Folder", GUILayout.Width(100));
 
             EditorGUI.BeginChangeCheck();
-            outputFolder = (DefaultAsset)EditorGUILayout.ObjectField(outputFolder, typeof(DefaultAsset), false);
+            var picked = (DefaultAsset)EditorGUILayout.ObjectField(outputFolder, typeof(DefaultAsset), false);
             if (EditorGUI.EndChangeCheck())
             {
-                if (outputFolder != null)
-                {
-                    SpriteStudioSourceMap.SetOutputFolder(AssetDatabase.GetAssetPath(outputFolder));
-                }
+                CommitOutputFolder(picked);
             }
 
             if (GUILayout.Button("Reset", GUILayout.Width(50)))
             {
-                if (!AssetDatabase.IsValidFolder(DEFAULT_OUTPUT_PATH))
-                {
-                    AssetDatabase.CreateFolder("Assets", "ssab_generated");
-                }
-                outputFolder = AssetDatabase.LoadAssetAtPath<DefaultAsset>(DEFAULT_OUTPUT_PATH);
-                SpriteStudioSourceMap.SetOutputFolder(DEFAULT_OUTPUT_PATH);
+                SpriteStudioOutputFolder.ResetToDefault();
+                outputFolder = LoadOutputFolderAsset();
             }
 
             if (GUILayout.Button("Reveal", GUILayout.Width(60)))
@@ -91,33 +85,91 @@ namespace SpriteStudio.Editor
             GUILayout.EndVertical();
         }
 
+        /// <summary>
+        /// Takes the field's new value only when it is a folder this package can write into, and rolls the
+        /// field back to the folder the next import will actually use when it is not. An ObjectField of
+        /// DefaultAsset accepts files as well as folders -- a .sspj has no importer, so it is one.
+        /// </summary>
+        private void CommitOutputFolder(DefaultAsset picked)
+        {
+            string assetPath = picked == null ? null : AssetDatabase.GetAssetPath(picked);
+            if (SpriteStudioOutputFolder.TrySet(assetPath, out string reason))
+            {
+                outputFolder = picked;
+                return;
+            }
+
+            outputFolder = LoadOutputFolderAsset();
+            EditorUtility.DisplayDialog("SpriteStudio: Output folder", reason, "OK");
+        }
+
+        // Runs before any control can Use() the event, so a drag over the Output Folder field still
+        // lights the drop box.
+        private void TrackDrag(Event evt)
+        {
+            switch (evt.type)
+            {
+                case EventType.DragUpdated:
+                    if (!dragInWindow && DragAndDrop.paths != null && DragAndDrop.paths.Length > 0)
+                    {
+                        dragInWindow = true;
+                        Repaint();
+                    }
+                    break;
+                case EventType.DragPerform:
+                case EventType.DragExited:
+                    if (dragInWindow)
+                    {
+                        dragInWindow = false;
+                        Repaint();
+                    }
+                    break;
+            }
+        }
+
         private void DrawDropArea()
         {
             Rect dropRect = GUILayoutUtility.GetRect(0.0f, 150.0f, GUILayout.ExpandWidth(true));
             GUI.Box(dropRect, GUIContent.none, EditorStyles.helpBox);
+            if (dragInWindow)
+                DrawDropHighlight(dropRect);
 
             var centeredStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, wordWrap = true };
-            GUI.Label(dropRect, "Drop .sspj or a folder here\n(folders are batch-converted recursively)", centeredStyle);
+            string text = dragInWindow
+                ? "Release to convert"
+                : "Drop .sspj or a folder here\n(folders are batch-converted recursively)";
+            GUI.Label(dropRect, text, centeredStyle);
+        }
 
-            Event evt = Event.current;
-            switch (evt.type)
+        // Last in OnGUI, so a control that takes the drag first keeps it: the Output Folder field, given a
+        // folder from the Project window.
+        private static void AcceptDrop(Event evt)
+        {
+            if (evt.type != EventType.DragUpdated && evt.type != EventType.DragPerform)
+                return;
+            if (DragAndDrop.paths == null || DragAndDrop.paths.Length == 0)
+                return;
+
+            DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
+            if (evt.type == EventType.DragPerform)
             {
-                case EventType.DragUpdated:
-                case EventType.DragPerform:
-                    if (!dropRect.Contains(evt.mousePosition))
-                        break;
-
-                    DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
-
-                    if (evt.type == EventType.DragPerform)
-                    {
-                        DragAndDrop.AcceptDrag();
-                        // Handles folders (recursive scan), multiple files, duplicates, collisions, and Recent all together
-                        SpriteStudioImporter.ImportPaths(DragAndDrop.paths);
-                    }
-                    Event.current.Use();
-                    break;
+                DragAndDrop.AcceptDrag();
+                // Handles folders (recursive scan), multiple files, duplicates, collisions, and Recent all together
+                SpriteStudioImporter.ImportPaths(DragAndDrop.paths);
             }
+            evt.Use();
+        }
+
+        private static void DrawDropHighlight(Rect rect)
+        {
+            var accent = new Color(0.24f, 0.52f, 0.95f);
+            EditorGUI.DrawRect(rect, new Color(accent.r, accent.g, accent.b, 0.25f));
+
+            const float border = 2.0f;
+            EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width, border), accent);
+            EditorGUI.DrawRect(new Rect(rect.x, rect.yMax - border, rect.width, border), accent);
+            EditorGUI.DrawRect(new Rect(rect.x, rect.y, border, rect.height), accent);
+            EditorGUI.DrawRect(new Rect(rect.xMax - border, rect.y, border, rect.height), accent);
         }
 
         private void DrawRecentFilesSection()
@@ -177,7 +229,7 @@ namespace SpriteStudio.Editor
                     }
 
                     // Left click -> Reconvert (the button reports the press directly).
-                    // Dim the row background a little (0.9x) so it sits below the default brightness.
+                    // Dim the row background a little so it sits below the default brightness.
                     Color prevBg = GUI.backgroundColor;
                     GUI.backgroundColor = prevBg * 0.85f;
                     bool clicked = GUI.Button(rect, label, rowStyle);
@@ -192,7 +244,7 @@ namespace SpriteStudio.Editor
             GUILayout.EndScrollView();
         }
 
-        // Show the libssconverter version at the bottom of the window.
+        // Show the player and libssconverter versions at the bottom of the window.
         private void DrawFooter()
         {
             GUILayout.BeginHorizontal(EditorStyles.helpBox);
@@ -255,10 +307,13 @@ namespace SpriteStudio.Editor
                 string version = PtrToStringUtf8(p);
                 SpriteStudio.SsConverter.NativeMethods.ss_converter_version_free(p);
 
+                // Both schema versions: a conversion emits both formats and this package imports both, and
+                // this is the line people copy into a bug report.
                 uint ssabVersion = SpriteStudio.SsConverter.NativeMethods.ss_converter_ssab_schema_version();
+                uint ssqbVersion = SpriteStudio.SsConverter.NativeMethods.ss_converter_ssqb_schema_version();
                 string libVer = string.IsNullOrEmpty(version) ? "unknown" : version;
-                
-                return $"{libVer} (ssab v{ssabVersion})";
+
+                return $"{libVer} (ssab v{ssabVersion}, ssqb v{ssqbVersion})";
             }
             catch (System.Exception e)
             {
@@ -279,15 +334,17 @@ namespace SpriteStudio.Editor
         {
             if (File.Exists(path))
             {
-                // This asks the OS to open the file with its default associated application (SpriteStudio)
-                Application.OpenURL("file://" + path);
+                // This asks the OS to open the file with its default associated application (SpriteStudio).
+                // A path, not a file:// URL: one built by concatenation is not escaped, and a space or a
+                // Japanese folder name in it can make the OS refuse the URL without a word.
+                EditorUtility.OpenWithDefaultApp(path);
             }
         }
 
         /// <summary>
-        /// Existing API that converts a single .sspj (non-interactive).
-        /// Called from the Reconvert paths in AssetPostprocessor / AnimeAssetEditor, so the signature is kept.
-        /// The actual work is delegated to the batch import infrastructure (<see cref="SpriteStudioImporter"/>).
+        /// Converts one .sspj into the Output Folder without prompting. Called when a .sspj inside the project
+        /// is imported. A reconvert anchored on an existing .ssab goes to <see cref="SpriteStudioImporter.ReconvertInto"/>
+        /// instead, so that it writes back into the folder that .ssab lives in.
         /// </summary>
         public static void RunConvertDirect(string sspjPath)
         {

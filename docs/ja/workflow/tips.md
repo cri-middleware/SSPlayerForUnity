@@ -1,4 +1,4 @@
-# パフォーマンスチューニングと高度な設定
+# ⚡ パフォーマンスチューニングと高度な設定
 
 [← ドキュメント目次へ戻る](../index.md)
 
@@ -6,25 +6,25 @@
 
 ## 座標スケール（Pixels Per Unit / PPU）
 
-`SpriteStudioPlayer`（ワールド）の **Pixels Per Unit (PPU)** は、SpriteStudio のピクセル座標を Unity のワールド単位へ換算する係数です。
+`SpriteStudioPlayer`（ワールド）の **Pixels Per Unit (PPU)** は、SpriteStudio のピクセル座標を Unity のワールド単位へ換算する係数です。設定はスクリプトの `PixelsPerUnit` プロパティで行います（インスペクタには表示されません）。
 
 - 既定値 `1` … ピクセル等倍（SS のピクセル座標がそのままワールド単位）。
 - `100` など … Unity のスプライト慣習（1 ユニット = 100 px）に合わせたい場合に設定。
 
-> Canvas (`SpriteStudioGraphic`) は RectTransform 座標系で描画されるため、PPU 設定はありません。
+> Canvas (`SpriteStudioGraphic`) に PPU 設定はありません。アニメーションのキャンバスを `RectTransform` の矩形に収めて描きます（**Fit** / **Align**。[基本的な使い方](./usage_basic.md) を参照）。
 
-## フレーム進行: Skip Frames（実時間追従）
+## フレーム進行: Frame Skipping（実時間追従）
 
-**Skip Frames** は、フレームの進め方を切り替えます。
+インスペクタの **Frame Skipping**（スクリプトからは `FrameSkipEnabled`）は、フレームの進め方を切り替えます。
 
 | 設定 | 挙動 | 用途 |
 |---|---|---|
 | ON（既定 / timed） | 経過時間ぶんフレームを進める。負荷でフレーム落ちしても**再生時間が一定**に保たれる | 通常の再生 |
 | OFF（fixed） | 毎 update で必ず 1 フレームずつ進める（コマ送り） | 検証・収録など、確実に全フレーム描きたい場合 |
 
-## サブフレーム補間（Sub Frame Enabled）
+## サブフレーム補間（Sub-Frame Interpolation）
 
-**Sub Frame Enabled** を有効にすると、フレーム間を補間して滑らかに描画します。低フレームレートのアニメーションを高リフレッシュレートで滑らかに見せたい場合に有効です。
+インスペクタの **Sub-Frame Interpolation**（スクリプトからは `SubFrameEnabled`）を有効にすると、フレーム間を補間して滑らかに描画します。低フレームレートのアニメーションを高リフレッシュレートで滑らかに見せたい場合に有効です。
 
 ## 再生速度（Speed Scale）
 
@@ -38,21 +38,22 @@
 - **SSQB (Sequence Binary)** … 複数のアニメーション（例: `歩き` → `走り` → `ジャンプ`）を SpriteStudio 側で「シーケンス」としてタイムライン上に連結したもので、`SpriteStudioSequenceAsset` としてインポートされます。
 
 > [!IMPORTANT]
-> **SSQB の現状**: `.ssqb` の**インポート（データとしての認識・参照）には対応**していますが、**シーケンス再生は現時点では未提供**です（今後対応予定）。当面の連続再生は、[スクリプト制御とイベント](./usage_scripting.md) の `OnAnimationFinished` イベントを使って次のアニメーションへ切り替えることで実現してください。
+> **SSQB の現状**: `.ssqb` の**インポート（データとしての認識・参照）には対応**していますが、**シーケンス再生には対応していません**（[ROADMAP](https://github.com/cri-middleware/SSPlayerForUnity/blob/HEAD/ROADMAP.md) で管理しています）。アニメーションを続けて再生するには、[スクリプト制御とイベント](./usage_scripting.md) の `OnAnimationFinished` イベントを使って次のアニメーションへ切り替えてください。
 
 ## ゼロアロケーションについて
 
-本プラグインの Tick / メッシュ構築ループは GC アロケーションを発生させません（`NativeArray` の再利用と `Mesh.SetVertexBufferData` への直接書き込み）。
+本プラグインの Tick / メッシュ構築ループは GC アロケーションを発生させません。
 
-ただし、**イベント通知**は例外です。特に Signal イベントのパラメータ（`Params` 辞書）は通知時にマネージドメモリを確保します。大量・高頻度に Signal を発火するアニメーションでは、モバイル / WebGL でヒッチの原因になり得ます。常時発生するものではなく、Signal の数とバーストに比例します。
+**イベント通知**は避けられない箇所のみ確保します。Signal のコマンドパラメータは再利用される型付きバッファに展開され（`SpriteStudioSignal.GetParam` / `TryGetParam` で取得）、数値パラメータは一切確保しません。残るのはパーツ名・コマンド ID・文字列パラメータのマネージド文字列生成のみ（不可避）で、Signal の数とバーストに比例します。そのため Signal を大量・高頻度に発火するアニメーションでは、モバイル / WebGL で軽微なヒッチの原因になり得ます。
 
 ## カスタムシェーダ / AddOn（パーツ単位）
 
-SpriteStudio のパーツに設定された AddOn（sepia / hsb / outline / blur / pixelate / noise / wave など）に対応します。
+ワールド経路（`SpriteStudioPlayer`）では、SpriteStudio のパーツに設定された AddOn（sepia / hsb / outline / blur / pixelate / noise / wave など）に対応します。`SpriteStudioGraphic` はすべてのパーツを 1 つの Canvas 用マテリアルで描画するため、Canvas では AddOn もカスタムシェーダも効きません。
 
-- `SpriteStudioPlayer` の **Shader Catalog** に `SpriteStudioShaderCatalog` を割り当てると、パーツ単位のシェーダ割当が有効になります。
-- 組み込み AddOn はパッケージ同梱のカタログにあらかじめ登録されています。空のままにすると、パーツ単位のシェーダ割当は無効になります。
-- `MaterialPropertyBlock` は使用せず、`(shaderId, blend)` ごとのマテリアルプールで供給するため、**SRP Batcher を阻害しません**。
+- 組み込み AddOn は設定不要で動作します。パッケージには既定カタログ `Runtime/Resources/SpriteStudioAddOnCatalog.asset` が同梱されており、これが自動的に解決します。
+- 独自のカスタムシェーダを追加するには、プロジェクトにカタログを作ってプレイヤーに持たせます。**Assets > Create > SpriteStudio > Shader Catalog** でカタログを作り、SpriteStudio エディタでパーツに設定したシェーダ ID と一致する **Id Name** と、AddOn 契約（`SpriteStudioAddOn.hlsl`）に従う **Shader** を持つエントリを追加して、プレイヤーの **Shader Catalog** に割り当ててください。プレイヤーは ID をまずこのカタログで引き、載っていないものは組み込み AddOn に回します。既定カタログはインストールされたパッケージの一部なので編集できません。
+- AddOn パーツは `MaterialPropertyBlock` を使わず、パーツごとに専用のマテリアルで描画します。そのため **SRP Batcher を阻害しません**。
+- マスクで切り抜かれるパーツには AddOn が効きません。マスクの影響を受けないパーツには効きます。
 
 > AddOn 経路は URP / Built-in の両方に対応しています。
 
@@ -61,7 +62,9 @@ SpriteStudio のパーツに設定された AddOn（sepia / hsb / outline / blur
 SpriteStudio のマスク / クリッピング（パーツ単位）に、ステンシルバッファを用いて対応します。
 
 - **ワールド経路（`SpriteStudioPlayer`）**: SpriteStudio 内部のマスク機構を用いてステンシルで描画します。URP では SSAO / Deferred / Decal と併用してもマスクが破綻しないよう、使用するステンシルビットを限定しています。
-- **Canvas 経路（`SpriteStudioGraphic`）**: SpriteStudio 内部のマスクは抑止し、代わりに uGUI の **Mask** / **RectMask2D** に追従します（親にマスクを置くと、このグラフィックがクリップされます）。
+- **Canvas 経路（`SpriteStudioGraphic`）**: SpriteStudio 内部のマスクは抑止し、代わりに uGUI の **Mask** / **Rect Mask 2D** に追従します（親にマスクを置くと、このグラフィックがクリップされます。グラフィック自身に **Mask** を置くと、その子がクリップされます）。
+
+ワールド経路では、SpriteStudio の描画と同じ規則でマスクを解決します。マスクの内側に描く設定のパーツは、アニメーションにマスクが 1 つも無い場合でも、覆うマスクが無いところでは描かれません。インスタンスパーツの中のマスクの規則は、ランタイムの [マスクのガイド](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/libs/ssruntime/docs/40_parts/40_mask.ja.md) にあります。
 
 ## Canvas (uGUI) 経路の制約
 
@@ -69,13 +72,11 @@ SpriteStudio のマスク / クリッピング（パーツ単位）に、ステ�
 
 - **単一アトラス前提**: 複数アトラスを使うアニメーションでは、最初のアトラスのみが描画され、他アトラスのパーツは正しいテクスチャをサンプリングできません（警告がログに出ます）。**1 つのアトラスへまとめる**か、**ワールド経路（`SpriteStudioPlayer`）を使用**してください。
 - **パーツの描画モード**: MIX（ミックス） / ADD（加算） はシェーダ内で頂点単位に振り分けます。それ以外のブレンドは MIX に集約されます。
-- **TexCoord1 の有効化**: パーツカラー用のデータを TEXCOORD1 で渡すため、対象 Canvas の `additionalShaderChannels` に `TexCoord1` を自動付与します。
+- **TexCoord1 / TexCoord2 の有効化**: パーツカラー用のデータを TEXCOORD1 と TEXCOORD2 で渡すため、対象 Canvas の `additionalShaderChannels` に `TexCoord1` と `TexCoord2` を自動付与します。頂点カラーは uGUI に任せており、`Image` と同じくグラフィックの **Color** を運びます。
+- **パーツ単位のシェーダとメッシュエフェクトは効きません**: グラフィックは自らメッシュを渡すため、付けた `Shadow`・`Outline` などの `BaseMeshEffect` は何も変えず、パーツ単位の AddOn / カスタムシェーダも描画されません。これらが要るときはワールド経路（`SpriteStudioPlayer`）を使ってください。
 
-複雑なブレンドや複数アトラス、拡張ブレンド全種を正しく使いたい場合は、ワールド経路（`SpriteStudioPlayer`）の利用を推奨します。
+複雑なブレンドや複数アトラスを正しく使いたい場合は、ワールド経路（`SpriteStudioPlayer`）の利用を推奨します。ワールド経路は Mul2 を Mul、Screen2 を Screen として描画し、Div2 / Overlay2 は MIX として描画します（[制限事項](../limitations.md) 参照）。
 
 ## レンダーパイプライン
 
 Universal (URP) / Built-in (BRP) の両方に対応しています。
-
-- URP でインポート直後にマテリアル参照が不整合になり、描画がピンク色になることがあります。多くはエディタの再起動や再インポートで解消します。
-- 編集モードでは開始フレームの静止プレビューのみ表示されます。動作確認は Play モードで行ってください。

@@ -1,0 +1,128 @@
+# 🧩 How the Player Is Put Together
+
+[← Back to documentation index](../index.md)
+
+For whoever works on SpriteStudio Player for Unity, or changes it for a project of their own. It
+describes the parts by what they do; the [Build Guide](build.md) builds the native libraries, uses
+a changed package in a project and checks it in Unity, and
+[CONTRIBUTING](https://github.com/cri-middleware/SSPlayerForUnity/blob/HEAD/CONTRIBUTING.md) has
+the constraints, the setup and the tests.
+
+What every SpriteStudio Player shares — how playback, motion blending, sound keys and part
+tracking behave — is written once, in the SDK's
+[Player Porting Guide](https://github.com/cri-middleware/SpriteStudio-SDK/blob/HEAD/libs/ssruntime/docs/README.md).
+
+## Layers
+
+The package is `package/`. A thin C# layer drives the Rust runtime, `libssruntime` (the "Brain" in the diagram), over FFI
+bindings that csbindgen generates, builds each frame's geometry in Burst jobs and uploads it to a
+`Mesh`. The editor converts `.sspj` with `libssconverter`. An arrow is a call:
+
+```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 400
+---
+flowchart TD
+    subgraph pkg ["package/"]
+        uiad["UI adapter<br/>Button · Toggle · RaycastFilter"]
+        mgr["Update manager<br/>two passes a frame"]
+        subgraph comps ["Components"]
+            world["SpriteStudioPlayer<br/>world space · MeshRenderer"]
+            canvas["SpriteStudioGraphic<br/>uGUI · CanvasRenderer"]
+        end
+        core["Playback core<br/>shared by both"]
+        native["Native handles · tick<br/>one per player"]
+        geo["Geometry stage<br/>Burst jobs → Mesh"]
+        ffi["FFI bindings<br/>csbindgen"]
+        subgraph ed ["Editor"]
+            imp["Importer window<br/>AssetPostprocessor"]
+            si["ScriptedImporters<br/>.ssab · .ssqb → assets"]
+        end
+    end
+    Brain["Brain · libssruntime"]
+    conv["libssconverter"]
+    uiad --> canvas
+    mgr --> world
+    mgr --> canvas
+    world --> core
+    canvas --> core
+    core --> native
+    native --> geo
+    native --> ffi --> Brain
+    imp --> conv
+```
+
+**Playback** (`package/Runtime/`):
+
+- The geometry stage turns a frame's draw data into batches, submeshes, mask steps and effect
+  quads, writes the vertices in a Burst job and uploads them, re-sending indices only when the
+  topology changes.
+- Materials are kept per texture and blend; `SpriteStudioShaderCatalog` maps per-part shaders. Each AddOn part gets a material instance of its own instead of a `MaterialPropertyBlock`, so the SRP Batcher keeps batching: the player rebuilds it when its submeshes, asset, Shader Catalog or texture overrides change, and sets its parameters every frame.
+  Built-in sound, the events, part following (`SpriteStudioPartTracker`), per-part and texture
+  overrides, and a Timeline track sit beside them.
+- `SpriteStudioAnimeAsset` and `SpriteStudioSequenceAsset` are the imported assets.
+- The FFI bindings and the native libraries are generated or downloaded and are not in git; only
+  their `.meta` are. The `.ssab` readers (flatc output) and the FlatBuffers C# runtime are
+  committed.
+
+**The UI adapter** (`package/Runtime/UI/`, assembly `SpriteStudio.UI`): `SpriteStudioButton` and
+`SpriteStudioToggle`, which play a section of the graphic's animation for each UI state, and
+`SpriteStudioRaycastFilter`, which answers uGUI's raycast from the parts' outlines. The state rules
+are pure functions, and a driver applies them to the graphic. The core never calls into it; the
+adapter reads the runtime's set-up animation and section through `InternalsVisibleTo`, to notice a
+reload or another script changing what the graphic plays. Its inspectors are in
+`package/Editor/UI/`.
+
+**The editor** (`package/Editor/`): the Importer window (**Window > SpriteStudio > Importer**),
+which collects the `.sspj` under what was dropped and queues their conversion; an
+`AssetPostprocessor` that converts a `.sspj` landing in `Assets/`, makes each texture's shared
+material and sets up the native plugins' import settings; the `ScriptedImporter`s that turn a
+`.ssab` into a `SpriteStudioAnimeAsset` and a `.ssqb` into a `SpriteStudioSequenceAsset`;
+Reconvert from the Project window; dropping a `.ssab` into the Scene or the Hierarchy; and the
+inspectors.
+
+**Around it:** `package/Tests/` holds the EditMode, PlayMode and player tests;
+`examples/UnityTestProject` is the project they run in, with the package linked as
+`file:../../../package`; `examples/SampleProject`, `examples/Override_Ringo` and `examples/UI_Ringo`
+are the samples, filled by `deploy-examples`.
+
+## Why It Is Built the Way It Is
+
+Each reason here spans files; the code it concerns carries the detail in its comments.
+
+**Two components, one core.** `SpriteStudioPlayer` is a `MonoBehaviour` and `SpriteStudioGraphic`
+a uGUI `MaskableGraphic`; with different base classes they cannot share playback by inheritance, so
+each holds the shared playback core and delegates to it. The serialized settings stay on the
+components, where Unity serializes them.
+
+**Every player is driven in two passes.** The update manager schedules every player's work first —
+the runtime's frame data and the mesh jobs, run in parallel — and only then applies the results to
+the meshes. Driving each player from its own `Update` would wait on each job in turn. The manager
+walks a snapshot of the players, so one created or destroyed during the pass does not break it.
+
+**The Canvas component bypasses the Canvas rebuild.** `SpriteStudioGraphic` overrides
+`OnPopulateMesh` and the vertex and material dirty flags and hands its mesh to the
+`CanvasRenderer` itself, so Unity never destroys and reallocates the mesh each frame. In Play Mode
+the update manager drives it; in Edit Mode it previews from its own `LateUpdate`.
+
+**Native handles are owned by `IDisposable` classes, and jobs finish first.** The layer under each
+player owns the runtime's pointers, and `JobHandle.Complete()` runs before anything is freed,
+because a Burst job still reading freed memory crashes the process.
+
+**Conversion never blocks the Editor.** The scan of a dropped folder runs on another thread, and
+conversions run from a queue capped at one fewer than the CPU count (1 to 8) and polled from `EditorApplication.update`,
+with progress in the status bar. A `.sspj` can live anywhere on disk;
+`ProjectSettings/SpriteStudioSourceMap.json` records which one each `.ssab` came from, which is
+what Reconvert reads. The output folder and the recent files are per user (`UserSettings/`).
+
+**An imported `.ssab` holds hard references to its textures.** `SpriteStudioAnimeAsset` keeps the
+`.ssab` bytes and references every texture they name, so a build strips nothing an animation draws
+and an AssetBundle carries what it needs.
+
+**Two pins say which runtime a checkout runs.** `Plugins/` and `Bindings/` are not in git, so
+`scripts/SDK_VERSION.txt` names the SDK release `download-sdk` installs, and the SDK submodule's
+pointer names the source `build-runtime` compiles. A change that depends on runtime behaviour bumps the
+submodule in the same pull request, so a reviewer who builds what the branch records gets what the
+pull request claims.

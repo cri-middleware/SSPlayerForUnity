@@ -1,39 +1,135 @@
 #!/usr/bin/env bash
 set -e
 
-# Change to the root directory of the repository
-cd "$(dirname "$0")/.."
+# Absolute repo root: the cleanup trap can fire while the working directory is still
+# inside package/ (a failed `npm pack`), so every path below has to be root-anchored.
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "${ROOT}"
 
-PACKAGE_DIR="package"
+PACKAGE_DIR="${ROOT}/package"
+META_DIR="${ROOT}/scripts/upm-meta"
+
+# Repo-root document -> name it takes inside the package. UPM shows LICENSE.md and
+# CHANGELOG.md in the Package Manager's Licenses / Changelog tabs, and expects the
+# third-party notices under this exact spelling.
+DOCS=(
+    "LICENSE.md:LICENSE.md"
+    "LICENSE.ja.md:LICENSE.ja.md"
+    "THIRD_PARTY_NOTICES.md:Third Party Notices.md"
+    "CHANGELOG.md:CHANGELOG.md"
+)
+
+# The documentation tree rides along: it matches the installed version, and it reads with no
+# network. Unity skips a folder whose name ends in `~`, so none of it needs a .meta. Only
+# Markdown goes in (the images are most of docs/'s weight), and the mkdocs snippet includes
+# (`--8<-- "LICENSE.md"`) are resolved while copying, because only mkdocs understands them.
+# scripts/upm-docs holds the package's own index page, named after the package as UPM expects.
+DOCS_TREE="${PACKAGE_DIR}/Documentation~"
+INCLUDE_AWK='
+/^--8<-- "[^"]+"[ \t]*$/ {
+    path = $0
+    sub(/^--8<-- "/, "", path)
+    sub(/"[ \t]*$/, "", path)
+    path = root "/" path
+    while ((status = (getline line < path)) > 0) print line
+    if (status < 0) { print "ERROR: snippet include not found: " path > "/dev/stderr"; exit 1 }
+    close(path)
+    next
+}
+{ print }
+'
 
 # Cleanup function to ensure temporary files are removed even on error
 cleanup() {
-    rm -f "${PACKAGE_DIR}/LICENSE.md" "${PACKAGE_DIR}/LICENSE.md.meta"
-    rm -f "${PACKAGE_DIR}/Third Party Notices.md" "${PACKAGE_DIR}/Third Party Notices.md.meta"
+    for entry in "${DOCS[@]}"; do
+        dst="${entry#*:}"
+        rm -f "${PACKAGE_DIR}/${dst}" "${PACKAGE_DIR}/${dst}.meta"
+    done
+    rm -rf "${DOCS_TREE}"
 }
 trap cleanup EXIT
 
-# Copy license files to package dir for UPM before packing
-echo "Copying license files to package directory..."
-cp LICENSE.md "${PACKAGE_DIR}/LICENSE.md"
-cp THIRD_PARTY_NOTICES.md "${PACKAGE_DIR}/Third Party Notices.md"
+# Copy the license / changelog documents into the package dir for UPM before packing.
+# Each one also needs its sibling .meta: a UPM package is extracted into an immutable
+# folder (Library/PackageCache), and Unity ignores assets there that have no .meta.
+# The .meta carry fixed GUIDs and live in scripts/upm-meta (see the README there).
+echo "Copying license / changelog documents to package directory..."
+for entry in "${DOCS[@]}"; do
+    src="${entry%%:*}"
+    dst="${entry#*:}"
+    cp "${ROOT}/${src}" "${PACKAGE_DIR}/${dst}"
+    cp "${META_DIR}/${dst}.meta" "${PACKAGE_DIR}/${dst}.meta"
+done
 
-# Pack the package
-# UPM packages are best packed with `npm pack` since it strictly follows .npmignore 
-# and produces a tarball with the required `package/` root folder structure.
-if command -v npm > /dev/null; then
+echo "Copying the documentation tree to package directory..."
+rm -rf "${DOCS_TREE}"
+mkdir -p "${DOCS_TREE}"
+cp "${ROOT}"/scripts/upm-docs/*.md "${DOCS_TREE}/"
+for lang in en ja; do
+    while IFS= read -r -d '' rel; do
+        mkdir -p "${DOCS_TREE}/${lang}/$(dirname "${rel}")"
+        awk -v root="${ROOT}" "${INCLUDE_AWK}" "${ROOT}/docs/${lang}/${rel}" > "${DOCS_TREE}/${lang}/${rel}"
+    done < <(cd "${ROOT}/docs/${lang}" && find . -name '*.md' -print0)
+done
+
+# Pack the package.
+# The packer is npm, or Unity's upm when signing (below) -- never a plain `tar`.
+# npm pack applies the "files" allowlist in package.json and produces a tarball with
+# the `package/` root folder structure UPM expects; a tar fallback would honour neither
+# and sweep in Tests/ and other dev-only content, so refuse to produce a tarball at all
+# rather than a subtly broken one. upm pack does not read "files": it packs what
+# package/.npmignore leaves, so that file lists what the allowlist leaves out.
+# build-release.sh checks the finished archive either way.
+#
+# --- Package signature (opt-in via env) -------------------------------------
+# Unity 6.3's Package Manager checks every tarball for a signature and tells whoever
+# installs an unsigned one so ("Unity cannot verify this package because it lacks a
+# signature"). Signing is Unity's `upm pack`, which packs AND signs in one step -- there
+# is no documented way to sign a tarball npm has already written -- so what the env gate
+# switches is the packer itself, not a step after it.
+#
+# Signing runs only when UNITY_ORGANIZATION_ID is set, the same shape the SDK's macOS
+# codesign uses: the identity in the environment is what turns it on. The UPM CLI reads
+# the service account credentials itself, from
+#   UPM_SERVICE_ACCOUNT_KEY_ID     -- the key ID
+#   UPM_SERVICE_ACCOUNT_KEY_SECRET -- the secret key
+# of an account holding the organization's "Package Manager Package Signer" role. These
+# map to the GitHub secrets of the same names -- see .github/workflows/release.yml for
+# the CI wiring. Install the CLI with:
+#   curl -fsSL https://cdn.packages.unity.com/upm-cli/install.sh | bash
+if [ -n "${UNITY_ORGANIZATION_ID:-}" ]; then
+    # Once the gate is open, anything missing is an error rather than a fall back to
+    # npm: a release that goes out unsigned while the run reports success is the exact
+    # failure a signature is there to prevent.
+    if ! command -v upm > /dev/null; then
+        echo "ERROR: UNITY_ORGANIZATION_ID is set but the UPM CLI (upm) is not installed." >&2
+        echo "       curl -fsSL https://cdn.packages.unity.com/upm-cli/install.sh | bash" >&2
+        exit 1
+    fi
+    if [ -z "${UPM_SERVICE_ACCOUNT_KEY_ID:-}" ] || [ -z "${UPM_SERVICE_ACCOUNT_KEY_SECRET:-}" ]; then
+        echo "ERROR: UNITY_ORGANIZATION_ID is set but UPM_SERVICE_ACCOUNT_KEY_ID /" >&2
+        echo "       UPM_SERVICE_ACCOUNT_KEY_SECRET are not -- upm pack cannot sign." >&2
+        exit 1
+    fi
+
+    # upm pack takes the package directory and writes where it is told, so unlike
+    # npm pack it needs neither the cd nor the mv afterwards.
+    echo "Running 'upm pack' (signing as organization ${UNITY_ORGANIZATION_ID})..."
+    upm pack "${PACKAGE_DIR}" --organization-id "${UNITY_ORGANIZATION_ID}" --destination "${ROOT}"
+else
+    if ! command -v npm > /dev/null; then
+        echo "ERROR: npm is required to pack the UPM package (it applies the 'files' allowlist)." >&2
+        echo "       Install Node.js / npm and re-run." >&2
+        exit 1
+    fi
+
+    echo "Skipping the UPM signature (UNITY_ORGANIZATION_ID not set)."
     echo "Running 'npm pack'..."
     cd "${PACKAGE_DIR}"
     npm pack
     # Move the generated tarball to the repository root
-    mv *.tgz ../
-    cd ..
-else
-    echo "Warning: npm is not installed. Falling back to tar."
-    echo "Creating tarball using standard tar..."
-    TAR_NAME="jp.co.cri-mw.optpix.ssplayer-unity-release.tgz"
-    tar -czf "${TAR_NAME}" "${PACKAGE_DIR}/"
-    echo "Created ${TAR_NAME}"
+    mv ./*.tgz "${ROOT}/"
+    cd "${ROOT}"
 fi
 
 echo "Packing complete!"

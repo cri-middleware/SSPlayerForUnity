@@ -7,7 +7,7 @@ namespace SpriteStudio.Runtime
     /// The final artifact of the import process, a ScriptableObject.
     /// Holds the .ssab byte array and manages hard references to textures and the like.
     /// </summary>
-    [UnityEngine.Icon("Packages/jp.co.cri-mw.optpix.ssplayer-unity/Editor/Icons/ssab_icon.png")]
+    [UnityEngine.Icon("Packages/jp.co.cri-mw.spritestudio.ssplayer-unity/Editor/Icons/ssab_icon.png")]
     public class SpriteStudioAnimeAsset : ScriptableObject
     {
         [Tooltip("Converted .ssab binary data")]
@@ -20,14 +20,16 @@ namespace SpriteStudio.Runtime
         [Tooltip("External animation references (for Instance parts)")]
         public List<SpriteStudioAnimeAsset> ExternalReferences = new List<SpriteStudioAnimeAsset>();
 
-        [Tooltip("Material dictionary: references to the base materials needed for rendering")]
+        [Tooltip("The material asset (.mat) of each entry of Textures, in the same order. An entry with none is null, and that texture is drawn with a base material made at runtime.")]
         public List<Material> Materials = new List<Material>();
+
+        [Tooltip("The shader base materials made at runtime use. Null: SpriteStudio/Default. Set from the importer's Override Shader.")]
+        public Shader OverrideShader;
 
         [Tooltip("List of animation names contained in the file")]
         public string[] AnimationNames;
 
-        [Tooltip("The 'mouth' for playing ssab sounds (referenced by EventAudio). Only the two addressing hashes + the resolved AudioClip. " +
-                 "Metadata such as name/source path/duration lives in SsabData, so it is not duplicated here. Empty for packs with no sound.")]
+        [Tooltip("AudioClips the asset's audio events refer to, resolved at import. Empty for packs with no sound.")]
         public List<SoundClipEntry> Sounds = new List<SoundClipEntry>();
 
         [HideInInspector]
@@ -41,10 +43,16 @@ namespace SpriteStudio.Runtime
         /// SpriteStudio Instances are mostly same-project references, so 2 is the primary path.
         /// At runtime no file is read at all; it only follows hard references (GUID references, so it is
         /// safe with Resources/AssetBundle/Addressables too).
+        /// Nothing else resolves: an unmatched pack_hash returns null and the caller skips the part.
+        /// Guessing by animation name instead would be worse than no answer — SpriteStudio names every
+        /// animation in a pack independently, so a project where each pack holds one "anime_1" makes every
+        /// such guess land on whichever pack happens to be first, silently playing the wrong animation.
+        /// A miss means the ExternalReferences are incomplete; reimporting the asset is what fixes it (for an asset
+        /// built at runtime, SpriteStudioAnimeAssetLoader.LinkExternalReferences).
         /// </summary>
         /// <param name="packHash">Name hash of the referenced anime pack (PartTypeInstance.RefAnimePackHash).</param>
         /// <param name="nameHash">Name hash of the referenced animation. Used by SetupAnimationByHash after resolution.</param>
-        public byte[] ResolveExternalSsab(uint packHash, uint nameHash)
+        internal byte[] ResolveExternalSsab(uint packHash, uint nameHash)
         {
             // 1. Reference to another pack: look it up from the external references, prioritizing a pack_hash match.
             if (packHash != 0 && ExternalReferences != null)
@@ -65,75 +73,57 @@ namespace SpriteStudio.Runtime
                 return SsabData;
             }
 
-            // 3. Fallback (a safeguard for when 1 does not match due to operational differences in the pack
-            //    name hash): search for an ssab that actually contains the requested animation name hash,
-            //    in the order self -> external references. Resolves without depending on pack_hash.
-            if (nameHash != 0)
-            {
-                if (ContainsAnimationHash(nameHash)) return SsabData;
-                if (ExternalReferences != null)
-                {
-                    for (int i = 0; i < ExternalReferences.Count; i++)
-                    {
-                        var ext = ExternalReferences[i];
-                        if (ext != null && ext.ContainsAnimationHash(nameHash)) return ext.SsabData;
-                    }
-                }
-            }
-
+            // The part named a pack that is neither ours nor in our external references, so there is no
+            // answer to give. Report the pack that is missing and let the caller skip the part: a wrong
+            // animation played silently costs far more to track down than a missing one.
+            Debug.LogWarning($"[SpriteStudioAnimeAsset] '{name}': Instance reference (pack=0x{packHash:X8}, name=0x{nameHash:X8}) is not among this asset's {(ExternalReferences == null ? 0 : ExternalReferences.Count)} external references. The Instance part will be skipped — reimport this .ssab to repopulate them, or, for an asset built at runtime, pass it with the pack it plays to SpriteStudioAnimeAssetLoader.LinkExternalReferences.");
             return null;
         }
 
-        [System.NonSerialized] private HashSet<uint> _animationHashes;
-
-        /// <summary>Whether this ssab contains an animation with the given animation name hash (checked against Animation.NameHash).</summary>
-        public bool ContainsAnimationHash(uint nameHash)
-        {
-            if (_animationHashes == null)
-            {
-                _animationHashes = new HashSet<uint>();
-                if (SsabData != null && SsabData.Length > 0)
-                {
-                    var bb = new Google.FlatBuffers.ByteBuffer(SsabData);
-                    var ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
-                    int n = ssab.AnimationsLength;
-                    for (int i = 0; i < n; i++)
-                    {
-                        var a = ssab.Animations(i);
-                        if (a.HasValue) _animationHashes.Add(a.Value.NameHash);
-                    }
-                }
-            }
-            return _animationHashes.Contains(nameHash);
-        }
-
-        // DrawBatch.TextureHash -> Materials index mapping table (serialized as parallel arrays).
+        // DrawBatch.TextureHash -> Textures index mapping table (serialized as parallel arrays).
         // A single texture can correspond to multiple candidate hashes (the cellmap's NameHash/ImagePathHash,
         // the external NameHash), so all candidates are registered so any of them can look it up.
+        // The indices used to point into Materials. An asset imported then had one material per found
+        // texture, in the same order, so the old indices still point at the right texture.
         [HideInInspector] public uint[] TextureHashKeys;
-        [HideInInspector] public int[] TextureHashMaterialIndices;
+        [HideInInspector, UnityEngine.Serialization.FormerlySerializedAs("TextureHashMaterialIndices")]
+        public int[] TextureHashTextureIndices;
 
-        [System.NonSerialized] private Dictionary<uint, int> _hashToMaterial;
+        [System.NonSerialized] private Dictionary<uint, int> _hashToTexture;
 
         /// <summary>
-        /// Return the Materials index corresponding to a DrawBatch's texture hash.
+        /// Return the Textures index corresponding to a DrawBatch's texture hash.
         /// Returns -1 if no correspondence is found (the caller falls back to material[0], etc.).
         /// </summary>
-        public int GetMaterialIndexForHash(uint textureHash)
+        internal int GetTextureIndexForHash(uint textureHash)
         {
-            if (_hashToMaterial == null)
+            if (_hashToTexture == null)
             {
-                _hashToMaterial = new Dictionary<uint, int>();
-                if (TextureHashKeys != null && TextureHashMaterialIndices != null)
+                _hashToTexture = new Dictionary<uint, int>();
+                if (TextureHashKeys != null && TextureHashTextureIndices != null)
                 {
-                    int n = Mathf.Min(TextureHashKeys.Length, TextureHashMaterialIndices.Length);
+                    int n = Mathf.Min(TextureHashKeys.Length, TextureHashTextureIndices.Length);
                     for (int i = 0; i < n; i++)
                     {
-                        _hashToMaterial[TextureHashKeys[i]] = TextureHashMaterialIndices[i];
+                        _hashToTexture[TextureHashKeys[i]] = TextureHashTextureIndices[i];
                     }
                 }
             }
-            return _hashToMaterial.TryGetValue(textureHash, out int index) ? index : -1;
+            return _hashToTexture.TryGetValue(textureHash, out int index) ? index : -1;
+        }
+
+        /// <summary>
+        /// The base material of <c>Textures[textureIndex]</c>: its material asset if it has one, otherwise the
+        /// shared base material made at runtime. Null when the index is out of range or there is neither.
+        /// </summary>
+        internal Material GetBaseMaterial(int textureIndex)
+        {
+            if (textureIndex < 0) return null;
+            if (Materials != null && textureIndex < Materials.Count && Materials[textureIndex] != null)
+            {
+                return Materials[textureIndex];
+            }
+            return GetRuntimeBaseMaterial(textureIndex);
         }
 
         /// <summary>
@@ -143,12 +133,13 @@ namespace SpriteStudio.Runtime
         /// hashes resolvable only on the external-reference side bubble up to the parent as submeshes.
         /// Returns null if not found (the caller falls back).
         /// </summary>
-        public Material ResolveMaterialForHash(uint textureHash)
+        internal Material ResolveMaterialForHash(uint textureHash)
         {
-            int mi = GetMaterialIndexForHash(textureHash);
-            if (mi >= 0 && Materials != null && mi < Materials.Count)
+            int ti = GetTextureIndexForHash(textureHash);
+            if (ti >= 0)
             {
-                return Materials[mi];
+                var own = GetBaseMaterial(ti);
+                if (own != null) return own;
             }
 
             if (ExternalReferences != null)
@@ -157,14 +148,121 @@ namespace SpriteStudio.Runtime
                 {
                     var ext = ExternalReferences[i];
                     if (ext == null) continue;
-                    int emi = ext.GetMaterialIndexForHash(textureHash);
-                    if (emi >= 0 && ext.Materials != null && emi < ext.Materials.Count)
-                    {
-                        return ext.Materials[emi];
-                    }
+                    int eti = ext.GetTextureIndexForHash(textureHash);
+                    if (eti < 0) continue;
+                    var m = ext.GetBaseMaterial(eti);
+                    if (m != null) return m;
                 }
             }
             return null;
+        }
+
+        /// <summary>
+        /// The material a player draws a batch with when its texture hash resolves to nothing: the base
+        /// material of the first texture. Null when the asset has no texture.
+        /// </summary>
+        internal Material GetFallbackMaterial() => GetBaseMaterial(0);
+
+        // Cellmap / external-texture name -> the candidate DrawBatch.TextureHash values it can appear as.
+        // Built lazily from SsabData (like the sound tables) and used by the runtime texture-replacement
+        // feature (SpriteStudioPlayer.SetCellmapTexture) to translate a resource NAME into the hash key(s)
+        // the draw path binds by. A cellmap contributes both its NameHash and its ImagePathHash (either can
+        // reach a batch); an external texture contributes its NameHash. NOT the Override Layer API.
+        [System.NonSerialized] private Dictionary<string, uint[]> _cellmapNameToHashes;
+        [System.NonSerialized] private string[] _cellmapNames;
+
+        private void EnsureCellmapTable()
+        {
+            if (_cellmapNameToHashes != null) return;
+            _cellmapNameToHashes = new Dictionary<string, uint[]>();
+            var names = new List<string>();
+            // Accumulate per name so that a name appearing in both tables (a cellmap and a like-named
+            // external texture) collects every candidate hash instead of the first table winning.
+            var acc = new Dictionary<string, List<uint>>();
+
+            void Add(string texName, params uint[] hashes)
+            {
+                if (string.IsNullOrEmpty(texName)) return;
+                if (!acc.TryGetValue(texName, out var list))
+                {
+                    list = new List<uint>();
+                    acc[texName] = list;
+                    names.Add(texName); // preserve first-seen order for the discovery list
+                }
+                foreach (var h in hashes)
+                {
+                    if (h != 0 && !list.Contains(h)) list.Add(h);
+                }
+            }
+
+            if (SpriteStudioSsabFormat.IsSsabBuffer(SsabData))
+            {
+                var bb = new Google.FlatBuffers.ByteBuffer(SsabData);
+                var ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
+
+                // cellmaps: the primary textures. Both the cellmap NameHash and the ImagePathHash are valid
+                // batch keys (the importer registers both), so a replacement must cover both.
+                int cmLen = ssab.CellmapsLength;
+                for (int i = 0; i < cmLen; i++)
+                {
+                    var cm = ssab.Cellmaps(i);
+                    if (!cm.HasValue) continue;
+                    var c = cm.Value;
+                    Add(c.Name, c.NameHash, c.ImagePathHash);
+                }
+
+                // external_textures: the names a TextureChange (TCHG) attribute binds. Keyed by their own
+                // NameHash (a different hash space than the cellmap name), so they are separately replaceable.
+                int exLen = ssab.ExternalTexturesLength;
+                for (int i = 0; i < exLen; i++)
+                {
+                    var ex = ssab.ExternalTextures(i);
+                    if (!ex.HasValue) continue;
+                    var e = ex.Value;
+                    Add(e.Name, e.NameHash);
+                }
+            }
+
+            foreach (var kv in acc) _cellmapNameToHashes[kv.Key] = kv.Value.ToArray();
+            _cellmapNames = names.ToArray();
+        }
+
+        // Drop the lazily-built cellmap table so it is rebuilt from SsabData on next use. Called from
+        // OnDisable alongside the material caches; also the reset path if SsabData is reassigned on a reused
+        // asset instance (import normally creates a fresh asset, so this rarely matters).
+        private void InvalidateCellmapTable()
+        {
+            _cellmapNameToHashes = null;
+            _cellmapNames = null;
+        }
+
+        /// <summary>
+        /// The names that can be handed to the runtime texture-replacement API: every cellmap name plus
+        /// every external-texture (TextureChange target) name. Discovery helper for building an inspector or
+        /// a call to <c>SetCellmapTexture</c>. Returns a copy; empty when the asset carries no textures.
+        /// (Distinct from the internal player's GetCellmapNames, which lists cellmaps only for the cell
+        /// Override Layer; texture replacement also covers external-texture names.)
+        /// </summary>
+        public string[] GetReplaceableTextureNames()
+        {
+            EnsureCellmapTable();
+            return (string[])_cellmapNames.Clone();
+        }
+
+        /// <summary>
+        /// Resolve a cellmap / external-texture name to the DrawBatch.TextureHash key(s) it can bind by.
+        /// A cellmap yields both its NameHash and ImagePathHash; an external texture yields its NameHash.
+        /// False (and hashes = null) when the name is unknown to this asset.
+        /// </summary>
+        internal bool TryGetCellmapHashes(string cellmapName, out uint[] hashes)
+        {
+            EnsureCellmapTable();
+            if (!string.IsNullOrEmpty(cellmapName) && _cellmapNameToHashes.TryGetValue(cellmapName, out hashes))
+            {
+                return true;
+            }
+            hashes = null;
+            return false;
         }
 
         // Runtime cache of per-(texture, blend) material variants. Asset-level so that multiple
@@ -191,6 +289,9 @@ namespace SpriteStudio.Runtime
         private Material GetWhiteBaseMaterial()
         {
             if (_whiteBaseMaterial != null) return _whiteBaseMaterial;
+            // A .mat's shader first: the textured parts draw with it, and a .mat keeps its shader when the
+            // Override Shader changes later or the user edits the .mat, so taking the Override Shader first
+            // would draw only the cell-less parts with a different shader.
             Shader shader = null;
             if (Materials != null)
             {
@@ -199,7 +300,8 @@ namespace SpriteStudio.Runtime
                     if (Materials[i] != null) { shader = Materials[i].shader; break; }
                 }
             }
-            if (shader == null) shader = Shader.Find("SpriteStudio/Default");
+            if (shader == null) shader = OverrideShader;
+            if (shader == null) shader = SpriteStudioBaseMaterialCache.DefaultShader;
             if (shader == null) return null;
             _whiteBaseMaterial = new Material(shader) { hideFlags = HideFlags.HideAndDontSave, name = "SpriteStudio_WhiteBase" };
             return _whiteBaseMaterial;
@@ -212,7 +314,7 @@ namespace SpriteStudio.Runtime
         /// TextureHash 0 (cell-less, e.g. Shape) resolves to a white-textured base. Returns null
         /// only when even that cannot be created.
         /// </summary>
-        public Material ResolveMaterial(uint textureHash, byte blendType)
+        internal Material ResolveMaterial(uint textureHash, byte blendType)
         {
             var baseMat = (textureHash == 0) ? GetWhiteBaseMaterial() : ResolveMaterialForHash(textureHash);
             if (baseMat == null) return null;
@@ -231,39 +333,11 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// Resolve a per-part AddOn colour material for a (shaderHash, textureHash, blendType) triple.
-        /// The AddOn Shader is resolved by the caller (the player, via SpriteStudioShaderCatalog) and
-        /// passed in. Cached per key like the per-blend variants; falls back to the default material when
-        /// no AddOn shader is supplied. NOTE: this returns a SHARED cached material, correct for AddOns
-        /// without per-frame params (e.g. TestStub). Param-carrying AddOns need a per-instance pool
-        /// (added in the next step) so concurrent parts do not stomp each other's params.
-        /// </summary>
-        public Material ResolveAddOnMaterial(Shader addonShader, uint shaderHash, uint textureHash, byte blendType)
-        {
-            if (addonShader == null || shaderHash == 0) return ResolveMaterial(textureHash, blendType);
-
-            var baseMat = (textureHash == 0) ? GetWhiteBaseMaterial() : ResolveMaterialForHash(textureHash);
-            if (baseMat == null) return null;
-
-            var key = new SpriteStudioMaterialKey(textureHash, blendType, 0, shaderHash);
-            if (_materialVariants != null && _materialVariants.TryGetValue(key, out var cached) && cached != null)
-            {
-                return cached;
-            }
-
-            if (_materialVariants == null) _materialVariants = new Dictionary<SpriteStudioMaterialKey, Material>();
-            var variant = SpriteStudioMaterial.CreateAddOnVariant(baseMat, addonShader, blendType);
-            _materialVariants[key] = variant;
-            return variant;
-        }
-
-        /// <summary>
         /// Create a FRESH (non-cached) per-part AddOn material instance for the (shader, texture, blend)
-        /// combination. Unlike ResolveAddOnMaterial this never shares: the caller (player) owns the
-        /// instance, sets its per-part params each frame, and destroys it. Used for the bounded per-part
-        /// pool so concurrent parts with different params do not stomp each other. HideAndDontSave.
+        /// combination. The caller (player) owns the instance, sets its per-part params each frame, and
+        /// destroys it, so concurrent parts with different params do not stomp each other. HideAndDontSave.
         /// </summary>
-        public Material CreatePerPartMaterialInstance(Shader addonShader, uint textureHash, byte blendType)
+        internal Material CreatePerPartMaterialInstance(Shader addonShader, uint textureHash, byte blendType)
         {
             if (addonShader == null) return null;
             var baseMat = (textureHash == 0) ? GetWhiteBaseMaterial() : ResolveMaterialForHash(textureHash);
@@ -278,7 +352,7 @@ namespace SpriteStudio.Runtime
         /// Cached per (textureHash, blend, comp) via the shared variant dictionary. Returns null only
         /// when the base material cannot be resolved.
         /// </summary>
-        public Material ResolveTestMaterial(uint textureHash, byte blendType, byte stencilComp)
+        internal Material ResolveTestMaterial(uint textureHash, byte blendType, byte stencilComp)
         {
             var baseMat = (textureHash == 0) ? GetWhiteBaseMaterial() : ResolveMaterialForHash(textureHash);
             if (baseMat == null) return null;
@@ -302,7 +376,7 @@ namespace SpriteStudio.Runtime
         /// same hash; the per-frame _MaskThreshold is supplied by the player via a
         /// MaterialPropertyBlock. Cached per (textureHash, op). Null if the shader is missing.
         /// </summary>
-        public Material ResolveMaskWriteMaterial(uint textureHash, byte stencilOp)
+        internal Material ResolveMaskWriteMaterial(uint textureHash, byte stencilOp)
         {
             if (_maskWriteShader == null)
             {
@@ -384,15 +458,84 @@ namespace SpriteStudio.Runtime
         /// and all other ssab blends collapse to MIX, so there are no per-blend variants. blendType is
         /// accepted for call-site symmetry but ignored. Returns null only if the base cannot be created.
         /// </summary>
-        public Material ResolveCanvasMaterial(uint textureHash, byte blendType)
+        internal Material ResolveCanvasMaterial(uint textureHash, byte blendType)
         {
             return GetCanvasBaseMaterial(textureHash);
         }
 
+        /// <summary>
+        /// Changes each time this asset is loaded. A reimport reloads the asset in place -- players keep the
+        /// same reference, now holding new data -- and OnDisable has destroyed the material variants they
+        /// resolved, so a player compares this to know that what it resolved is gone.
+        /// </summary>
+        [System.NonSerialized] internal int Revision;
+        private static int s_revisions;
+
+        // The references to the shared runtime base materials, one per entry of Textures, taken in OnEnable
+        // and handed back in OnDisable. Kept rather than recomputed so that what is handed back is exactly
+        // what was taken, whatever happened to Textures in between.
+        [System.NonSerialized] private SpriteStudioBaseMaterialCache.Ref[] _baseMaterialRefs;
+
+        /// <summary>
+        /// The shared base material made at runtime for <c>Textures[textureIndex]</c>, for a texture that has
+        /// no material asset. Null when the index is out of range or the texture is missing.
+        /// </summary>
+        internal Material GetRuntimeBaseMaterial(int textureIndex)
+        {
+            if (_baseMaterialRefs == null || textureIndex < 0 || textureIndex >= _baseMaterialRefs.Length) return null;
+            return SpriteStudioBaseMaterialCache.Get(_baseMaterialRefs[textureIndex]);
+        }
+
+        private void AcquireBaseMaterials()
+        {
+            int n = Textures != null ? Textures.Count : 0;
+            _baseMaterialRefs = new SpriteStudioBaseMaterialCache.Ref[n];
+            for (int i = 0; i < n; i++)
+            {
+                _baseMaterialRefs[i] = SpriteStudioBaseMaterialCache.Acquire(Textures[i], OverrideShader);
+            }
+        }
+
+        private void ReleaseBaseMaterials()
+        {
+            if (_baseMaterialRefs == null) return;
+            foreach (var r in _baseMaterialRefs) SpriteStudioBaseMaterialCache.Release(r);
+            _baseMaterialRefs = null;
+        }
+
+        /// <summary>
+        /// Take the runtime state afresh after the serialized fields were filled in on an asset that is already
+        /// enabled, as the runtime loader does: the same as being reloaded.
+        /// </summary>
+        internal void ReloadRuntimeState()
+        {
+            OnDisable();
+            OnEnable();
+        }
+
+        /// <summary>Tell the players that what they resolved from this asset may have changed.</summary>
+        internal void MarkChanged() => Revision = ++s_revisions;
+
+        private void OnEnable()
+        {
+            Revision = ++s_revisions;
+            AcquireBaseMaterials();
+#if UNITY_EDITOR
+            // An edit-mode player rebuilds its preview in LateUpdate, which the editor runs only when
+            // something asks for it; a reimport should show without the user touching the scene.
+            if (!Application.isPlaying) UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
+#endif
+        }
+
         // Destroy runtime-created materials (blend / test / mask-write variants and the white base;
-        // clones only). The serialized base materials must not be touched here.
+        // clones only) and drop every table built from the serialized data, which a reimport replaces. The
+        // serialized base materials must not be touched here.
         private void OnDisable()
         {
+            ReleaseBaseMaterials();
+            InvalidateCellmapTable();
+            _hashToTexture = null;
+            _soundToClip = null;
             if (_whiteBaseMaterial != null)
             {
                 if (Application.isPlaying) Destroy(_whiteBaseMaterial); else DestroyImmediate(_whiteBaseMaterial);
@@ -454,8 +597,9 @@ namespace SpriteStudio.Runtime
         [System.NonSerialized] private Dictionary<ulong, AudioClip> _soundToClip;
 
         /// <summary>
-        /// Returns the AudioClip corresponding to EventAudio's (sound_list_name_hash, sound_name_hash).
-        /// Returns null if not found. The resolution hook for implementing runtime sequence/sound playback (currently no callers).
+        /// Returns the AudioClip corresponding to EventAudio's (sound_list_name_hash, sound_name_hash), or null if
+        /// not found. The built-in playback resolves through it, and so can a host that plays the sounds itself
+        /// from the audio events.
         /// </summary>
         public AudioClip ResolveAudioClip(uint soundListNameHash, uint soundNameHash)
         {
@@ -472,52 +616,6 @@ namespace SpriteStudio.Runtime
             }
             ulong k = ((ulong)soundListNameHash << 32) | soundNameHash;
             return _soundToClip.TryGetValue(k, out var clip) ? clip : null;
-        }
-
-        [System.NonSerialized] private Dictionary<ulong, SpriteStudioSoundInfo> _soundInfo;
-
-        /// <summary>
-        /// Returns the ssab sound metadata (alias / file_path / file_path_hash / time_total) corresponding
-        /// to EventAudio's (sound_list_name_hash, sound_name_hash). An opt-in accessor paired with
-        /// ResolveAudioClip, intended for a custom audio backend that does not go through AudioClip.
-        /// Confines raw FlatBuffers parsing to this one place and does not expose SsabData to callers.
-        /// Default playback (PlayOneShot) does not call this and uses ResolveAudioClip instead.
-        /// </summary>
-        public bool TryGetSoundInfo(uint soundListNameHash, uint soundNameHash, out SpriteStudioSoundInfo info)
-        {
-            if (_soundInfo == null)
-            {
-                _soundInfo = new Dictionary<ulong, SpriteStudioSoundInfo>();
-                if (SsabData != null && SsabData.Length > 0)
-                {
-                    var bb = new Google.FlatBuffers.ByteBuffer(SsabData);
-                    var ssab = ss.format.SsAnimeBinary.GetRootAsSsAnimeBinary(bb);
-                    int listLen = ssab.SoundListsLength;
-                    for (int li = 0; li < listLen; li++)
-                    {
-                        var sl = ssab.SoundLists(li);
-                        if (!sl.HasValue) continue;
-                        var soundList = sl.Value;
-                        int fileLen = soundList.TableDataLength;
-                        for (int fi = 0; fi < fileLen; fi++)
-                        {
-                            var sf = soundList.TableData(fi);
-                            if (!sf.HasValue) continue;
-                            var soundFile = sf.Value;
-                            ulong key = ((ulong)soundList.NameHash << 32) | soundFile.NameHash;
-                            _soundInfo[key] = new SpriteStudioSoundInfo
-                            {
-                                Alias = soundFile.Name,
-                                FilePath = soundFile.FilePath,
-                                FilePathHash = soundFile.FilePathHash,
-                                TimeTotalMs = soundFile.TimeTotal,
-                            };
-                        }
-                    }
-                }
-            }
-            ulong k = ((ulong)soundListNameHash << 32) | soundNameHash;
-            return _soundInfo.TryGetValue(k, out info);
         }
     }
 }

@@ -5,15 +5,13 @@ using SpriteStudio.SsRuntime;
 
 namespace SpriteStudio.Runtime
 {
-    // BlendType is the ssab BlendType (0..7) used to resolve the per-blend material variant.
-    // Effect submeshes keep Mix here (their additive path is handled in-shader for now).
-    // Stencil role of a submesh. None = a plain colour submesh (existing behaviour). Write =
+    // Stencil role of a submesh. None = a plain colour submesh. Write =
     // the SpriteStudio/MaskWrite pass (ColorMask 0) that increments/decrements/inverts the
     // isolated stencil bits (covers both the pure-mask "write" and its "restore"; the op
     // distinguishes them). Test = a colour submesh that is kept/discarded by a stencil compare.
-    public enum StencilRole : byte { None = 0, Write = 1, Test = 2 }
+    internal enum StencilRole : byte { None = 0, Write = 1, Test = 2 }
 
-    public struct SubmeshInfo
+    internal struct SubmeshInfo
     {
         public int IndexStart;
         public int IndexCount;
@@ -23,6 +21,8 @@ namespace SpriteStudio.Runtime
         // path (SpriteStudio/Default). Non-zero = an individual per-part draw whose material uses the
         // AddOn shader resolved from the SpriteStudioShaderCatalog.
         public uint ShaderHash;
+        // The ssab BlendType (0..7), which resolves the per-blend material variant. Effect submeshes keep
+        // Mix here; their additive path is handled in-shader.
         public byte BlendType;
 
         // Stencil state (only meaningful when Role != None). Op/Comp hold the corresponding
@@ -35,6 +35,13 @@ namespace SpriteStudio.Runtime
         public byte StencilReadMask;
         public byte StencilWriteMask;
         public float MaskThreshold;
+
+        // A Phase C clipping-mask restore (ColorMask 0 stencil revert). An enclosing instance parent
+        // relocates such a submesh to after its own parts - SpriteStudio 7.6 carries an instance-internal mask past
+        // the instance boundary, so the restore waits until the parent animation's own restore at the very
+        // end - instead of drawing it in place at the child's boundary. Data-only: the render path treats
+        // it exactly like Role == Write.
+        public bool DeferrableClose;
 
         public float P0, P1, P2, P3, P4, P5, P6, P7;  // Shader Params (for AddOn)
         public float CellL, CellT, CellR, CellB;      // cell rectangles / 0 for parts with no cell (Shape / Mesh)
@@ -66,16 +73,27 @@ namespace SpriteStudio.Runtime
             StencilRole role = StencilRole.None, byte stencilOp = 0, byte stencilComp = 0, byte stencilRef = 0,
             byte stencilReadMask = 0, byte stencilWriteMask = 0, float maskThreshold = 0f, uint shaderHash = 0)
         {
-            if (role == StencilRole.None && _submeshCount > 0)
+            if (role != StencilRole.Write && _submeshCount > 0)
             {
                 var pSub = (SubmeshInfo*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_submeshes);
                 ref var last = ref pSub[_submeshCount - 1];
                 // Only merge shared (non-AddOn) runs.
-				// A per-part AddOn part (shaderHash != 0) must stay its own submesh
-				//   so it carries its own material instance and params — even two adjacent
-				//   parts using the same AddOn shader can have different params, so they must not merge.
-                if (last.Role == StencilRole.None && shaderHash == 0 && last.ShaderHash == 0
-                    && last.TextureHash == textureHash && last.BlendType == blendType)
+                // A per-part AddOn part (shaderHash != 0) must stay its own submesh
+                //   so it carries its own material instance and params — even two adjacent
+                //   parts using the same AddOn shader can have different params, so they must not merge.
+                // The two ranges must also be contiguous: growing the last one covers every index in between.
+                //   An instance parent carries its child's clipping restores to its own end, so the child's
+                //   last colour run and whatever the parent emits next are separated by those restores'
+                //   indices. Merging across that gap would draw the restores as colour.
+                // A Test submesh only reads the stencil, so the next one under the same stencil state
+                //   joins it. A writer between them is a Write submesh of its own, which ends the run.
+                if (last.Role == role && shaderHash == 0 && last.ShaderHash == 0
+                    && last.TextureHash == textureHash && last.BlendType == blendType
+                    && last.IndexStart + last.IndexCount == indexStart
+                    && (role == StencilRole.None
+                        || (last.StencilOp == stencilOp && last.StencilComp == stencilComp
+                            && last.StencilRef == stencilRef && last.StencilReadMask == stencilReadMask
+                            && last.StencilWriteMask == stencilWriteMask && last.MaskThreshold == maskThreshold)))
                 {
                     last.IndexCount += indexCount;
                     return;
@@ -115,6 +133,16 @@ namespace SpriteStudio.Runtime
             s.P0 = p0; s.P1 = p1; s.P2 = p2; s.P3 = p3; s.P4 = p4; s.P5 = p5; s.P6 = p6; s.P7 = p7;
         }
 
+        // Tag the most recently emitted submesh as a deferrable clipping-mask restore. Called right after
+        // a Phase C close (EmitMaskStep) or a flushed carried-up close (EmitSubmesh); both are Role == Write,
+        // which never merges, so the last submesh is always the one just created.
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public unsafe void MarkLastSubmeshDeferrableClose()
+        {
+            if (_submeshCount == 0) return;
+            ((SubmeshInfo*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_submeshes))[_submeshCount - 1].DeferrableClose = true;
+        }
+
         // Stamp the per-part cell rectangle (pixel UVs) onto the most recently emitted submesh.
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         public unsafe void SetLastSubmeshCellRect(float l, float t, float r, float b)
@@ -140,7 +168,7 @@ namespace SpriteStudio.Runtime
 
         public unsafe void EmitMaskStep(byte kind, int rank, int vc, int ic, uint texHash, byte blend,
             StencilRole role, byte stencilOp, byte stencilComp, float threshold,
-            ref int totalVertices, ref int totalIndices)
+            ref int totalVertices, ref int totalIndices, uint shaderHash = 0)
         {
             EnsureDrawBatchCapacity();
             ((DrawBatchData*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(_drawBatches))[_drawBatchCount++] = new DrawBatchData
@@ -153,9 +181,12 @@ namespace SpriteStudio.Runtime
                 BlendType = blend
             };
 
+            // Writers only ever write their own op's bit plane (parity for Invert, counter for
+            // Incr/Decr); a test writes nothing. Kept in sync with the material through the shared
+            // helper - the two must agree or a writer would be undone on the wrong plane.
             EmitSubmesh(totalIndices, ic, texHash, blend, role, stencilOp, stencilComp, 0,
                 SpriteStudioMaterial.MaskStencilMask,
-                role == StencilRole.Write ? SpriteStudioMaterial.MaskStencilMask : (byte)0, threshold);
+                role == StencilRole.Write ? SpriteStudioMaterial.MaskWriteMaskForOp(stencilOp) : (byte)0, threshold, shaderHash);
             totalVertices += vc;
             totalIndices += ic;
         }
@@ -206,7 +237,15 @@ namespace SpriteStudio.Runtime
             totalIndices += ic;
         }
 
-        public unsafe ulong ComputeTopologySignature(int vertexCount, int indexCount)
+        /// <summary>
+        /// The signature that decides whether the indices already on the GPU are still right. Besides the
+        /// batch and submesh layout it folds in what decides each part's indices: the batch totals do not say
+        /// how the parts share them, so two Mesh parts swapped by a PRIO key, a Mesh hidden for another of the
+        /// same size, or a centre vertex passing from one Normal part to another would leave them all alone.
+        /// A Mesh part's indices are static per part, a Shape's fan follows its vertex count.
+        /// </summary>
+        public unsafe ulong ComputeTopologySignature(int vertexCount, int indexCount,
+            ushort* drawOrder, PartStateData* partStates, int* shapeVertexCounts, int partCount)
         {
             ulong sig = 14695981039346656037UL;
             const ulong prime = 1099511628211UL;
@@ -219,6 +258,17 @@ namespace SpriteStudio.Runtime
                 sig = (sig ^ (ulong)(uint)b.IndexCount) * prime;
                 sig = (sig ^ (ulong)(uint)b.EffectPartIndex) * prime;
                 sig = (sig ^ ((ulong)b.EffectQuadCount | ((ulong)b.EffectParticleOffset << 32))) * prime;
+
+                if (b.Kind != SsDrawBatchKind.Normal && b.Kind != SsDrawBatchKind.Shape && b.Kind != SsDrawBatchKind.Mesh) continue;
+                for (int k = 0; k < b.Count; k++)
+                {
+                    int p = drawOrder[b.StartRank + k];
+                    if (p >= partCount) continue;
+                    ulong key = b.Kind == SsDrawBatchKind.Mesh ? (ulong)p
+                        : b.Kind == SsDrawBatchKind.Shape ? (ulong)(uint)shapeVertexCounts[p]
+                        : (partStates[p].UpdateFlag & SsUpdateFlag.NeedsCenterMask) != 0 ? 1UL : 0UL;
+                    sig = (sig ^ key) * prime;
+                }
             }
             sig = (sig ^ (ulong)(uint)_submeshCount) * prime;
             for (int i = 0; i < _submeshCount; i++)

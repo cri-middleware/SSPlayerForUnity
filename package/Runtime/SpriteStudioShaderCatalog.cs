@@ -9,7 +9,7 @@ namespace SpriteStudio.Runtime
     /// Per-part custom shader / AddOn catalog: maps a SpriteStudio shader id (the string authored in
     /// the SpriteStudio editor, e.g. "ss-sepia") to a Unity Shader and its dispatch class.
     ///
-    /// Resolution mirrors the design draft (§2-3): the runtime returns a 32-bit id hash
+    /// Resolution works as follows: the runtime returns a 32-bit id hash
     /// (FrameData PartAttributeShader.IdHash); this catalog resolves it by hashing each registered id
     /// name with the SDK's canonical string hash (ss_runtime_hash_string), so the hash always matches
     /// the value the converter baked into the .ssab — no per-asset baking and no hash reimplementation.
@@ -35,9 +35,6 @@ namespace SpriteStudio.Runtime
                      "(blur/outline/sepia/...) are per-part; a plain custom shader that is not per-part " +
                      "folds into the shared default path.")]
             public bool IsPerPart = true;
-
-            [Tooltip("Reserved for the future Canvas (uGUI) AddOn path. Leave empty for now (world-only).")]
-            public Shader CanvasShader;
         }
 
         [Tooltip("Registered per-part shaders. The built-in AddOns ship pre-registered; add rows for custom shaders.")]
@@ -76,8 +73,28 @@ namespace SpriteStudio.Runtime
             return null;
         }
 
+        /// <summary>
+        /// Changes whenever the entries do, so a player that resolved its per-part materials against this
+        /// catalog knows to resolve them again.
+        /// </summary>
+        [NonSerialized] internal int Version;
+
         /// <summary>Drop the cached hash map; call after editing Entries so the next resolve rebuilds it.</summary>
-        public void Invalidate() => _byHash = null;
+        public void Invalidate()
+        {
+            _byHash = null;
+            Version++;
+        }
+
+        // An Inspector edit of the entries reaches players already drawing, not only those set up afterwards.
+        private void OnValidate()
+        {
+            Invalidate();
+#if UNITY_EDITOR
+            // Edit-mode players rebuild their preview in LateUpdate, which the editor runs only on request.
+            if (!Application.isPlaying) UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
+#endif
+        }
 
         private void EnsureMap()
         {

@@ -9,8 +9,8 @@ namespace SpriteStudio.Runtime.Tests
 {
     /// <summary>
     /// Verifies the SSAB event-polling lifecycle (finished / looped). Uses the existing Ringo, and in particular
-    /// confirms that OnAnimationFinished fires exactly once at the moment playback ends
-    /// (regression test for edge detection against is_end_frame_reached getting stuck / double-firing on landing + end).
+    /// confirms that OnAnimationFinished fires exactly once at the moment every configured loop has played --
+    /// not once per loop, not on a commanded Stop(), and not repeatedly once is_finished latches true.
     /// </summary>
     public class SpriteStudioEventTests
     {
@@ -60,12 +60,59 @@ namespace SpriteStudio.Runtime.Tests
                 DriveToEnd(player);
                 Assert.IsFalse(player.IsPlaying(), "A single playback should complete and stop");
 
-                // Should not re-fire when advanced further after stopping (edge-detection regression test. Without
-                // detection, is_end_frame_reached gets stuck and fires every frame, and even a single playback
-                // would fire twice on landing + end).
+                // Should not re-fire when advanced further after stopping: is_finished latches true until the
+                // next play, so without the rising edge this would fire every frame.
                 for (int i = 0; i < 180; i++) player.Tick(1f / 60f, false);
 
                 Assert.AreEqual(1, finished, "OnAnimationFinished should fire exactly once on completion");
+            }
+        }
+
+        [Test]
+        public void OnAnimationFinished_FiresOnce_AfterEveryLoopCompletes()
+        {
+            Assert.IsNotNull(_ringo, "Ringo.ssab is required.");
+            using (var player = new SpriteStudioInternalPlayer())
+            {
+                player.LoadSsab(_ringo);
+                int finished = 0, looped = 0;
+                player.OnAnimationFinished += () => finished++;
+                player.OnAnimationLooped += () => looped++;
+
+                Assert.IsTrue(player.SetupAnimation("walk"));
+                player.SetLoop(3);
+                player.Play();
+
+                DriveToEnd(player);
+                for (int i = 0; i < 180; i++) player.Tick(1f / 60f, false);
+
+                // The end of a non-final cycle is not a completion: 3 loops means
+                // looped, looped, finished.
+                Assert.AreEqual(1, finished, "OnAnimationFinished should fire once, not once per loop");
+                Assert.AreEqual(2, looped, "The final cycle finishes rather than looping");
+            }
+        }
+
+        [Test]
+        public void OnAnimationFinished_DoesNotFire_WhenStoppedMidPlayback()
+        {
+            Assert.IsNotNull(_ringo, "Ringo.ssab is required.");
+            using (var player = new SpriteStudioInternalPlayer())
+            {
+                player.LoadSsab(_ringo);
+                int finished = 0;
+                player.OnAnimationFinished += () => finished++;
+
+                Assert.IsTrue(player.SetupAnimation("walk"));
+                player.SetLoop(3);
+                player.Play();
+
+                for (int i = 0; i < 10; i++) player.Tick(1f / 60f, false);
+                player.Stop();
+                Assert.IsFalse(player.IsPlaying());
+                for (int i = 0; i < 180; i++) player.Tick(1f / 60f, false);
+
+                Assert.AreEqual(0, finished, "A commanded Stop() is not a completion");
             }
         }
 

@@ -1,0 +1,406 @@
+name: CI
+
+# Two tiers, as in SpriteStudio-SDK. Every pull request runs the consistency
+# checks, which need neither Unity nor the SDK binaries, and builds the runtime
+# for Linux from the SDK submodule with scripts/build-runtime.sh, unless the
+# weekly run already built that submodule commit (see the runtime job). The weekly run,
+# a dispatch and the release PR (release/X.Y into main) also build the runtime
+# for macOS, iOS, Android, Web and Windows, and build the documentation site.
+# The site goes through docs.yml, which a pull request that touches the docs
+# runs on its own.
+#
+# The test suite needs the Editor and a licence, so no workflow runs it: it is
+# scripts/run-tests.sh, on a maintainer's machine. A real pack takes the pinned
+# SDK release (download-sdk), and is built by release.yml.
+#
+# The consistency checks exist because of what actually went wrong: a
+# package.json missing the dependencies its asmdefs use, native plugins shipped
+# without a .meta, and dev-only files sliding into the tarball. All three are
+# catchable from the repo alone.
+on:
+  pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - '.gitignore'
+      - 'LICENSE*'
+  # The weekly run also writes the develop caches that PRs restore from, since
+  # PRs do not save.
+  schedule:
+    # Each repository of the family takes its own hour on Sunday, so their
+    # weekly runs do not queue for the organization's runners; :17 keeps clear
+    # of the top of the hour, when GitHub delays scheduled runs.
+    - cron: '17 2 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Declaring the shell once per job rather than repeating it on every step.
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # A plugin whose .meta was never committed is invisible to Unity once the
+      # package is installed, so the release would ship native libs that silently
+      # do not load. CI has no binaries (they are gitignored), but the paths
+      # download-sdk.sh installs to are knowable from the script itself - so
+      # cross-check that list against the committed .meta. Adding a platform to
+      # the SDK without generating its .meta fails here rather than at install.
+      - name: Every SDK plugin path has a committed .meta
+        run: |
+          set -euo pipefail
+          missing=0
+          found=0
+          while IFS='|' read -r src dst; do
+            name=$(basename "$src")
+            case "$name" in
+              *.dylib|*.so|*.dll|*.a|*.lib|*.bundle|*.xcframework) ;;
+              *) continue ;;
+            esac
+            found=$((found + 1))
+            path="${dst}/${name}"
+            if [ ! -f "${path}.meta" ]; then
+              echo "::error file=scripts/download-sdk.sh::No committed .meta for ${path}"
+              missing=$((missing + 1))
+            fi
+          done < <(grep -E '^copy "' scripts/download-sdk.sh \
+                     | sed -E 's/^copy +"([^"]+)" +"([^"]+)".*/\1|\2/' \
+                     | sed -e 's|\${DYNAMIC}||; s|\${STATIC}||' \
+                           -e 's|\${RUNTIME_PLUGINS}|package/Runtime/Plugins|' \
+                           -e 's|\${EDITOR_PLUGINS}|package/Editor/Plugins|')
+          if [ "$found" -eq 0 ]; then
+            echo "::error::Parsed no plugin paths out of download-sdk.sh - the check is not testing anything"
+            exit 1
+          fi
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::${missing} of ${found} plugin(s) have no committed .meta - see scripts/scaffold-plugin-placeholders.sh"
+            exit 1
+          fi
+          echo "All ${found} plugin paths have a committed .meta."
+
+      # The .meta for the generated FFI bindings and for the documents staged at
+      # pack time live outside package/, so nothing else would notice them going
+      # missing until a release produced a package that will not compile.
+      - name: Staged .meta are present
+        run: |
+          set -euo pipefail
+          for f in SSRuntimeMethods.g.cs.meta SSConverterMethods.g.cs.meta \
+                   LICENSE.md.meta "Third Party Notices.md.meta" CHANGELOG.md.meta; do
+            if [ ! -f "scripts/upm-meta/$f" ]; then
+              echo "::error::Missing scripts/upm-meta/$f"
+              exit 1
+            fi
+          done
+          echo "All staged .meta present."
+
+      # The asmdefs are the source of truth for what the package references; a
+      # dependency used there but not declared in package.json only breaks for
+      # consumers whose project happens not to already have it.
+      - name: asmdef references are declared as package dependencies
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, glob, sys
+
+          # Unity assembly name -> the UPM package that provides it. Only entries
+          # that come from a package need declaring; engine modules and our own
+          # assemblies do not.
+          PROVIDED_BY = {
+              "Unity.Burst": "com.unity.burst",
+              "Unity.Collections": "com.unity.collections",
+              "Unity.Mathematics": "com.unity.mathematics",
+              "Unity.Timeline": "com.unity.timeline",
+              "UnityEngine.UI": "com.unity.ugui",
+              "UnityEditor.UI": "com.unity.ugui",
+          }
+
+          declared = set(json.load(open("package/package.json"))["dependencies"])
+          missing = {}
+          for path in glob.glob("package/**/*.asmdef", recursive=True):
+              if "/Tests/" in path:      # test-only assemblies do not ship
+                  continue
+              asmdef = json.load(open(path))
+              for ref in asmdef.get("references", []):
+                  pkg = PROVIDED_BY.get(ref)
+                  if pkg and pkg not in declared:
+                      missing.setdefault(pkg, []).append((path, ref))
+
+          for pkg, uses in sorted(missing.items()):
+              for path, ref in uses:
+                  print(f"::error file={path}::references {ref} but {pkg} "
+                        f"is not in package.json dependencies")
+          if missing:
+              sys.exit(1)
+          print(f"All asmdef package references declared ({len(declared)} dependencies).")
+          PY
+
+      # The version in package.json is what release.yml turns into the tag and the
+      # tarball name. A release whose changelog has no matching entry is a release
+      # nobody can read the notes for.
+      - name: CHANGELOG has an entry for the package version
+        run: |
+          set -euo pipefail
+          version=$(jq -r .version package/package.json)
+          if ! grep -qF "## [${version}]" CHANGELOG.md; then
+            echo "::error file=CHANGELOG.md::No '## [${version}]' heading for the version in package.json"
+            exit 1
+          fi
+          echo "CHANGELOG has an entry for ${version}."
+
+      # Guard the tarball contents. The binaries are absent here, so this cannot
+      # check the package is complete - only that nothing dev-only slipped into
+      # the "files" allowlist, which is the direction that actually reaches users.
+      - name: Packed file list contains nothing dev-only
+        run: |
+          set -euo pipefail
+          cd package
+          npm pack --dry-run --json > /tmp/pack.json
+          cd ..
+          python3 - <<'PY'
+          import json, sys
+          files = [f["path"] for f in json.load(open("/tmp/pack.json"))[0]["files"]]
+          bad = [f for f in files
+                 if f.startswith("Tests/")
+                 or f.endswith(".DS_Store")
+                 or "TestStub" in f
+                 or f.startswith(".")]
+          for f in bad:
+              print(f"::error::Dev-only file would be packed: {f}")
+          if bad:
+              sys.exit(1)
+          # A near-empty allowlist would pass the check above vacuously.
+          if not any(f.startswith("Runtime/") for f in files):
+              print("::error::Packed nothing from Runtime/ - the allowlist looks broken")
+              sys.exit(1)
+          print(f"Packed file list clean ({len(files)} files).")
+          PY
+
+      # Each script is parsed by the shell its shebang names, so this job needs zsh
+      # too: build-runtime.sh uses ${(@kv)...}, ${(@s/=/)...}, 1-based array
+      # indexing and the :l modifier for its argument map, so bash cannot parse
+      # it. `zsh -n` checks syntax only; the runtime job runs the script.
+      - name: Install zsh
+        run: sudo apt-get update && sudo apt-get install -y zsh
+
+      - name: Scripts parse (bash and zsh)
+        run: |
+          set -uo pipefail
+          fail=0
+          for f in scripts/*.sh; do
+            if head -1 "$f" | grep -q zsh; then
+              shell=zsh
+            else
+              shell=bash
+            fi
+            if "$shell" -n "$f"; then
+              echo "ok ($shell): $f"
+            else
+              echo "::error file=$f::$shell parse error"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Workflows and issue templates are valid YAML
+        run: |
+          set -euo pipefail
+          python3 -c "
+          import yaml, glob, sys
+          bad = False
+          for f in glob.glob('.github/**/*.yml', recursive=True):
+              try:
+                  yaml.safe_load(open(f))
+              except Exception as e:
+                  print(f'::error file={f}::{e}')
+                  bad = True
+          sys.exit(1 if bad else 0)
+          "
+
+  # The runtime built from the SDK submodule, the source a pull request that bumps
+  # the submodule changes: scripts/build-runtime.sh builds it, generates the C#
+  # bindings, and copies both into package/.
+  #
+  # Nothing after the build reads what it produces, so a build the weekly run
+  # already passed on develop needs no repeating. The build depends on nothing
+  # but the submodule commit, the scripts that drive it, this workflow and the
+  # runner image, so its key is made of those, and only an exact match counts.
+  # The weekly run always builds, which keeps proving the submodule builds with
+  # the current toolchain and keeps the Rust cache seeded, and then saves a
+  # marker under the key. A pull request whose key has a marker skips the
+  # build; one that bumps the submodule, or changes any of the rest, misses
+  # and builds.
+  runtime:
+    name: 🐧 Runtime (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Name the runtime build
+        id: runtime
+        run: |
+          echo "key=runtime-${ImageOS}-linux-debug-$(git rev-parse HEAD:SpriteStudio-SDK)-${{ hashFiles('scripts/build-runtime.sh', 'scripts/upm-meta/**', '.github/workflows/ci.yml') }}" >> "$GITHUB_OUTPUT"
+          echo "marker=$RUNNER_TEMP/runtime-built" >> "$GITHUB_OUTPUT"
+
+      - name: Look up the runtime build
+        id: runtime-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.runtime.outputs.marker }}
+          key: ${{ steps.runtime.outputs.key }}
+          lookup-only: true
+
+      - name: Install zsh
+        if: github.event_name != 'pull_request' || steps.runtime-cache.outputs.cache-hit != 'true'
+        run: sudo apt-get update && sudo apt-get install -y zsh
+
+      - name: Setup Rust toolchain
+        if: github.event_name != 'pull_request' || steps.runtime-cache.outputs.cache-hit != 'true'
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          # Pinned by SHA, so the channel must be named explicitly here.
+          toolchain: stable
+
+      - name: Setup Rust cache
+        if: github.event_name != 'pull_request' || steps.runtime-cache.outputs.cache-hit != 'true'
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: SpriteStudio-SDK
+          # Only develop writes caches. A PR's cache is visible to that PR alone,
+          # so saving one per PR would only fill the 10 GB quota and evict the
+          # develop caches every PR restores from.
+          save-if: ${{ github.ref == 'refs/heads/develop' }}
+
+      - name: Build the runtime
+        if: github.event_name != 'pull_request' || steps.runtime-cache.outputs.cache-hit != 'true'
+        run: ./scripts/build-runtime.sh platform=linux build=debug
+
+      - name: Write the marker
+        if: github.ref == 'refs/heads/develop' && steps.runtime-cache.outputs.cache-hit != 'true'
+        run: echo "${{ steps.runtime.outputs.key }}" > "${{ steps.runtime.outputs.marker }}"
+
+      - name: Save the marker
+        if: github.ref == 'refs/heads/develop' && steps.runtime-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.runtime.outputs.marker }}
+          key: ${{ steps.runtime.outputs.key }}
+
+  # The weekly tier. `github.base_ref == 'main'` is the release PR: under git-flow
+  # only release/X.Y is merged into main.
+  platforms:
+    name: ${{ matrix.name }}
+    if: github.event_name != 'pull_request' || github.base_ref == 'main'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: 🍎 Runtime (macOS, universal)
+            os: macos-latest
+            platform: macos
+
+          - name: 🍏 Runtime (iOS)
+            os: macos-latest
+            platform: ios
+
+          - name: 🤖 Runtime (Android, arm64)
+            os: ubuntu-latest
+            platform: android
+
+          - name: 🌐 Runtime (Web, wasm32)
+            os: ubuntu-latest
+            platform: web
+
+          - name: 🏁 Runtime (Windows, x86_64)
+            os: windows-latest
+            platform: windows
+
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install zsh
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y zsh
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: SpriteStudio-SDK
+          # The key is the job id and the runner OS, which the jobs of this
+          # matrix share. Without the platform only the first to finish could
+          # save, and the others would restore its target dir.
+          key: ${{ matrix.platform }}
+          save-if: ${{ github.ref == 'refs/heads/develop' }}
+
+      # The targets and tools SpriteStudio-SDK's release.yml installs for the
+      # release scripts build-runtime.sh runs.
+      - name: Setup Android NDK
+        if: matrix.platform == 'android'
+        uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1.6.0
+        with:
+          ndk-version: r23c
+          link-to-sdk: true
+
+      - name: Install targets
+        run: |
+          case "${{ matrix.platform }}" in
+            macos)   rustup target add aarch64-apple-darwin x86_64-apple-darwin ;;
+            ios)     rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios ;;
+            android) cargo install cargo-ndk --locked
+                     rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android ;;
+            web)     rustup toolchain install nightly
+                     rustup target add wasm32-unknown-unknown --toolchain nightly
+                     rustup component add rust-src --toolchain nightly ;;
+            windows) rustup target add x86_64-pc-windows-msvc ;;
+          esac
+
+      - name: Build the runtime
+        if: matrix.platform == 'macos'
+        run: ./scripts/build-runtime.sh platform=macos arch=universal build=release
+
+      - name: Build the runtime
+        if: matrix.platform == 'ios' || matrix.platform == 'web'
+        run: ./scripts/build-runtime.sh platform=${{ matrix.platform }} build=release
+
+      - name: Build the runtime
+        if: matrix.platform == 'android'
+        run: ./scripts/build-runtime.sh platform=android arch=arm64 build=release
+
+      - name: Build the runtime
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: ./scripts/build-runtime.ps1 platform=windows build=release
+
+  # docs.yml, the build pages.yml publishes, both locales --strict. A pull
+  # request into anything but main that touches the docs runs it on its own.
+  docs:
+    name: 📚 Docs site
+    if: github.event_name != 'pull_request' || github.base_ref == 'main'
+    uses: ./.github/workflows/docs.yml

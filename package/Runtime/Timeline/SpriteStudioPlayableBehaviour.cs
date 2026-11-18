@@ -8,7 +8,7 @@ namespace SpriteStudio.Runtime
     /// Holds the name of the SpriteStudio animation to play back (the actual driving is done by SpriteStudioMixerBehaviour).
     /// </summary>
     [Serializable]
-    public class SpriteStudioPlayableBehaviour : PlayableBehaviour
+    internal class SpriteStudioPlayableBehaviour : PlayableBehaviour
     {
         public string AnimationName;
     }

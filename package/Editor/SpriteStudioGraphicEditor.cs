@@ -16,9 +16,11 @@ namespace SpriteStudio.Editor
         private SerializedProperty _speedScaleProp;
         private SerializedProperty _subFrameEnabledProp;
         private SerializedProperty _skipFramesProp;
+        private SerializedProperty _cellmapTextureOverridesProp;
         private SerializedProperty _playAudioProp;
         private SerializedProperty _audioVolumeProp;
-        private SerializedProperty _audioBackendProp;
+        private SerializedProperty _fitProp;
+        private SerializedProperty _alignProp;
 
         private SerializedProperty _onAnimationStartedEventProp;
         private SerializedProperty _onAnimationFinishedEventProp;
@@ -42,9 +44,12 @@ namespace SpriteStudio.Editor
             _speedScaleProp = serializedObject.FindProperty("_speedScale");
             _subFrameEnabledProp = serializedObject.FindProperty("_subFrameEnabled");
             _skipFramesProp = serializedObject.FindProperty("_skipFrames");
+            _cellmapTextureOverridesProp = serializedObject.FindProperty("_cellmapTextureOverrides");
             _playAudioProp = serializedObject.FindProperty("_playAudio");
             _audioVolumeProp = serializedObject.FindProperty("_audioVolume");
-            _audioBackendProp = serializedObject.FindProperty("_audioBackend");
+            _fitProp = serializedObject.FindProperty("_fit");
+            _alignProp = serializedObject.FindProperty("_align");
+            SetShowNativeSize(true, true);
 
             _onAnimationStartedEventProp = serializedObject.FindProperty("OnAnimationStartedEvent");
             _onAnimationFinishedEventProp = serializedObject.FindProperty("OnAnimationFinishedEvent");
@@ -58,9 +63,10 @@ namespace SpriteStudio.Editor
         {
             serializedObject.Update();
 
-            EditorGUILayout.PropertyField(_animeAssetProp);
-
-            DrawAnimationNameDropdown();
+            SpriteStudioAnimationNameField.DrawAsset(_animeAssetProp, _animationNameProp);
+            SpriteStudioSourceSspjGUI.DrawRow(_animeAssetProp);
+            SpriteStudioAnimationNameField.DrawName(_animeAssetProp, _animationNameProp);
+            SpriteStudioEditModePreviewGUI.Draw(this);
 
             EditorGUILayout.PropertyField(_autoPlayProp);
             EditorGUILayout.PropertyField(_loopProp);
@@ -70,16 +76,24 @@ namespace SpriteStudio.Editor
             EditorGUILayout.PropertyField(_subFrameEnabledProp, _subFrameInterpolationLabel);
 
             EditorGUILayout.Space();
+            EditorGUILayout.PropertyField(_fitProp);   // The [Header("Layout")] on the field renders the section label.
+            EditorGUILayout.PropertyField(_alignProp);
+            NativeSizeButtonGUI();
+
+            EditorGUILayout.Space();
             AppearanceControlsGUI();
             RaycastControlsGUI();
+            MaskableControlsGUI();
+
+            EditorGUILayout.Space();
+            EditorGUILayout.PropertyField(_cellmapTextureOverridesProp, true);
 
             EditorGUILayout.Space();
             EditorGUILayout.PropertyField(_playAudioProp);   // The [Header("Audio")] on the field renders the section label.
-            // Volume / Backend only take effect while Play Audio is on (it is the master switch).
+            // Volume only takes effect while Play Audio is on (it is the master switch).
             using (new EditorGUI.DisabledScope(!_playAudioProp.boolValue))
             {
                 EditorGUILayout.PropertyField(_audioVolumeProp);
-                EditorGUILayout.PropertyField(_audioBackendProp);
             }
 
             EditorGUILayout.Space();
@@ -91,25 +105,6 @@ namespace SpriteStudio.Editor
             EditorGUILayout.PropertyField(_onAudioEventProp);
 
             serializedObject.ApplyModifiedProperties();
-        }
-
-        private void DrawAnimationNameDropdown()
-        {
-            var asset = _animeAssetProp.objectReferenceValue as SpriteStudioAnimeAsset;
-            if (asset == null || asset.AnimationNames == null || asset.AnimationNames.Length == 0)
-            {
-                EditorGUILayout.PropertyField(_animationNameProp);
-                return;
-            }
-
-            string currentName = _animationNameProp.stringValue;
-            int currentIndex = Mathf.Max(0, System.Array.IndexOf(asset.AnimationNames, currentName));
-
-            int newIndex = EditorGUILayout.Popup("Animation Name", currentIndex, asset.AnimationNames);
-            if (newIndex >= 0 && newIndex < asset.AnimationNames.Length)
-            {
-                _animationNameProp.stringValue = asset.AnimationNames[newIndex];
-            }
         }
     }
 }

@@ -29,7 +29,13 @@ namespace SpriteStudio.Runtime
         [Tooltip("User-owned Transform to make follow this part. May be directly under the player or in a separate hierarchy.")]
         public Transform target;
 
-        [Tooltip("ON: also reflect the inherited scale (excluding localScale). OFF (default): follow position and rotation only.")]
+        [Tooltip("ON (default): follow the part's position. A follower that does not follow the position is not following.")]
+        public bool drivePosition = true;
+
+        [Tooltip("ON (default): follow the part's rotation. A weapon in a hand turns with the hand.")]
+        public bool driveRotation = true;
+
+        [Tooltip("ON: also reflect the inherited scale (excluding localScale). OFF (default): a follower is placed at the part, not sized by it.")]
         public bool driveScale = false;
 
         [Tooltip("Behavior on frames where the part is hidden. FollowAlways = keep following / Deactivate = hide the target.")]
@@ -39,6 +45,11 @@ namespace SpriteStudio.Runtime
         // animation/asset changes). Not serialized: rebuilt at runtime from partName.
         internal const int ResolveDirty = -2;
         internal const int ResolveNotFound = -1;
-        [System.NonSerialized] public int ResolvedIndex = ResolveDirty;
+        [System.NonSerialized] internal int ResolvedIndex = ResolveDirty;
+
+        // The target this tracker deactivated itself -- for an absent part, or a hidden one under
+        // Deactivate -- or null. Only that target is activated again when the condition clears, so one the
+        // user deactivated stays inactive. Not serialized: rebuilt at runtime.
+        [System.NonSerialized] internal Transform HiddenTarget;
     }
 }

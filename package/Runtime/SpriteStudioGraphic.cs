@@ -5,63 +5,129 @@ using UnityEngine.Events;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// Layer 3: Player component for Canvas (uGUI).
-    /// Feeds meshes directly to the CanvasRenderer.
-    /// Bypasses Unity UI's standard rebuild flow (Rebuild) to achieve highly efficient rendering.
-    /// Playback logic is delegated to the shared core (SpriteStudioPlaybackCore).
-    /// In Play mode the SpriteStudioUpdateManager drives it in bulk; in edit mode (ExecuteAlways) it
-    /// updates the preview in its own LateUpdate.
+    /// Plays a SpriteStudio animation (.ssab) as a uGUI graphic on a Canvas.
+    /// The animation's canvas is fitted into the RectTransform's rect (<see cref="Fit"/>, <see cref="Align"/>),
+    /// and as an <see cref="ILayoutElement"/> the graphic asks a layout for the canvas's size.
     /// </summary>
     [RequireComponent(typeof(RectTransform))]
     [RequireComponent(typeof(CanvasRenderer))]
     [ExecuteAlways]
-    public class SpriteStudioGraphic : MaskableGraphic, ISpriteStudioRenderable
+    [AddComponentMenu("SpriteStudio/SpriteStudio Graphic")]
+    public class SpriteStudioGraphic : MaskableGraphic, ISpriteStudioRenderable, ILayoutElement
+#if UNITY_EDITOR
+        , ISpriteStudioEditPreview
+#endif
     {
         [Header("SpriteStudio Asset")]
         [Tooltip("The converted ssab asset to render")]
         [SerializeField] private SpriteStudioAnimeAsset _animeAsset;
 
+        [Tooltip("Runtime texture replacements, keyed by cellmap / external-texture name. Applied on load and " +
+                 "kept when the asset is swapped. Set programmatically with SetCellmapTexture or edit here; " +
+                 "use GetReplaceableTextureNames() to discover the replaceable names.")]
+        [SerializeField] private System.Collections.Generic.List<SpriteStudioCellmapTextureOverride> _cellmapTextureOverrides = new System.Collections.Generic.List<SpriteStudioCellmapTextureOverride>();
+
+        // Per-player, draw-time replacement map derived from _cellmapTextureOverrides (never serialized).
+        private readonly SpriteStudioTextureOverride _textureOverride = new SpriteStudioTextureOverride();
+
+        /// <summary>
+        /// The animation asset to play. Assigning null unloads it, and the graphic draws nothing. Another asset
+        /// loses what the runtime held for the last one (overrides, tracks, section), and on the next frame
+        /// starts Animation Name as an enable does, unless a script selects an animation first.
+        /// </summary>
         public SpriteStudioAnimeAsset AnimeAsset
         {
             get => _animeAsset;
             set
             {
                 _animeAsset = value;
-                _core.ReloadAsset(_animeAsset);
+                if (_animeAsset == null)
+                {
+                    UnloadAsset();
+                }
+                else if (_core.Internal != null)
+                {
+                    _core.ReloadAsset(_animeAsset);
+                    _startAfterSwap = _started;
+                }
+                else if (isActiveAndEnabled)
+                {
+                    // The runtime went with the pack a null asset let go of; this one brings it back.
+                    EnsureCore();
+                    _startAfterSwap = _started;
+                }
+                // The cellmap name->hash table belongs to the new asset: re-resolve name-keyed replacements.
+                _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
+                _canvasMaterialDirty = true;
+                SetLayoutDirty();
+#if UNITY_EDITOR
+                _appliedAsset = _animeAsset;
+#endif
             }
         }
 
         [Header("Audio")]
-        [Tooltip("Play sounds from audio events (ADIO). When ON, plays them built-in with no extra component required.")]
+        [Tooltip("Play the sounds of audio keys (ADIO) with the built-in playback. OFF: the audio events still fire, for a host that plays them itself.")]
         [SerializeField] private bool _playAudio = true;
-        [Tooltip("Volume of built-in playback (AudioClip one-shot). Ignored when an Audio Backend is used.")]
+        [Tooltip("Volume of the built-in playback.")]
         [Range(0f, 1f)]
         [SerializeField] private float _audioVolume = 1f;
-        [Tooltip("Playback override hook (optional). Assign this to route to a custom audio backend such as audio middleware. " +
-                 "When empty, resolution falls back to the global default, then built-in AudioClip playback.")]
-        [SerializeField] private SpriteStudioAudioBackend _audioBackend;
 
         private SpriteStudioAudioController _audioController;
 
+        [Header("Layout")]
+        [Tooltip("How the animation's canvas is scaled into the rect. Contain: whole inside it. Cover: filling it. None: at its authored size, its origin at the rect's centre.")]
+        [SerializeField] private SpriteStudioFit _fit = SpriteStudioFit.Contain;
+        [Tooltip("Which point of the canvas lands on the matching point of the rect.")]
+        [SerializeField] private SpriteStudioAlign _align = SpriteStudioAlign.Center;
+
+        /// <summary>
+        /// How the animation's authored canvas is scaled into the RectTransform's rect: <c>Contain</c> (the
+        /// default) puts all of it inside, <c>Cover</c> fills the rect and lets the canvas overflow, and
+        /// <c>None</c> draws it at its authored size, one SpriteStudio pixel to one unit of the rect, with the
+        /// animation's origin at the rect's centre. The canvas is the one of the animation playing, so a pack
+        /// whose animations have different canvases changes scale when the animation changes.
+        /// </summary>
+        public SpriteStudioFit Fit
+        {
+            get => _fit;
+            set => _fit = value;
+        }
+
+        /// <summary>Which point of the canvas lands on the matching point of the rect. Default <c>Center</c>.</summary>
+        public SpriteStudioAlign Align
+        {
+            get => _align;
+            set => _align = value;
+        }
+
         [Header("Playback Settings")]
-        [Tooltip("Animation name to play (e.g. pack name / animation name)")]
+        [Tooltip("Name of the animation to play, as listed in the asset.")]
         [SerializeField] private string _animationName = "";
-        public string AnimationName
+        /// <summary>
+        /// The configured animation name (the serialized field the inspector labels "Animation Name").
+        /// Read-only to callers: assigning it would only rewrite the field without touching the runtime, so
+        /// to switch animation at runtime call <see cref="SetAnimation"/> (the setter is internal, used by the
+        /// editor/importer to seed the field).
+        /// </summary>
+        public string CurrentAnimation
         {
             get => _animationName;
-            set => _animationName = value;
+            internal set => _animationName = value;
         }
 
         [Tooltip("Whether to start playback automatically on startup")]
         [SerializeField] private bool _autoPlay = true;
+        /// <summary>Whether the animation starts by itself when the graphic starts, and each time it is enabled again.</summary>
         public bool AutoPlay
         {
             get => _autoPlay;
             set => _autoPlay = value;
         }
 
-        [Tooltip("Loop count. -1 = infinite loop / 1 = play once / n = play n times")]
+        [Tooltip("Loop count. -1 = infinite loop (0 is a synonym) / 1 = play once / n = play n times")]
         [SerializeField] private int _loopCount = -1;
+        /// <summary>How many times the animation plays: 1 once, n that many times, -1 (or 0) forever.</summary>
         public int LoopCount
         {
             get => _loopCount;
@@ -74,9 +140,15 @@ namespace SpriteStudio.Runtime
 
         [Tooltip("Playback speed scale of the animation")]
         [SerializeField] private float _speedScale = 1.0f;
+        /// <summary>
+        /// Playback speed, as a multiple of the frame rate. Read back from the runtime, which clamps a zero
+        /// or negative rate to a <b>stop</b> — reverse playback is <see cref="PlaybackDirection"/>'s business, not the
+        /// speed's — so setting -1 and reading it back gives 0, the stop it actually got. Falls back to the
+        /// serialized value before the native player exists.
+        /// </summary>
         public float SpeedScale
         {
-            get => _speedScale;
+            get => _core.Internal != null ? _core.Internal.GetSpeed() : _speedScale;
             set
             {
                 _speedScale = value;
@@ -86,6 +158,7 @@ namespace SpriteStudio.Runtime
 
         [Tooltip("Whether to enable sub-frame rendering (interpolation between frames)")]
         [SerializeField] private bool _subFrameEnabled = false;
+        /// <summary>Whether to draw between frames rather than on whole frames, for smooth motion at a high refresh rate or in slow motion.</summary>
         public bool SubFrameEnabled
         {
             get => _core.Internal != null ? _core.Internal.SubFrameEnabled : _subFrameEnabled;
@@ -98,9 +171,10 @@ namespace SpriteStudio.Runtime
 
         [Tooltip("Real-time tracking (timed). ON: advance by elapsed time even when frames drop under load. OFF (fixed): always advance exactly one frame per update (frame-by-frame).")]
         [SerializeField] private bool _skipFrames = true;
-        public bool SkipFrames
+        /// <summary>On: playback follows elapsed time, skipping frames under load. Off: each update advances exactly one frame.</summary>
+        public bool FrameSkipEnabled
         {
-            get => _core.Internal != null ? _core.Internal.IsSkipFrames() : _skipFrames;
+            get => _core.Internal != null ? _core.Internal.IsFrameSkipEnabled() : _skipFrames;
             set
             {
                 _skipFrames = value;
@@ -110,24 +184,57 @@ namespace SpriteStudio.Runtime
 
         /// <summary>
         /// Selects the animation to play and sets its data up (posed at the first frame).
-        /// Does not start playback; call <see cref="Play()"/> to start. Playback settings such as
-        /// loop/speed/skip are not applied here (setup resets them to defaults). To apply settings after
-        /// switching at runtime, set the <see cref="LoopCount"/> / <see cref="SpeedScale"/> /
-        /// <see cref="SkipFrames"/> properties after setup. Returns true if
-        /// setup succeeded.
+        /// Does not start playback; call <see cref="Play()"/> to start.
+        /// <para>
+        /// <b>Selecting the animation already set up does nothing at all.</b> It is a switch, so with
+        /// nothing to switch to it costs nothing and disturbs nothing: the playhead stays, playback is not
+        /// returned to Stopped, and the loop budget is not re-armed — so a state machine may call
+        /// <c>SetAnimation(state.clip)</c> every frame. To restart, call <see cref="Play()"/>, which heads
+        /// out; to drop the overrides, <see cref="ClearAllPartOverrides"/>.
+        /// </para>
+        /// <see cref="LoopCount"/>, <see cref="SpeedScale"/> and <see cref="FrameSkipEnabled"/> all survive the
+        /// switch: the runtime keeps speed and frame skip itself, and the loop count — which it does reset
+        /// on every transition, since the transition is what states it — is re-applied here from this
+        /// component's own value. <see cref="PlaybackDirection"/> / <see cref="PlaybackStyle"/> survive it too (the
+        /// runtime keeps the direction and style; only the heading within a ping-pong round trip is
+        /// re-derived, so a switch never begins mid-bounce).
+        /// Returns true if setup succeeded.
         /// </summary>
         public bool SetAnimation(string animName)
         {
             _animationName = animName;
-            _audioController?.StopLoops();   // On animation switch, stop the previous animation's loop sounds (let one-shots end on their own)
-            return _core.SetAnimation(_animationName, "SpriteStudioGraphic");
+#if UNITY_EDITOR
+            // Keep the OnValidate baseline in sync so a later unrelated inspector edit does not restart.
+            _appliedAnimation = _animationName;
+#endif
+            // Already set up: a switch with nothing to switch to. Returning here is not just an
+            // optimisation -- ApplyPlaybackSettings below calls SetLoop, and the runtime RE-ARMS the
+            // remaining-loop counter on every write. A state machine that re-asserts its current
+            // animation each frame would otherwise reset the loop budget each frame, and a finite
+            // LoopCount would never run out. Restarting is Play()'s job; it heads out.
+            if (_core.IsAnimationSetUp(animName)) return true;
+            bool ok = _core.SetAnimation(_animationName, this);
+            // The runtime resets the loop count on every setup, so a switch would otherwise turn a
+            // configured `LoopCount = 1` back into looping forever.
+            if (ok)
+            {
+                ApplyPlaybackSettings();
+                _startAfterSwap = false;
+                // Another animation may bring another canvas, which is the size a layout asks for.
+                SetLayoutDirty();
+            }
+            return ok;
         }
 
-        // Push the serialized playback parameters (loop / speed / skip) to the runtime. SetAnimation only
-        // sets the animation up; the Rust setup resets these to defaults, so they are applied separately
-        // afterwards — loop/speed/skip are configured after the animation
-        // is set. Direction/style (Reverse/PingPong) have no serialized default and stay at the setup
-        // default (Forward/Normal) until set via their properties.
+        // Push the serialized playback parameters to the runtime. Loop is the one that has to be here:
+        // the Rust setup resets it on every transition, so the component's own configuration would be
+        // lost on each SetAnimation without this. Speed and frame skip survive setup on their own --
+        // they are the host's settings, not the clip's -- and are pushed anyway, because this is also
+        // the path a serialized value takes to reach a freshly created player (Start / OnEnable), where
+        // nothing else has written it yet.
+        // Direction/style have no serialized default, so they start at
+        // Forward/Normal and stay wherever their properties last put them -- the Rust setup
+        // keeps them across a transition, like the speed and the frame skip.
         private void ApplyPlaybackSettings()
         {
             var p = _core.Internal;
@@ -138,10 +245,28 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>Starts playing the currently set-up animation from the beginning.</summary>
-        public void Play() { _core.Play(); _audioController?.ResumeAll(); }   // Explicit play lifts the suspend (SDK doc §4)
+        public void Play()
+        {
+            // With Auto Play on, the enable that creates the runtime starts it all the same.
+            if (!_autoPlay) _core.ReportNotEnabled(nameof(Play), this);
+            _core.Play();
+        }
 
         /// <summary>Starts playing the currently set-up animation from the specified frame.</summary>
-        public void Play(float startFrame) { _core.Play(startFrame); _audioController?.ResumeAll(); }
+        public void Play(float startFrame)
+        {
+            _core.ReportNotEnabled(nameof(Play), this);
+            _core.Play(startFrame);
+        }
+
+        // Stops on a frame with nothing reported for it, for the UI adapter's reduced motion: a stopped playhead
+        // reports the frame a seek lands on all the same, and a held state fires no event.
+        internal void HoldFrame(float frame)
+        {
+            Stop();
+            _core.Seek(frame);
+            _core.DropLandingReport();
+        }
 
         #region Playback Control
         // Thinly expose, as the component's public API, the playback controls the internal player (Rust
@@ -151,44 +276,116 @@ namespace SpriteStudio.Runtime
         /// <summary>Whether a playback session is active. True even while paused (false when stopped / not playing).</summary>
         public bool IsPlaying => _core.Internal?.IsPlaying() ?? false;
 
+        /// <summary>
+        /// Whether the last update crossed a loop boundary. A <b>pulse</b>, true only inside the tick
+        /// that crossed — take <c>OnAnimationLooped</c> instead if you want it delivered rather than
+        /// polled.
+        /// </summary>
+        public bool JustLooped => _core.Internal?.JustLooped() ?? false;
+
+        /// <summary>Names of the animations in the loaded asset, empty before one is assigned.</summary>
+        public string[] AnimationNames => _animeAsset != null && _animeAsset.AnimationNames != null
+            ? _animeAsset.AnimationNames
+            : System.Array.Empty<string>();
+
         /// <summary>Whether currently paused (true only while a playback session is active and paused).</summary>
-        public bool IsPaused
+        public bool IsPausing
         {
             get
             {
-                // The native is_pausing defaults to true (set even when not playing), so also check that
-                // playback is actually running.
+                // The runtime keeps "paused" implying "playing": is_pausing is false before the first
+                // play and after stop, and pausing a stopped animation is ignored. So this needs no
+                // IsPlaying() guard of its own.
                 var p = _core.Internal;
-                return p != null && p.IsPlaying() && p.IsPausing();
+                return p != null && p.IsPausing();
             }
         }
 
         /// <summary>
-        /// Toggles playback pause / resume (keeps the current frame). Flips the native is_pausing
-        /// (play() rewinds to the start, so it cannot be used to resume).
+        /// Whether every configured loop has played.
+        /// <para>
+        /// A <b>state</b>, not a pulse: it latches on completion and holds until the next
+        /// <see cref="Play()"/> or a switch to another animation, so a caller that was not subscribed
+        /// when <see cref="OnAnimationFinished"/> fired can still ask whether the run is over. That
+        /// also makes it what a coroutine waits on:
+        /// <c>Play(); yield return new WaitUntil(() =&gt; player.IsFinished);</c> — <c>Play</c>
+        /// re-arms it, so the wait does not fall through on a previous run's completion.
+        /// </para>
+        /// <para>
+        /// Never true under an infinite <see cref="LoopCount"/>, and <b>not raised by
+        /// <see cref="Stop"/></b> — a commanded stop is not a completion. That is what separates it
+        /// from <c>!IsPlaying</c>, which cannot tell the two apart. Take
+        /// <see cref="OnAnimationFinished"/> for the one-shot edge.
+        /// </para>
+        /// </summary>
+        public bool IsFinished => _core.Internal?.IsFinished() ?? false;
+
+        /// <summary>
+        /// Which way the playhead is actually travelling this frame. This is <b>not</b>
+        /// <see cref="PlaybackDirection"/>, which is only the heading that was configured: under
+        /// <see cref="SpriteStudioPlaybackStyle.PingPong"/> the return leg runs backward while it still
+        /// reads <see cref="SpriteStudioPlaybackDirection.Forward"/>. A speed of zero or below is a stop,
+        /// not a reversal, and does not flip it.
+        /// <para>
+        /// This is the gate to put in front of audio. SpriteStudio has no reverse audio, so a sound
+        /// key crossed on a backward leg is not meant to sound — the player applies exactly this
+        /// test itself before handing one to the audio backend, and a project driving its own audio
+        /// from <c>OnAudio</c> wants the same one. True before anything has played: forward is the
+        /// resting state.
+        /// </para>
+        /// </summary>
+        public bool IsPlayingForward => _core.Internal?.IsPlayingForward() ?? true;
+
+        /// <summary>
+        /// Holds playback on the current frame. Idempotent, and ignored while nothing is playing.
+        /// Lift it with <see cref="Resume"/> — Play() rewinds to the start, so it cannot resume.
         /// </summary>
         public void Pause()
         {
+            _core.ReportNotEnabled(nameof(Pause), this);
             _core.Internal?.Pause();
-            // Sync audio with the animation pause/resume (SDK doc §4). Pause is a toggle, so branch on the resulting state.
-            if (_audioController != null && _core.Internal != null)
-            {
-                if (_core.Internal.IsPausing()) _audioController.PauseAll();
-                else _audioController.ResumeAll();
-            }
         }
 
-        /// <summary>Stops playback.</summary>
+        /// <summary>
+        /// Lifts a <see cref="Pause"/>, carrying on from the same frame. Idempotent, and a no-op on a
+        /// stopped animation — starting one is Play()'s job, and it rewinds.
+        /// </summary>
+        public void Resume()
+        {
+            _core.Internal?.Resume();
+        }
+
+        /// <summary>
+        /// Stops playback. The playhead <b>stays where it stands</b> — nothing rewinds, so the
+        /// component keeps drawing the frame it stopped on. <see cref="Play()"/> is what returns to
+        /// the start, and <see cref="FrameNo"/> seeks anywhere else.
+        /// </summary>
         public void Stop() => _core.Internal?.Stop();
 
         /// <summary>Current playback frame (fractional allowed). Set to seek to an arbitrary frame.</summary>
-        public float CurrentFrame
+        public float FrameNo
         {
             get => _core.Internal?.GetFrame() ?? 0f;
-            set => _core.Internal?.SetFrame(value);
+            set
+            {
+                _core.ReportNotEnabled(nameof(FrameNo), this);
+                _core.Seek(value);
+            }
         }
 
-        /// <summary>Total frame count of the current animation (end frame + 1). 0 when nothing is loaded.</summary>
+        /// <summary>
+        /// Stops every sound this component's built-in playback has started. Nothing else stops one:
+        /// <see cref="Pause"/>, <see cref="Stop"/> and switching the animation leave a sound that has started
+        /// to play out, so call this when the host wants silence now. Disabling or destroying the component
+        /// stops them too.
+        /// </summary>
+        public void StopAllSounds() => _audioController?.StopAll();
+
+        /// <summary>
+        /// Frames in the range being played, both ends inclusive. This follows
+        /// <see cref="SetAnimationSection"/>: without one it is the whole animation, with one it is the
+        /// section. 0 when nothing is loaded.
+        /// </summary>
         public int TotalFrames => _core.Internal?.GetTotalFrames() ?? 0;
 
         /// <summary>Playback frame rate (fps). Set to change it at runtime. Get returns 0 when nothing is loaded.</summary>
@@ -199,40 +396,77 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
-        /// Whether reverse (Backward) playback is on. <see cref="SetAnimation(string)"/> resets this to
-        /// Forward every time, so to start in reverse set it to true after SetAnimation (either before or
-        /// after Play).
+        /// Which way the playhead is configured to walk. It <b>survives</b> <see cref="SetAnimation(string)"/>:
+        /// "play this backwards" describes the playback, not the clip that happens to be loaded, so the
+        /// runtime keeps it across a transition (as it keeps <see cref="SpeedScale"/> and
+        /// <see cref="FrameSkipEnabled"/>). It lives in the runtime, not in a serialized field. Disabling the component,
+        /// or setting <see cref="AnimeAsset"/> to null, disposes that runtime: a value set before another is
+        /// built is dropped, and the new one starts Forward.
         /// </summary>
-        public bool Reverse
+        public SpriteStudioPlaybackDirection PlaybackDirection
         {
-            get => (_core.Internal?.GetPlaybackDirection() ?? 0) != 0;
+            get => (SpriteStudioPlaybackDirection)(_core.Internal?.GetPlaybackDirection() ?? 0);
             set
             {
                 var p = _core.Internal;
-                if (p != null) p.SetPlaybackStyle(value ? 1 : 0, p.GetPlaybackStyle());
+                if (p != null) p.SetPlaybackStyle((int)value, p.GetPlaybackStyle());
             }
         }
 
         /// <summary>
-        /// Whether ping-pong (round-trip) playback is on. <see cref="SetAnimation(string)"/> resets this to
-        /// Normal every time, so to start in ping-pong set it to true after SetAnimation (either before or
-        /// after Play).
+        /// What the playhead does at the far end of the section. Like
+        /// <see cref="PlaybackDirection"/> it <b>survives</b> <see cref="SetAnimation(string)"/>; only the
+        /// heading within a round trip is re-derived, so a switch made on the return leg starts the new
+        /// animation walking outward rather than mid-bounce. It lives in the runtime, not in a serialized field. Disabling the
+        /// component, or setting <see cref="AnimeAsset"/> to null, disposes that runtime: a value set before
+        /// another is built is dropped, and the new one starts Normal.
         /// </summary>
-        public bool PingPong
+        public SpriteStudioPlaybackStyle PlaybackStyle
         {
-            get => (_core.Internal?.GetPlaybackStyle() ?? 0) != 0;
+            get => (SpriteStudioPlaybackStyle)(_core.Internal?.GetPlaybackStyle() ?? 0);
             set
             {
                 var p = _core.Internal;
-                if (p != null) p.SetPlaybackStyle(p.GetPlaybackDirection(), value ? 1 : 0);
+                if (p != null) p.SetPlaybackStyle(p.GetPlaybackDirection(), (int)value);
             }
         }
 
         /// <summary>
-        /// Limits the playback range by frame (frame-based version of SS6's playback-range spec; label
-        /// specification is not supported).
+        /// Set the heading and the style together, which is the only way to change both without the
+        /// intermediate state the two properties above would pass through.
         /// </summary>
-        public void SetAnimationSection(int startFrame, int endFrame) => _core.Internal?.SetAnimationSection(startFrame, endFrame);
+        public void SetPlaybackDirection(SpriteStudioPlaybackDirection direction, SpriteStudioPlaybackStyle style)
+            => _core.Internal?.SetPlaybackStyle((int)direction, (int)style);
+
+        /// <summary>
+        /// Limits the playback range by frame, both ends included. An end outside the animation
+        /// (<c>-1</c>, say) is the animation's edge on that side.
+        /// Returns false, changing neither the section nor the playhead, when both ends are inside the
+        /// animation and the end is before the start; the first refusal of a pair logs a warning.
+        /// </summary>
+        public bool SetAnimationSection(int startFrame, int endFrame) => _core.SetAnimationSection(startFrame, endFrame, this);
+
+        /// <summary>
+        /// <see cref="SetAnimationSection"/> with the ends named by labels of the animation set up: from
+        /// <paramref name="startLabel"/>'s frame plus <paramref name="startOffset"/> to
+        /// <paramref name="endLabel"/>'s frame plus <paramref name="endOffset"/>, as an Instance part's start
+        /// and end labels are. <c>_start</c> and <c>_end</c> name the animation's own first and last frame, as
+        /// they do in SpriteStudio. It does not play, and like any section <see cref="SetAnimation"/> to
+        /// another animation drops it.
+        /// Returns false, changing neither the section nor the playhead, when the animation has no such label
+        /// or the frames it lands on are a section <see cref="SetAnimationSection"/> refuses; the first failure
+        /// logs a warning. Before an animation is set up it returns false and says nothing.
+        /// </summary>
+        public bool SetAnimationSectionByLabel(string startLabel, string endLabel, int startOffset = 0, int endOffset = 0)
+            => _core.SetAnimationSectionByLabel(startLabel, endLabel, startOffset, endOffset, this);
+
+        /// <summary>
+        /// The labels of <paramref name="animationName"/> — the animation set up when omitted — in frame
+        /// order, with the frame range it was authored with. Null when the loaded asset has no such animation,
+        /// or, with the name omitted, before one is set up. Read out of the asset on every call, so hold the
+        /// table rather than calling this every frame.
+        /// </summary>
+        public SpriteStudioLabelTable GetLabelTable(string animationName = null) => _core.Internal?.GetLabelTable(animationName);
 
         #endregion
 
@@ -242,7 +476,63 @@ namespace SpriteStudio.Runtime
         // and its lifecycle, so nothing is cached or re-applied here.
 
         /// <summary>Resolve a part name to its index, or -1 if the part is not in the loaded asset.</summary>
-        public int FindPartIndex(string partName) => _core.Internal?.ResolvePartIndex(partName) ?? -1;
+        public int FindPartIndex(string partName) => _core.Internal?.FindPartIndex(partName) ?? -1;
+
+        /// <summary>
+        /// Is the named part a bone-skinned mesh? Its vertices are drawn by bound bones while the part's own
+        /// transform stays at its setup node, so it is not a reliable target to pin an object to. (Part tracking
+        /// itself is a `SpriteStudioPlayer` feature; this query is provided for parity.) Returns false when the
+        /// part is unknown / not loaded; a rigid (deform-only) mesh reports false.
+        /// </summary>
+        public bool TryGetPartSkinnedMesh(string partName, out bool isSkinnedMesh)
+        {
+            isSkinnedMesh = false;
+            if (_core.Internal == null) return false;
+            int idx = _core.Internal.FindPartIndex(partName);
+            return idx >= 0 && _core.Internal.TryGetPartSkinnedMesh(idx, out isSkinnedMesh);
+        }
+
+        /// <summary>
+        /// The outline <paramref name="partName"/> is drawn with on the last frame built, in the RectTransform's
+        /// local space, where the graphic draws.
+        /// A part with a cell is its four drawn corners, skew and vertex deform included; a Mesh part is the
+        /// axis-aligned box around its vertices; a Shape is its size around its pivot. False when the part is
+        /// unknown or hidden, draws nothing of its own (null, bone, instance and effect parts), or no frame has
+        /// been built; a part drawn at alpha 0 still has an outline. It builds nothing.
+        /// </summary>
+        public bool TryGetPartQuad(string partName, out SpriteStudioPartQuad quad)
+        {
+            quad = default;
+            if (_core.Internal == null) return false;
+            int idx = _core.Internal.FindPartIndex(partName);
+            return idx >= 0 && _core.Internal.TryGetPartQuad(idx, out quad);
+        }
+
+        /// <inheritdoc cref="TryGetPartQuad(string, out SpriteStudioPartQuad)"/>
+        public bool TryGetPartQuad(int partIndex, out SpriteStudioPartQuad quad)
+        {
+            quad = default;
+            return _core.Internal != null && _core.Internal.TryGetPartQuad(partIndex, out quad);
+        }
+
+        /// <summary>
+        /// The index of the front-most part whose <see cref="TryGetPartQuad(string, out SpriteStudioPartQuad)"/>
+        /// outline holds <paramref name="point"/> on the last frame built, or -1 when none does — what
+        /// <see cref="FindPartIndex"/> answers for a part that is not there. The point is in the RectTransform's
+        /// local space, as <c>RectTransformUtility.ScreenPointToLocalPointInRectangle</c> gives it. Parts drawn
+        /// in front win.
+        /// </summary>
+        public int HitTestPart(Vector2 point) => _core.Internal?.HitTestPart(point) ?? -1;
+
+        /// <inheritdoc cref="HitTestPart(Vector2)"/>
+        /// <remarks>Only the parts named are tested; a name the asset does not have is skipped.</remarks>
+        public int HitTestPart(Vector2 point, System.Collections.Generic.IReadOnlyList<string> parts)
+            => _core.Internal?.HitTestPart(point, parts) ?? -1;
+
+        /// <inheritdoc cref="HitTestPart(Vector2)"/>
+        /// <remarks>Only the parts at these indices are tested.</remarks>
+        public int HitTestPart(Vector2 point, System.Collections.Generic.IReadOnlyList<int> parts)
+            => _core.Internal?.HitTestPart(point, parts) ?? -1;
 
         /// <summary>Force-hide a part (or revert it to the animation), optionally cascading to its descendants.</summary>
         public bool SetPartVisibilityOverride(string partName, bool hide, bool cascade = false)
@@ -258,27 +548,37 @@ namespace SpriteStudio.Runtime
         /// <inheritdoc cref="ClearPartVisibilityOverride(string)"/>
         public bool ClearPartVisibilityOverride(int partIndex) => _core.Internal?.ClearPartVisibilityOverride(partIndex) ?? false;
 
-        /// <summary>Override a Normal part's colour with a single value (all four corners).</summary>
-        public bool SetPartColorOverride(string partName, SpriteStudioBlendOp blendOp, Color color,
+        /// <summary>
+        /// Override a Normal part's colour with a single value (all four corners). The colour comes first
+        /// and <paramref name="blendOp"/> trails with a default, so the common case reads
+        /// <c>SetPartColorOverride("hat", Color.red)</c>.
+        /// </summary>
+        public bool SetPartColorOverride(string partName, Color color,
+            SpriteStudioBlendOp blendOp = SpriteStudioBlendOp.Mix,
             SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
-            => _core.Internal?.SetPartColorOverride(partName, blendOp, color, priority) ?? false;
+            => _core.Internal?.SetPartColorOverride(partName, color, blendOp, priority) ?? false;
 
-        /// <inheritdoc cref="SetPartColorOverride(string, SpriteStudioBlendOp, Color, SpriteStudioOverridePriority)"/>
-        public bool SetPartColorOverride(int partIndex, SpriteStudioBlendOp blendOp, Color color,
+        /// <inheritdoc cref="SetPartColorOverride(string, Color, SpriteStudioBlendOp, SpriteStudioOverridePriority)"/>
+        public bool SetPartColorOverride(int partIndex, Color color,
+            SpriteStudioBlendOp blendOp = SpriteStudioBlendOp.Mix,
             SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
-            => _core.Internal?.SetPartColorOverride(partIndex, blendOp, color, priority) ?? false;
+            => _core.Internal?.SetPartColorOverride(partIndex, color, blendOp, priority) ?? false;
 
-        /// <summary>Override a Normal part's colour with four distinct corners (left-top, right-top, left-bottom, right-bottom).</summary>
-        public bool SetPartColorOverride(string partName, SpriteStudioBlendOp blendOp,
-            Color leftTop, Color rightTop, Color leftBottom, Color rightBottom,
+        /// <summary>
+        /// Override a Normal part's colour with four distinct corners, for a gradient.
+        /// <paramref name="corners"/> is one argument, so the order is carried by field names rather
+        /// than by position.
+        /// </summary>
+        public bool SetPartColorOverrideCorners(string partName, SpriteStudioCornerColors corners,
+            SpriteStudioBlendOp blendOp = SpriteStudioBlendOp.Mix,
             SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
-            => _core.Internal?.SetPartColorOverride(partName, blendOp, leftTop, rightTop, leftBottom, rightBottom, priority) ?? false;
+            => _core.Internal?.SetPartColorOverrideCorners(partName, corners, blendOp, priority) ?? false;
 
-        /// <inheritdoc cref="SetPartColorOverride(string, SpriteStudioBlendOp, Color, Color, Color, Color, SpriteStudioOverridePriority)"/>
-        public bool SetPartColorOverride(int partIndex, SpriteStudioBlendOp blendOp,
-            Color leftTop, Color rightTop, Color leftBottom, Color rightBottom,
+        /// <inheritdoc cref="SetPartColorOverrideCorners(string, SpriteStudioCornerColors, SpriteStudioBlendOp, SpriteStudioOverridePriority)"/>
+        public bool SetPartColorOverrideCorners(int partIndex, SpriteStudioCornerColors corners,
+            SpriteStudioBlendOp blendOp = SpriteStudioBlendOp.Mix,
             SpriteStudioOverridePriority priority = SpriteStudioOverridePriority.HoldUntilNextAnimation)
-            => _core.Internal?.SetPartColorOverride(partIndex, blendOp, leftTop, rightTop, leftBottom, rightBottom, priority) ?? false;
+            => _core.Internal?.SetPartColorOverrideCorners(partIndex, corners, blendOp, priority) ?? false;
 
         /// <summary>Clear a part's colour override (revert to the animation).</summary>
         public bool ClearPartColorOverride(string partName) => _core.Internal?.ClearPartColorOverride(partName) ?? false;
@@ -305,91 +605,348 @@ namespace SpriteStudio.Runtime
         /// <summary>Clear every per-part override on this player.</summary>
         public bool ClearAllPartOverrides() => _core.Internal?.ClearAllPartOverrides() ?? false;
 
+        /// <summary>
+        /// Part names in part-index order, empty before an <see cref="AnimeAsset"/> is set up.
+        /// <para>
+        /// A part authored without a name reads as the empty string rather than being skipped, so the
+        /// array stays aligned with the <c>PartIndex</c> every event carries — which is what turns one
+        /// back into something a human reads. <c>Length</c> is the part count.
+        /// </para>
+        /// </summary>
+        public string[] GetPartNames() => _core.Internal?.GetPartNames() ?? System.Array.Empty<string>();
+
         /// <summary>Names of the cellmaps in the loaded asset (for discovering cell-override targets).</summary>
-        public string[] GetCellMapNames() => _core.Internal?.GetCellMapNames() ?? System.Array.Empty<string>();
+        public string[] GetCellmapNames() => _core.Internal?.GetCellmapNames() ?? System.Array.Empty<string>();
 
         /// <summary>Names of the cells in the named cellmap (for discovering cell-override targets).</summary>
         public string[] GetCellNames(string cellmapName) => _core.Internal?.GetCellNames(cellmapName) ?? System.Array.Empty<string>();
 
         #endregion
 
+        #region Animation Mixing
+        // The runtime's track stack (motion blending). Track 0 is the animation SetAnimation selects; the
+        // tracks above it lay other animations of the same asset over it. SetAnimation to another animation
+        // folds the stack back to track 0 alone, and every track's settings but track 0's go with it.
+        // Durations are in seconds. Mutators return false when nothing is loaded, the animation name is not
+        // in the asset, or the runtime refuses the call. A read of a track or source that does not exist
+        // returns 0 (check TrackCount first), except GetTrackFadeProgress (-1 when not fading) and the
+        // source handles (-1 for none), where 0 is a real answer.
+
+        /// <summary>
+        /// Lays an animation on a track, replacing what the track held. On track 0 it switches the
+        /// animation as <see cref="SetAnimation"/> does, keeping the tracks above, and
+        /// <see cref="CurrentAnimation"/> names it from the call on.
+        /// </summary>
+        public bool SetTrackAnimation(int track, string animName)
+        {
+            var p = _core.Internal;
+            if (p == null || !p.SetTrackAnimation(track, animName)) return false;
+            if (track == 0) OnTrackZeroSwitched();
+            return true;
+        }
+
+        /// <summary>
+        /// Fades <paramref name="animName"/> in on a track over <paramref name="duration"/> seconds while
+        /// everything the track carried fades out. On track 0 the incoming animation is the current one
+        /// from the call on: <see cref="CurrentAnimation"/>, <see cref="IsPlaying"/> /
+        /// <see cref="IsFinished"/>, the frame and the events are its own, so <see cref="SetAnimation"/>
+        /// can go back to the animation it left. A crossfade started during another takes the one in
+        /// flight over where it stands.
+        /// </summary>
+        public bool Crossfade(int track, string animName, float duration)
+        {
+            var p = _core.Internal;
+            if (p == null || !p.Crossfade(track, animName, duration)) return false;
+            if (track == 0) OnTrackZeroSwitched();
+            return true;
+        }
+
+        /// <summary>Number of tracks on the stack, track 0 included. 0 when nothing is loaded.</summary>
+        public int TrackCount => _core.Internal?.GetTrackCount() ?? 0;
+
+        /// <summary>Empties a track; above track 0 it no longer contributes to the pose.</summary>
+        public bool ClearTrack(int track) => _core.Internal?.ClearTrack(track) ?? false;
+
+        /// <summary>How strongly a track is laid over the ones below it: 0 contributes nothing, 1 is the track in full, above 1 extrapolates.</summary>
+        public bool SetTrackAlpha(int track, float alpha) => _core.Internal?.SetTrackAlpha(track, alpha) ?? false;
+
+        /// <inheritdoc cref="SetTrackAlpha"/>
+        public float GetTrackAlpha(int track) => _core.Internal?.GetTrackAlpha(track) ?? 0f;
+
+        /// <summary>Whether a track mixes toward its pose or adds its offset from the setup pose.</summary>
+        public bool SetTrackBlend(int track, SpriteStudioTrackBlend blend) => _core.Internal?.SetTrackBlend(track, blend) ?? false;
+
+        /// <inheritdoc cref="SetTrackBlend"/>
+        public SpriteStudioTrackBlend GetTrackBlend(int track) => _core.Internal?.GetTrackBlend(track) ?? SpriteStudioTrackBlend.Mix;
+
+        /// <summary>
+        /// Where the next animation laid on the track starts: from its head, or at track 0's phase. Set it
+        /// before laying the animation.
+        /// </summary>
+        public bool SetTrackSync(int track, SpriteStudioTrackSync sync) => _core.Internal?.SetTrackSync(track, sync) ?? false;
+
+        /// <inheritdoc cref="SetTrackSync"/>
+        public SpriteStudioTrackSync GetTrackSync(int track) => _core.Internal?.GetTrackSync(track) ?? SpriteStudioTrackSync.Free;
+
+        /// <summary>Moves a track's playhead.</summary>
+        public bool SetTrackFrame(int track, float frameNo) => _core.SetTrackFrame(track, frameNo);
+
+        /// <inheritdoc cref="SetTrackFrame"/>
+        public float GetTrackFrame(int track) => _core.Internal?.GetTrackFrame(track) ?? 0f;
+
+        // A track's playback settings apply to every animation on it, those a crossfade fades in included,
+        // and outlast them. Track 0's are the SpeedScale / FrameRate / FrameSkipEnabled / PlaybackDirection
+        // this component already has, and its loop count is LoopCount.
+
+        /// <summary>A track's speed, as a multiple of the frame rate. Track 0's is <see cref="SpeedScale"/>.</summary>
+        public bool SetTrackSpeed(int track, float speed)
+        {
+            if (!(_core.Internal?.SetTrackSpeed(track, speed) ?? false)) return false;
+            // SetAnimation pushes the serialized value back, which would undo a speed written past it.
+            if (track == 0) _speedScale = speed;
+            return true;
+        }
+
+        /// <inheritdoc cref="SetTrackSpeed"/>
+        public float GetTrackSpeed(int track) => _core.Internal?.GetTrackSpeed(track) ?? 0f;
+
+        /// <summary>A track's frame-rate override (fps). Track 0's is <see cref="FrameRate"/>.</summary>
+        public bool SetTrackFrameRate(int track, int fps) => _core.Internal?.SetTrackFrameRate(track, fps) ?? false;
+
+        /// <inheritdoc cref="SetTrackFrameRate"/>
+        public int GetTrackFrameRate(int track) => _core.Internal?.GetTrackFrameRate(track) ?? 0;
+
+        /// <summary>Whether a track follows real time. Track 0's is <see cref="FrameSkipEnabled"/>.</summary>
+        public bool SetTrackFrameSkipEnabled(int track, bool enabled)
+        {
+            if (!(_core.Internal?.SetTrackFrameSkipEnabled(track, enabled) ?? false)) return false;
+            // SetAnimation pushes the serialized value back, which would undo a value written past it.
+            if (track == 0) _skipFrames = enabled;
+            return true;
+        }
+
+        /// <inheritdoc cref="SetTrackFrameSkipEnabled"/>
+        public bool IsTrackFrameSkipEnabled(int track) => _core.Internal?.IsTrackFrameSkipEnabled(track) ?? false;
+
+        /// <summary>A track's heading and style. Track 0's are <see cref="PlaybackDirection"/> / <see cref="PlaybackStyle"/>.</summary>
+        public bool SetTrackPlaybackDirection(int track, SpriteStudioPlaybackDirection direction, SpriteStudioPlaybackStyle style)
+            => _core.Internal?.SetTrackPlaybackDirection(track, direction, style) ?? false;
+
+        /// <inheritdoc cref="SetTrackPlaybackDirection"/>
+        public SpriteStudioPlaybackDirection GetTrackPlaybackDirection(int track)
+            => _core.Internal?.GetTrackPlaybackDirection(track) ?? SpriteStudioPlaybackDirection.Forward;
+
+        /// <inheritdoc cref="SetTrackPlaybackDirection"/>
+        public SpriteStudioPlaybackStyle GetTrackPlaybackStyle(int track)
+            => _core.Internal?.GetTrackPlaybackStyle(track) ?? SpriteStudioPlaybackStyle.Normal;
+
+        /// <summary>
+        /// How many times the animation on a track plays (-1 or 0 = forever). Unlike the settings above it
+        /// belongs to the animation: one laid on a track loops forever until this is set again. Track 0's
+        /// is <see cref="LoopCount"/>, which this component puts back on every animation track 0 switches
+        /// to. The read is 0 for a track with no animation, and -1 for one looping forever.
+        /// </summary>
+        public bool SetTrackLoopCount(int track, int count)
+        {
+            if (!(_core.Internal?.SetTrackLoopCount(track, count) ?? false)) return false;
+            // Every switch of track 0 puts LoopCount back; written past it, a count would be undone there.
+            if (track == 0) _loopCount = count;
+            return true;
+        }
+
+        /// <inheritdoc cref="SetTrackLoopCount"/>
+        public int GetTrackLoopCount(int track) => _core.Internal?.GetTrackLoopCount(track) ?? 0;
+
+        /// <summary>
+        /// Whether the animation on a track has played every loop. A finished track holds its last frame,
+        /// still mixed in, until the host fades or clears it; no event is sent for it. Track 0's is
+        /// <see cref="IsFinished"/>.
+        /// </summary>
+        public bool IsTrackFinished(int track) => _core.Internal?.IsTrackFinished(track) ?? false;
+
+        /// <summary>
+        /// Whether the last update crossed a loop boundary on a track: a pulse, and false on a frame that
+        /// did not advance the animation. Track 0's is <see cref="JustLooped"/>.
+        /// </summary>
+        public bool TrackJustLooped(int track) => _core.Internal?.TrackJustLooped(track) ?? false;
+
+        /// <summary>
+        /// The outgoing side of a crossfade on the track fires events while its share, 1 - progress, is at
+        /// least this. The default, +Infinity, silences it from the moment the fade begins; 0.5 lets it
+        /// fire for the first half.
+        /// </summary>
+        public bool SetTrackOutgoingEventThreshold(int track, float threshold)
+            => _core.Internal?.SetTrackOutgoingEventThreshold(track, threshold) ?? false;
+
+        /// <inheritdoc cref="SetTrackOutgoingEventThreshold"/>
+        public float GetTrackOutgoingEventThreshold(int track) => _core.Internal?.GetTrackOutgoingEventThreshold(track) ?? 0f;
+
+        /// <summary>Fades a track's alpha to <paramref name="targetAlpha"/> over <paramref name="duration"/> seconds.</summary>
+        public bool FadeTrack(int track, float targetAlpha, float duration) => _core.Internal?.FadeTrack(track, targetAlpha, duration) ?? false;
+
+        /// <summary>How far a track's fade has gone, 0 to 1, or -1 when it is not fading.</summary>
+        public float GetTrackFadeProgress(int track) => _core.Internal?.GetTrackFadeProgress(track) ?? -1f;
+
+        /// <summary>Stops a track's fade where it stands.</summary>
+        public bool CancelTrackFade(int track) => _core.Internal?.CancelTrackFade(track) ?? false;
+
+        /// <summary>The handle of the source a track reports, or -1 for none.</summary>
+        public int GetTrackMainSource(int track) => _core.Internal?.GetTrackMainSource(track) ?? -1;
+
+        /// <summary>
+        /// Adds an animation to a track beside what it holds, at <paramref name="weight"/>. Returns its
+        /// source handle, or -1. A handle is reused once its source is released (a crossfade releases what
+        /// it faded out), so do not hold one past its source.
+        /// </summary>
+        public int AddTrackSource(int track, string animName, float weight) => _core.Internal?.AddTrackSource(track, animName, weight) ?? -1;
+
+        /// <summary>A source's weight within its track.</summary>
+        public bool SetSourceWeight(int source, float weight) => _core.Internal?.SetSourceWeight(source, weight) ?? false;
+
+        /// <inheritdoc cref="SetSourceWeight"/>
+        public float GetSourceWeight(int source) => _core.Internal?.GetSourceWeight(source) ?? 0f;
+
+        /// <summary>Moves a source's playhead.</summary>
+        public bool SetSourceFrame(int source, float frameNo) => _core.Internal?.SetSourceFrame(source, frameNo) ?? false;
+
+        /// <inheritdoc cref="SetSourceFrame"/>
+        public float GetSourceFrame(int source) => _core.Internal?.GetSourceFrame(source) ?? 0f;
+
+        /// <summary>
+        /// A source fires events while its weight is at least this. The default, +Infinity, leaves only
+        /// track 0's main animation firing.
+        /// </summary>
+        public bool SetSourceEventThreshold(int source, float threshold) => _core.Internal?.SetSourceEventThreshold(source, threshold) ?? false;
+
+        /// <inheritdoc cref="SetSourceEventThreshold"/>
+        public float GetSourceEventThreshold(int source) => _core.Internal?.GetSourceEventThreshold(source) ?? 0f;
+
+        // The component's half of a crossfade or a track animation on track 0, which switch the animation
+        // without a setup. The serialized name follows, so the inspector and CurrentAnimation name the
+        // incoming animation, and SetAnimation of the outgoing one is a switch again. The
+        // runtime lays the incoming animation looping forever, as a setup does, so LoopCount is put back;
+        // speed, frame skip, frame rate and direction are track 0's and carry over on their own.
+        private void OnTrackZeroSwitched()
+        {
+            var p = _core.Internal;
+            _animationName = p.CurrentAnimationName;
+#if UNITY_EDITOR
+            // An Animation Name edited back to the outgoing animation is then a change to OnValidate.
+            _appliedAnimation = _animationName;
+#endif
+            p.SetLoop(_loopCount);
+            SetLayoutDirty();
+        }
+
+        #endregion
+
         protected override void Start()
         {
             base.Start();
+            _started = true;
+            StartPlayback();
+        }
+
+        // Whether Start has run. OnDisable disposes the native player, so a graphic enabled again comes back
+        // with nothing set up; from the second enable on, OnEnable repeats what Start did, as an Animator
+        // returns to its default state and a Play On Awake particle system plays again.
+        [System.NonSerialized] private bool _started;
+
+        // An asset was assigned after Start. Waiting for the next frame lets a script that assigns it and then
+        // selects an animation, as most do, do so with no warning about the old name and no extra started event.
+        [System.NonSerialized] private bool _startAfterSwap;
+
+        private void StartPlayback()
+        {
+            _startAfterSwap = false;
             if (string.IsNullOrEmpty(_animationName)) return;
             // Always call SetAnimation so the first frame is posed even when AutoPlay is off; actually start
-            // playback only when AutoPlay is on. SetAnimation does not apply playback settings, so apply them
-            // explicitly after setup (property-application order: animation -> loop/speed/skip -> play).
-            if (SetAnimation(_animationName))
-            {
-                ApplyPlaybackSettings();
-                if (_autoPlay) Play();
-            }
+            // playback only when AutoPlay is on. SetAnimation pushes the serialized loop/speed/skip itself,
+            // so the order is simply animation -> play. A script may have played it already, between the enable
+            // and this first Start: Play would rewind what it asked for.
+            if (SetAnimation(_animationName) && _autoPlay && !IsPlaying) Play();
         }
 
         private readonly SpriteStudioPlaybackCore _core = new SpriteStudioPlaybackCore();
 
+        // The native player, exposed for tests that need to read what actually reached the runtime
+        // rather than what this component was told. Internal, not public: a raw native handle is not
+        // part of the package's API (ISpriteStudioRenderable.GetLiveHandle is explicit for the same
+        // reason).
+        internal SpriteStudioInternalPlayer InternalPlayer => _core.Internal;
+
+        // The mesh handed to the CanvasRenderer, exposed for tests that check what reached it.
+        internal Mesh CanvasMesh => _sharedMesh;
+
+        /// <summary>Raised by <see cref="Play()"/>, as playback starts.</summary>
         public event System.Action OnAnimationStarted
         {
             add => _core.OnAnimationStarted += value;
             remove => _core.OnAnimationStarted -= value;
         }
+        /// <summary>Raised once when every configured loop has played. Never under an infinite <see cref="LoopCount"/>, and not by <see cref="Stop"/>.</summary>
         public event System.Action OnAnimationFinished
         {
             add => _core.OnAnimationFinished += value;
             remove => _core.OnAnimationFinished -= value;
         }
+        /// <summary>Raised each time a loop returns to the beginning. The final loop finishes instead.</summary>
         public event System.Action OnAnimationLooped
         {
             add => _core.OnAnimationLooped += value;
             remove => _core.OnAnimationLooped -= value;
         }
+        /// <summary>Raised for each user-data key the playhead reaches.</summary>
         public event System.Action<SpriteStudioUserData> OnUserData
         {
             add => _core.OnUserData += value;
             remove => _core.OnUserData -= value;
         }
+        /// <summary>Raised for each signal key the playhead reaches.</summary>
         public event System.Action<SpriteStudioSignal> OnSignal
         {
             add => _core.OnSignal += value;
             remove => _core.OnSignal -= value;
         }
+        /// <summary>Raised for each audio key the playhead reaches, whether or not the built-in playback sounds it.</summary>
         public event System.Action<SpriteStudioAudio> OnAudio
         {
             add => _core.OnAudio += value;
             remove => _core.OnAudio -= value;
         }
 
+        /// <summary>Inspector counterpart of <see cref="OnAnimationStarted"/>.</summary>
         [Header("Events")]
         public UnityEvent OnAnimationStartedEvent = new UnityEvent();
+        /// <summary>Inspector counterpart of <see cref="OnAnimationFinished"/>.</summary>
         public UnityEvent OnAnimationFinishedEvent = new UnityEvent();
+        /// <summary>Inspector counterpart of <see cref="OnAnimationLooped"/>.</summary>
         public UnityEvent OnAnimationLoopedEvent = new UnityEvent();
+        /// <summary>Inspector counterpart of <see cref="OnUserData"/>.</summary>
         public UserDataUnityEvent OnUserDataEvent = new UserDataUnityEvent();
+        /// <summary>Inspector counterpart of <see cref="OnSignal"/>.</summary>
         public SignalUnityEvent OnSignalEvent = new SignalUnityEvent();
+        /// <summary>Inspector counterpart of <see cref="OnAudio"/>.</summary>
         public AudioUnityEvent OnAudioEvent = new AudioUnityEvent();
 
         private Mesh _sharedMesh;
 
         protected override void OnEnable()
         {
-            // A Graphic drives a CanvasRenderer. RequireComponent adds one for newly created objects;
-            // also self-heal a GameObject that was created before this requirement existed so that
-            // canvasRenderer.materialCount does not throw a MissingComponentException.
-            if (GetComponent<CanvasRenderer>() == null) gameObject.AddComponent<CanvasRenderer>();
-
             base.OnEnable();
 
             if (_sharedMesh == null)
             {
                 _sharedMesh = new Mesh();
                 _sharedMesh.name = "SpriteStudio_CanvasMesh";
+                // Runtime-only, destroyed by the owner in OnDisable.
+                _sharedMesh.hideFlags = HideFlags.HideAndDontSave;
                 _sharedMesh.MarkDynamic();
             }
 
-            _core.EnsureCreated(_animeAsset, _subFrameEnabled);
-            // Canvas path: drop SpriteStudio internal masking; a parent uGUI Mask/RectMask2D clips this
-            // graphic read-only via the per-submesh stencil wrap below.
-            if (_core.Internal != null) _core.Internal.SuppressInternalMask = true;
+            EnsureCore();
+            // Resolve the serialized cellmap texture replacements against the asset (applied on the next build).
+            _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
             _canvasMaterialDirty = true;
             SpriteStudioUpdateManager.Register(this);
 
@@ -402,12 +959,48 @@ namespace SpriteStudio.Runtime
 
             // In edit mode, build the start-frame static preview right after placement (setup consumed in LateUpdate).
             _editPreviewNeedsSetup = true;
+#if UNITY_EDITOR
+            // Baseline so the first in-play OnValidate (e.g. tweaking speed) is not mistaken for an
+            // asset/animation change and does not restart playback.
+            _appliedAsset = _animeAsset;
+            _appliedAnimation = _animationName;
+#endif
+
+            if (_started && Application.isPlaying) StartPlayback();
         }
+
+        // Create the native player if there is none and load the asset into it (see EnsureCreated), as the
+        // Canvas path needs it. Returns true when it loaded one.
+        private bool EnsureCore()
+        {
+            bool loaded = _core.EnsureCreated(_animeAsset, _subFrameEnabled);
+            // Canvas path: drop SpriteStudio internal masking; a parent uGUI Mask clips this graphic
+            // read-only via the stencil wrap below, and a parent RectMask2D through the shader's clip rect.
+            if (_core.Internal != null) _core.Internal.SuppressInternalMask = true;
+            return loaded;
+        }
+
+        // A null asset draws nothing. The CanvasRenderer would otherwise keep the last mesh and material,
+        // which an Addressables release destroys with the asset (the graphic then draws magenta), and the
+        // runtime would keep building the old pack every frame.
+        private void UnloadAsset()
+        {
+            _audioController?.StopAll();
+            _core.Dispose();
+            ReleaseAtlasMaterial();
+            _lastMaterialSignature = 0;
+            _canvasMaterialDirty = true;
+            if (_sharedMesh != null) _sharedMesh.Clear();
+            canvasRenderer.Clear();
+        }
+
+        // Set by OnValidate when the Inspector set the asset to None: LateUpdate lets go of the previous
+        // pack, since releasing it destroys materials, which OnValidate must not do.
+        [System.NonSerialized] private bool _unloadPending;
 
         private void InvokeAnimationStarted() => OnAnimationStartedEvent?.Invoke();
         private void InvokeAnimationFinished()
         {
-            _audioController?.StopLoops();   // On animation end, stop loop sounds (let one-shots end on their own)
             OnAnimationFinishedEvent?.Invoke();
         }
         private void InvokeAnimationLooped() => OnAnimationLoopedEvent?.Invoke();
@@ -416,11 +1009,12 @@ namespace SpriteStudio.Runtime
         private void InvokeAudio(SpriteStudioAudio data)
         {
             OnAudioEvent?.Invoke(data);   // Notification (observation channel) always fires regardless of playback direction.
-            // Built-in/Backend playback (zero-config). Only while running and playing forward (SDK doc §4: no sound on reverse playback).
-            if (_playAudio && Application.isPlaying && (_core.Internal?.IsPlayingForward() ?? false))
+            // Built-in playback, only while running and playing forward (SpriteStudio has no reverse audio), and
+            // not for the keys a seek made while playing lands on: the playhead crossed none of them.
+            if (_playAudio && Application.isPlaying && (_core.Internal?.IsPlayingForward() ?? false) && !_core.IsSeekLanding(data.FrameNo))
             {
                 if (_audioController == null) _audioController = new SpriteStudioAudioController(gameObject);
-                _audioController.Play(in data, _animeAsset, _audioBackend, _audioVolume);
+                _audioController.Play(in data, _animeAsset, _audioVolume);
             }
         }
 
@@ -440,11 +1034,10 @@ namespace SpriteStudio.Runtime
 
             _core.Dispose();
 
-            // Release the uGUI stencil wrapper (refcounted by StencilMaterial) and invalidate the
-            // material signature so OnEnable re-resolves from scratch.
-            ReleaseCanvasStencil();
+            // Release this graphic's material clone and invalidate the material signature so OnEnable
+            // re-resolves from scratch. (base.OnDisable released MaskableGraphic's stencil variant.)
+            ReleaseAtlasMaterial();
             _lastMaterialSignature = 0;
-            _lastStencilDepth = -1;
             _canvasMaterialDirty = true;
 
             if (_sharedMesh != null)
@@ -462,90 +1055,216 @@ namespace SpriteStudio.Runtime
 
         private void LateUpdate()
         {
-            // Play mode is centrally managed by SpriteStudioUpdateManager.
-            // Only the edit-mode (ExecuteAlways) static preview is updated here. Start() does not run in edit
-            // mode and SetupAnimation is never called, so right after placement an empty frame is built and it
-            // "flashes and disappears". Explicitly set up -> pin the start frame, and rebuild/reassert every
-            // frame without advancing (ApplyAndRender every frame rather than dirty-once, so the mesh keeps
-            // showing even after uGUI clears the CanvasRenderer's mesh).
+            // Play mode is driven by SpriteStudioUpdateManager. In edit mode, rebuild the preview every frame
+            // without advancing, so it survives uGUI clearing the CanvasRenderer's mesh.
+            if (_unloadPending)
+            {
+                _unloadPending = false;
+                if (_animeAsset == null) UnloadAsset();
+            }
             if (Application.isPlaying) return;
             // Self-heal if the .ssab was still importing when OnEnable ran (Editor restart race): pick the
-            // ssab up once it is available (EnsureCreated is a no-op once loaded). Without this an empty
-            // Internal created at OnEnable would never get its ssab, so SetupAnimation fails forever.
-            _core.EnsureCreated(_animeAsset, _subFrameEnabled);
-            if (_core.Internal == null || !_core.Internal.HasSsab) return;
-            if (_editPreviewNeedsSetup)
+            // ssab up once it is available. Without this an empty Internal created at OnEnable would never
+            // get its ssab, so SetupAnimation fails forever. A reimported .ssab keeps this reference and
+            // brings new data, which EnsureCreated loads the same way; what came from the previous pack is
+            // rebuilt either way.
+            if (EnsureCore())
             {
-                if (string.IsNullOrEmpty(_animationName) || !_core.Internal.SetupAnimation(_animationName)) return;
-                _core.Internal.SetFrame(_core.Internal.GetAnimationSectionStart());
-                _editPreviewNeedsSetup = false;
+                _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
+                _canvasMaterialDirty = true;
+                _editPreviewNeedsSetup = true;
+                SetLayoutDirty();
             }
-            _core.Internal.ScheduleMeshUpdate(0f); // Static: build the start frame without advancing
+            if (!SetUpEditPreview()) return;
+            ApplyFit();
+            _core.Internal.ScheduleMeshUpdate(0f); // Build the frame the runtime is on without advancing
             ApplyAndRender();
         }
 
+        private bool SetUpEditPreview()
+        {
+            if (_core.Internal == null || !_core.Internal.HasSsab) return false;
+            if (_editPreviewNeedsSetup)
+            {
+                // Same fallback as the world player's edit preview: with no animation chosen yet, preview
+                // the asset's first one so a graphic placed without a name is visible. Not written back to
+                // _animationName, so nothing is serialized and Play mode still honours the empty name.
+                string previewAnimation = string.IsNullOrEmpty(_animationName)
+                    ? _core.Internal.GetAnimationName(0)
+                    : _animationName;
+                if (string.IsNullOrEmpty(previewAnimation) || !_core.Internal.SetupAnimation(previewAnimation)) return false;
+                _core.Internal.SetFrame(_core.Internal.GetAnimationSectionStart());
+                _editPreviewNeedsSetup = false;
+            }
+            return true;
+        }
+
 #if UNITY_EDITOR
+        bool ISpriteStudioEditPreview.TryGetEditPreviewSection(out int start, out int end, out int fps)
+        {
+            start = end = 0;
+            fps = 60;
+            if (!SetUpEditPreview()) return false;
+            start = _core.Internal.GetAnimationSectionStart();
+            end = _core.Internal.GetAnimationSectionEnd();
+            int rate = _core.Internal.GetFrameRate();
+            if (rate > 0) fps = rate;
+            return true;
+        }
+
+        // LateUpdate rebuilds the frame the runtime is on every editor frame, so seeking is enough.
+        void ISpriteStudioEditPreview.ShowEditPreviewFrame(float frame)
+        {
+            if (Application.isPlaying || !SetUpEditPreview()) return;
+            _core.Internal.SetFrame(frame);
+        }
+
+        void ISpriteStudioEditPreview.EndEditPreview()
+        {
+            if (!Application.isPlaying) _editPreviewNeedsSetup = true;
+        }
+
+        float ISpriteStudioEditPreview.EditPreviewSpeedScale => _speedScale;
+        bool ISpriteStudioEditPreview.EditPreviewSubFrame => _subFrameEnabled;
+        bool ISpriteStudioEditPreview.EditPreviewBlocked => false;
+#endif
+
+        // An Animator, or a Timeline Animation Track, writes keyed fields straight into the component -- as the
+        // Inspector does, bypassing the property setters -- and calls this after each evaluation. Graphic's own
+        // override marks the graphic dirty for a keyed Color; push the playback fields as well.
+        protected override void OnDidApplyAnimationProperties()
+        {
+            base.OnDidApplyAnimationProperties();
+            var p = _core.Internal;
+            if (p == null) return;
+            p.SetSpeed(_speedScale);
+            p.SetSkipFrames(_skipFrames);
+            p.SubFrameEnabled = _subFrameEnabled;
+            // SetLoop re-arms the loops left, and this runs on every evaluation: write it only when the keyed
+            // count differs from the runtime's, which keeps 0 and below as -1.
+            if (p.GetLoop() != (_loopCount > 0 ? _loopCount : -1)) p.SetLoop(_loopCount);
+        }
+
+#if UNITY_EDITOR
+        // Baseline of the asset and animation the runtime has, so OnValidate can tell an actual change apart
+        // from tweaking speed etc. Editor-only and never serialized; OnEnable sets it on play entry.
+        [System.NonSerialized] private SpriteStudioAnimeAsset _appliedAsset;
+        [System.NonSerialized] private string _appliedAnimation;
+
         // The inspector writes the serialized fields directly and does not call the property setters.
         // To reflect in-play inspector edits into the runtime (Rust), sync them here. Graphic.OnValidate is
-        // defined only within UNITY_EDITOR, so the override is wrapped in #if UNITY_EDITOR too. (Animation-name
-        // switching is out of scope.)
+        // defined only within UNITY_EDITOR, so the override is wrapped in #if UNITY_EDITOR too.
         protected override void OnValidate()
         {
             base.OnValidate();
             // An inspector change (animation name, etc.) rebuilds the edit preview from setup.
             _editPreviewNeedsSetup = true;
-            if (_core.Internal == null) return;
-            _core.Internal.SetSpeed(_speedScale);
-            _core.Internal.SetLoop(_loopCount);
-            _core.Internal.SetSkipFrames(_skipFrames);
-            _core.Internal.SubFrameEnabled = _subFrameEnabled;
+            // Reflect inspector edits to the replacement list (or an asset swap) into the draw-time map.
+            _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
+            _canvasMaterialDirty = true;
+            // None in the Inspector lets go of the previous pack as the setter does.
+            if (_animeAsset == null && _core.Internal != null && _core.Internal.HasSsab) _unloadPending = true;
+            if (_core.Internal != null)
+            {
+                _core.Internal.SetSpeed(_speedScale);
+                _core.Internal.SetLoop(_loopCount);
+                _core.Internal.SetSkipFrames(_skipFrames);
+                _core.Internal.SubFrameEnabled = _subFrameEnabled;
+            }
+            bool assetChanged = !ReferenceEquals(_appliedAsset, _animeAsset);
+            bool animChanged = _appliedAnimation != _animationName;
+            // In Play mode an asset or animation picked in the inspector is a switch, as on the world player:
+            // load the asset when it changed, then set the animation up and play it from the head.
+            if (Application.isPlaying && (assetChanged || animChanged) && _animeAsset != null && isActiveAndEnabled)
+            {
+                if (assetChanged)
+                {
+                    EnsureCore();
+                    SetLayoutDirty();
+                }
+                if (_core.Internal != null && !string.IsNullOrEmpty(_animationName) && SetAnimation(_animationName)) Play();
+            }
+            _appliedAsset = _animeAsset;
+            _appliedAnimation = _animationName;
         }
 #endif
 
         // --- ISpriteStudioRenderable (driven by SpriteStudioUpdateManager) ---
+        // Explicit implementations, so none of it joins the package's public API: a raw native pointer, and
+        // calls that are only right in the order the update manager makes them.
 
-        public void PrepareFrame(float deltaTime, out System.IntPtr handle, out float drawFrame)
+        void ISpriteStudioRenderable.PrepareFrame(float deltaTime, out System.IntPtr handle, out float drawFrame)
+            => PrepareFrame(deltaTime, out handle, out drawFrame);
+
+        internal void PrepareFrame(float deltaTime, out System.IntPtr handle, out float drawFrame)
         {
             if (_core.Internal == null) { handle = System.IntPtr.Zero; drawFrame = 0f; return; }
-            _core.Internal.PrepareFrameData(deltaTime, true, out handle, out drawFrame);
+            if (_startAfterSwap) StartPlayback();
+            // Before the frame is prepared: a fit that changed drops the cache that would skip the build.
+            ApplyFit();
+            // In a finally: a handler that throws out of the update has still had its landing frame reported.
+            try { _core.Internal.PrepareFrameData(deltaTime, true, out handle, out drawFrame); }
+            finally { _core.EndUpdate(); }
         }
 
-        public void ConsumeFrame(System.IntPtr frameDataPtr, int len, float deltaTime)
+        /// <inheritdoc/>
+        System.IntPtr ISpriteStudioRenderable.GetLiveHandle() => _core.Internal != null ? _core.Internal.NativeHandle : System.IntPtr.Zero;
+
+        void ISpriteStudioRenderable.ConsumeFrame(System.IntPtr frameDataPtr, int len, float deltaTime)
         {
             if (_core.Internal == null) return;
             _core.Internal.ConsumeFrameData(frameDataPtr, len, deltaTime);
+            // The upload's conversion runs on a worker while the other players are consumed. ApplyAndRender
+            // converts again only if Graphic.color has changed by then.
+            if (_sharedMesh != null) _core.Internal.ScheduleCanvasConversion(_sharedMesh, color);
         }
 
-        public void ApplyAndRender()
+        SpriteStudioInternalPlayer ISpriteStudioRenderable.InternalPlayer => _core.Internal;
+
+        float ISpriteStudioRenderable.ConsumeDeltaTime(float deltaTime) => deltaTime;
+
+        void ISpriteStudioRenderable.ApplyAndRender() => ApplyAndRender();
+
+        internal void ApplyAndRender()
         {
             if (_core.Internal == null || _sharedMesh == null) return;
 
-            // Single-material Canvas: build the whole graphic as ONE submesh (perBatchSubmesh: false) and
-            // drive it with one material; MIX/ADD are split per-vertex in-shader. CanvasRenderer only
-            // accepts 16-bit index meshes, so upload 16-bit.
-            _core.Internal.ApplyToMesh(_sharedMesh, false, use16BitIndices: true);
+            // Single-material Canvas: build the whole graphic as ONE submesh and drive it with one
+            // material; MIX/ADD are split per-vertex in-shader. Graphic.color goes into the vertex colour,
+            // as an Image puts it there, and the CanvasRenderer's own colour is left to uGUI: the Button
+            // transitions and CrossFadeColor / CrossFadeAlpha animate it, and the canvas multiplies it in.
+            _core.Internal.ApplyToCanvasMesh(_sharedMesh, color);
             EnsureCanvasShaderChannels();
             UpdateCanvasMaterials();
-            // CanvasRenderer multiplies the mesh vertex colours by its own colour. The normal uGUI
-            // rebuild (which we suppress) is what would push the Graphic colour into it; without that
-            // the renderer colour stays at its uninitialised default (black) and zeroes the sprite RGB.
-            // Push the Graphic colour every frame (default white = identity, also honours a user tint).
-            canvasRenderer.SetColor(color);
             canvasRenderer.SetMesh(_sharedMesh);
         }
 
         // --- Single-material Canvas resolution (one atlas + one fixed PMA blend) ---
         // The whole graphic renders as ONE submesh with ONE material on the SpriteStudio/Canvas shader.
         // MIX vs ADD is handled per-vertex in-shader (a=0 trick); other blends collapse to MIX. SpriteStudio
-        // internal masking is suppressed; the only stencil is the READ-ONLY test injected when this graphic
-        // is nested under a uGUI Mask, via StencilMaterial.Add (we compute the mask depth ourselves and wrap
-        // the single material, since MaskableGraphic.GetModifiedMaterial tracks only one material anyway).
-        // RectMask2D needs nothing here — MaskableGraphic clips it through CanvasRenderer.EnableRectClipping.
-        private Material _canvasStencilWrapped; // StencilMaterial.Add result to release (null if not wrapped)
+        // internal masking is suppressed. The material reaches the CanvasRenderer the way
+        // Graphic.UpdateMaterial sends an Image's: materialForRendering, which starts from the Material field
+        // (the atlas material, as defaultMaterial, when that is empty) and runs every IMaterialModifier on
+        // this GameObject -- MaskableGraphic's stencil test for a parent Mask, a Mask's own stencil write for
+        // its children, anything else -- with mainTexture as the texture.
+        // RectMask2D needs nothing here: MaskableGraphic hands the shader _ClipRect and UNITY_UI_CLIP_RECT
+        // through CanvasRenderer.EnableRectClipping, and SpriteStudio/Canvas clips with them.
+        private Material _atlasMaterial;        // the atlas material, or this graphic's texture-replacement clone of it
         private uint _lastMaterialSignature;    // resolved atlas texture hash + 1 (0 = nothing resolved)
-        private int _lastStencilDepth = -1;
+        private int _materialAssetRevision;     // the asset's Revision when the atlas material was resolved
         private bool _canvasMaterialDirty;
         private bool _warnedMultiTexture;
+
+        /// <summary>
+        /// The material the animation draws with while <see cref="Graphic.material"/> is empty: SpriteStudio/Canvas
+        /// carrying the atlas the animation samples. A material assigned instead needs a shader built from
+        /// SpriteStudio/Canvas, the only kind that reads the vertex layout this graphic emits.
+        /// </summary>
+        public override Material defaultMaterial => _atlasMaterial != null ? _atlasMaterial : base.defaultMaterial;
+
+        /// <summary>The atlas texture, handed to whichever material draws the graphic, as an Image hands over its sprite's.</summary>
+        public override Texture mainTexture
+            => _atlasMaterial != null && _atlasMaterial.mainTexture != null ? _atlasMaterial.mainTexture : base.mainTexture;
 
         private void UpdateCanvasMaterials()
         {
@@ -556,7 +1275,7 @@ namespace SpriteStudio.Runtime
             {
                 if (_lastMaterialSignature != 0)
                 {
-                    ReleaseCanvasStencil();
+                    ReleaseAtlasMaterial();
                     canvasRenderer.materialCount = 0;
                     _lastMaterialSignature = 0;
                 }
@@ -566,8 +1285,8 @@ namespace SpriteStudio.Runtime
             var submeshes = _core.Internal.Submeshes;
 
             // Multi-atlas is not supported on the Canvas path: one CanvasRenderer = one mesh + one
-            // material. Interim guard: draw with the first atlas only and warn once (other atlases
-            // sample the wrong texture but never crash).
+            // material. Draw with the first atlas only and warn once (other atlases sample the wrong
+            // texture but never crash).
             if (!_warnedMultiTexture && _animeAsset.Textures != null && _animeAsset.Textures.Count > 1)
             {
                 Debug.LogWarning($"[SpriteStudioGraphic] '{_animeAsset.name}' uses {_animeAsset.Textures.Count} atlases. " +
@@ -576,27 +1295,34 @@ namespace SpriteStudio.Runtime
                 _warnedMultiTexture = true;
             }
 
-            uint texHash = submeshes[0].TextureHash;
-
-            // Current uGUI mask depth (0 when not nested under a Mask). Checked every frame so a reparent
-            // under/out of a Mask re-wraps the material even if the SetMaterialDirty signal is missed.
-            int stencilDepth = maskable
-                ? UnityEngine.UI.MaskUtilities.GetStencilDepth(transform, UnityEngine.UI.MaskUtilities.FindRootSortOverrideCanvas(transform))
-                : 0;
+            uint texHash = CanvasAtlasHash(submeshes, subCount);
 
             uint signature = texHash + 1u; // +1 so a valid hash never collides with the empty sentinel 0
-            if (signature != _lastMaterialSignature || stencilDepth != _lastStencilDepth || _canvasMaterialDirty)
+            // A reimport destroys the asset's canvas materials: a new revision re-resolves the atlas material,
+            // which the layout alone would keep drawing with (the error shader) until the graphic was re-enabled.
+            if (signature != _lastMaterialSignature || _canvasMaterialDirty || _animeAsset.Revision != _materialAssetRevision)
             {
-                RebuildCanvasMaterial(texHash, stencilDepth);
+                RebuildCanvasMaterial(texHash);
                 _lastMaterialSignature = signature;
-                _lastStencilDepth = stencilDepth;
+                _materialAssetRevision = _animeAsset.Revision;
                 _canvasMaterialDirty = false;
             }
         }
 
-        private void RebuildCanvasMaterial(uint texHash, int stencilDepth)
+        // The atlas the one material binds: the first a draw names. A part with no cell (hash 0) may come
+        // first; it draws with white whatever is bound, so it must not leave the rest with no atlas.
+        internal static uint CanvasAtlasHash(Unity.Collections.NativeArray<SubmeshInfo> submeshes, int count)
         {
-            ReleaseCanvasStencil();
+            for (int s = 0; s < count; s++)
+            {
+                if (submeshes[s].TextureHash != 0) return submeshes[s].TextureHash;
+            }
+            return 0;
+        }
+
+        private void RebuildCanvasMaterial(uint texHash)
+        {
+            ReleaseAtlasMaterial();
 
             Material baseMat = _animeAsset.ResolveCanvasMaterial(texHash, 0);
             if (baseMat == null)
@@ -606,47 +1332,195 @@ namespace SpriteStudio.Runtime
                 return;
             }
 
-            Material finalMat = baseMat;
-            if (stencilDepth > 0)
+            // Runtime cellmap texture replacement (Player-side override): clone the asset-shared canvas
+            // material and swap its texture so the replacement is per-player. Cloned (never mutated) and
+            // released with the atlas material. ReleaseAtlasMaterial above already freed any prior clone.
+            if (_textureOverride.HasAny && _textureOverride.TryGet(texHash, out var ovrTex))
             {
-                // Read-only stencil test for a parent uGUI Mask (Comp Equal, Op Keep, no write).
-                int stencilId = (1 << stencilDepth) - 1;
-                _canvasStencilWrapped = UnityEngine.UI.StencilMaterial.Add(
-                    baseMat, stencilId,
-                    UnityEngine.Rendering.StencilOp.Keep,
-                    UnityEngine.Rendering.CompareFunction.Equal,
-                    UnityEngine.Rendering.ColorWriteMask.All,
-                    stencilId, 0);
-                finalMat = _canvasStencilWrapped;
+                _canvasTexOverride = new Material(baseMat) { hideFlags = HideFlags.HideAndDontSave, name = baseMat.name + "_TexOverride" };
+                _canvasTexOverride.mainTexture = ovrTex;
+                baseMat = _canvasTexOverride;
             }
+            _atlasMaterial = baseMat;
 
             canvasRenderer.materialCount = 1;
-            canvasRenderer.SetMaterial(finalMat, 0);
+            canvasRenderer.SetMaterial(materialForRendering, 0);
+            canvasRenderer.SetTexture(mainTexture);
         }
 
-        // The mesh packs per-vertex [rate, blend_idx, isNormalized, reserved] into TEXCOORD1. A Canvas
-        // only emits the shader channels listed in additionalShaderChannels; TexCoord1 is NOT included
-        // by default, so without this the uv1 data is dropped/garbage and the part-color blend breaks
-        // (renders black). Enable it on the canvas we render to.
+        // The mesh packs per-vertex [rate, blend_idx, isNormalized, isAdditive] into TEXCOORD1 and the
+        // part colour into TEXCOORD2. A Canvas only emits the shader channels listed in
+        // additionalShaderChannels, and neither is included by default, so without this the data is
+        // dropped/garbage and the part-color blend breaks (renders black). Enable both on the canvas we
+        // render to.
         private void EnsureCanvasShaderChannels()
         {
             var c = canvas;
             if (c == null) return;
-            const AdditionalCanvasShaderChannels needed = AdditionalCanvasShaderChannels.TexCoord1;
+            const AdditionalCanvasShaderChannels needed = AdditionalCanvasShaderChannels.TexCoord1 | AdditionalCanvasShaderChannels.TexCoord2;
             if ((c.additionalShaderChannels & needed) != needed)
             {
                 c.additionalShaderChannels |= needed;
             }
         }
 
-        private void ReleaseCanvasStencil()
+        // Per-player canvas material clone holding a replaced texture (null when no replacement is active).
+        // Released with the atlas material, so every ReleaseAtlasMaterial site (rebuild start, empty-mesh
+        // path, OnDisable) frees it too.
+        private Material _canvasTexOverride;
+
+        // The stencil variants materialForRendering produced are MaskableGraphic's and Mask's, released by
+        // them; only the texture-replacement clone is this graphic's.
+        private void ReleaseAtlasMaterial()
         {
-            if (_canvasStencilWrapped != null)
+            _atlasMaterial = null;
+            if (_canvasTexOverride != null)
             {
-                UnityEngine.UI.StencilMaterial.Remove(_canvasStencilWrapped);
-                _canvasStencilWrapped = null;
+                if (Application.isPlaying) Destroy(_canvasTexOverride); else DestroyImmediate(_canvasTexOverride);
+                _canvasTexOverride = null;
             }
         }
+
+        #region Runtime texture replacement (Player-side override)
+
+        /// <summary>
+        /// Replace, at runtime, the texture bound for a cellmap (or external-texture) name for THIS graphic
+        /// only — the asset and other players are untouched. Pass <paramref name="texture"/> = null to
+        /// restore the original. This is a Player-side override, separate from the Override Layer API.
+        ///
+        /// The Canvas (uGUI) path is single-atlas: only the first atlas is drawn, so a replacement targeting
+        /// a name that resolves to a non-first atlas will not show. Otherwise identical to the world player:
+        /// keyed by name, persists across an asset swap, does not propagate into Instance children.
+        /// </summary>
+        /// <param name="cellmapName">Cellmap name (e.g. "common") or external-texture name (e.g. "common.png").</param>
+        /// <param name="texture">Replacement texture, or null to restore the original.</param>
+        public void SetCellmapTexture(string cellmapName, Texture2D texture)
+        {
+            if (string.IsNullOrEmpty(cellmapName)) return;
+
+            SpriteStudioTextureOverride.SetEntry(_cellmapTextureOverrides, cellmapName, texture);
+            _textureOverride.Rebuild(_animeAsset, _cellmapTextureOverrides);
+            // Flag a re-resolve; the next ApplyAndRender (every managed frame in play mode, every editor
+            // frame in edit mode) rebuilds the canvas material. Not resolved synchronously here so a caller
+            // invoking this off-cycle cannot race the mesh-update job UpdateCanvasMaterials reads from.
+            _canvasMaterialDirty = true;
+        }
+
+        /// <summary>
+        /// The current replacement texture for a cellmap name, or null when none is set (returns only the
+        /// override value, never the original texture).
+        /// </summary>
+        public Texture2D GetCellmapTexture(string cellmapName)
+        {
+            return SpriteStudioTextureOverride.GetEntry(_cellmapTextureOverrides, cellmapName);
+        }
+
+        /// <summary>
+        /// The names accepted by <see cref="SetCellmapTexture"/>: every cellmap name plus every
+        /// external-texture (TextureChange target) name in the current asset. Empty when no asset is set.
+        /// (Distinct from <see cref="GetCellmapNames"/>, which lists cellmaps only for the cell Override
+        /// Layer; texture replacement can also target external-texture names.)
+        /// </summary>
+        public string[] GetReplaceableTextureNames()
+        {
+            return _animeAsset != null ? _animeAsset.GetReplaceableTextureNames() : System.Array.Empty<string>();
+        }
+
+        #endregion
+
+        #region Fit and layout
+
+        /// <summary>
+        /// Puts the canvas of the animation set up into the rect as the root transform the geometry is built
+        /// with: a uniform scale and the animation's origin in the rect's local space. Read every frame, so the
+        /// rect can be resized, laid out or animated, and the animation switched, with nothing to notify; it
+        /// reads the animation set up without decoding a name, so it allocates nothing.
+        /// </summary>
+        internal void ApplyFit()
+        {
+            var p = _core.Internal;
+            if (p == null) return;
+            Rect? box = _fitBox;
+            if (!box.HasValue && p.TryGetCanvasRect(null, out Rect current)) box = current;
+            SpriteStudioPlacement.Resolve(box, rectTransform.rect, _fit, _align, out Vector2 origin, out float scale);
+            p.VertexScale = scale;
+            p.VertexOffset = origin;
+        }
+
+        /// <summary>
+        /// The box fitted in place of the canvas of the animation set up, or null for that canvas. A UI state
+        /// adapter that plays several animations sets it to the canvas of the one its states are read from, so
+        /// the artwork keeps its size when a state plays another animation.
+        /// </summary>
+        internal Rect? FitBox
+        {
+            get => _fitBox;
+            set
+            {
+                if (_fitBox == value) return;
+                _fitBox = value;
+                SetLayoutDirty();
+            }
+        }
+        private Rect? _fitBox;
+
+        // The canvas of the animation drawn: the one set up, or before that the one Start or the edit preview
+        // will set up. A layout can ask before either has run.
+        private bool TryGetCanvasRect(out Rect box)
+        {
+            box = default;
+            if (_fitBox.HasValue)
+            {
+                box = _fitBox.Value;
+                return true;
+            }
+            var p = _core.Internal;
+            if (p == null) return false;
+            if (p.TryGetCanvasRect(null, out box)) return true;
+            string name = string.IsNullOrEmpty(_animationName) ? p.GetAnimationName(0) : _animationName;
+            return !string.IsNullOrEmpty(name) && p.TryGetCanvasRect(name, out box);
+        }
+
+        /// <summary>
+        /// Sizes the RectTransform to the animation's authored canvas, as <see cref="Image.SetNativeSize"/> sizes
+        /// one to its sprite. Under <see cref="SpriteStudioFit.Contain"/> the animation then draws at its
+        /// authored size.
+        /// </summary>
+        public override void SetNativeSize()
+        {
+            if (!TryGetCanvasRect(out Rect box)) return;
+            rectTransform.anchorMax = rectTransform.anchorMin;
+            rectTransform.sizeDelta = box.size;
+        }
+
+        /// <inheritdoc/>
+        public void CalculateLayoutInputHorizontal() { }
+
+        /// <inheritdoc/>
+        public void CalculateLayoutInputVertical() { }
+
+        /// <inheritdoc/>
+        public float minWidth => 0f;
+
+        /// <summary>The width of the animation's authored canvas, which a layout gives the graphic by preference.</summary>
+        public float preferredWidth => TryGetCanvasRect(out Rect box) ? box.width : 0f;
+
+        /// <inheritdoc/>
+        public float flexibleWidth => -1f;
+
+        /// <inheritdoc/>
+        public float minHeight => 0f;
+
+        /// <summary>The height of the animation's authored canvas, which a layout gives the graphic by preference.</summary>
+        public float preferredHeight => TryGetCanvasRect(out Rect box) ? box.height : 0f;
+
+        /// <inheritdoc/>
+        public float flexibleHeight => -1f;
+
+        /// <inheritdoc/>
+        public int layoutPriority => 0;
+
+        #endregion
 
         // --- Avoid conflicts with the Canvas Rebuild flow ---
         // Prevent uGUI's automatic Layout/Vertex rebuild from firing and
@@ -661,8 +1535,9 @@ namespace SpriteStudio.Runtime
         {
             // Do NOT call base: the standard uGUI material rebuild (CanvasUpdateRegistry) would try to
             // drive our mesh/material through the normal Graphic path and fight our direct SetMesh/
-            // SetMaterial. Instead just flag a re-resolve so a mask-hierarchy change (MaskableGraphic
-            // raises SetMaterialDirty on stencil-state changes) re-wraps the per-submesh materials.
+            // SetMaterial. Instead flag a re-send, so the next ApplyAndRender hands the CanvasRenderer a
+            // fresh materialForRendering: uGUI raises this for a new Material, for a Mask added, removed or
+            // toggled, and for a reparent under or out of one (MaskableGraphic.RecalculateMasking).
             _canvasMaterialDirty = true;
         }
 

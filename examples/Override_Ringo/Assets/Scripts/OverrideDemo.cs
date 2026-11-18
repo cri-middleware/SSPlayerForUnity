@@ -11,11 +11,11 @@ using UnityEngine;
 ///
 /// API used (all on SpriteStudioPlayer / SpriteStudioGraphic):
 ///   FindPartIndex(partName)
-///   SetPartColorOverride(part, blendOp, color, priority = HoldUntilNextAnimation)
+///   SetPartColorOverride(part, color, blendOp = Mix, priority = HoldUntilNextAnimation)
 ///   SetPartVisibilityOverride(part, hide, cascade = false)
 ///   SetPartCellOverride(part, cellmapName, cellName, priority = HoldUntilNextAnimation)
 ///   ClearAllPartOverrides()
-/// Cell names can be discovered from the player: GetCellMapNames() / GetCellNames(cellmap).
+/// Cell names can be discovered from the player: GetCellmapNames() / GetCellNames(cellmap).
 /// </summary>
 public class OverrideDemo : MonoBehaviour
 {
@@ -83,17 +83,14 @@ public class OverrideDemo : MonoBehaviour
     private IEnumerator RunDemo()
     {
         // Discover what the loaded asset offers (handy as a reference in the Console).
-        var cellmaps = _player.GetCellMapNames();
+        var cellmaps = _player.GetCellmapNames();
         if (cellmaps.Length == 0)
         {
             _status = "No cellmap in the loaded asset — nothing to demo.";
             Debug.LogWarning($"[Override Demo] {_status}");
-
-//            isBooted = false;
             yield break;
         }
         string cellmap = cellmaps[0]; // "Ringo"
-//        Debug.Log($"[Override Demo] cellmap: {cellmap} / cells: {string.Join(", ", _player.GetCellNames(cellmap))}");
 
         // The same part is overridden over and over, so resolve its index once and reuse it
         // (indices are stable within an asset, and addressing by index skips the name lookup).
@@ -102,8 +99,6 @@ public class OverrideDemo : MonoBehaviour
         {
             _status = $"Part '{_partName}' is not in this animation.";
             Debug.LogWarning($"[Override Demo] {_status}");
-
-//            isBooted = false;
             yield break;
         }
 
@@ -114,7 +109,7 @@ public class OverrideDemo : MonoBehaviour
 
             // 1) Color — tint the body (Normal parts only). The default priority
             //    (HoldUntilNextAnimation) keeps it through animation loops.
-            _player.SetPartColorOverride(partIndex, SpriteStudioBlendOp.Mix, new Color(0f, 0.2f, 1f, 0.75f));
+            _player.SetPartColorOverride(partIndex, new Color(0f, 0.2f, 1f, 0.75f), SpriteStudioBlendOp.Mix);
             yield return Step("1) Color override:  body -> blue", 2f);
 
             // 2) Visibility — force-hide. Cascade would take the descendants with it; here the
@@ -138,7 +133,6 @@ public class OverrideDemo : MonoBehaviour
     private IEnumerator Step(string text, float seconds)
     {
         _status = text;
-//        Debug.Log($"[Override Demo] {text}");
         yield return new WaitForSeconds(seconds);
     }
 }

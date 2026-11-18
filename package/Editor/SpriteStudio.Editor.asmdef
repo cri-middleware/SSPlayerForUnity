@@ -4,7 +4,8 @@
     "references": [
         "SpriteStudio.Runtime",
         "SpriteStudio.Runtime.Bindings",
-        "SpriteStudio.Editor.Bindings"
+        "SpriteStudio.Editor.Bindings",
+        "UnityEditor.UI"
     ],
     "includePlatforms": [
         "Editor"

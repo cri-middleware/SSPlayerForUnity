@@ -5,7 +5,7 @@ A runnable Unity project that demonstrates the **Override Layer API**: per-part 
 animation blending, so a script can say "make this part this color / this cell / hidden **now**"
 without fighting the animation.
 
-- Unity **6000.3.16f1**, **URP**. (The player also runs on the Built-in Render Pipeline; only this
+- Unity **6000.3.25f1**, **URP**. (The player also runs on the Built-in Render Pipeline; only this
   project's render-pipeline settings are URP-specific.)
 - The package is referenced from this repository through a local path
   (`Packages/manifest.json` → `file:../../../package`), so the project always builds against the
@@ -13,8 +13,16 @@ without fighting the animation.
 
 ## Run it
 
-1. Open `examples/Override_Ringo` in Unity.
-2. Open `Assets/Scenes/Override_Ringo.unity` and press Play.
+1. From the repository root, run `./scripts/download-sdk.sh` (the native libraries) and
+   `./scripts/deploy-examples.sh` (converts the SDK's Ringo; no converted asset is committed) — `.ps1` on
+   Windows. `deploy-examples` needs the `SpriteStudio-SDK` submodule (`git submodule update --init --recursive`)
+   and a Rust toolchain. Without Rust, open the project, drag `SpriteStudio-SDK/tests/Ringo/Ringo.sspj` onto
+   **Window > SpriteStudio > Importer**, and assign the imported `Ringo.ssab` to each player in the scene.
+   Do the scripts **before** the project is first opened, or Unity deletes the committed `.meta`
+   that carry the scene's references; see
+   [CONTRIBUTING › Example projects](../../CONTRIBUTING.md#example-projects).
+2. Open `examples/Override_Ringo` in Unity.
+3. Open `Assets/Scenes/Override_Ringo.unity` and press Play.
 
 The Ringo animation keeps playing while the demo cycles through the three overrides, showing the
 current step in the top-left corner:
@@ -32,7 +40,7 @@ current step in the top-left corner:
 `FindPartIndex`, then drives the overrides from a coroutine. Which part / cell it touches is
 editable on the component, so the same script works on other animations.
 
-The API is documented in [the scripting guide](../../docs/en/workflow/usage_scripting.md#part-overrides-color--cell--visibility).
+The API is documented in [the scripting guide](../../docs/en/workflow/usage_scripting.md#part-overrides-part-color--cell--visibility).
 
 ## Notes on the scene
 

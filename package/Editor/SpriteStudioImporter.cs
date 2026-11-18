@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -12,14 +11,13 @@ namespace SpriteStudio.Editor
     /// - Accepts dropped/specified paths (a mix of files and folders) and delegates recursive folder
     ///   traversal to libssconverter (FFI) to collect the .sspj files beneath them
     ///   (<see cref="SpriteStudioDirectoryScan"/>).
-    /// - Detects output collisions and confirms via dialog (when interactive).
+    /// - Gives every .sspj its own output folder, and reports the ones a collision leaves out.
+    /// - Detects an output that belongs to a different .sspj and confirms via dialog (when interactive).
     /// - Queues the conversion into <see cref="SpriteStudioConversionRunner"/>
     ///   (progress display, concurrency limit, and non-blocking behavior are handled by the runner).
     /// </summary>
     public static class SpriteStudioImporter
     {
-        private const string DefaultOutputPath = "Assets/ssab_generated";
-
         /// <summary>
         /// Imports the dropped/selected paths.
         /// Folders are recursively scanned with libssconverter, and every .sspj beneath them is batch-converted.
@@ -58,6 +56,24 @@ namespace SpriteStudio.Editor
             });
         }
 
+        /// <summary>
+        /// Reconverts one .sspj back into an output folder that already exists, instead of into the folder
+        /// the <c>&lt;output folder&gt;/&lt;stem&gt;</c> rule would name.
+        /// The generated folder may be moved or renamed after it is created (the source map follows the
+        /// move), so a reconvert started from an existing .ssab has to write where
+        /// that .ssab is -- writing by the rule instead would recreate the original folder and leave the
+        /// asset the user asked about untouched.
+        /// </summary>
+        public static void ReconvertInto(string sspjPath, string outputDir)
+        {
+            if (string.IsNullOrEmpty(sspjPath) || string.IsNullOrEmpty(outputDir)) return;
+
+            RunPlan(new List<Job>
+            {
+                new Job { Sspj = Path.GetFullPath(sspjPath), OutDir = Path.GetFullPath(outputDir) },
+            }, interactive: false);
+        }
+
         private static void BeginConvert(List<string> sspjPaths, bool interactive)
         {
             var sspjList = Dedup(sspjPaths);
@@ -70,16 +86,25 @@ namespace SpriteStudio.Editor
                 return;
             }
 
-            string baseDir = ResolveOutputBaseDir();
-            if (baseDir == null)
+            var jobs = new List<Job>();
+            foreach (var sspj in sspjList)
             {
-                Debug.LogError("[SSPlayer] Invalid output folder. Open 'Window/SpriteStudio/Importer' and set it.");
-                return;
+                string outDir = SpriteStudioOutputFolder.ResolveConversionDir(sspj);
+                if (outDir == null)
+                {
+                    Debug.LogError("[SSPlayer] Invalid output folder. Open 'Window/SpriteStudio/Importer' and set it.");
+                    return;
+                }
+                jobs.Add(new Job { Sspj = sspj, OutDir = outDir });
             }
 
-            var jobs = sspjList
-                .Select(sspj => new Job { Sspj = sspj, OutDir = Path.Combine(baseDir, Path.GetFileNameWithoutExtension(sspj)) })
-                .ToList();
+            RunPlan(jobs, interactive);
+        }
+
+        private static void RunPlan(List<Job> jobs, bool interactive)
+        {
+            jobs = DedupePlan(jobs);
+            if (jobs.Count == 0) return;
 
             if (interactive && !ConfirmNoCollision(jobs))
             {
@@ -99,6 +124,45 @@ namespace SpriteStudio.Editor
             public string OutDir;
         }
 
+        /// <summary>
+        /// One output folder, one job. Two .sspj whose file names match resolve to the same folder, and
+        /// nothing downstream would tell them apart.
+        /// The same project reaching the plan twice is the same work, so the duplicate goes quietly; two
+        /// different projects cannot both own the folder, so the first keeps it and the rest are named --
+        /// the fix is the user's (rename one, or import them into separate output folders), and dropping
+        /// them silently would look like the converter lost a file.
+        /// </summary>
+        private static List<Job> DedupePlan(List<Job> jobs)
+        {
+            var kept = new List<Job>();
+            var ownerOfOutDir = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var skipped = new List<string>();
+
+            foreach (var job in jobs)
+            {
+                if (ownerOfOutDir.TryGetValue(job.OutDir, out string owner))
+                {
+                    if (!string.Equals(owner, job.Sspj, StringComparison.OrdinalIgnoreCase))
+                    {
+                        skipped.Add($"- {job.Sspj}\n    '{job.OutDir}' is already written by {owner}");
+                    }
+                    continue;
+                }
+
+                ownerOfOutDir[job.OutDir] = job.Sspj;
+                kept.Add(job);
+            }
+
+            if (skipped.Count > 0)
+            {
+                Debug.LogWarning("[SSPlayer] Not converted -- their output folders collide within this import. " +
+                                 "Rename one .sspj, or import them into separate output folders:\n" +
+                                 string.Join("\n", skipped));
+            }
+
+            return kept;
+        }
+
         /// <summary>Returns the .sspj list de-duplicated by absolute path.</summary>
         private static List<string> Dedup(IEnumerable<string> sspjPaths)
         {
@@ -113,42 +177,16 @@ namespace SpriteStudio.Editor
             return result;
         }
 
-        /// <summary>Returns the output base directory (absolute path). null if invalid.</summary>
-        private static string ResolveOutputBaseDir()
-        {
-            string assetPath = SpriteStudioSourceMap.GetOutputFolder(DefaultOutputPath);
-            if (string.IsNullOrEmpty(assetPath) || !AssetDatabase.IsValidFolder(assetPath))
-            {
-                if (!AssetDatabase.IsValidFolder(DefaultOutputPath))
-                {
-                    AssetDatabase.CreateFolder("Assets", "ssab_generated");
-                }
-                assetPath = DefaultOutputPath;
-                if (!AssetDatabase.IsValidFolder(assetPath)) return null;
-            }
-            return Path.GetFullPath(assetPath);
-        }
-
         /// <summary>
-        /// Detects output collisions and, if any, confirms via dialog. Returns true if it is OK to proceed.
-        /// Collision 1: the same stem within the batch (outputs overlap).
-        /// Collision 2: an existing output originates from a different .sspj (checked against the SourceMap).
+        /// Detects that an existing output originates from a different .sspj (checked against the SourceMap)
+        /// and, if so, confirms via dialog. Returns true if it is OK to proceed.
+        /// Two jobs of one batch colliding with each other is <see cref="DedupePlan"/>'s, not this dialog's:
+        /// there is no version of that the user can say yes to.
         /// </summary>
         private static bool ConfirmNoCollision(List<Job> jobs)
         {
             var messages = new List<string>();
 
-            // Collision 1: duplicate stems within the batch
-            var dupStems = jobs
-                .GroupBy(j => Path.GetFileName(j.OutDir), StringComparer.OrdinalIgnoreCase)
-                .Where(g => g.Count() > 1);
-            foreach (var g in dupStems)
-            {
-                messages.Add($"- '{g.Key}' appears {g.Count()} times (outputs overlap):\n    " +
-                             string.Join("\n    ", g.Select(j => j.Sspj)));
-            }
-
-            // Collision 2: existing output originates from a different sspj
             foreach (var job in jobs)
             {
                 if (!Directory.Exists(job.OutDir)) continue;

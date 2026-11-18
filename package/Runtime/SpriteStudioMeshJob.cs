@@ -8,17 +8,16 @@ using UnityEngine;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// Share the frame-data enum values (ss.runtime.UpdateAttributeFlags) by deriving them from the generated
-    /// enum rather than from literals. Having the accounting side (SpriteStudioInternalPlayer) and the Burst Job
-    /// (UpdateMeshJob) reference the same definition prevents the "edit one side and the values drift" accident
-    /// (a mismatch between the vertex-count accounting and the Job).
+    /// The frame-data enum values (ss.runtime.UpdateAttributeFlags), derived from the generated enum rather
+    /// than from literals. Shared by the vertex-count accounting (SpriteStudioGeometryBuilder,
+    /// SpriteStudioMaskPlanner) and the Burst job (UpdateMeshJob), so the two cannot drift.
     /// Burst inlines const, so the Job can reference it too.
     /// </summary>
     internal static class SsUpdateFlag
     {
         public const ulong AttributeVertex = (ulong)ss.runtime.UpdateAttributeFlags.AttributeVertex;
         public const ulong AttributePartColor = (ulong)ss.runtime.UpdateAttributeFlags.AttributePartColor;
-        // Center vertex needed = a frame where vertex deform or part color is active (same condition as SDK core/framedata.rs).
+        // A frame with vertex deform or part color active carries a centre vertex.
         public const ulong NeedsCenterMask = AttributeVertex | AttributePartColor;
     }
 
@@ -30,9 +29,10 @@ namespace SpriteStudio.Runtime
         public const byte Instance = (byte)ss.runtime.DrawBatchKind.Instance;
         public const byte Effect = (byte)ss.runtime.DrawBatchKind.Effect;
         public const byte Mesh = (byte)ss.runtime.DrawBatchKind.Mesh;
+        public const byte Mask = (byte)ss.runtime.DrawBatchKind.Mask;
     }
 
-    public struct DrawBatchData
+    internal struct DrawBatchData
     {
         public ushort StartRank;
         public ushort Count;
@@ -50,7 +50,7 @@ namespace SpriteStudio.Runtime
 
     // Effect draw command (the draw range for one emitter/cellmap).
     // Filled by copying values from the generated accessor ss.runtime.EffectDrawCommand.
-    public struct EffectDrawCommandData
+    internal struct EffectDrawCommandData
     {
         public uint CellmapHash;
         public uint QuadCount;
@@ -60,14 +60,14 @@ namespace SpriteStudio.Runtime
 
     // Holds one effect part's draw plan as position info into the merged buffers (_effectVerts, etc.).
     // The geometry itself has already been copied into the merged NativeArrays.
-    public struct EffectDrawPlanData
+    internal struct EffectDrawPlanData
     {
         public int CommandStart;  // start index within _effectCommands
         public int CommandCount;  // command count (0 = no draw)
         public int QuadBase;      // global quad offset within the merged geometry
     }
 
-    public unsafe struct InstanceMeshPointer
+    internal unsafe struct InstanceMeshPointer
     {
         public SsVertex* Vertices;
         public uint* Indices;
@@ -75,20 +75,20 @@ namespace SpriteStudio.Runtime
         public int IndexCount;
     }
 
-    public struct PartStateData
+    internal struct PartStateData
     {
         public ulong UpdateFlag;
         public float Alpha;
         public short PartColorIndex;
     }
 
-    public struct CornerColorData
+    internal struct CornerColorData
     {
         public Color32 Rgba;
         public float Rate;
     }
 
-    public struct PartColorData
+    internal struct PartColorData
     {
         public byte BlendType;
         public CornerColorData Lt;
@@ -97,16 +97,58 @@ namespace SpriteStudio.Runtime
         public CornerColorData Rb;
     }
 
-    public struct SsVertex
+    internal struct SsVertex
     {
+        // TexCoord1.y of a part with no cell (a Shape). It resolves to Mix as 0 does; the Canvas shader, whose
+        // one material binds an atlas for every part, reads it as "draw with white".
+        public const float BlendIdxNoCell = -1f;
+
         public Vector3 Position;
         public Color32 Color;
         public Vector2 TexCoord0;
-        public Vector4 TexCoord1; // [rate, blend_idx, pma_flag, reserved]
+        public Vector4 TexCoord1; // [rate, blend_idx, isNormalized, isAdditive]
+    }
+
+    /// <summary>
+    /// The Canvas upload's conversion (SpriteStudioMeshUploader.ApplyCanvas): the packed vertex stream split
+    /// into the per-channel arrays the high-level Mesh API takes, and the indices narrowed to 16 bits. The
+    /// vertex colour becomes the tint times the part's alpha, and the part colour moves to TEXCOORD2.
+    /// IndexCount 0 leaves the narrowed indices as they were.
+    /// </summary>
+    [BurstCompile(CompileSynchronously = false)]
+    internal struct CanvasStreamsJob : IJob
+    {
+        [ReadOnly] public NativeArray<SsVertex> Vertices;
+        [ReadOnly] public NativeArray<uint> Indices;
+        public Color32 Tint;
+        public int VertexCount;
+        public int IndexCount;
+
+        [WriteOnly] public NativeArray<Vector3> Positions;
+        [WriteOnly] public NativeArray<Color32> Colors;
+        [WriteOnly] public NativeArray<Vector2> Uv0;
+        [WriteOnly] public NativeArray<Vector4> Uv1;
+        [WriteOnly] public NativeArray<Vector3> Uv2;
+        [WriteOnly] public NativeArray<ushort> Indices16;
+
+        public void Execute()
+        {
+            const float inv255 = 1f / 255f;
+            for (int i = 0; i < VertexCount; i++)
+            {
+                var v = Vertices[i];
+                Positions[i] = v.Position;
+                Colors[i] = new Color32(Tint.r, Tint.g, Tint.b, (byte)((Tint.a * v.Color.a) / 255));
+                Uv0[i] = v.TexCoord0;
+                Uv1[i] = v.TexCoord1;
+                Uv2[i] = new Vector3(v.Color.r * inv255, v.Color.g * inv255, v.Color.b * inv255);
+            }
+            for (int i = 0; i < IndexCount; i++) Indices16[i] = (ushort)Indices[i];
+        }
     }
 
     [BurstCompile(CompileSynchronously = false)]
-    public unsafe struct UpdateMeshJob : IJob
+    internal unsafe struct UpdateMeshJob : IJob
     {
         [NativeDisableUnsafePtrRestriction] public float* WorldMatrices;
         [NativeDisableUnsafePtrRestriction] public float* LocalUvs;
@@ -144,9 +186,13 @@ namespace SpriteStudio.Runtime
         public int PartCount;
         public int PartColorCount;
 
-        // Uniform scale applied to the final vertex position (= 1 / PixelsPerUnit). From SpriteStudioInternalPlayer.VertexScale.
-        // Converts pixel-space world vertices into Unity world units (not applied to UVs).
-        public float InvScale;
+        // Root transform folded into every final vertex position, from SpriteStudioInternalPlayer.RootScale /
+        // VertexOffset. Scale converts pixel-space world vertices into Unity world units (= 1 / PixelsPerUnit),
+        // negated per axis when that axis is flipped; Offset shifts the result and is already in Unity units.
+        // Neither is applied to UVs. Folding them in here rather than onto the GameObject's Transform keeps
+        // flip / offset from dragging the player's children and colliders along.
+        public Vector2 RootScale;
+        public Vector2 RootOffset;
 
         public void Execute()
         {
@@ -256,8 +302,8 @@ namespace SpriteStudio.Runtime
                     Vertices[vbase + q * 4 + v] = new SsVertex
                     {
                         Position = new Vector3(
-                            (draw_m[0] * lx + draw_m[4] * ly + draw_m[12]) * InvScale,
-                            (draw_m[1] * lx + draw_m[5] * ly + draw_m[13]) * InvScale,
+                            (draw_m[0] * lx + draw_m[4] * ly + draw_m[12]) * RootScale.x + RootOffset.x,
+                            (draw_m[1] * lx + draw_m[5] * ly + draw_m[13]) * RootScale.y + RootOffset.y,
                             0f),
                         Color = new Color32(r, g, b, a),
                         TexCoord0 = new Vector2(ux, uy),
@@ -297,8 +343,8 @@ namespace SpriteStudio.Runtime
                 
                 float lx = vert.Position.x;
                 float ly = vert.Position.y;
-                vert.Position.x = (draw_m[0] * lx + draw_m[4] * ly + draw_m[12]) * InvScale;
-                vert.Position.y = (draw_m[1] * lx + draw_m[5] * ly + draw_m[13]) * InvScale;
+                vert.Position.x = (draw_m[0] * lx + draw_m[4] * ly + draw_m[12]) * RootScale.x + RootOffset.x;
+                vert.Position.y = (draw_m[1] * lx + draw_m[5] * ly + draw_m[13]) * RootScale.y + RootOffset.y;
                 
                 byte a = vert.Color.a;
                 vert.Color.a = (byte)((a * alphaByte) / 255);
@@ -330,7 +376,10 @@ namespace SpriteStudio.Runtime
             float* out_x = stackalloc float[5] { part_verts[0], part_verts[2], part_verts[4], part_verts[6], part_verts[8] };
             float* out_y = stackalloc float[5] { part_verts[1], part_verts[3], part_verts[5], part_verts[7], part_verts[9] };
 
-            Color32* corner_colors = stackalloc Color32[4] { new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255) };
+            // A part colour's corners already carry the part's opacity, its parents' included: the runtime
+            // multiplies it in, so only the white default takes it here.
+            byte alphaByte = (byte)(math.clamp(part.Alpha, 0f, 1f) * 255f);
+            Color32* corner_colors = stackalloc Color32[4] { new Color32(255, 255, 255, alphaByte), new Color32(255, 255, 255, alphaByte), new Color32(255, 255, 255, alphaByte), new Color32(255, 255, 255, alphaByte) };
             float* corner_rates = stackalloc float[4] { 0f, 0f, 0f, 0f };
             int blend_idx = 0;
 
@@ -345,20 +394,13 @@ namespace SpriteStudio.Runtime
                 if (blend_idx > 3) blend_idx = 0;
             }
 
-            // Apply part alpha
-            byte alphaByte = (byte)(math.clamp(part.Alpha, 0f, 1f) * 255f);
-            for (int i = 0; i < 4; i++)
-            {
-                corner_colors[i].a = (byte)((corner_colors[i].a * alphaByte) / 255);
-            }
-
             for (int i = 0; i < 4; i++)
             {
                 Vertices[vbase + i] = new SsVertex
                 {
                     Position = new Vector3(
-                        (draw_m[0] * out_x[i] + draw_m[4] * out_y[i] + draw_m[12]) * InvScale,
-                        (draw_m[1] * out_x[i] + draw_m[5] * out_y[i] + draw_m[13]) * InvScale,
+                        (draw_m[0] * out_x[i] + draw_m[4] * out_y[i] + draw_m[12]) * RootScale.x + RootOffset.x,
+                        (draw_m[1] * out_x[i] + draw_m[5] * out_y[i] + draw_m[13]) * RootScale.y + RootOffset.y,
                         0f),
                     Color = corner_colors[i],
                     TexCoord0 = new Vector2(part_uvs[i * 2], part_uvs[i * 2 + 1]),
@@ -371,8 +413,8 @@ namespace SpriteStudio.Runtime
                 Vertices[vbase + 4] = new SsVertex
                 {
                     Position = new Vector3(
-                        (draw_m[0] * out_x[4] + draw_m[4] * out_y[4] + draw_m[12]) * InvScale,
-                        (draw_m[1] * out_x[4] + draw_m[5] * out_y[4] + draw_m[13]) * InvScale,
+                        (draw_m[0] * out_x[4] + draw_m[4] * out_y[4] + draw_m[12]) * RootScale.x + RootOffset.x,
+                        (draw_m[1] * out_x[4] + draw_m[5] * out_y[4] + draw_m[13]) * RootScale.y + RootOffset.y,
                         0f),
                     Color = new Color32(
                         (byte)((corner_colors[0].r + corner_colors[1].r + corner_colors[2].r + corner_colors[3].r) / 4),
@@ -419,7 +461,6 @@ namespace SpriteStudio.Runtime
                 new Color32(255, 255, 255, alphaByte)
             };
             float* corner_rates = stackalloc float[4] { 1f, 1f, 1f, 1f };
-            int blend_idx = 0;
 
             if ((part.UpdateFlag & SsUpdateFlag.AttributePartColor) != 0 && part.PartColorIndex >= 0 && part.PartColorIndex < PartColorCount)
             {
@@ -428,11 +469,6 @@ namespace SpriteStudio.Runtime
                 corner_colors[1] = pc.Rt.Rgba;
                 corner_colors[2] = pc.Lb.Rgba;
                 corner_colors[3] = pc.Rb.Rgba;
-                
-                for (int i = 0; i < 4; i++)
-                {
-                    corner_colors[i].a = (byte)((corner_colors[i].a * alphaByte) / 255);
-                }
             }
 
             for (int i = 0; i < part_shape_count; i++)
@@ -458,12 +494,12 @@ namespace SpriteStudio.Runtime
                 Vertices[vbase + i] = new SsVertex
                 {
                     Position = new Vector3(
-                        (draw_m[0] * vx + draw_m[4] * vy + draw_m[12]) * InvScale,
-                        (draw_m[1] * vx + draw_m[5] * vy + draw_m[13]) * InvScale,
+                        (draw_m[0] * vx + draw_m[4] * vy + draw_m[12]) * RootScale.x + RootOffset.x,
+                        (draw_m[1] * vx + draw_m[5] * vy + draw_m[13]) * RootScale.y + RootOffset.y,
                         0f),
                     Color = new Color32(r, g, b, a),
                     TexCoord0 = new Vector2(0f, 0f),
-                    TexCoord1 = new Vector4(v_rate, blend_idx, 0f, isAdditive)
+                    TexCoord1 = new Vector4(v_rate, SsVertex.BlendIdxNoCell, 0f, isAdditive)
                 };
             }
 
@@ -503,7 +539,6 @@ namespace SpriteStudio.Runtime
             {
                 var pc = PartColors[part.PartColorIndex];
                 meshColor = pc.Lt.Rgba;
-                meshColor.a = (byte)((meshColor.a * alphaByte) / 255);
                 meshRate = pc.Lt.Rate;
                 blendIdx = pc.BlendType;
                 if (blendIdx > 3) blendIdx = 0;
@@ -514,7 +549,7 @@ namespace SpriteStudio.Runtime
                 int srcIdx = (int)(v0 + j);
                 Vertices[vbase + j] = new SsVertex
                 {
-                    Position = new Vector3(MeshVerticesX[srcIdx] * InvScale, MeshVerticesY[srcIdx] * InvScale, 0f),
+                    Position = new Vector3(MeshVerticesX[srcIdx] * RootScale.x + RootOffset.x, MeshVerticesY[srcIdx] * RootScale.y + RootOffset.y, 0f),
                     Color = meshColor,
                     TexCoord0 = new Vector2(MeshUvs[srcIdx * 2], MeshUvs[srcIdx * 2 + 1]),
                     TexCoord1 = new Vector4(meshRate, blendIdx, 0f, isAdditive)

@@ -73,12 +73,12 @@ CARGO_FLAGS=""
 if [[ "$IS_HOST_BUILD" == "true" ]]; then
     if [[ "$PLATFORM" == "macos" ]]; then
         cargo build $CARGO_FLAGS
-        cargo build $CARGO_FLAGS -p ssruntime --features libc_alloc,panic-handler
+        cargo build $CARGO_FLAGS -p ssruntime-ffi --features libc_alloc,panic-handler
     elif [[ "$PLATFORM" == "linux" ]]; then
         ./scripts/release-linux.sh $BUILD_MODE
     elif [[ "$PLATFORM" == "windows" ]]; then
         cargo build $CARGO_FLAGS
-        cargo build $CARGO_FLAGS -p ssruntime --features libc_alloc,panic-handler
+        cargo build $CARGO_FLAGS -p ssruntime-ffi --features libc_alloc,panic-handler
     fi
     SRC_DIR="target/$BUILD_MODE"
 else
@@ -130,12 +130,26 @@ EDITOR_DIR=${ROOTDIR}/package/Editor/Plugins
 mkdir -p ${RUNTIME_DIR}
 mkdir -p ${EDITOR_DIR}
 
-# C# Bindings
+# Plugins/VERSION names the SDK release download-sdk installed, and everything
+# below replaces files with this local build. Stamp both "local" first, so a
+# later download-sdk sees a mismatch and reinstalls instead of skipping as up to
+# date. Overwritten rather than removed: each has a committed .meta, which Unity
+# deletes when its asset is gone.
+echo "local" > ${RUNTIME_DIR}/VERSION
+echo "local" > ${EDITOR_DIR}/VERSION
+
+# C# Bindings. Each .g.cs also gets its committed .meta from scripts/upm-meta: the
+# .g.cs are gitignored so their .meta cannot live next to them, and a script with no
+# .meta is ignored by Unity inside an immutable package folder (see that README).
 echo "Copying C# bindings..."
-cp ${SDK_DIR}/libs/ssruntime/target/SSRuntimeMethods.g.cs ${ROOTDIR}/package/Runtime/Bindings/
+# The generating build scripts live in the *-ffi crates and write beside
+# themselves, so these are `libs/<crate>-ffi/target/`.
+cp ${SDK_DIR}/libs/ssruntime-ffi/target/SSRuntimeMethods.g.cs ${ROOTDIR}/package/Runtime/Bindings/
+cp ${BASEDIR}/upm-meta/SSRuntimeMethods.g.cs.meta ${ROOTDIR}/package/Runtime/Bindings/
 mkdir -p ${ROOTDIR}/package/Editor/Bindings/
-if [[ -f "${SDK_DIR}/libs/ssconverter/target/SSConverterMethods.g.cs" ]]; then
-    cp ${SDK_DIR}/libs/ssconverter/target/SSConverterMethods.g.cs ${ROOTDIR}/package/Editor/Bindings/
+if [[ -f "${SDK_DIR}/libs/ssconverter-ffi/target/SSConverterMethods.g.cs" ]]; then
+    cp ${SDK_DIR}/libs/ssconverter-ffi/target/SSConverterMethods.g.cs ${ROOTDIR}/package/Editor/Bindings/
+    cp ${BASEDIR}/upm-meta/SSConverterMethods.g.cs.meta ${ROOTDIR}/package/Editor/Bindings/
 fi
 
 # Licenses

@@ -1,108 +1,47 @@
-site_name: SpriteStudioPlayer for Unity
-site_description: "A Unity Engine integration for SpriteStudio 7"
-site_author: "CRI Middleware Co., Ltd."
+INHERIT: ./mkdocs.base.yml
+
+docs_dir: docs/en
+site_dir: site
 site_url: "https://cri-middleware.github.io/SSPlayerForUnity/"
-repo_name: "cri-middleware/SSPlayerForUnity"
-repo_url: "https://github.com/cri-middleware/SSPlayerForUnity"
-edit_uri: "edit/main/docs/"
+site_description: "A Unity Engine integration for SpriteStudio"
 
 theme:
-  name: material
   language: en
-  palette:
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      primary: blue grey
-      accent: indigo
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      primary: blue grey
-      accent: indigo
-      toggle:
-        icon: material/brightness-4
-        name: Switch to light mode
-  features:
-    - navigation.tabs
-    - navigation.sections
-    - navigation.expand
-    - content.code.copy
 
-plugins:
-  - search
-  - callouts
-  - i18n:
-      docs_structure: folder
-      languages:
-        - locale: en
-          name: English
-          default: true
-          build: true
-        - locale: ja
-          name: 日本語
-          build: true
-          nav_translations:
-            Home: ホーム
-            For Users: 利用者向けガイド
-            Installation: インストール
-            Basic Usage: 基本的な使い方
-            Migration from SS6Player: SS6Player からのマイグレーション
-            Asset Import & Editor Integration: アセットのインポートとエディタ連携
-            Scripting & Events: スクリプト制御とイベント
-            Performance Tuning & Advanced Settings: パフォーマンスチューニングと高度な設定
-            Customization & Automation: カスタマイズ・自動化ガイド
-            CLI Conversion & CI/CD: 各種コンバート機能と CI/CD
-            For Player & SDK Developers: Player・SDK 開発者向けガイド
-            Build Guide: ビルドガイド
-            License: ライセンス
-            Third-Party Notices: サードパーティライセンス
+extra:
+  site_root_prefix: ""
+  social:
+    - icon: material/motion-play
+      link: https://cri-middleware.github.io/SpriteStudio-Docs/
+      name: SpriteStudio Docs
+    - icon: fontawesome/brands/github
+      link: https://github.com/cri-middleware
+      name: cri-middleware on GitHub
+    - icon: material/web
+      link: https://www.webtech.co.jp/spritestudio/
+      name: SpriteStudio
+    - icon: fontawesome/brands/x-twitter
+      link: https://x.com/spritestudio
+      name: SpriteStudio on X
 
 nav:
-  - Home: index.md
-  - For Users:
+  - 🏠 Home: index.md
+  - 👤 For Users:
       - Installation: setup/install.md
       - Basic Usage: workflow/usage_basic.md
       - Asset Import & Editor Integration: workflow/usage_asset_pipeline.md
+      - Generated Assets & AssetBundle: workflow/generated_assets.md
       - Scripting & Events: workflow/usage_scripting.md
+      - Motion Blending: workflow/motion_blending.md
+      - Buttons & UI States: workflow/ui_buttons.md
       - Performance Tuning & Advanced Settings: workflow/tips.md
       - Migration from SS6Player: migration_from_ss6.md
-  - Customization & Automation:
+  - ⚙️ Customization & Automation:
       - CLI Conversion & CI/CD: workflow/import.md
-  - For Player & SDK Developers:
-      - Build Guide: setup/build.md
-  - License:
+  - ⚠️ Limitations & Scope: limitations.md
+  - 🛠️ For Player & SDK Developers:
+      - Build Guide: development/build.md
+      - How the Player Is Put Together: development/architecture.md
+  - ⚖️ License:
       - License: license.md
       - Third-Party Notices: third_party_notices.md
-
-markdown_extensions:
-  - toc:
-      slugify: !!python/object/apply:pymdownx.slugs.slugify
-        kwds:
-          case: lower
-  - admonition
-  - pymdownx.details
-  - pymdownx.superfences:
-      custom_fences:
-        - name: mermaid
-          class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
-  - pymdownx.highlight:
-      anchor_linenums: true
-      line_spans: __span
-      pygments_lang_class: true
-  - pymdownx.inlinehilite
-  - pymdownx.snippets:
-      base_path:
-        - .
-      check_paths: true
-
-extra:
-  alternate:
-    - name: English
-      link: ./
-      lang: en
-    - name: 日本語
-      link: ./ja/
-      lang: ja

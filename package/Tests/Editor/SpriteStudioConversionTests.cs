@@ -36,17 +36,13 @@ namespace SpriteStudio.Editor.Tests
 
             Assert.IsTrue(File.Exists(expectedSsabPath), "Conversion did not produce the expected .ssab file within timeout.");
 
-            // Cleanup: even after conversion completes, Unity's AssetDatabase import (.meta generation) may still
-            // be running, so Directory.Delete can transiently fail with "Directory not empty". Retry while waiting a few frames.
-            for (int attempt = 0; attempt < 60 && Directory.Exists(outDir); attempt++)
+            // Cleanup. The output is under temporaryCachePath, outside the project, so nothing imports it and
+            // it can go at once; clearing the attributes keeps a read-only file from blocking the delete.
+            foreach (var file in Directory.GetFiles(outDir, "*", SearchOption.AllDirectories))
             {
-                // Clear attributes and retry to prevent lock-induced exceptions
-                foreach (var file in Directory.GetFiles(outDir, "*", SearchOption.AllDirectories))
-                {
-                    File.SetAttributes(file, FileAttributes.Normal);
-                }
-                Directory.Delete(outDir, true);
+                File.SetAttributes(file, FileAttributes.Normal);
             }
+            Directory.Delete(outDir, true);
         }
 
         [UnityTest]

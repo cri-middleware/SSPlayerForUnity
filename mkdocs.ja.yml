@@ -1,0 +1,47 @@
+INHERIT: ./mkdocs.base.yml
+
+docs_dir: docs/ja
+site_dir: site/ja
+site_url: "https://cri-middleware.github.io/SSPlayerForUnity/ja/"
+site_description: "SpriteStudio のアニメーションを Unity Engine で再生するプラグイン"
+
+theme:
+  language: ja
+
+extra:
+  site_root_prefix: "../"
+  social:
+    - icon: material/motion-play
+      link: https://cri-middleware.github.io/SpriteStudio-Docs/ja/
+      name: SpriteStudio Docs（ポータル）
+    - icon: fontawesome/brands/github
+      link: https://github.com/cri-middleware
+      name: GitHub の cri-middleware
+    - icon: material/web
+      link: https://www.webtech.co.jp/spritestudio/
+      name: SpriteStudio
+    - icon: fontawesome/brands/x-twitter
+      link: https://x.com/spritestudio
+      name: X の SpriteStudio
+
+nav:
+  - 🏠 ホーム: index.md
+  - 👤 利用者向けガイド:
+      - インストール: setup/install.md
+      - 基本的な使い方: workflow/usage_basic.md
+      - アセットのインポートとエディタ連携: workflow/usage_asset_pipeline.md
+      - 生成アセットの構成と AssetBundle: workflow/generated_assets.md
+      - スクリプト制御とイベント: workflow/usage_scripting.md
+      - モーションブレンド: workflow/motion_blending.md
+      - ボタンと UI 状態: workflow/ui_buttons.md
+      - パフォーマンスチューニングと高度な設定: workflow/tips.md
+      - SS6Player からのマイグレーション: migration_from_ss6.md
+  - ⚙️ カスタマイズ・自動化ガイド:
+      - 各種コンバート機能と CI/CD: workflow/import.md
+  - ⚠️ 制約と適用範囲: limitations.md
+  - 🛠️ Player・SDK 開発者向けガイド:
+      - ビルドガイド: development/build.md
+      - プレイヤーの構成: development/architecture.md
+  - ⚖️ ライセンス:
+      - ライセンス: license.md
+      - サードパーティライセンス: third_party_notices.md

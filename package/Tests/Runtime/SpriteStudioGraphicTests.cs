@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NUnit.Framework;
 using SpriteStudio.Runtime;
 using UnityEngine;
@@ -48,7 +49,7 @@ namespace SpriteStudio.Runtime.Tests
             Assert.AreEqual(1f, graphic.SpeedScale);
             Assert.AreEqual(-1, graphic.LoopCount);
             Assert.IsTrue(graphic.AutoPlay);
-            Assert.IsTrue(graphic.SkipFrames);
+            Assert.IsTrue(graphic.FrameSkipEnabled);
             Assert.IsFalse(graphic.SubFrameEnabled);
         }
 
@@ -56,19 +57,217 @@ namespace SpriteStudio.Runtime.Tests
         public void SettingProperties_ReflectsValues()
         {
             var graphic = _go.AddComponent<SpriteStudioGraphic>();
-            graphic.AnimationName = "TestAnimUI";
+            graphic.CurrentAnimation = "TestAnimUI";
             graphic.AutoPlay = false;
             graphic.LoopCount = 5;
             graphic.SpeedScale = 2.0f;
             graphic.SubFrameEnabled = true;
-            graphic.SkipFrames = false;
+            graphic.FrameSkipEnabled = false;
 
-            Assert.AreEqual("TestAnimUI", graphic.AnimationName);
+            Assert.AreEqual("TestAnimUI", graphic.CurrentAnimation);
             Assert.AreEqual(false, graphic.AutoPlay);
             Assert.AreEqual(5, graphic.LoopCount);
             Assert.AreEqual(2.0f, graphic.SpeedScale);
             Assert.AreEqual(true, graphic.SubFrameEnabled);
-            Assert.AreEqual(false, graphic.SkipFrames);
+            Assert.AreEqual(false, graphic.FrameSkipEnabled);
         }
+
+        // A graphic on Ringo's walk with its first frame built and handed to the CanvasRenderer.
+        private SpriteStudioGraphic MakeBuiltGraphic()
+        {
+            var asset = Resources.Load<SpriteStudioAnimeAsset>("Ringo/Ringo");
+            Assert.IsNotNull(asset, "Ringo.ssab is required.");
+            var graphic = _go.AddComponent<SpriteStudioGraphic>();
+            graphic.AnimeAsset = asset;
+            Assert.IsTrue(graphic.SetAnimation("walk"));
+            graphic.InternalPlayer.ScheduleMeshUpdate(0f);
+            graphic.ApplyAndRender();
+            Assert.Greater(graphic.CanvasMesh.vertexCount, 0);
+            return graphic;
+        }
+
+        [Test]
+        public void Color_IsTheVertexColour_AndThePartColourRidesInTexCoord2()
+        {
+            var graphic = MakeBuiltGraphic();
+            var mesh = graphic.CanvasMesh;
+            foreach (var c in mesh.colors32)
+                Assert.AreEqual(new Color32(255, 255, 255, c.a), c, "The default Color is white");
+            var partColours = new List<Vector3>();
+            mesh.GetUVs(2, partColours);
+            Assert.AreEqual(mesh.vertexCount, partColours.Count, "Every vertex carries its part colour in TEXCOORD2");
+
+            // Nothing is rebuilt (the frame is unchanged), yet the new colour has to reach the vertices.
+            graphic.color = new Color(1f, 0f, 0f, 1f);
+            graphic.InternalPlayer.ScheduleMeshUpdate(0f);
+            graphic.ApplyAndRender();
+
+            foreach (var c in graphic.CanvasMesh.colors32)
+                Assert.AreEqual(new Color32(255, 0, 0, c.a), c, "Color should tint every vertex");
+        }
+
+        [Test]
+        public void ApplyAndRender_LeavesTheCanvasRendererColourToUGUI()
+        {
+            var graphic = MakeBuiltGraphic();
+            Assert.AreEqual(Color.white, graphic.canvasRenderer.GetColor(), "A CanvasRenderer starts white, as an Image's does");
+
+            // What a Button's Color Tint transition or CrossFadeColor writes each step.
+            var pressed = new Color(0.5f, 0.5f, 0.5f, 1f);
+            graphic.canvasRenderer.SetColor(pressed);
+            graphic.ApplyAndRender();
+
+            Assert.AreEqual(pressed, graphic.canvasRenderer.GetColor());
+        }
+
+        [Test]
+        public void EmptyMaterialField_DrawsWithTheAtlasMaterial()
+        {
+            var graphic = MakeBuiltGraphic();
+            var drawn = graphic.canvasRenderer.GetMaterial(0);
+            Assert.AreSame(graphic.defaultMaterial, drawn);
+            Assert.AreEqual("SpriteStudio/Canvas", drawn.shader.name);
+            Assert.AreSame(drawn.mainTexture, graphic.mainTexture, "mainTexture is the atlas the material samples");
+        }
+
+        [Test]
+        public void MaterialField_IsWhatTheCanvasRendererDraws()
+        {
+            var graphic = MakeBuiltGraphic();
+            var custom = new Material(Shader.Find("SpriteStudio/Canvas")) { hideFlags = HideFlags.HideAndDontSave };
+            try
+            {
+                graphic.material = custom;
+                graphic.ApplyAndRender();
+                Assert.AreSame(custom, graphic.canvasRenderer.GetMaterial(0));
+            }
+            finally
+            {
+                Object.DestroyImmediate(custom);
+            }
+        }
+
+        [Test]
+        public void MaskOnTheGraphic_WritesTheStencilForItsChildren()
+        {
+            var graphic = MakeBuiltGraphic();
+            _go.AddComponent<Mask>();
+            graphic.ApplyAndRender();
+
+            var drawn = graphic.canvasRenderer.GetMaterial(0);
+            Assert.AreEqual((float)UnityEngine.Rendering.StencilOp.Replace, drawn.GetFloat("_StencilOp"), "The Mask's stencil write should reach the CanvasRenderer");
+            Assert.AreEqual(1, graphic.canvasRenderer.popMaterialCount, "The Mask pops its stencil after the children");
+        }
+
+        [Test]
+        public void UnderAParentMask_TestsTheStencil()
+        {
+            _go.AddComponent<Image>();
+            _go.AddComponent<Mask>();
+            var child = new GameObject("MaskedGraphic", typeof(RectTransform));
+            child.transform.SetParent(_go.transform, false);
+            var asset = Resources.Load<SpriteStudioAnimeAsset>("Ringo/Ringo");
+            Assert.IsNotNull(asset, "Ringo.ssab is required.");
+            var graphic = child.AddComponent<SpriteStudioGraphic>();
+            graphic.AnimeAsset = asset;
+            Assert.IsTrue(graphic.SetAnimation("walk"));
+            graphic.InternalPlayer.ScheduleMeshUpdate(0f);
+            graphic.ApplyAndRender();
+
+            var drawn = graphic.canvasRenderer.GetMaterial(0);
+            Assert.AreEqual((float)UnityEngine.Rendering.CompareFunction.Equal, drawn.GetFloat("_StencilComp"));
+            Assert.AreEqual(1f, drawn.GetFloat("_Stencil"));
+        }
+
+        [Test]
+        public void NullAsset_LeavesNothingOfThePackOnTheCanvasRenderer()
+        {
+            var graphic = MakeBuiltGraphic();
+            var atlas = graphic.mainTexture;
+
+            graphic.AnimeAsset = null;
+
+            Assert.IsNull(graphic.InternalPlayer, "the runtime holding the old pack should be gone");
+            Assert.AreEqual(0, graphic.CanvasMesh.vertexCount, "the old pack's geometry should not stay drawn");
+            Assert.AreNotSame(atlas, graphic.mainTexture, "the released asset's atlas should not stay bound");
+            graphic.ApplyAndRender();
+            Assert.AreEqual(0, graphic.CanvasMesh.vertexCount, "nothing is built without an asset");
+
+            // The next asset is loaded as the first one was, with the Canvas path's masking.
+            graphic.AnimeAsset = Resources.Load<SpriteStudioAnimeAsset>("Ringo/Ringo");
+            Assert.IsTrue(graphic.InternalPlayer.SuppressInternalMask);
+            Assert.IsTrue(graphic.SetAnimation("walk"));
+            graphic.InternalPlayer.ScheduleMeshUpdate(0f);
+            graphic.ApplyAndRender();
+            Assert.Greater(graphic.CanvasMesh.vertexCount, 0, "the next asset draws again");
+        }
+
+#if UNITY_EDITOR
+        [Test]
+        public void InspectorNone_LetsGoOfThePack()
+        {
+            var graphic = MakeBuiltGraphic();
+
+            // What the Inspector does: write the field, then OnValidate. Releasing waits for LateUpdate.
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            typeof(SpriteStudioGraphic).GetField("_animeAsset", flags).SetValue(graphic, null);
+            typeof(SpriteStudioGraphic).GetMethod("OnValidate", flags).Invoke(graphic, null);
+            typeof(SpriteStudioGraphic).GetMethod("LateUpdate", flags).Invoke(graphic, null);
+
+            Assert.IsFalse(graphic.InternalPlayer != null && graphic.InternalPlayer.HasSsab, "no pack should stay loaded");
+            Assert.AreEqual(0, graphic.CanvasMesh.vertexCount);
+        }
+
+        // What the Inspector does: write the field, then OnValidate.
+        private static void InspectorEdit(SpriteStudioGraphic graphic, string field, object value)
+        {
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            typeof(SpriteStudioGraphic).GetField(field, flags).SetValue(graphic, value);
+            typeof(SpriteStudioGraphic).GetMethod("OnValidate", flags).Invoke(graphic, null);
+        }
+
+        [Test]
+        public void InspectorAnimationName_InPlayMode_SwitchesAndPlays()
+        {
+            if (!Application.isPlaying) Assert.Ignore("An inspector edit reaches the runtime in Play mode only.");
+            var graphic = MakeBuiltGraphic();
+
+            InspectorEdit(graphic, "_animationName", "attack1");
+
+            Assert.AreEqual("attack1", graphic.InternalPlayer.CurrentAnimationName, "An Animation Name picked in the Inspector is a switch");
+            Assert.IsTrue(graphic.IsPlaying, "and plays from the head, as on the world player");
+        }
+
+        [Test]
+        public void InspectorAsset_InPlayMode_LoadsItAndPlays()
+        {
+            if (!Application.isPlaying) Assert.Ignore("An inspector edit reaches the runtime in Play mode only.");
+            var graphic = MakeBuiltGraphic();
+            var other = Resources.Load<SpriteStudioAnimeAsset>("overall/Sound");
+            Assert.IsTrue(other != null && other.AnimationNames.Length > 0, "The overall fixture's Sound pack is required");
+
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            typeof(SpriteStudioGraphic).GetField("_animationName", flags).SetValue(graphic, other.AnimationNames[0]);
+            InspectorEdit(graphic, "_animeAsset", other);
+
+            Assert.AreEqual(other.AnimationNames[0], graphic.InternalPlayer.CurrentAnimationName, "The asset picked in the Inspector is loaded");
+            Assert.IsTrue(graphic.IsPlaying);
+        }
+
+        [Test]
+        public void InspectorTweak_InPlayMode_DoesNotRestart()
+        {
+            if (!Application.isPlaying) Assert.Ignore("An inspector edit reaches the runtime in Play mode only.");
+            var graphic = MakeBuiltGraphic();
+            graphic.Play();
+            graphic.FrameNo = 5f;
+
+            InspectorEdit(graphic, "_speedScale", 2f);
+
+            Assert.AreEqual("walk", graphic.InternalPlayer.CurrentAnimationName);
+            Assert.AreEqual(5f, graphic.FrameNo, 0.001f, "A speed edit leaves the playhead where it is");
+            Assert.AreEqual(2f, graphic.InternalPlayer.GetSpeed(), 0.001f);
+        }
+#endif
     }
 }

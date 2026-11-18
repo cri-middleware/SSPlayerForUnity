@@ -1,7 +1,13 @@
-# SpriteStudioPlayer for Unity — Documentation
+# 🎮 SpriteStudio Player for Unity — Documentation
 
-A high-performance plugin for playing back animations created with [OPTPiX SpriteStudio 7](https://www.webtech.co.jp/spritestudio/) on [Unity](https://unity.com/).
-Playback is performed through `libssruntime`, the shared Rust core provided by [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK), and combined with Unity's Job System to achieve extreme performance.
+A plugin for playing back animations created with [SpriteStudio](https://www.webtech.co.jp/spritestudio/) on [Unity](https://unity.com/).
+Drop a `.sspj` onto the **SS Importer** window (**Window > SpriteStudio > Importer**), drag the asset it makes into the Hierarchy, and press Play — no code to reach the first frame.
+
+!!! tip "No SpriteStudio data of your own yet?"
+    The [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is — that page is
+    Japanese only, but the downloads themselves are language-neutral.
+    [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character sample, and
+    [Particle](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) is a good one if you want effects.
 
 ## Contents
 
@@ -11,26 +17,26 @@ This documentation is organized by purpose, as follows.
     - [Installation](./setup/install.md): Adding the package to your Unity project
     - [Basic Usage](./workflow/usage_basic.md): Placing components and playing back
     - [Asset Import and Editor Integration](./workflow/usage_asset_pipeline.md): Start here for your first `.sspj` import
+    - [Generated Assets and AssetBundle](./workflow/generated_assets.md): Per-file roles, dependencies, and how to split bundles
     - [Script Control and Events](./workflow/usage_scripting.md): Control from C# / Timeline and receiving events
-    - [Performance Tuning and Advanced Settings](./workflow/tips.md): Settings for large-scale rendering and optimization
+    - [Motion Blending](./workflow/motion_blending.md): Layering animations on tracks and cross-fading between them
+    - [Buttons & UI States](./workflow/ui_buttons.md): uGUI buttons and toggles that show their state, and taking the pointer on the artwork only
+    - [Performance Tuning and Advanced Settings](./workflow/tips.md): Pixels Per Unit, frame skipping, per-part shaders, masking and the Canvas path's constraints
     - [Migration from SS6Player](./migration_from_ss6.md): Migration guide from the legacy SS6Player for Unity
 - **Customization & Automation** — Integrate with CLI and CI/CD
     - [Conversion Features and CI/CD](./workflow/import.md): Batch conversion and automation with `ssconverter-cli`
-- **For Player & SDK Developers** — Build the native components from source
-    - [Build Guide](./setup/build.md): How to build `libssruntime` / `libssconverter`
+- **[Limitations & Scope](./limitations.md)** — What is not yet implemented, and the constraints to know before shipping
+- **For Player & SDK Developers** — Build the native components from source, and find your way around the player
+    - [Build Guide](./development/build.md): How to build `libssruntime` / `libssconverter`, use a changed package in a project and check it in Unity
+    - [How the Player Is Put Together](./development/architecture.md): The layers, and why the player is built the way it is
 
 ## Key Features
 
-This plugin is designed to fully bring out the expressiveness of SpriteStudio 7 on Unity while delivering top-class performance.
-
-*   **Full Feature Support:** Supports the diverse expressions of SpriteStudio 7 out of the box, including bone hierarchies, mesh & deform, particle effects, extended blending, and masks.
-*   **Seamless Integration and a Powerful Asset Pipeline:** Simply bring a `.sspj` file into the Unity editor and it is automatically converted in the background, ready to be used as a Unity prefab or ScriptableObject.
-*   **Ultra-Fast, Zero-Allocation:** By combining a Rust-based core with Unity's Job System (Burst Compiler), per-frame GC allocations are completely eliminated. This delivers an extremely stable, high frame rate even in mobile environments that render many characters.
-*   **Smooth Slow Motion:** Supports sub-frame interpolation, enabling smooth, stutter-free playback even on high-refresh-rate monitors and in slow-motion effects.
-*   **Flexible UI and World Rendering:** Supports rendering in ordinary scene space (`SpriteStudioPlayer`) as well as on a uGUI (`SpriteStudioGraphic`) Canvas, and automatically follows Mask and RectMask2D.
-*   **Timeline Integration:** Animations can be controlled directly from Timeline tracks, making cutscenes and complex staging easy to implement.
-*   **Signals and Events:** Receive "user data" and "signals" set on the timeline as Unity events, allowing you to trigger SE playback and scripts with precise timing.
-*   **Dynamic Part Following:** Any GameObject can follow (Constraint) a specific part of a character, making it easy to swap weapons or attach effects.
+- **Bring your characters to life.** Breathing and blinking, swaying hair and clothes, flashy slash and magic effects — the motion is built visually in a dedicated editor (SpriteStudio) with bone rigs, mesh deformation and particles. Artists work in their own tool, and Unity just plays the result. Animations crossfade and layer on tracks at runtime, so a walk eases into a run instead of snapping ([Motion Blending](./workflow/motion_blending.md)).
+- **Not just characters — effects, UI and whole scenes.** Particle effects sit on the same timeline as the character, so there is no separate effect system to set up. Combine characters, backgrounds, effects and UI into a cutscene or a full-screen sequence, and play it in Unity as a single animation.
+- **In your scene or on your UI.** `SpriteStudioPlayer` draws in the world and `SpriteStudioGraphic` on a uGUI Canvas, where it fits its `RectTransform` and follows **Mask** / **Rect Mask 2D**, and can be a button or a toggle that plays a section for each state ([Buttons & UI States](./workflow/ui_buttons.md)). Both are controlled from C# — with per-part overrides, cellmap texture swaps, and callbacks from the artist's user-data, signal and audio keys ([Script Control and Events](./workflow/usage_scripting.md)) — and `SpriteStudioPlayer` can also make a `Transform` follow a part and be sequenced on Timeline.
+- **A seamless SpriteStudio ⇄ Unity round trip.** Drop a `.sspj` onto the **SS Importer** window and it becomes a ready-to-use asset ([Asset Import and Editor Integration](./workflow/usage_asset_pipeline.md)). To tweak it, click **Open SSPJ** in the Inspector, save in SpriteStudio, then click **Reconvert** — no manual export step. The animation lives in its own asset rather than the scene, so teammates don't collide over scene merges in Git.
+- **Zero-parse loading, SIMD and Burst playback.** `.ssab` is a FlatBuffers binary read in place, so loading involves no parsing. Each frame, a SIMD-optimised Rust core and Burst jobs build the meshes zero-copy, with no per-frame GC allocations — light enough for mobile and for scenes with many characters. Turn on **Sub-Frame Interpolation** in the Inspector and motion follows high-refresh-rate displays.
 
 ## Overview
 
@@ -41,7 +47,7 @@ graph LR
     SS[" .sspj / Images<br>(Source Assets) "]
 
     subgraph Convert ["Conversion Process"]
-        IMP[[" Importer Window<br>(Built into Unity Editor) "]]
+        IMP[[" SS Importer window<br>(Built into Unity Editor) "]]
         CLI[[" ssconverter-cli<br>(CLI Tool) "]]
     end
 
@@ -50,9 +56,8 @@ graph LR
         SO[[ SpriteStudioAnimeAsset ]]
     end
 
-    subgraph Runtime ["Unity Runtime"]
+    subgraph Runtime ["Your Scene"]
         NODE[[ SpriteStudioPlayer /<br>SpriteStudioGraphic ]]
-        RT(" libssruntime ")
     end
 
     SS -- "Drag & Drop" --> IMP
@@ -60,28 +65,16 @@ graph LR
     IMP -. "Auto Convert" .-> BIN
     CLI -. "Generate" .-> BIN
 
-    BIN -. "ScriptedImporter" .-> SO
+    BIN -. "Imported" .-> SO
     SO -- "Set" --> NODE
-    NODE -. "FFI / Fast Playback" .-> RT
-    NODE -- "Burst Job → Mesh" --> RENDER{{" Screen "}}
+    NODE --> RENDER{{" Screen "}}
 
     classDef generated stroke-dasharray: 5 5;
     class BIN,SO generated;
 ```
 
-- **Editor (at import time)**: Imports a `.sspj`, automatically converts it to `.ssab` / `.ssqb`, and generates a `SpriteStudioAnimeAsset` that bundles textures, materials, animation names, external references, and more. Pre-generation with `ssconverter-cli` is also possible.
-- **Runtime (during playback)**: The player component delegates to the shared core `SpriteStudioPlaybackCore`, `libssruntime` computes the frame data, and a Burst job builds the vertices and uploads them directly to the Mesh.
-
-## Supported Environment
-
-| Item | Details |
-|---|---|
-| Unity Version | **Unity 6.3 LTS (6000.3)** or later |
-| Render Pipeline | Universal (URP) / Built-in (BRP) |
-| Dependencies | Burst / Mathematics / Collections / Timeline (all standard Unity packages) |
-| Supported Platforms | Windows / macOS / Linux / Android / iOS / WebGL (for native libraries, see the [Build Guide](./setup/build.md)) |
-
-> **Note:** The current package version is `7.0.0-beta.1`. The API may change without notice.
+- **Editor**: The SS Importer window converts a `.sspj` to `.ssab` / `.ssqb` and generates a `SpriteStudioAnimeAsset` that bundles textures, materials, animation names, external references, and more. `ssconverter-cli` produces the same files in CI.
+- **Runtime**: `SpriteStudioPlayer` draws the asset in the scene, and `SpriteStudioGraphic` on a uGUI Canvas.
 
 ## License
 
@@ -93,4 +86,6 @@ This project uses third-party open source libraries. For details, see the [Third
 
 ## Related Repositories
 
-- [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — The SDK itself, which provides `libssruntime` / `libssconverter`
+- [SpriteStudio Docs](https://cri-middleware.github.io/SpriteStudio-Docs/) — the documentation portal for the SDK and its official players.
+- [SpriteStudio-SDK](https://github.com/cri-middleware/SpriteStudio-SDK) — the SDK itself, providing `libssruntime` / `libssconverter`.
+- [SSConverterGUI](https://github.com/cri-middleware/SSConverterGUI) — a standalone desktop GUI for converting `.sspj` without a player.

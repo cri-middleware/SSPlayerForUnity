@@ -4,159 +4,68 @@ using UnityEngine;
 namespace SpriteStudio.Runtime
 {
     /// <summary>
-    /// Built-in audio playback helper embedded in Player / Graphic (a plain C# class, not a MonoBehaviour).
-    /// Routes one audio event to the override hook (SpriteStudioAudioBackend) if present, otherwise to
-    /// built-in AudioClip playback (per SDK doc 11_optional_features.ja.md §4).
+    /// Built-in audio playback for Player / Graphic (a plain C# class, not a MonoBehaviour): plays the
+    /// AudioClip an audio event names, loop_num times, on an AudioSource of the owner's.
     ///
-    /// Resolution order: per-object backend > global backend > built-in (ResolveAudioClip).
-    /// Built-in playback **manages active sounds per part**. The identity key = (PartIndex,
-    /// SoundListNameHash+SoundNameHash), with at most one voice per key. If the same key fires again,
-    /// the previous one is stopped and replayed (to prevent duplicate playback). loop_num is the play count:
-    ///   * 1        : one-shot (play once).
-    ///   * &gt;= 2  : play N times.
-    ///   * &lt;= 0  : cannot occur per spec (SS cannot specify an infinite loop). Defensively does not play.
-    /// AudioSource is added to the owner on demand and reused from a pool after it finishes.
-    /// Does not play during reverse playback (the forward-playback filter is the caller's responsibility, i.e. Player/Graphic).
+    /// A sound that has started plays to its end. A key crossed again while its sound still plays starts
+    /// another voice rather than cutting the first, and only <see cref="StopAll"/> -- the owner's teardown,
+    /// or the host asking for silence -- stops one. loop_num is the play count (SpriteStudio has no infinite
+    /// audio loop), so every voice ends by itself; &lt;= 0 cannot occur and does not play. Whether an event
+    /// plays at all (forward playback, not a seek's landing frame) is the caller's decision.
+    /// AudioSources are added to the owner on demand and reused once their sound has ended.
     /// </summary>
-    public sealed class SpriteStudioAudioController
+    internal sealed class SpriteStudioAudioController
     {
         private readonly GameObject _owner;
-
-        // Active sounds per part: identity key -> voice. At most one voice per key.
-        private readonly Dictionary<VoiceKey, Voice> _voices = new Dictionary<VoiceKey, Voice>();
-        private readonly Stack<AudioSource> _pool = new Stack<AudioSource>();   // Reuse of returned AudioSources
-        private List<VoiceKey> _scratch;                                        // Temp buffer to avoid removing while enumerating
+        private readonly List<Voice> _voices = new List<Voice>();
+        private readonly Stack<AudioSource> _pool = new Stack<AudioSource>();
 
         public SpriteStudioAudioController(GameObject owner)
         {
             _owner = owner;
         }
 
-        /// <summary>Plays one audio event (the built-in path dedups per part).</summary>
-        public void Play(in SpriteStudioAudio ev, SpriteStudioAnimeAsset asset,
-                         SpriteStudioAudioBackend backend, float volume)
+        /// <summary>Plays one audio event's sound, loop_num times.</summary>
+        public void Play(in SpriteStudioAudio ev, SpriteStudioAnimeAsset asset, float volume)
         {
-            // Override hook: per-object > global. If either exists, built-in playback is skipped (the backend also owns play-count management).
-            var be = backend != null ? backend : SpriteStudioAudioBackend.Global;
-            if (be != null)
-            {
-                be.PlayAudio(in ev, asset, _owner);
-                return;
-            }
-
-            // loop_num is the play count. Per spec <= 0 cannot occur (SS cannot specify an infinite loop) -> defensively do not play.
             if (ev.LoopNum <= 0) return;
 
-            // Built-in: resolve the imported AudioClip. Unsupported/unresolved is safely silent.
+            // Resolve the imported AudioClip. Unsupported / unresolved is silent.
             var clip = asset != null ? asset.ResolveAudioClip(ev.SoundListNameHash, ev.SoundNameHash) : null;
             if (clip == null) return;
 
-            ReclaimFinished();   // Lazily reclaim finished voices (no per-frame tick needed)
+            ReclaimFinished();   // lazily, so no per-frame tick is needed
 
-            var key = new VoiceKey(ev.PartIndex, ev.SoundListNameHash, ev.SoundNameHash);
-            if (_voices.TryGetValue(key, out var voice))
-            {
-                // Refire (same key): stop the previous one and replay (SDK doc §4, prevents duplicate playback).
-                StartVoice(voice, clip, volume, ev.LoopNum);
-                return;
-            }
-
-            var v = new Voice { Source = Rent() };
-            StartVoice(v, clip, volume, ev.LoopNum);
-            _voices[key] = v;
-        }
-
-        /// <summary>Stops loop sounds (call on animation switch). One-shots are left to end on their own and are not stopped.</summary>
-        public void StopLoops() => Sweep(loopsOnly: true);
-
-        /// <summary>Stops all sounds (call on disable / destroy).</summary>
-        public void StopAll() => Sweep(loopsOnly: false);
-
-        /// <summary>Pauses all playing sounds (synced with animation pause, SDK doc §4).</summary>
-        public void PauseAll()
-        {
-            foreach (var kv in _voices) kv.Value.Source.Pause();
-        }
-
-        /// <summary>Resumes paused sounds (synced with animation resume / play, SDK doc §4).</summary>
-        public void ResumeAll()
-        {
-            foreach (var kv in _voices) kv.Value.Source.UnPause();
-        }
-
-        // --- Internal ---------------------------------------------------------
-
-        // (Re)starts a voice according to loop_num. Stops the existing Source, then replays it.
-        private static void StartVoice(Voice v, AudioClip clip, float volume, int loopNum)
-        {
-            var src = v.Source;
-            src.Stop();
+            var src = Rent();
             src.clip = clip;
             src.volume = volume;
-            double dsp = AudioSettings.dspTime;
-
-            if (loopNum == 1)
-            {
-                // One-shot (play once). Self-terminating.
-                src.loop = false;
-                src.PlayScheduled(dsp);
-                v.PlaysOnce = true;
-                v.EndDsp = dsp + (double)clip.length;
-            }
-            else
-            {
-                // Play N times (N >= 2). Schedule the end at N lengths. Self-terminating.
-                src.loop = true;
-                src.PlayScheduled(dsp);
-                double end = dsp + (double)clip.length * loopNum;
-                src.SetScheduledEndTime(end);
-                v.PlaysOnce = false;
-                v.EndDsp = end;
-            }
+            double start = AudioSettings.dspTime;
+            double end = start + (double)clip.length * ev.LoopNum;
+            // An AudioSource has no play count: loop the clip and end it after loop_num lengths.
+            src.loop = ev.LoopNum > 1;
+            src.PlayScheduled(start);
+            if (src.loop) src.SetScheduledEndTime(end);
+            _voices.Add(new Voice { Source = src, EndDsp = end });
         }
 
-        // Reclaims voices (one-shot / finite) whose scheduled end has passed and returns them to the pool. Swept only on demand, so there is no idle cost.
+        /// <summary>
+        /// Stops every sound. Teardown and the host's call for silence use it; the transport does not --
+        /// Pause / Resume / Stop and an animation switch leave a sound that has started to play out.
+        /// </summary>
+        public void StopAll()
+        {
+            for (int i = 0; i < _voices.Count; i++) Free(_voices[i].Source);
+            _voices.Clear();
+        }
+
         private void ReclaimFinished()
         {
-            if (_voices.Count == 0) return;
-            EnsureScratch();
-
             double now = AudioSettings.dspTime;
-            foreach (var kv in _voices)
+            for (int i = _voices.Count - 1; i >= 0; i--)
             {
-                if (now >= kv.Value.EndDsp)   // All voices self-terminate (none are infinite)
-                    _scratch.Add(kv.Key);
-            }
-            FreeScratch();
-        }
-
-        // If loopsOnly=true, stops only loops (non-one-shot); if false, stops all voices and returns them to the pool.
-        private void Sweep(bool loopsOnly)
-        {
-            if (_voices.Count == 0) return;
-            EnsureScratch();
-
-            foreach (var kv in _voices)
-            {
-                if (loopsOnly && kv.Value.PlaysOnce) continue;   // Keep one-shots (self-terminating)
-                _scratch.Add(kv.Key);
-            }
-            FreeScratch();
-        }
-
-        private void EnsureScratch()
-        {
-            if (_scratch == null) _scratch = new List<VoiceKey>();
-            _scratch.Clear();
-        }
-
-        private void FreeScratch()
-        {
-            for (int i = 0; i < _scratch.Count; i++)
-            {
-                var k = _scratch[i];
-                Free(_voices[k].Source);
-                _voices.Remove(k);
+                if (now < _voices[i].EndDsp) continue;
+                Free(_voices[i].Source);
+                _voices.RemoveAt(i);
             }
         }
 
@@ -179,29 +88,10 @@ namespace SpriteStudio.Runtime
             _pool.Push(src);
         }
 
-        // Uses (PartIndex, (SoundListNameHash << 32) | SoundNameHash) as the identity key.
-        // Implements IEquatable to avoid boxing when used as a Dictionary key (zero GC).
-        private readonly struct VoiceKey : System.IEquatable<VoiceKey>
-        {
-            private readonly int _part;
-            private readonly ulong _sound;
-
-            public VoiceKey(int part, uint listHash, uint nameHash)
-            {
-                _part = part;
-                _sound = ((ulong)listHash << 32) | nameHash;
-            }
-
-            public bool Equals(VoiceKey o) => _part == o._part && _sound == o._sound;
-            public override bool Equals(object o) => o is VoiceKey k && Equals(k);
-            public override int GetHashCode() => (_part * 397) ^ _sound.GetHashCode();
-        }
-
-        private sealed class Voice
+        private struct Voice
         {
             public AudioSource Source;
-            public bool PlaysOnce;   // loop_num == 1 (one-shot. Not stopped by StopLoops)
-            public double EndDsp;    // Scheduled end dspTime (all voices self-terminate).
+            public double EndDsp;    // when the last play ends
         }
     }
 }

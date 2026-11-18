@@ -1,0 +1,22 @@
+{
+    "name": "SpriteStudio.UI.Editor",
+    "rootNamespace": "SpriteStudio.UI.Editor",
+    "references": [
+        "SpriteStudio.UI",
+        "SpriteStudio.Runtime",
+        "SpriteStudio.Editor",
+        "UnityEngine.UI",
+        "UnityEditor.UI"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

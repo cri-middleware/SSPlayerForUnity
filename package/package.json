@@ -1,14 +1,57 @@
 {
-  "name": "jp.co.cri-mw.optpix.ssplayer-unity",
+  "name": "jp.co.cri-mw.spritestudio.ssplayer-unity",
   "version": "7.0.0-beta.1",
-  "displayName": "SSPlayer For Unity",
-  "description": "SPriteStudio 7 Player Library",
+  "displayName": "SpriteStudio Player for Unity",
+  "description": "High-performance player for SpriteStudio animations (.ssab). Renders in world space (MeshRenderer) and on a uGUI Canvas (CanvasRenderer), with an asset pipeline that converts .sspj at import time. Playback is driven by a native Rust runtime over FFI, with geometry built in Burst jobs and uploaded with no per-frame GC allocations.",
   "unity": "6000.3",
+  "documentationUrl": "https://cri-middleware.github.io/SSPlayerForUnity/",
+  "changelogUrl": "https://github.com/cri-middleware/SSPlayerForUnity/blob/main/CHANGELOG.md",
+  "licensesUrl": "https://github.com/cri-middleware/SSPlayerForUnity/blob/main/LICENSE.md",
+  "license": "BSD-3-Clause",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cri-middleware/SSPlayerForUnity.git"
+  },
   "dependencies": {
     "com.unity.burst": "1.8.29",
-    "com.unity.collections": "2.6.7",
-    "com.unity.mathematics": "1.3.3"
+    "com.unity.collections": "2.6.6",
+    "com.unity.mathematics": "1.3.3",
+    "com.unity.timeline": "1.8.12",
+    "com.unity.ugui": "2.0.0"
   },
-  "license": "BSD-3-Clause",
-  "licensesUrl": "https://github.com/cri-middleware/SSPlayerForUnity/blob/main/LICENSE.md"
+  "keywords": [
+    "spritestudio",
+    "spritestudio7",
+    "animation",
+    "2d",
+    "sprite",
+    "skeletal-animation",
+    "gamedev",
+    "unity",
+    "urp",
+    "ugui",
+    "burst"
+  ],
+  "author": {
+    "name": "CRI Middleware Co., Ltd.",
+    "url": "https://www.webtech.co.jp/spritestudio/"
+  },
+  "files": [
+    "Runtime",
+    "Runtime.meta",
+    "Editor",
+    "Editor.meta",
+    "Documentation~",
+    "package.json.meta",
+    "README.md",
+    "README.md.meta",
+    "CHANGELOG.md",
+    "CHANGELOG.md.meta",
+    "LICENSE.md.meta",
+    "LICENSE.ja.md.meta",
+    "Third Party Notices.md",
+    "Third Party Notices.md.meta",
+    "!Runtime/Resources/Shaders/AddOns/SpriteStudioTestStub.shader",
+    "!Runtime/Resources/Shaders/AddOns/SpriteStudioTestStub.shader.meta"
+  ]
 }

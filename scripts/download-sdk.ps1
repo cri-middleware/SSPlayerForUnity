@@ -1,4 +1,24 @@
 $ErrorActionPreference = "Stop"
+# Invoke-WebRequest's progress bar slows the download itself in Windows PowerShell 5.1.
+$ProgressPreference = "SilentlyContinue"
+
+$HelpApp = Split-Path -Leaf $PSCommandPath
+function Show-Usage {
+    Write-Host "Usage: ${HelpApp} [--help]"
+    Write-Host "  Install the SpriteStudio-SDK release pinned by scripts/SDK_VERSION.txt into the"
+    Write-Host "  package's Plugins and Bindings. Skips the download when that version is in place."
+}
+
+foreach ($arg in $args) {
+    switch -Regex ($arg) {
+        '^(-h|--help|help)$' { Show-Usage; exit 0 }
+        default {
+            [Console]::Error.WriteLine("${HelpApp}: unknown argument '$arg'")
+            Show-Usage
+            exit 2
+        }
+    }
+}
 
 $baseDirectory = Split-Path -Parent $PSCommandPath
 $rootDirectory = Split-Path -Parent $baseDirectory
@@ -7,9 +27,14 @@ $runtimePlugins = "$pkg/Runtime/Plugins"
 $editorPlugins = "$pkg/Editor/Plugins"
 $runtimeBindings = "$pkg/Runtime/Bindings"
 $editorBindings = "$pkg/Editor/Bindings"
+# Committed .meta for the generated files these scripts place into the package.
+$upmMeta = "$baseDirectory/upm-meta"
 $versionFile = "$baseDirectory/SDK_VERSION.txt"
 # Version stamps are written to both plugin dirs; the runtime one gates the skip.
 $stamp = "$runtimePlugins/VERSION"
+# Downloaded zips are cached here (gitignored) so a re-run reuses them instead of
+# re-downloading; extraction still uses a throwaway temp.
+$cacheDir = "$baseDirectory/.sdk-cache"
 
 $targetVersion = (Get-Content $versionFile).Trim()
 
@@ -23,47 +48,63 @@ if (Test-Path $stamp) {
 $baseUrl = "https://github.com/cri-middleware/SpriteStudio-SDK/releases/download/$targetVersion"
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
 New-Item -ItemType Directory -Path $tmp | Out-Null
-$sumsFile = "$tmp/SHA256SUMS"
+New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+$sumsFile = "$cacheDir/SHA256SUMS"
 
 try {
-    # Verify <file> against the release's SHA256SUMS manifest entry for
-    # <asset-name> before extracting, so a corrupted or tampered download fails
-    # loudly. Get-FileHash returns an upper-case hash; sha256sum writes
-    # lower-case, so compare case-insensitively.
-    function Assert-Sha256($file, $name) {
-        $expected = $null
+    # Get-FileHash returns an upper-case hash; sha256sum writes lower-case, so
+    # compare case-insensitively.
+    function Get-Sha256($file) { (Get-FileHash -Algorithm SHA256 -Path $file).Hash.ToLower() }
+
+    # Expected hash for <name> from the release's SHA256SUMS manifest.
+    function Get-ExpectedSha256($name) {
         foreach ($line in Get-Content $sumsFile) {
             $parts = $line -split '\s+', 2
-            if ($parts.Count -eq 2 -and $parts[1].Trim() -eq $name) { $expected = $parts[0].ToLower(); break }
+            if ($parts.Count -eq 2 -and $parts[1].Trim() -eq $name) { return $parts[0].ToLower() }
         }
-        if (-not $expected) {
-            Write-Error "No checksum entry for $name in SHA256SUMS"
-        }
-        $actual = (Get-FileHash -Algorithm SHA256 -Path $file).Hash.ToLower()
-        if ($expected -ne $actual) {
-            Write-Error "Checksum mismatch for $name`n  expected: $expected`n  actual:   $actual"
-        }
-        Write-Host "Checksum OK: $name"
+        Write-Error "No checksum entry for $name in SHA256SUMS"
     }
 
-    # The SDK release publishes two zips. Each unzips to output/<kind>/runtime/,
-    # holding libs/<platform>/ plus include/, VERSION and the license notices.
+    # The SDK release publishes two flat zips: libs/<platform>/ plus include/,
+    # bindings/, VERSION and the license notices at the archive root.
     #   static  : .a / .lib / static xcframework
     #   dynamic : .dylib / .so / .dll / dynamic xcframework
     Write-Host "Target SDK Version: $targetVersion"
+    # Fetch the checksum manifest (small): it both verifies integrity and decides
+    # whether an already-cached zip can be reused without re-downloading.
     Write-Host "Downloading checksum manifest: $baseUrl/SHA256SUMS"
     Invoke-WebRequest -Uri "$baseUrl/SHA256SUMS" -OutFile $sumsFile
     foreach ($kind in @("static", "dynamic")) {
         $asset = "spritestudio-sdk-$kind-libs.zip"
-        Write-Host "Downloading $baseUrl/$asset"
-        $zip = "$tmp/$kind.zip"
-        Invoke-WebRequest -Uri "$baseUrl/$asset" -OutFile $zip
-        Assert-Sha256 $zip $asset
-        Expand-Archive -Path $zip -DestinationPath "$tmp/$kind" -Force
+        # Keep the release asset's own name so it matches the SHA256SUMS entry.
+        $zip = "$cacheDir/$asset"
+        $expected = Get-ExpectedSha256 $asset
+        # Reuse the cached zip when it already matches the manifest; else download.
+        if ((Test-Path $zip) -and ((Get-Sha256 $zip) -eq $expected)) {
+            Write-Host "Reusing cached $asset"
+        } else {
+            Write-Host "Downloading $baseUrl/$asset"
+            Invoke-WebRequest -Uri "$baseUrl/$asset" -OutFile $zip
+            if ((Get-Sha256 $zip) -ne $expected) {
+                Remove-Item -Force $zip
+                Write-Error "Checksum mismatch for $asset"
+            }
+        }
+        Write-Host "Checksum OK: $asset"
+        # Expand-Archive is a script-module function: run from a session, it reads
+        # the global progress preference rather than this script's.
+        $savedProgress = $global:ProgressPreference
+        $global:ProgressPreference = "SilentlyContinue"
+        try {
+            Expand-Archive -Path $zip -DestinationPath "$tmp/$kind" -Force
+        } finally {
+            $global:ProgressPreference = $savedProgress
+        }
     }
 
-    $static = "$tmp/static/output/static/runtime"
-    $dynamic = "$tmp/dynamic/output/dynamic/runtime"
+    # Flat archives: libs/, include/, bindings/, VERSION sit at the extraction root.
+    $static = "$tmp/static"
+    $dynamic = "$tmp/dynamic"
 
     # Copy-Sdk <src> <dst-dir>: fail fast if the source is missing so a change in
     # the SDK zip layout surfaces here instead of shipping an incomplete package.
@@ -100,6 +141,13 @@ try {
     Write-Host "Placing csbindgen FFI bindings into Runtime/Editor Bindings..."
     Copy-Sdk "$dynamic/bindings/SSRuntimeMethods.g.cs"           $runtimeBindings
     Copy-Sdk "$dynamic/bindings/SSConverterMethods.g.cs"         $editorBindings
+
+    # Each .g.cs also needs its .meta. The .g.cs are gitignored, so their .meta cannot be
+    # committed next to them; they live in scripts/upm-meta with fixed GUIDs instead (see
+    # the README there). Without a .meta Unity ignores the script inside the immutable
+    # package folder, and the package fails to compile for consumers.
+    Copy-Sdk "$upmMeta/SSRuntimeMethods.g.cs.meta"               $runtimeBindings
+    Copy-Sdk "$upmMeta/SSConverterMethods.g.cs.meta"             $editorBindings
 
     # License / third-party notices ride alongside each plugin set.
     Copy-Sdk "$dynamic/LICENSE.md"                          $runtimePlugins

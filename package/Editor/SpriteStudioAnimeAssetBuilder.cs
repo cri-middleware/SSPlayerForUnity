@@ -11,13 +11,11 @@ namespace SpriteStudio.Editor
     /// <summary>
     /// Shared logic for interpreting the .ssab FlatBuffers and resolving textures, plus the
     /// SpriteStudioAnimeAsset build routine for SpriteStudioSsabImporter.
-    /// Centralizes the parse / path resolution / de-duplication that was duplicated between the
-    /// importer and SpriteStudioAssetPostprocessor.
     ///
-    /// Material policy is unchanged: use a per-texture "shared .mat" (Spine-Unity style).
-    /// The importer references an adjacent shared .mat if one exists, otherwise falls back to a
-    /// provisional embedded material. Auto-generating the shared .mat itself is handled by
-    /// SpriteStudioAssetPostprocessor.
+    /// Material policy: use a per-texture "shared .mat".
+    /// The importer references an adjacent shared .mat if one exists; a texture without one is drawn with
+    /// a base material made at runtime (SpriteStudioBaseMaterialCache). Auto-generating the shared .mat
+    /// itself is handled by SpriteStudioAssetPostprocessor.
     /// </summary>
     internal static class SpriteStudioAnimeAssetBuilder
     {
@@ -51,13 +49,18 @@ namespace SpriteStudio.Editor
             public string MatPath;    // Shared material path (ChangeExtension(TexPath, ".mat"))
         }
 
-        internal static Shader ResolveShader(Shader overrideShader)
+        internal static Shader ResolveShader(Shader overrideShader, Action<string> onDependency = null)
         {
-            if (overrideShader != null) return overrideShader;
+            if (overrideShader != null)
+            {
+                onDependency?.Invoke(AssetDatabase.GetAssetPath(overrideShader));
+                return overrideShader;
+            }
 
             // Shader.Find can return null depending on import order, so load it directly from the path.
-            var shader = AssetDatabase.LoadAssetAtPath<Shader>(
-                "Packages/jp.co.cri-mw.optpix.ssplayer-unity/Runtime/Resources/Shaders/SpriteStudioDefault.shader");
+            const string defaultShaderPath = "Packages/jp.co.cri-mw.spritestudio.ssplayer-unity/Runtime/Resources/Shaders/SpriteStudioDefault.shader";
+            onDependency?.Invoke(defaultShaderPath);
+            var shader = AssetDatabase.LoadAssetAtPath<Shader>(defaultShaderPath);
             if (shader == null) shader = Shader.Find("SpriteStudio/Default");
             return shader;
         }
@@ -103,6 +106,26 @@ namespace SpriteStudio.Editor
         /// <summary>Resolves an audio file name (SoundFile.file_path) to an AudioClip in the project (<see cref="ResolveAssetPath{T}"/>).</summary>
         internal static string ResolveAudioClipPath(string baseDir, string fileName, out AudioClip clip, Action<string> onDependency)
             => ResolveAssetPath(baseDir, fileName, out clip, onDependency);
+
+        /// <summary>
+        /// The dependency hook to pass to the Resolve* helpers from a ScriptedImporter, for everything an
+        /// import reads: the atlas textures, the shared .mat, the sound clips, the shader, and the .ssab an
+        /// Instance plays. Each is read through the *imported result* of the other file
+        /// (AssetDatabase.LoadAssetAtPath), so it needs an artifact dependency, not just a source one:
+        /// DependsOnSourceAsset alone leaves the other file free to be still unimported when this import
+        /// runs -- a fresh clone, a rebuilt Library, a CI build -- and LoadAssetAtPath then hands back null.
+        /// That drops the reference silently, and a path with no GUID yet registers no dependency at all,
+        /// so the import never re-runs to pick it up. DependsOnArtifact is what orders the two imports and
+        /// re-runs this one when the other's result changes.
+        /// The asset being imported is skipped: an importer may not depend on its own artifact, and a
+        /// same-pack reference resolves to this very SSAB at runtime anyway.
+        /// </summary>
+        internal static Action<string> ArtifactDependency(AssetImportContext ctx) => path =>
+        {
+            ctx.DependsOnSourceAsset(path);
+            if (!string.Equals(path, ctx.assetPath, StringComparison.OrdinalIgnoreCase))
+                ctx.DependsOnArtifact(path);
+        };
 
         internal static string ResolveSsabPath(string baseDir, string animePackName, out SpriteStudioAnimeAsset asset, Action<string> onDependency)
         {
@@ -221,9 +244,10 @@ namespace SpriteStudio.Editor
             // 2. Parse
             var bb = new Google.FlatBuffers.ByteBuffer(asset.SsabData);
             // Input validation: reject anything that is not converter output (e.g. an unrelated file that
-            // merely has the .ssab extension) and surface an error that explains the cause.
-            // Reading the identifier needs the leading offset (4) + magic (4), so at least 8 bytes are required.
-            if (asset.SsabData.Length < 8 || !ss.format.SsAnimeBinary.SsAnimeBinaryBufferHasIdentifier(bb))
+            // merely has the .ssab extension) and surface an error that explains the cause. Shared with the
+            // runtime loader (SpriteStudioInternalPlayer.LoadSsab) so the importer and the runtime cannot
+            // disagree about what is loadable.
+            if (!SpriteStudioSsabFormat.IsSsabBuffer(asset.SsabData))
             {
                 ctx.LogImportError($"[SpriteStudioSsabImporter] Not a valid .ssab (FlatBuffers 'SSAB' identifier missing): {ctx.assetPath}");
                 ctx.AddObjectToAsset("MainAsset", asset);
@@ -236,50 +260,49 @@ namespace SpriteStudio.Editor
             asset.PackHash = ssab.NameHash;
 
             // 3. Register texture dependencies and assign materials (guards against build stripping / Addressables)
-            var shader = ResolveShader(importer.OverrideShader);
-            var textures = CollectTextures(ssab, baseDir, ctx.DependsOnSourceAsset);
+            var dependency = ArtifactDependency(ctx);
+            var textures = CollectTextures(ssab, baseDir, dependency);
 
-            // Resolved texture path -> index into Materials
-            var pathToMaterialIndex = new Dictionary<string, int>();
+            // A texture with no .mat -- Generate Materials is off, or the postprocessor has not written the
+            // .mat yet -- is drawn with a base material made at runtime with this shader. The asset holds the
+            // shader only when the user chose one, so the package's own shader is not pulled into bundles.
+            if (importer.OverrideShader != null)
+            {
+                asset.OverrideShader = ResolveShader(importer.OverrideShader, dependency);
+            }
+
+            // Resolved texture path -> index into Textures (and Materials, which runs parallel to it)
+            var pathToTextureIndex = new Dictionary<string, int>();
 
             foreach (var t in textures)
             {
                 if (t.Texture == null)
                 {
-                    Debug.LogWarning($"[SpriteStudioSsabImporter] Texture not found for '{t.TexName}' (tried '{t.TexPath}')");
+                    ctx.LogImportWarning($"[SpriteStudioSsabImporter] Texture not found for '{t.TexName}' (tried '{t.TexPath}')");
                     continue;
                 }
 
                 asset.Textures.Add(t.Texture);
+                pathToTextureIndex[t.TexPath] = asset.Textures.Count - 1;
 
-                if (!importer.GenerateMaterials) continue;
-
-                // Use the shared .mat if it exists (the postprocessor is expected to auto-generate it).
-                // Register a dependency so this is re-imported when the .mat is generated.
-                ctx.DependsOnSourceAsset(t.MatPath);
-                var externalMat = AssetDatabase.LoadAssetAtPath<Material>(t.MatPath);
-                if (externalMat != null)
+                Material externalMat = null;
+                if (importer.GenerateMaterials)
                 {
-                    asset.Materials.Add(externalMat);
-                    pathToMaterialIndex[t.TexPath] = asset.Materials.Count - 1;
+                    // Use the shared .mat if it exists (the postprocessor is expected to auto-generate it).
+                    // Register a dependency so this is re-imported when the .mat is generated.
+                    dependency(t.MatPath);
+                    externalMat = AssetDatabase.LoadAssetAtPath<Material>(t.MatPath);
                 }
-                else if (shader != null)
-                {
-                    // Provisional embedded material used until the shared .mat is generated
-                    var mat = new Material(shader) { name = t.Texture.name + "_Material", mainTexture = t.Texture };
-                    ctx.AddObjectToAsset("Mat_" + asset.Materials.Count, mat);
-                    asset.Materials.Add(mat);
-                    pathToMaterialIndex[t.TexPath] = asset.Materials.Count - 1;
-                }
+                asset.Materials.Add(externalMat);
             }
 
-            // 4. Build the DrawBatch.TextureHash -> Material index lookup table.
+            // 4. Build the DrawBatch.TextureHash -> Textures index lookup table.
             //    So any hash that arrives at runtime can be looked up, map the cellmap's
-            //    NameHash/ImagePathHash and the external NameHash all (= the material the same texture resolves to).
-            if (importer.GenerateMaterials && pathToMaterialIndex.Count > 0)
+            //    NameHash/ImagePathHash and the external NameHash all (= the texture they resolve to).
+            if (pathToTextureIndex.Count > 0)
             {
                 var hashKeys = new List<uint>();
-                var hashMaterialIndices = new List<int>();
+                var hashTextureIndices = new List<int>();
                 var hashSeen = new HashSet<uint>();
 
                 int cellmapLen = ssab.CellmapsLength;
@@ -288,10 +311,10 @@ namespace SpriteStudio.Editor
                     var cm = ssab.Cellmaps(i);
                     if (!cm.HasValue) continue;
                     string path = ResolveTexturePath(baseDir, cm.Value.ImagePath, out _, null);
-                    if (path != null && pathToMaterialIndex.TryGetValue(path, out int mi))
+                    if (path != null && pathToTextureIndex.TryGetValue(path, out int mi))
                     {
-                        RecordHash(hashKeys, hashMaterialIndices, hashSeen, cm.Value.NameHash, mi);
-                        RecordHash(hashKeys, hashMaterialIndices, hashSeen, cm.Value.ImagePathHash, mi);
+                        RecordHash(hashKeys, hashTextureIndices, hashSeen, cm.Value.NameHash, mi);
+                        RecordHash(hashKeys, hashTextureIndices, hashSeen, cm.Value.ImagePathHash, mi);
                     }
                 }
 
@@ -301,14 +324,14 @@ namespace SpriteStudio.Editor
                     var extTex = ssab.ExternalTextures(i);
                     if (!extTex.HasValue) continue;
                     string path = ResolveTexturePath(baseDir, extTex.Value.Name, out _, null);
-                    if (path != null && pathToMaterialIndex.TryGetValue(path, out int mi))
+                    if (path != null && pathToTextureIndex.TryGetValue(path, out int mi))
                     {
-                        RecordHash(hashKeys, hashMaterialIndices, hashSeen, extTex.Value.NameHash, mi);
+                        RecordHash(hashKeys, hashTextureIndices, hashSeen, extTex.Value.NameHash, mi);
                     }
                 }
 
                 asset.TextureHashKeys = hashKeys.ToArray();
-                asset.TextureHashMaterialIndices = hashMaterialIndices.ToArray();
+                asset.TextureHashTextureIndices = hashTextureIndices.ToArray();
             }
 
             // 5. Extract animation names
@@ -320,10 +343,7 @@ namespace SpriteStudio.Editor
                 if (anim.HasValue) asset.AnimationNames[i] = anim.Value.Name;
             }
 
-            // 5b. Resolve sounds (SoundList/SoundFile) to AudioClips and store them in the "slot".
-            //     Runtime playback is not implemented yet, but the ScriptableObject only holds what playback
-            //     needs: the two address hashes + the AudioClip instance (name/path/duration live in SsabData,
-            //     so they are not duplicated here).
+            // 5b. Resolve sounds (SoundList/SoundFile) to AudioClips.
             //     Like textures, AudioClips are hard-referenced + dependency-registered to prevent build
             //     stripping. Sounds that cannot be resolved are warned about and skipped, like textures
             //     (= Sounds only contains the playable entries).
@@ -342,10 +362,10 @@ namespace SpriteStudio.Editor
                     var soundFile = sf.Value;
                     if (string.IsNullOrEmpty(soundFile.FilePath)) continue;
 
-                    ResolveAudioClipPath(baseDir, soundFile.FilePath, out var clip, ctx.DependsOnSourceAsset);
+                    ResolveAudioClipPath(baseDir, soundFile.FilePath, out var clip, dependency);
                     if (clip == null)
                     {
-                        Debug.LogWarning($"[SpriteStudioSsabImporter] AudioClip not found for '{soundFile.FilePath}' (sound '{soundFile.Name}')");
+                        ctx.LogImportWarning($"[SpriteStudioSsabImporter] AudioClip not found for '{soundFile.FilePath}' (sound '{soundFile.Name}')");
                         continue;
                     }
 
@@ -359,9 +379,8 @@ namespace SpriteStudio.Editor
             }
 
             // 6. Resolve dependencies on external animations (Instance).
-            //    The external_instances vector can be omitted by the converter (it was actually empty for
-            //    Ringo_tyu), so scan the parts' PartTypeInstance directly to collect cross-pack references
-            //    (the authoritative source).
+            //    The external_instances vector can be omitted by the converter, so scan the parts'
+            //    PartTypeInstance directly to collect cross-pack references (the authoritative source).
             //    Also follow other packs that the external assets reference in turn (transitive).
             {
                 var seenAssets = new HashSet<SpriteStudioAnimeAsset>();
@@ -370,19 +389,19 @@ namespace SpriteStudio.Editor
             }
 
             if (VerboseImportLog)
-                Debug.Log($"[SS-IMPORT] {ctx.assetPath} -> textures:{asset.Textures.Count} materials:{asset.Materials.Count} extRefs:{asset.ExternalReferences.Count} sounds:{asset.Sounds.Count}");
+                Debug.Log($"[SS-IMPORT] {ctx.assetPath} -> textures:{asset.Textures.Count} materials:{asset.Materials.FindAll(m => m != null).Count} extRefs:{asset.ExternalReferences.Count} sounds:{asset.Sounds.Count}");
 
             ctx.AddObjectToAsset("MainAsset", asset);
             ctx.SetMainObject(asset);
         }
 
-        /// <summary>Records a hash -> material mapping. Ignores 0 (unset) and already-seen hashes (first wins).</summary>
-        private static void RecordHash(List<uint> keys, List<int> indices, HashSet<uint> seen, uint hash, int materialIndex)
+        /// <summary>Records a hash -> texture mapping. Ignores 0 (unset) and already-seen hashes (first wins).</summary>
+        private static void RecordHash(List<uint> keys, List<int> indices, HashSet<uint> seen, uint hash, int textureIndex)
         {
             if (hash == 0) return;
             if (!seen.Add(hash)) return;
             keys.Add(hash);
-            indices.Add(materialIndex);
+            indices.Add(textureIndex);
         }
 
         /// <summary>
@@ -426,8 +445,14 @@ namespace SpriteStudio.Editor
             foreach (var packName in packNames)
             {
                 if (string.IsNullOrEmpty(packName) || !seenPacks.Add(packName)) continue;
-                ResolveSsabPath(baseDir, packName, out var extAsset, ctx.DependsOnSourceAsset);
-                if (extAsset == null || !seenAssets.Add(extAsset)) continue;
+                string extPath = ResolveSsabPath(baseDir, packName, out var extAsset, ArtifactDependency(ctx));
+                if (extAsset == null)
+                {
+                    // Not reported: a pack the conversion has not written or imported yet lands here too. A target
+                    // still missing when the Instance plays is reported by SpriteStudioAnimeAsset.ResolveExternalSsab.
+                    continue;
+                }
+                if (!seenAssets.Add(extAsset)) continue;
                 outRefs.Add(extAsset);
 
                 // transitive: also follow other packs that the external asset references (recurse with the external's baseDir).

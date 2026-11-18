@@ -1,4 +1,4 @@
-# 基本的な使い方
+# ▶️ 基本的な使い方
 
 [← ドキュメント目次へ戻る](../index.md)
 
@@ -11,6 +11,9 @@
 3. SpriteStudio で作成した `.sspj` ファイルを、ウィンドウのドロップ領域へドラッグ＆ドロップします。
 
 変換が完了すると、出力先に `SpriteStudioAnimeAsset`（`.ssab` を内包した ScriptableObject）が生成されます。
+
+> [!TIP]
+> 手元に `.sspj` がまだ無い状態で試したい場合は、[SpriteStudio 公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)がそのまま使えます。キャラクターなら [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo)、エフェクトを含むものなら [パーティクル](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) が手頃です。ダウンロードした `.sspj` を、上と同じ手順でドロップしてください。
 
 ## 2. プレイヤーを設置する
 
@@ -30,20 +33,21 @@
 - **SpriteStudioPlayer** … ワールド空間用。選んだアセットを割り当てた GameObject が作成されます。
 - **SpriteStudioGraphic (Canvas UI)** … Canvas UI 用。
 
-選択すると GameObject が作成され、**SpriteStudio Asset には今ドロップしたアセットが自動的に割り当てられます**。あとは **Animation Name** を設定すれば再生できます。
+選択すると GameObject が作成され、**Anime Asset には今ドロップしたアセットが自動的に割り当てられます**。**Animation Name** にはそのアセットの最初のアニメーションが入ります。別のアニメーションにするなら **Animation Name** のリストから選んでください。
 
 > [!TIP]
-> - **SpriteStudioGraphic (Canvas UI)** を選んだ際にシーンへ `Canvas` が無い場合は、`Canvas`（および `EventSystem`）が自動的に作成され、その下に設置されます。
-> - Hierarchy 上で既存の GameObject の上にドロップすると、その子として設置されます。
+> - **SpriteStudioGraphic (Canvas UI)** を選んだ際に、ドロップ先が `Canvas` の中にない場合（ドロップ先が無いときは、編集中のシーンやプリファブに使える `Canvas` が無い場合）は、**GameObject > UI (Canvas) > Canvas** と同じように、ドロップ先があればその子として `Canvas`（シーンに無ければ、プロジェクトの入力方式に合った入力モジュール付きの `EventSystem` も）が作成され、その下に設置されます。
+> - Hierarchy 上で既存の GameObject の上にドロップすると、その子として設置されます（`Canvas` の外にドロップした `SpriteStudioGraphic` は、新しい `Canvas` の下に設置されます）。行と行の間にドロップした場合は、その並びに設置されます。
+> - Prefab Mode では、GameObject メニューと同じく編集中のプリファブの中に設置されます。
 > - 複数のアセットを同時にドロップした場合は、まとめて設置されます。
 > - `SpriteStudioAnimeAsset` のインスペクタにある **「Instantiate in Scene」** ボタンからもワールド用プレイヤーを設置できます。
 
 > [!TIP]
 > 
 > <video autoplay loop muted playsinline width="100%">
->   <source src="../../../assets/3-setup_drag_and_drop.webm" type="video/webm">
+>   <source src="../assets/3-setup_drag_and_drop.webm" type="video/webm">
 > </video>
-> <img src="../../assets/3-setup_drag_and_drop.webp" width="100%" style="display: none;">
+> <img src="../assets/3-setup_drag_and_drop.webp" width="100%" style="display: none;" loading="lazy">
 
 ### 方法 B: コンポーネントを手動で追加する
 
@@ -53,18 +57,19 @@
 
 1. 空の GameObject を作成します。
 2. **Add Component** から **SpriteStudio Player** を追加します（`MeshFilter` / `MeshRenderer` は自動で付与されます）。
-3. インスペクタの **SpriteStudio Asset** に、インポートした `SpriteStudioAnimeAsset` を割り当てます。
-4. **Animation Name** に再生したいアニメーション名を入力します。
+3. インスペクタの **SpriteStudio Asset** 見出しの下にある **Anime Asset** に、インポートした `SpriteStudioAnimeAsset` を割り当てます。
+4. **Animation Name** で再生したいアニメーションを選びます。アセットを割り当てるとリストになり、最初はそのアセットの最初のアニメーションが入っています。
 
 #### Canvas (uGUI) に置く場合（`SpriteStudioGraphic`）
 
 1. **Canvas** 下に空の GameObject を作成します。
 2. **Add Component** から **SpriteStudio Graphic** を追加します（`RectTransform` / `CanvasRenderer` は自動で付与されます）。
-3. **SpriteStudio Asset** と **Animation Name** を上記と同様に設定します。
+3. **Anime Asset** と **Animation Name** を上記と同様に設定します。
+4. **Set Native Size** を押して `RectTransform` をアニメーションのキャンバスの大きさにするか、自分で大きさを決めます。アニメーションはその矩形に収まります。
 
 ## 3. 再生する
 
-**Auto Play** が有効（既定）であれば、再生（Play）モードに入ると **Animation Name** のアニメーションが自動的に再生されます。
+**Auto Play** が有効（既定）であれば、再生（Play）モードに入ると **Animation Name** のアニメーションが自動的に再生されます。オブジェクトを再び有効にしたとき（プールから `SetActive(true)` で取り出したときなど）も、Animator と同じく最初から再生し直します。
 
 スクリプトから明示的に再生する場合は次のようにします。
 
@@ -86,50 +91,81 @@ public class Sample : MonoBehaviour
 
 ## インスペクタの主な設定項目
 
-`SpriteStudioPlayer` / `SpriteStudioGraphic` で共通して設定できる項目です。
+項目名はインスペクタの表示どおりに記載し、各表の並び順もインスペクタに合わせてあります。両コンポーネント共通の音声の項目は、インスペクタではコンポーネント固有の項目の後に並びます。
+
+### 両コンポーネント共通
 
 | 項目 | 既定値 | 説明 |
 |---|---|---|
-| **SpriteStudio Asset** | （なし） | 再生対象の `SpriteStudioAnimeAsset` |
-| **Animation Name** | `""` | 再生するアニメーション名 |
-| **Auto Play** | `true` | シーンの実行起動時に自動再生するか |
-| **Loop Count** | `-1` | ループ回数（`-1` = 無限 / `1` = 1 回 / `n` = n 回） |
-| **Speed Scale** | `1.0` | 再生速度の倍率 |
-| **Sub Frame Enabled** | `false` | フレーム間補間（サブフレーム描画）を行うか |
-| **Skip Frames** | `true` | 実時間追従。ON = 経過時間ぶん進める / OFF = 毎 update で 1 フレームずつ |
+| **Anime Asset** | （なし） | 再生対象の `SpriteStudioAnimeAsset`。**SpriteStudio Asset** という見出しの下に置かれています |
+| **Animation Name** | `""` | 再生するアニメーション名。アセットを割り当てるとドロップダウンで選べます。割り当てたアセットに現在の名前が無ければ、そのアセットの最初のアニメーションが入ります。アセットに無い名前は置き換えられず、`(missing)` と表示されます |
+| **Auto Play** | `true` | シーンの実行起動時と、コンポーネントを再び有効にしたときに自動再生するか |
+| **Loop Count** | `-1` | ループ回数（`-1` = 無限 / `1` = 1 回 / `n` = n 回 / `0` = 無限、`-1` の別名） |
+| **Speed Scale** | `1.0` | 再生速度の倍率（`0`〜`4` のスライダー。`0` は停止） |
+| **Frame Skipping** | `true` | 実時間追従。ON = 経過時間ぶん進める / OFF = 毎 update で 1 フレームずつ |
+| **Sub-Frame Interpolation** | `false` | フレーム間補間（サブフレーム描画）を行うか |
 
-`SpriteStudioPlayer`（ワールド）には、さらに次の項目があります。
+音声の項目も共通です。
 
 | 項目 | 既定値 | 説明 |
 |---|---|---|
-| **Sorting Layer / Sorting Order** | `Default` / `0` | 描画順（MeshRenderer のソート設定） |
-| **Pixels Per Unit (PPU)** | `1` | 1 ワールド単位あたりのピクセル数。Unity のスプライト慣習に合わせるなら `100` などを設定 |
-| **Shader Catalog** | （なし） | パーツ単位の AddOn / カスタムシェーダのカタログ（[高度な設定](./tips.md) 参照） |
+| **Play Audio** | `true` | オーディオイベントの音を鳴らすか。OFF でもイベントは発火するので、自前で鳴らせます（[スクリプト制御とイベント](./usage_scripting.md) 参照）。OFF のあいだ、下の項目は灰色（無効）になります |
+| **Audio Volume** | `1.0` | 組み込み再生の音量 |
+
+インスペクタの末尾には、再生イベントの UnityEvent（**On Animation Started Event** / **On Animation Finished Event** / **On Animation Looped Event** / **On User Data Event** / **On Signal Event** / **On Audio Event**）が並びます。詳細は [スクリプト制御とイベント](./usage_scripting.md) を参照してください。
+
+### `SpriteStudioPlayer`（ワールド）のみ
+
+描画順は、ほかのレンダラーと同じく Mesh Renderer 自身の **Sorting Layer** / **Order in Layer**（インスペクタの **Additional Settings** 内）で決まります。スクリプトの `SortingLayerName` / `SortingOrder` プロパティも同じ 2 つの値を読み書きします。
+
+| 項目 | 既定値 | 説明 |
+|---|---|---|
+| **Flip X / Flip Y** | `false` / `false` | 描画だけを左右／上下に反転します（`SpriteRenderer.flipX` と同じ考え方で、Transform を反転しないため子オブジェクトやコライダは動きません） |
+| **Offset** | `(0, 0)` | Transform を動かさずに描画位置だけをずらします（単位は GameObject の空間の Unity 単位で、Transform のスケールが掛かります） |
+| **Shader Catalog** | （なし） | パーツ単位のカスタムシェーダを登録した自前のカタログ。組み込み AddOn より先に引かれます（[高度な設定](./tips.md) 参照） |
 | **Part Trackers** | （空） | 指定パーツに Transform を追従させる設定（[スクリプト制御とイベント](./usage_scripting.md) 参照） |
+| **Cellmap Texture Overrides** | （空） | セルマップ名ごとのテクスチャ差し替え。シーンに保存されます（[スクリプト制御とイベント](./usage_scripting.md) 参照） |
+
+> **Pixels Per Unit** はこのインスペクタ外で、スクリプトの `PixelsPerUnit` プロパティから設定します。パーツ単位の**カスタムシェーダ**は、**Shader Catalog** に割り当てたカタログに登録します。詳細は [高度な設定](./tips.md) を参照してください。
+
+### `SpriteStudioGraphic`（Canvas UI）のみ
+
+| 項目 | 既定値 | 説明 |
+|---|---|---|
+| **Fit** | `Contain` | アニメーションのキャンバス（SpriteStudio で設定した大きさと原点）を `RectTransform` の矩形へどう拡大縮小するか。`Contain` は全体を矩形の中に収め、`Cover` は矩形を埋めてキャンバスをはみ出させ、`None` は作った大きさのまま（SpriteStudio の 1 ピクセルが矩形の 1 単位）、アニメーションの原点を矩形の中心に置いて描きます |
+| **Align** | `Center` | キャンバスのどの点を矩形の対応する点に合わせるか（`TopLeft`、`Bottom` など） |
+
+その下の **Set Native Size** は、`Image` をスプライトの大きさにするのと同じく、矩形をキャンバスの大きさにします。Canvas にアセットをドロップしたときは自動で行われます。レイアウトグループの中や、**Preferred Size** にした **Content Size Fitter** と組み合わせると、グラフィックはキャンバスの大きさを求めます。キャンバスは再生中のアニメーションのものなので、アニメーションごとにキャンバスが違うパックでは、アニメーションが変わると拡大率も変わります。
+
+uGUI の `Graphic` 由来の **Color** / **Material** / **Raycast Target** / **Raycast Padding** / **Maskable** が表示されます。**Color** は `Image` と同じくアニメーション全体をパーツカラーの上から色付けし、Button の **Color Tint** トランジションや `CrossFadeColor` / `CrossFadeAlpha` も同じように効きます。**Material** が空のときはアトラスのマテリアルで描画し、設定したマテリアルはそのシェーダが `SpriteStudio/Canvas` をもとに作られていれば代わりに使われます（グラフィックが出す頂点レイアウトを読めるのはそのシェーダだけです）。グラフィック自身に **Mask** を付けると、子をアニメーションの形でクリップできます。クリック判定の範囲は、透明な余白も含めた `RectTransform` の矩形全体です。アニメーションの大きさを変えずに判定範囲を広げたい場合は **Raycast Padding** で調整してください。絵の上だけに絞るには **SpriteStudio Raycast Filter** を付けます（[ボタンと UI 状態](./ui_buttons.md) を参照）。その後に `SpriteStudioPlayer` と同じ **Cellmap Texture Overrides** が続きます。
 
 > [!TIP]
 > 
 > <video autoplay loop muted playsinline width="100%">
->   <source src="../../../assets/4-inspector_preview.webm" type="video/webm">
+>   <source src="../assets/4-inspector_preview.webm" type="video/webm">
 > </video>
-> <img src="../../assets/4-inspector_preview.webp" width="100%" style="display: none;">
+> <img src="../assets/4-inspector_preview.webp" width="100%" style="display: none;" loading="lazy">
 
 ## 編集モードでのプレビュー
 
-両コンポーネントは `[ExecuteAlways]` で動作し、シーンに設置すると**開始フレームの静止プレビュー**が表示されます。ただし編集モードでは再生は進みません。アニメーションの動きを確認するには **Play モード**に入ってください。
+両コンポーネントは編集モードでも動作します。シーンに設置すれば、Play モードに入らなくても**開始フレームの静止プレビュー**が Scene / Game ビューにそのまま表示されます。これは常に有効です。
+
+アニメーションの動きを見るには、コンポーネントのインスペクターの **Play in Edit Mode** を使います。**Play** で選んだアニメーションを **Speed Scale** の速さでループ再生し、**Pause** でそのフレームに止め、**Frame** のスライダーで任意のフレームへ動かし、**Stop** で開始フレームに戻ります。別のオブジェクトを選ぶとプレビューは止まります。
+
+プレビューは描画するだけです。ユーザーデータ・シグナル・サウンドは Play モードでだけ発生し、シーンには何も保存されません。プレビューの再生中にシーンを保存しても、開始フレームの状態で保存されます。Timeline が駆動しているプレイヤーは、代わりに Timeline ウィンドウに従います。Timeline ウィンドウをスクラブすると動きます（[Timeline からの駆動](./usage_scripting.md#timeline-からの駆動)）。
 
 ## マスクパーツへの対応
 
 本プラグインは SpriteStudio の「マスク機能（Mask）」にも対応しています。
 
 - **ワールド（`SpriteStudioPlayer`）**: 特別な設定は不要です。`.ssab` にマスクパーツが含まれていれば、ステンシルバッファを用いて自動的にクリッピング処理が行われます。そのままシーンに配置してお使いいただけます。
-- **Canvas（`SpriteStudioGraphic`）**: SpriteStudio 内部のマスクは抑止され、代わりに uGUI の **Mask** / **RectMask2D** に追従します（親にこれらを置くとクリップされます）。
+- **Canvas（`SpriteStudioGraphic`）**: SpriteStudio 内部のマスクは抑止され、代わりに uGUI の **Mask** / **Rect Mask 2D** に追従します（親にこれらを置くとクリップされます）。
 
 詳細は [パフォーマンスチューニングと高度な設定](./tips.md#マスク--クリッピング) を参照してください。
 
 > [!TIP]
 > 
 > <video autoplay loop muted playsinline width="100%">
->   <source src="../../../assets/6-mask.webm" type="video/webm">
+>   <source src="../assets/6-mask.webm" type="video/webm">
 > </video>
-> <img src="../../assets/6-mask.webp" width="100%" style="display: none;">
+> <img src="../assets/6-mask.webp" width="100%" style="display: none;" loading="lazy">

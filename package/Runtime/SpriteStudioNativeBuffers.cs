@@ -33,6 +33,24 @@ namespace SpriteStudio.Runtime
         }
 
         /// <summary>
+        /// The vector at vtable offset <paramref name="vtoff"/> of a FlatBuffer's root table, read straight from
+        /// the buffer's bytes as the generated accessor reads it (root offset, table, vtable, field, vector), so a
+        /// worker can read it without a managed ByteBuffer. Null with a zero count when the field is absent.
+        /// </summary>
+        public static unsafe byte* RootVector(byte* buffer, int vtoff, out int count)
+        {
+            count = 0;
+            byte* table = buffer + *(int*)buffer;
+            byte* vtable = table - *(int*)table;
+            ushort field = vtoff < *(ushort*)vtable ? *(ushort*)(vtable + vtoff) : (ushort)0;
+            if (field == 0) return null;
+            byte* vector = table + field;
+            vector += *(int*)vector;
+            count = *(int*)vector;
+            return vector + sizeof(int);
+        }
+
+        /// <summary>
         /// Bulk memcpy a FlatBuffer scalar vector (vtable offset vtoff) from the raw buffer fb into
         /// dst[dstOffset..]. n is the element count from the generated accessor. The vector data is laid out
         /// contiguously within fb, and its position is obtained via the Table's public API.

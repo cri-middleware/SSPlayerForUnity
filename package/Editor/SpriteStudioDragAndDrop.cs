@@ -1,5 +1,9 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
 using UnityEditor;
+using UnityEditor.EventSystems;
+using UnityEditor.SceneManagement;
 using SpriteStudio.Runtime;
 using System.Collections.Generic;
 
@@ -7,106 +11,85 @@ namespace SpriteStudio.Editor
 {
     /// <summary>
     /// Handles drag and drop of a .ssab asset into the Scene view or the Hierarchy view.
-    /// Like Spine-Unity, it lets you choose whether to create a SpriteStudioPlayer or a SpriteStudioGraphic for a Canvas.
+    /// It lets you choose whether to create a SpriteStudioPlayer or a SpriteStudioGraphic for a Canvas.
+    /// It takes part in the Editor's drop-handler chain (DragAndDrop.AddDropHandlerV2), so a drag that carries no
+    /// SpriteStudio asset goes on to the next handler, the Hierarchy says which row a drop lands on, and what is
+    /// created goes into the stage being edited -- a prefab's contents in Prefab Mode -- as the GameObject menu
+    /// places objects.
     /// </summary>
     [InitializeOnLoad]
     public static class SpriteStudioDragAndDrop
     {
         static SpriteStudioDragAndDrop()
         {
-            SceneView.duringSceneGui += OnSceneGUI;
-            EditorApplication.hierarchyWindowItemOnGUI += OnHierarchyGUI;
+            DragAndDrop.AddDropHandlerV2(new DragAndDrop.SceneDropHandler(OnSceneDrop));
+            DragAndDrop.AddDropHandlerV2(new DragAndDrop.HierarchyDropHandlerV2(OnHierarchyDrop));
         }
 
-        private static void OnSceneGUI(SceneView sceneView)
+        private static DragAndDropVisualMode OnSceneDrop(Object dropUpon, Vector3 worldPosition, Vector2 viewportPosition,
+            Transform parentForDraggedObjects, bool perform)
         {
-            Event e = Event.current;
-            if (e.type == EventType.DragUpdated || e.type == EventType.DragPerform)
+            var assets = DraggedAnimeAssets();
+            if (assets == null) return DragAndDropVisualMode.None;
+            if (perform)
             {
-                if (HandleDragAndDrop(e, null, sceneView))
-                {
-                    e.Use();
-                }
+                ShowInstantiateMenu(assets, parentForDraggedObjects != null ? parentForDraggedObjects.gameObject : null,
+                    SceneDropPosition(worldPosition));
             }
+            return DragAndDropVisualMode.Copy;
         }
 
-        private static void OnHierarchyGUI(int instanceID, Rect selectionRect)
+        private static DragAndDropVisualMode OnHierarchyDrop(EntityId dropTargetEntityId, HierarchyDropFlags dropMode,
+            Transform parentForDraggedObjects, bool perform)
         {
-            Event e = Event.current;
-            if (e.type == EventType.DragUpdated || e.type == EventType.DragPerform)
+            var assets = DraggedAnimeAssets();
+            if (assets == null) return DragAndDropVisualMode.None;
+            if (perform)
             {
-var hoverTarget = EditorUtility.EntityIdToObject(instanceID) as GameObject;
-                
-                // If an item exists, check whether the mouse cursor is inside that item's Rect
-                if (hoverTarget != null && !selectionRect.Contains(e.mousePosition))
-                    return;
-
-                // Handle drag and drop within the Hierarchy window
-                if (HandleDragAndDrop(e, hoverTarget, null))
-                {
-                    e.Use();
-                }
+                // In Prefab Mode the Hierarchy names the parent itself (and no row).
+                GameObject parent = parentForDraggedObjects != null
+                    ? parentForDraggedObjects.gameObject
+                    : HierarchyDropParent(dropTargetEntityId, dropMode);
+                ShowInstantiateMenu(assets, parent, null);
             }
+            return DragAndDropVisualMode.Copy;
         }
 
-        private static bool HandleDragAndDrop(Event e, GameObject parent, SceneView sceneView)
+        // The SpriteStudio assets being dragged, or null when there are none and the drop is another handler's.
+        private static List<SpriteStudioAnimeAsset> DraggedAnimeAssets()
         {
-            if (DragAndDrop.objectReferences == null || DragAndDrop.objectReferences.Length == 0) 
-                return false;
-
-            var assets = new List<SpriteStudioAnimeAsset>();
+            List<SpriteStudioAnimeAsset> assets = null;
             foreach (var obj in DragAndDrop.objectReferences)
             {
-                if (obj is SpriteStudioAnimeAsset asset)
-                {
-                    assets.Add(asset);
-                }
+                if (obj is SpriteStudioAnimeAsset asset) (assets ??= new List<SpriteStudioAnimeAsset>()).Add(asset);
             }
+            return assets;
+        }
 
-            if (assets.Count == 0) 
-                return false;
+        // Dropped onto a row: under it. Dropped between rows: beside the row. Anywhere else -- a scene header,
+        // the space below the rows -- at the root of the stage being edited.
+        private static GameObject HierarchyDropParent(EntityId dropTargetEntityId, HierarchyDropFlags dropMode)
+        {
+            var target = EditorUtility.EntityIdToObject(dropTargetEntityId) as GameObject;
+            if (target == null) return null;
+            if ((dropMode & HierarchyDropFlags.DropUpon) != 0) return target;
+            return target.transform.parent != null ? target.transform.parent.gameObject : null;
+        }
 
-            DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
-
-            if (e.type == EventType.DragPerform)
+        // The point under the mouse on the z = 0 plane the 2D animation lives on: straight down in the 2D view,
+        // along the view ray in 3D, and where the Scene view would drop it when the ray misses the plane.
+        private static Vector3 SceneDropPosition(Vector3 worldPosition)
+        {
+            if (Event.current == null) return worldPosition;
+            Ray ray = HandleUtility.GUIPointToWorldRay(Event.current.mousePosition);
+            var sceneView = SceneView.currentDrawingSceneView != null ? SceneView.currentDrawingSceneView : SceneView.lastActiveSceneView;
+            if (sceneView != null && sceneView.in2DMode)
             {
-                DragAndDrop.AcceptDrag();
-
-                Vector3 spawnPosition = Vector3.zero;
-                bool hasPosition = false;
-
-                if (sceneView != null)
-                {
-                    Vector2 mousePos = e.mousePosition;
-                    Ray ray = HandleUtility.GUIPointToWorldRay(mousePos);
-                    
-                    if (sceneView.in2DMode)
-                    {
-                        spawnPosition = ray.origin;
-                        spawnPosition.z = 0;
-                        hasPosition = true;
-                    }
-                    else
-                    {
-                        // In 3D mode, find where the ray intersects the Z=0 plane
-                        Plane plane = new Plane(Vector3.forward, Vector3.zero);
-                        if (plane.Raycast(ray, out float enter))
-                        {
-                            spawnPosition = ray.GetPoint(enter);
-                            hasPosition = true;
-                        }
-                        else
-                        {
-                            spawnPosition = sceneView.camera.transform.position + sceneView.camera.transform.forward * 10f;
-                            hasPosition = true;
-                        }
-                    }
-                }
-
-                ShowInstantiateMenu(assets, parent, hasPosition ? spawnPosition : (Vector3?)null);
+                Vector3 p = ray.origin;
+                p.z = 0;
+                return p;
             }
-
-            return true;
+            return new Plane(Vector3.forward, Vector3.zero).Raycast(ray, out float enter) ? ray.GetPoint(enter) : worldPosition;
         }
 
         private static void ShowInstantiateMenu(List<SpriteStudioAnimeAsset> assets, GameObject parent, Vector3? spawnPosition)
@@ -117,80 +100,52 @@ var hoverTarget = EditorUtility.EntityIdToObject(instanceID) as GameObject;
             menu.ShowAsContext();
         }
 
-        private static void InstantiatePlayers(List<SpriteStudioAnimeAsset> assets, GameObject parent, Vector3? spawnPosition, bool isUI)
+        /// <summary>
+        /// The animation a newly placed object starts on: the asset's first. Placement has to select one,
+        /// because Play mode draws nothing for an empty animation name. Null when the asset lists none.
+        /// </summary>
+        private static string GetDefaultAnimationName(SpriteStudioAnimeAsset asset)
+        {
+            return (asset.AnimationNames != null && asset.AnimationNames.Length > 0)
+                ? asset.AnimationNames[0]
+                : null;
+        }
+
+        /// <summary>
+        /// Creates a player (or, with <paramref name="isUI"/>, a graphic) for each asset, under
+        /// <paramref name="parent"/> or at the root of the stage being edited, and selects them. Also what
+        /// Assets &gt; SpriteStudio &gt; Instantiate Player and the asset Inspector's button use.
+        /// </summary>
+        internal static void InstantiatePlayers(List<SpriteStudioAnimeAsset> assets, GameObject parent, Vector3? spawnPosition, bool isUI)
         {
             var createdObjects = new List<GameObject>();
 
             foreach (var asset in assets)
             {
-                // Generate a unique name (e.g. "Asset", "Asset (1)", "Asset (2)")
-                string uniqueName = GameObjectUtility.GetUniqueNameForSibling(parent != null ? parent.transform : null, asset.name);
-                GameObject go = new GameObject(uniqueName);
-                
-                if (parent != null)
-                {
-                    go.transform.SetParent(parent.transform, false);
-                }
-
+                GameObject go;
                 if (isUI)
                 {
-                    // For UI, if the parent isn't under a Canvas, find a Canvas and parent to it
-                    if (parent == null || parent.GetComponentInParent<Canvas>() == null)
-                    {
-Canvas canvas = UnityEngine.Object.FindFirstObjectByType<Canvas>();
-                        if (canvas != null)
-                        {
-                            go.transform.SetParent(canvas.transform, false);
-                            go.name = GameObjectUtility.GetUniqueNameForSibling(canvas.transform, asset.name);
-                        }
-                        else
-                        {
-                            // If no Canvas exists, create a new one
-                            var canvasGo = new GameObject("Canvas");
-                            canvas = canvasGo.AddComponent<Canvas>();
-                            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-                            canvasGo.AddComponent<UnityEngine.UI.CanvasScaler>();
-                            canvasGo.AddComponent<UnityEngine.UI.GraphicRaycaster>();
-                            Undo.RegisterCreatedObjectUndo(canvasGo, "Create Canvas");
-                            
-                            go.transform.SetParent(canvas.transform, false);
-                            go.name = GameObjectUtility.GetUniqueNameForSibling(canvas.transform, asset.name);
-                            
-                            if (go.GetComponent<UnityEngine.EventSystems.EventSystem>() == null)
-                            {
-var eventSystem = UnityEngine.Object.FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>();
-                                if (eventSystem == null)
-                                {
-                                    var esGo = new GameObject("EventSystem");
-                                    esGo.AddComponent<UnityEngine.EventSystems.EventSystem>();
-                                    esGo.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
-                                    Undo.RegisterCreatedObjectUndo(esGo, "Create EventSystem");
-                                }
-                            }
-                        }
-                    }
+                    go = new GameObject(asset.name, typeof(RectTransform));
+                    Place(go, UIParent(parent));
 
                     var graphic = go.AddComponent<SpriteStudioGraphic>();
                     graphic.AnimeAsset = asset;
-                    
-                    var rectTransform = go.GetComponent<RectTransform>();
-                    if (spawnPosition.HasValue && parent == null)
-                    {
-                        // For a drop into the Scene view with no parent, place it at a sensible spot such as the center.
-                        // Canvas scaling etc. is involved, so just set AnchoredPosition to 0 for now.
-                        rectTransform.anchoredPosition = Vector2.zero;
-                    }
+                    string uiAnimation = GetDefaultAnimationName(asset);
+                    if (uiAnimation != null) graphic.CurrentAnimation = uiAnimation;
+                    // The rect starts at the canvas's size, so the animation is drawn at the size it was made.
+                    graphic.SetNativeSize();
                 }
                 else
                 {
-                    // Regular SpriteStudioPlayer
+                    go = new GameObject(asset.name);
+                    Place(go, parent);
+
                     var player = go.AddComponent<SpriteStudioPlayer>();
                     player.AnimeAsset = asset;
-                    
-                    if (spawnPosition.HasValue && parent == null)
-                    {
-                        go.transform.position = spawnPosition.Value;
-                    }
+                    string worldAnimation = GetDefaultAnimationName(asset);
+                    if (worldAnimation != null) player.CurrentAnimation = worldAnimation;
+
+                    if (spawnPosition.HasValue) go.transform.position = spawnPosition.Value;
                 }
 
                 Undo.RegisterCreatedObjectUndo(go, "Create SpriteStudio Object");
@@ -201,6 +156,82 @@ var eventSystem = UnityEngine.Object.FindFirstObjectByType<UnityEngine.EventSyst
             {
                 Selection.objects = createdObjects.ToArray();
             }
+        }
+
+        // Under the parent, taking its layer as the GameObject menu does, or at the root of the stage being edited.
+        private static void Place(GameObject go, GameObject parent)
+        {
+            if (parent != null) GameObjectUtility.SetParentAndAlign(go, parent);
+            else StageUtility.PlaceGameObjectInCurrentStage(go);
+            GameObjectUtility.EnsureUniqueNameForSibling(go);
+        }
+
+        // The parent a new graphic goes under, chosen as uGUI's GameObject > UI items choose it: the drop target
+        // when it is inside a Canvas; with no target, a canvas in the stage being edited -- one inside the prefab
+        // in Prefab Mode -- and otherwise a new Canvas, under the target when there is one.
+        private static GameObject UIParent(GameObject parent)
+        {
+            if (parent == null)
+            {
+                parent = ExistingCanvas();
+                var prefabStage = PrefabStageUtility.GetCurrentPrefabStage();
+                if (prefabStage != null && (parent == null || !prefabStage.IsPartOfPrefabContents(parent)))
+                    parent = prefabStage.prefabContentsRoot;
+            }
+            if (parent == null || parent.GetComponentInParent<Canvas>(true) == null)
+            {
+                var canvas = CreateCanvas();
+                if (parent != null) Undo.SetTransformParent(canvas.transform, parent.transform, "Create Canvas");
+                parent = canvas;
+            }
+            return parent;
+        }
+
+        // The selection's canvas, or any active canvas in the stage being edited.
+        private static GameObject ExistingCanvas()
+        {
+            var selected = Selection.activeGameObject;
+            var canvas = selected != null ? selected.GetComponentInParent<Canvas>() : null;
+            if (IsUsableCanvas(canvas)) return canvas.gameObject;
+            foreach (var c in StageUtility.GetCurrentStageHandle().FindComponentsOfType<Canvas>())
+            {
+                if (IsUsableCanvas(c)) return c.gameObject;
+            }
+            return null;
+        }
+
+        private static bool IsUsableCanvas(Canvas canvas)
+        {
+            if (canvas == null || !canvas.gameObject.activeInHierarchy) return false;
+            if (EditorUtility.IsPersistent(canvas) || (canvas.hideFlags & HideFlags.HideInHierarchy) != 0) return false;
+            return StageUtility.GetStageHandle(canvas.gameObject) == StageUtility.GetCurrentStageHandle();
+        }
+
+        // A Screen Space - Overlay canvas on the UI layer, as GameObject > UI > Canvas makes one. Outside Prefab
+        // Mode it brings an EventSystem when the scene has none, with the input module the project's input
+        // handling calls for.
+        private static GameObject CreateCanvas()
+        {
+            var canvasGo = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            canvasGo.layer = LayerMask.NameToLayer("UI");
+            canvasGo.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+            StageUtility.PlaceGameObjectInCurrentStage(canvasGo);
+            Undo.RegisterCreatedObjectUndo(canvasGo, "Create Canvas");
+
+            var prefabStage = PrefabStageUtility.GetCurrentPrefabStage();
+            if (prefabStage != null)
+            {
+                Undo.SetTransformParent(canvasGo.transform, prefabStage.prefabContentsRoot.transform, "Create Canvas");
+            }
+            else if (StageUtility.GetCurrentStageHandle().FindComponentOfType<EventSystem>() == null)
+            {
+                var eventSystemGo = new GameObject("EventSystem");
+                StageUtility.PlaceGameObjectInCurrentStage(eventSystemGo);
+                eventSystemGo.AddComponent<EventSystem>();
+                InputModuleComponentFactory.AddInputModule(eventSystemGo);
+                Undo.RegisterCreatedObjectUndo(eventSystemGo, "Create EventSystem");
+            }
+            return canvasGo;
         }
     }
 }

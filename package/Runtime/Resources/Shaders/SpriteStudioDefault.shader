@@ -5,14 +5,13 @@ Shader "SpriteStudio/Default"
         _MainTex ("Sprite Texture", 2D) = "white" {}
 
         // --- Blend state (set by the C# MaterialKey per the per-blend blend-factor table) ---
-        // Defaults are Mix + PMA output = equivalent to the previous behavior. The MaterialKey
-        // overrides these per ssab BlendType.
+        // Defaults are Mix + PMA output. The MaterialKey overrides these per ssab BlendType.
         [Enum(UnityEngine.Rendering.BlendMode)] _SrcBlend ("Src Blend", Float) = 1   // One
         [Enum(UnityEngine.Rendering.BlendMode)] _DstBlend ("Dst Blend", Float) = 10  // OneMinusSrcAlpha
         [Enum(UnityEngine.Rendering.BlendOp)]   _BlendOp  ("Blend Op",  Float) = 0   // Add
         // PMA / discard are uniform branches (not keywords), so variants collapse to one.
         _InputPMA   ("Input PMA",   Float) = 0   // 1 = texture is premultiplied -> un-premultiply
-        _OutputPMA  ("Output PMA",  Float) = 1   // 1 = emit premultiplied alpha (previous behavior)
+        _OutputPMA  ("Output PMA",  Float) = 1   // 1 = emit premultiplied alpha
         _NotDiscard ("Not Discard", Float) = 0   // 1 = keep transparent pixels (Mul/Invert)
 
         // --- Stencil state (mask test; property-driven, bit-isolated; set by C# per submesh) ---
@@ -28,9 +27,12 @@ Shader "SpriteStudio/Default"
 
     // === URP (Universal Render Pipeline) SubShader ===
     // Same colour core (SpriteStudioCore.hlsl) and property-driven Blend/Stencil as the Built-in
-    // SubShader below; only the engine API layer differs (URP includes, TransformObjectToHClip,
-    // TEXTURE2D/SAMPLE_TEXTURE2D, CBUFFER for SRP Batcher). URP selects this SubShader via the
-    // RenderPipeline tag; the Built-in pipeline falls through to the second SubShader.
+    // SubShader below; it differs only in the UnityPerMaterial cbuffer the SRP Batcher needs and in its
+    // pass's LightMode. URP selects this SubShader via the RenderPipeline tag; the Built-in pipeline
+    // falls through to the second SubShader.
+    // The colour pass is SRPDefaultUnlit, as URP's own Sprite-Unlit-Default is: the Universal Renderer
+    // draws it, and so does the 2D Renderer, which draws only Universal2D and SRPDefaultUnlit, not
+    // UniversalForward.
     SubShader
     {
         Tags
@@ -59,7 +61,7 @@ Shader "SpriteStudio/Default"
 
         Pass
         {
-            Tags { "LightMode"="UniversalForward" }
+            Tags { "LightMode"="SRPDefaultUnlit" }
             HLSLPROGRAM
             #pragma vertex ss_world_vert
             #pragma fragment frag

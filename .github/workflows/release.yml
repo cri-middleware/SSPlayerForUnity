@@ -1,110 +1,199 @@
 name: Release
 
-# Run manually from the Actions tab. The release version/tag come from the UPM
-# package version in package/package.json (independent of SDK_VERSION.txt, which
-# only pins which native SDK libs download-sdk.sh fetches).
+# Run manually from the Actions tab. A release is a tag: push `v<version>`
+# first, then dispatch this workflow from that tag ("Use workflow from" → the
+# tag). The tag names the Release, and scripts/build-release.sh reads it from
+# the ref rather than being told it.
+#
+# Dispatching from a branch, or from a tag with upload_release turned off, is a
+# package build — the tarball is produced, checked and kept as a workflow
+# artifact, and no Release is created.
 on:
   workflow_dispatch:
     inputs:
-      upload:
-        description: 'Upload the package to GitHub Releases'
-        type: boolean
+      upload_release:
+        description: 'Draft the GitHub Release, to publish by hand. Only from a v* tag that has no Release yet; from a branch the run is a build.'
+        required: false
         default: true
-      prerelease:
-        description: 'Mark the GitHub Release as a pre-release (excludes it from releases/latest, breaking the stable download URL). Keep false so the latest/download link resolves.'
         type: boolean
-        default: false
 
-# Needed to create the release and upload assets.
+# Read-only by default; the job that drafts the Release asks for contents: write
+# itself.
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # softprops/action-gh-release creates the GitHub Release
+    env:
+      # The signing gate, set once at the job level so the step conditions below
+      # can read it -- `secrets` is not available in an `if:`, `env` is. An absent
+      # secret is the empty string, which is exactly the "not set" the scripts
+      # test for, so this wiring is inert until the secrets exist and the day they
+      # do a release is signed with no change here.
+      UNITY_ORGANIZATION_ID: ${{ secrets.UNITY_ORGANIZATION_ID }}
     steps:
-      - uses: actions/checkout@v7
-
-      - name: Resolve release metadata from package.json
-        id: meta
+      # A run from a release/ branch or a v* tag is the release or its QA build
+      # (RELEASING.md steps 3 and 5). The build below packs unsigned when a
+      # secret is absent, and passes; for those runs a missing secret fails here
+      # instead, as in SpriteStudio-SDK's release.yml.
+      - name: Require the signing secrets
+        if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/heads/release/')
+        env:
+          UPM_SERVICE_ACCOUNT_KEY_ID: ${{ secrets.UPM_SERVICE_ACCOUNT_KEY_ID }}
+          UPM_SERVICE_ACCOUNT_KEY_SECRET: ${{ secrets.UPM_SERVICE_ACCOUNT_KEY_SECRET }}
         run: |
-          NAME=$(jq -r .name package/package.json)
-          VERSION=$(jq -r .version package/package.json)
-          echo "name=$NAME" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
-
-      # Fetches the pre-built SpriteStudio SDK libs into the package plugin dirs.
-      # ssruntime -> package/Runtime/Plugins/ (iOS/WebGL static, others dynamic);
-      # ssconverter -> package/Editor/Plugins/ (win/mac, dynamic only).
-      # These binaries are gitignored, so this step is required before packing.
-      # NOTE: the SpriteStudio-SDK release is still private, so this step cannot
-      # succeed yet. It goes green once that repo/release is made public (planned),
-      # at which point download-sdk.sh's plain curl works with no extra auth.
-      - name: Download SpriteStudio SDK libs
-        run: bash scripts/download-sdk.sh
-
-      # Sanity-check that native libs actually landed in BOTH plugin dirs before
-      # packaging. Match any platform binary (static or dynamic) rather than a
-      # single VERSION marker, so this keeps holding as the lib set grows.
-      - name: Verify SDK libs present
-        run: |
-          set -e
-          for dir in package/Runtime/Plugins package/Editor/Plugins; do
-            count=$(find "$dir" -type f \
-              \( -name '*.dylib' -o -name '*.so' -o -name '*.dll' \
-                 -o -name '*.a' -o -name '*.lib' -o -name '*.bundle' \) | wc -l)
-            echo "$dir: $count native lib(s)"
-            if [ "$count" -eq 0 ]; then
-              echo "::error::No native libraries found in $dir"
-              exit 1
-            fi
+          missing=""
+          for name in UNITY_ORGANIZATION_ID UPM_SERVICE_ACCOUNT_KEY_ID UPM_SERVICE_ACCOUNT_KEY_SECRET; do
+            [ -n "${!name}" ] || missing="$missing $name"
           done
-          # The csbindgen FFI bindings are compile-critical; a tarball without
-          # them would not build for consumers.
-          for f in package/Runtime/Bindings/SSRuntimeMethods.g.cs \
-                   package/Editor/Bindings/SSConverterMethods.g.cs; do
-            if [ ! -f "$f" ]; then
-              echo "::error::Missing FFI binding: $f"
-              exit 1
-            fi
-          done
-          ls -R package/Runtime/Plugins package/Editor/Plugins
+          if [ -n "$missing" ]; then
+            echo "::error::a run from $GITHUB_REF_NAME ships signed, and these secrets are not set:$missing"
+            exit 1
+          fi
 
-      # Pack the UPM package as a tarball via `npm pack` (pack-release.sh copies
-      # LICENSE / Third Party Notices into package/ and produces `<name>-<version>.tgz`
-      # at the repo root). Also make a version-less alias so README/docs can point
-      # at a stable `releases/latest/download/<name>.tgz` URL that never goes stale.
-      - name: Pack UPM package
-        id: pkg
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-tags: true
+          persist-credentials: false
+
+      # node packs the tarball (`npm pack` applies package.json's "files"
+      # allowlist and the package/ root layout UPM expects) and reads the
+      # version out of the manifest. Pinned rather than left to whatever the
+      # runner image ships, so a release cannot change because the image did.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+
+      # The ref decides what the run is: a v* tag is a release, anything else is
+      # a build, kept on the run and drafting nothing. A tag that already has a
+      # Release, draft or published, keeps it as it is, so a run from an old tag
+      # rebuilds without touching the files people have downloaded and checked
+      # against its SHA256SUMS. To have a Release made again, delete it first.
+      - name: Decide on the GitHub Release
+        id: release
+        if: inputs.upload_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          bash scripts/pack-release.sh
-          VERSIONED="${{ steps.meta.outputs.name }}-${{ steps.meta.outputs.version }}.tgz"
-          ALIAS="${{ steps.meta.outputs.name }}.tgz"
-          test -f "$VERSIONED"
-          cp "$VERSIONED" "$ALIAS"
-          echo "versioned=$VERSIONED" >> "$GITHUB_OUTPUT"
-          echo "alias=$ALIAS" >> "$GITHUB_OUTPUT"
-          tar -tzf "$VERSIONED" | head -n 20
+          case "$GITHUB_REF" in
+            refs/tags/v*) ;;
+            *) echo "::notice::${GITHUB_REF_NAME} is not a v* tag — a build, no Release."; exit 0 ;;
+          esac
+          if out="$(gh release view "$GITHUB_REF_NAME" --json isDraft 2>&1)"; then
+            echo "::notice::${GITHUB_REF_NAME} already has a Release — left as it is. Delete it to have it made again."
+          elif [ "$out" = "release not found" ]; then
+            echo "draft=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "$out"
+            exit 1
+          fi
 
-      # Always keep the package as a workflow artifact so a run is useful even
-      # when the Releases upload is turned off.
+      # scripts/build-release.sh IS the release: it fetches the pinned SDK
+      # native libs, refuses a tree that would install as nothing (a native
+      # plugin with no committed .meta — Unity ignores those inside an immutable
+      # package folder, and CI has no Unity to generate one), packs the UPM
+      # tarball, writes the stable alias name the README and docs link to, and
+      # checks the finished archive really contains what the allowlist was
+      # supposed to keep. Every option is spelled out so a release cannot change
+      # because a default did, and so this is the command a human runs locally
+      # to produce the same three files.
+      #
+      # Unity 6.3's Package Manager checks every tarball for a signature and tells
+      # whoever installs an unsigned one so. `upm pack` -- the standalone UPM CLI,
+      # no Editor needed -- packs and signs in one step, and pack-release.sh uses
+      # it in place of `npm pack` when UNITY_ORGANIZATION_ID is set. Nothing to do
+      # when it is not: the build below packs unsigned and reports it.
+      - name: Install the UPM CLI
+        if: env.UNITY_ORGANIZATION_ID != ''
+        run: |
+          curl -fsSL https://cdn.packages.unity.com/upm-cli/install.sh | bash
+          # The installer appends the CLI's directory to the shell rc, which a
+          # non-interactive `run:` step never sources -- so put it on PATH for the
+          # rest of the job explicitly. Where it lands is not documented, so find
+          # it rather than hardcode a guess, and fail loudly if it moved.
+          UPM_BIN="$(command -v upm || find "$HOME" -maxdepth 4 -type f -name upm -perm -u+x 2>/dev/null | head -1)"
+          if [ -z "$UPM_BIN" ]; then
+            echo "::error::the UPM CLI installer ran but no 'upm' executable was found"
+            exit 1
+          fi
+          dirname "$UPM_BIN" >> "$GITHUB_PATH"
+          "$UPM_BIN" --version
+
+      - name: Build the release
+        env:
+          # Read by `upm pack` itself. The service account behind them needs the
+          # organization's "Package Manager Package Signer" role.
+          UPM_SERVICE_ACCOUNT_KEY_ID: ${{ secrets.UPM_SERVICE_ACCOUNT_KEY_ID }}
+          UPM_SERVICE_ACCOUNT_KEY_SECRET: ${{ secrets.UPM_SERVICE_ACCOUNT_KEY_SECRET }}
+        run: ./scripts/build-release.sh sdk=download out=release-dist verify=yes clean=yes
+
+      # Keep the assets on the run even when nothing is uploaded to a Release,
+      # so a build from a branch is still useful — and so the tarball a human
+      # installs to review is the same bytes the Release would carry.
       - name: Upload workflow artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ${{ steps.pkg.outputs.versioned }}
-          path: ${{ steps.pkg.outputs.versioned }}
+          name: ssplayer-unity-release-dist
+          path: release-dist
           if-no-files-found: error
+          # A week, not the 90-day default. What is meant to last is attached to
+          # the GitHub Release, which never expires; this is a copy for a run
+          # that uploaded nothing. Artifact storage is an org-wide quota, and a
+          # full one does not degrade — `upload-artifact` fails, so the release
+          # build fails, in a step that has nothing to do with the release.
+          retention-days: 7
 
+      # The pre-release mark the draft carries: one once a full release is
+      # tagged, none before (scripts/release-channel.sh).
+      # A patch to an earlier line also names the full release before it in that
+      # line, which the generated notes start from instead of the newest release.
+      - name: Read the Release's channel
+        id: channel
+        if: steps.release.outputs.draft == 'true'
+        run: |
+          channel="$(./scripts/release-channel.sh "$GITHUB_REF_NAME")"
+          echo "::notice::${GITHUB_REF_NAME} is a ${channel} release"
+          echo "channel=${channel}" >> "$GITHUB_OUTPUT"
+          if [ "$channel" = old ]; then
+            previous="$(git tag --list "${GITHUB_REF_NAME%.*}.*" --sort=v:refname |
+              awk -v tag="$GITHUB_REF_NAME" '$0 == tag { print previous; exit } $0 !~ /-|[0-9](a|b|rc)[0-9]+$/ { previous = $0 }')"
+            echo "previous=${previous}" >> "$GITHUB_OUTPUT"
+          fi
+
+      # NOTE: the release is created as a DRAFT. Drafts are excluded from
+      # `releases/latest`, so the stable download URL used by README and the docs
+      # (releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz) does NOT
+      # resolve until a human publishes the draft from the GitHub Releases UI.
+      # Publishing the draft is also what emits the `release: published` event that
+      # triggers the Deploy Pages workflow. So after a green run: review the draft, then
+      # click "Publish release".
+      #
+      # The draft carries its pre-release mark from the step above: none for a full
+      # release or a prerelease before the first one, so `latest` resolves to it once it
+      # is published, and a pre-release after that, so `latest` stays on the full release.
       - name: Upload package to release
-        if: ${{ inputs.upload }}
-        uses: softprops/action-gh-release@v3
+        if: steps.release.outputs.draft == 'true'
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
-          tag_name: ${{ steps.meta.outputs.tag }}
-          name: SSPlayer for Unity ${{ steps.meta.outputs.tag }}
+          # The ref this was dispatched from, which the decision above has
+          # established is a v* tag — the same string build-release.sh reported.
+          tag_name: ${{ github.ref_name }}
+          name: SpriteStudio Player for Unity ${{ github.ref_name }}
           draft: true
-          prerelease: ${{ inputs.prerelease }}
-          # Ship both the version-pinned tarball and the stable alias filename.
+          prerelease: ${{ steps.channel.outputs.channel == 'prerelease' }}
+          generate_release_notes: true
+          previous_tag: ${{ steps.channel.outputs.previous }}
+          # The version-pinned tarball, the stable alias filename, and the
+          # checksums covering both.
           files: |
-            ${{ steps.pkg.outputs.versioned }}
-            ${{ steps.pkg.outputs.alias }}
+            release-dist/*.tgz
+            release-dist/SHA256SUMS
