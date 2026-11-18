@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [7.0.0-beta.1] - Unreleased
+## [7.0.0-beta.1] - 2026-11-18
 
 ### Added
 - **Initial public release.** A Unity player for SpriteStudio animations (`.ssab`), driving the SpriteStudio-SDK Rust runtime (`libssruntime`) over csbindgen-generated FFI, with per-frame geometry built in Burst jobs.
@@ -33,4 +33,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `LoadSsab` checks only the `"SSAB"` file identifier before handing the buffer to the native runtime; full structural verification is pending an upstream FlatBuffers fix (see [ROADMAP.md](./ROADMAP.md)).
 - Constraints inherited from the shared runtime - `independent=true` parts under reverse playback and seeking, seeking not firing skipped events, no reverse audio, single-`.ssab` blending - are documented in [Shared Limitations](https://cri-middleware.github.io/SpriteStudio-Docs/sdk/limitations/).
 
-[7.0.0-beta.1]: https://github.com/cri-middleware/SSPlayerForUnity/releases
+[7.0.0-beta.1]: https://github.com/cri-middleware/SSPlayerForUnity/releases/tag/v7.0.0-beta.1
