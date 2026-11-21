@@ -23,6 +23,8 @@ on:
       - '**/*.md'
       - '.gitignore'
       - 'LICENSE*'
+      - 'docs/requirements.txt'
+      - 'overrides/**'
   # The weekly run also writes the develop caches that PRs restore from, since
   # PRs do not save.
   schedule:
