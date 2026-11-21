@@ -50,21 +50,6 @@ theme:
     - content.action.copy
     - content.tabs.link
 
-plugins:
-  - search
-  - redirects
-  - llmstxt:
-      full_output: llms-full.txt
-      markdown_description: |
-        Unity player, editor-first. `setup/install` and `workflow/usage_basic` get a first
-        animation on screen, and `workflow/usage_asset_pipeline` covers importing a `.sspj`
-        into a project. `workflow/usage_scripting` is the C# API for playback control and
-        events, shared by the `SpriteStudioPlayer` (world) and `SpriteStudioGraphic` (Canvas)
-        components. `limitations` lists what is not supported.
-      sections:
-        Docs:
-          - "*.md"
-
 markdown_extensions:
   - toc:
       permalink: true

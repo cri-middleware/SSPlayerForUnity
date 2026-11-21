@@ -24,6 +24,36 @@ extra:
       link: https://x.com/spritestudio
       name: X の SpriteStudio
 
+plugins:
+  - search
+  - redirects
+  - llmstxt:
+      full_output: llms-full.txt
+      markdown_description: |
+        Unity 向けの Player で、エディタ中心の作りです。`.sspj` を SS Importer ウィンドウにドロップし、できたアセットを Hierarchy へドラッグして Play を押すと再生できます。`SpriteStudioPlayer` はワールド空間に、`SpriteStudioGraphic` は uGUI の Canvas に描画します。機能がどちらのものかは各ページに書いてあります。
+      sections:
+        利用者向けガイド:
+          - index.md: "このプラグインの概要、主な機能、`.sspj` から `.ssab` を経てシーン上のコンポーネントに至る流れ、公式のサンプルデータ（Ringo、パーティクル）、関連リポジトリ。"
+          - setup/install.md: "プロジェクトへのパッケージの導入。対応する Unity のバージョン・レンダーパイプライン・プラットフォーム、npm（Scoped Registries）または tarball からのインストール、`SHA256SUMS` によるダウンロードの検証、git URL からは導入できない理由、Burst の再起動ダイアログ。"
+          - workflow/usage_basic.md: "`.sspj` のインポートから最初の 1 フレームまで。SS Importer ウィンドウ、`SpriteStudioPlayer`（ワールド）と `SpriteStudioGraphic`（Canvas）の配置（ドラッグ＆ドロップか Add Component）、スクリプトからの再生、両コンポーネントのインスペクタの設定項目（Anime Asset・Animation Name・Auto Play・Loop Count・Speed Scale・Flip X・Offset・Fit・Align）、編集モードでのプレビュー、マスクパーツ。"
+          - workflow/usage_asset_pipeline.md: "SS Importer ウィンドウでの `.sspj` の初回インポート、Unity から SpriteStudio を開く Open SSPJ と保存後の Reconvert、生成される `SpriteStudioAnimeAsset` のフィールド、チーム開発で `.ssab` と `.sspj` の対応を保つ方法（`SpriteStudioSourceMap.json`、Relink SSPJ）。"
+          - workflow/generated_assets.md: "1 回のコンバートで生成されるファイルと依存関係、SpriteStudio での編集ごとに配信し直すファイル、再コンバートが上書きするものとしないもの、AssetBundle / Addressables への分け方（テクスチャだけの差し替えを含む）、`.mat` を含まないバンドル（Generate Materials）、インポートしていない `.ssab` からのアセットの作成（`SpriteStudioAnimeAssetLoader`）。"
+          - workflow/usage_scripting.md: "再生とイベントの C# API（両コンポーネント共通）。`SetAnimation`・`Play`・`Pause`・`Resume`・`Stop`、シークと区間再生、ループ回数、速度、逆再生とピンポン、6 種類のイベント（`OnAnimationFinished`・`OnUserData`・`OnSignal`・`OnAudio` など）、パーツの輪郭と当たり判定、パーツオーバーライド（カラー・セル・表示）、着せ替えのためのセルマップのテクスチャ差し替え。`FlipX`・`Offset`・パーツトラッキング・Timeline は `SpriteStudioPlayer` だけにある。"
+          - workflow/motion_blending.md: "複数のアニメーションをトラックに積んで同時に再生する方法。重ね合わせ（`SetTrackAnimation`・`SetTrackAlpha`）、加算のトラック、クロスフェード（`Crossfade`・`FadeTrack`）、1 つのトラックで歩きと走りを重みで混ぜる方法、位相をそろえた開始（`SetTrackSync`）、トラックごとの再生設定、発火するイベント、制約。"
+          - workflow/ui_buttons.md: "`SpriteStudioGraphic` を uGUI のボタンやトグルにする方法（`SpriteStudio Button`・`SpriteStudio Toggle`）。状態のラベル `normal`・`hover`・`pressed`・`disabled`・`focused`、手持ちのアニメーションを使う State Clips、Reduced motion、`SpriteStudio Raycast Filter` でポインタを絵の上だけで受ける設定、読み上げ。"
+          - workflow/tips.md: "表示とパフォーマンスの設定。Pixels Per Unit、Frame Skipping、Sub-Frame Interpolation、Speed Scale、`.ssab` と `.ssqb` の使い分け、ゼロアロケーション、パーツ単位のカスタムシェーダ（AddOn、Shader Catalog）、マスクとクリッピング、Canvas 経路の制約。"
+          - migration_from_ss6.md: "旧 SS6Player for Unity からの移行。アセットの再インポート、`Script_SpriteStudio6_Root` から `SpriteStudioPlayer` / `SpriteStudioGraphic` への置き換え、再生 API（`AnimationPlay`・`timesPlay`・`rateTime`）とイベント（`FunctionUserData`・`FunctionPlayEnd`）の対応表、マルチトラック・エフェクト・パーツへの GameObject の取り付け・Timeline・コライダーに代わるもの。"
+        カスタマイズ・自動化ガイド:
+          - workflow/import.md: "`.sspj` の一括変換と、Unity を使わない変換。出力先の設定、インポート時のテクスチャとマテリアルの自動設定、フォルダの一括変換、再コンバートの方法、CI やビルドパイプラインでの `ssconverter-cli`。"
+        制約と適用範囲:
+          - limitations.md: "対応していない機能と、一部だけ対応している機能。テキストと 9 スライスのパーツ、`.ssqb` のシーケンス再生、Canvas パス（アトラスは 1 枚、ブレンドは MIX と ADD のみ、SpriteStudio のマスクなし）、マスクの深さ、メッシュパーツへの追従、Timeline、モーションブレンド、逆再生とシーク、WebGL の SIMD 要件。"
+        Player・SDK 開発者向けガイド:
+          - development/build.md: "ネイティブライブラリのソースからのビルド（`build-runtime` の platform・arch・build オプション）、FlatBuffers アクセサの再生成、変更したパッケージをプロジェクトで使う方法（`download-sdk`、`file:` 依存）、`run-tests.sh` による実際のホストでの確認。"
+          - development/architecture.md: "2 つのコンポーネントから FFI を介した `libssruntime` までの層、エディタ側の構成、この作りになっている理由（2 つのコンポーネントで 1 つのコア、全プレイヤーを 2 段で動かすこと、Canvas の再構築を通らないこと、ネイティブのハンドルの持ち主、エディタを止めない変換、チェックアウトがどのランタイムで動くかを示す 2 つの記録）。"
+        ライセンス:
+          - license.md: "BSD 3-Clause License の参考訳。ソース形式・バイナリ形式での再頒布と使用の条件、免責条項。"
+          - third_party_notices.md: "サードパーティライブラリのライセンス表記。FlatBuffers と、SpriteStudio-SDK およびその Rust の依存クレート（ライセンスファイルの置き場所、アプリを配布するときに同梱するもの）。"
+
 nav:
   - 🏠 ホーム: index.md
   - 👤 利用者向けガイド:
