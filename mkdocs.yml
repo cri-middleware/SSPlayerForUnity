@@ -24,6 +24,38 @@ extra:
       link: https://x.com/spritestudio
       name: SpriteStudio on X
 
+plugins:
+  - search
+  - redirects
+  - llmstxt:
+      full_output: llms-full.txt
+      markdown_description: |
+        Unity player, editor-first: drop a `.sspj` onto the SS Importer window, drag the asset it
+        makes into the Hierarchy, and press Play. `SpriteStudioPlayer` draws in the world and
+        `SpriteStudioGraphic` on a uGUI Canvas; the pages say which of the two a feature is for.
+      sections:
+        For Users:
+          - index.md: "What the player is, its key features, the flow from a `.sspj` through `.ssab` to a component in the scene, where to get sample data (Ringo, Particle), and the related repositories."
+          - setup/install.md: "Adding the package to a project: supported Unity version, render pipelines and platforms, installing from npm (scoped registry) or a tarball, verifying the download with `SHA256SUMS`, why a git URL cannot install it, and the Burst restart dialog."
+          - workflow/usage_basic.md: "From a `.sspj` to a first frame: the SS Importer window, placing `SpriteStudioPlayer` (world) or `SpriteStudioGraphic` (Canvas) by drag and drop or Add Component, playing from a script, the Inspector settings of both components (Anime Asset, Animation Name, Auto Play, Loop Count, Speed Scale, Flip X, Offset, Fit, Align), Play in Edit Mode, and mask parts."
+          - workflow/usage_asset_pipeline.md: "Importing a `.sspj` with the SS Importer window, Open SSPJ to edit it in SpriteStudio and Reconvert after saving, the fields of the generated `SpriteStudioAnimeAsset`, and keeping the `.ssab` to `.sspj` link in a team (`SpriteStudioSourceMap.json`, Relink SSPJ)."
+          - workflow/generated_assets.md: "The files one conversion produces and how they depend on each other, which file to ship again after each kind of edit in SpriteStudio, what Reconvert overwrites and keeps, splitting them across AssetBundles or Addressables (patching the texture alone included), bundles without a `.mat` (Generate Materials), and building an asset from a `.ssab` that was not imported (`SpriteStudioAnimeAssetLoader`)."
+          - workflow/usage_scripting.md: "The C# API for playback and events, shared by both components: `SetAnimation`, `Play`, `Pause`, `Resume`, `Stop`, seeking and sections, loop count, speed, reverse and ping-pong, the six events (`OnAnimationFinished`, `OnUserData`, `OnSignal`, `OnAudio` and more), part outlines and hit testing, part overrides (color, cell, visibility), and cellmap texture replacement for outfits; `SpriteStudioPlayer` alone also has `FlipX`, `Offset`, part tracking and Timeline."
+          - workflow/motion_blending.md: "Playing several animations at once on tracks: overlays (`SetTrackAnimation`, `SetTrackAlpha`), additive tracks, crossfades (`Crossfade`, `FadeTrack`), mixing a walk and a run by weight on one track, starting in phase (`SetTrackSync`), per-track playback settings, which events fire, and the limits."
+          - workflow/ui_buttons.md: "A `SpriteStudioGraphic` as a uGUI button or toggle (`SpriteStudio Button`, `SpriteStudio Toggle`): the state labels `normal`, `hover`, `pressed`, `disabled` and `focused`, state clips from animations you already have, reduced motion, taking the pointer on the artwork only (`SpriteStudio Raycast Filter`), and screen readers."
+          - workflow/tips.md: "Display and performance settings: Pixels Per Unit, Frame Skipping, Sub-Frame Interpolation, Speed Scale, `.ssab` versus `.ssqb`, zero allocation, per-part custom shaders (AddOn, Shader Catalog), masking and clipping, and the Canvas path's constraints."
+          - migration_from_ss6.md: "Moving from the legacy SS6Player for Unity: re-importing assets, `Script_SpriteStudio6_Root` to `SpriteStudioPlayer` / `SpriteStudioGraphic`, the playback API (`AnimationPlay`, `timesPlay`, `rateTime`) and event (`FunctionUserData`, `FunctionPlayEnd`) mappings, and what replaces multi-track, effects, part attachment, Timeline and colliders."
+        Customization & Automation:
+          - workflow/import.md: "Converting `.sspj` in bulk or without Unity: batch conversion of a dropped folder, the output folder setting, automatic texture and material settings on import, the ways to reconvert, and `ssconverter-cli` for CI and build pipelines."
+        Limitations & Scope:
+          - limitations.md: "What is not supported, or supported in part: Text and 9-slice parts, `.ssqb` sequence playback, the Canvas path (one atlas, MIX and ADD blends only, no SpriteStudio masks), mask depth, following mesh parts, Timeline, motion blending, reverse and seeking, and the SIMD requirement for WebGL."
+        For Player & SDK Developers:
+          - development/build.md: "Building the native libraries from source (`build-runtime` and its platform, arch and build options), regenerating the FlatBuffers accessors, using a changed package in a project (`download-sdk`, a `file:` dependency), and checking a change against the real host with `run-tests.sh`."
+          - development/architecture.md: "The layers from the two components down to `libssruntime` over FFI, the editor side, and why it is built this way: one core under two components, two passes a frame, bypassing the Canvas rebuild, who owns native handles, conversion that never blocks the Editor, and the two pins that name the runtime a checkout runs."
+        License:
+          - license.md: "The player's license text: the conditions for redistribution and use in source and binary form, and the warranty disclaimer."
+          - third_party_notices.md: "The notices for the third-party libraries the player uses: FlatBuffers, and SpriteStudio-SDK with its Rust dependencies, including where their license files ship and what to bundle when distributing an app."
+
 nav:
   - 🏠 Home: index.md
   - 👤 For Users:
