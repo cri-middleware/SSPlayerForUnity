@@ -47,7 +47,7 @@
 > <video autoplay loop muted playsinline width="100%">
 >   <source src="../assets/3-setup_drag_and_drop.webm" type="video/webm">
 > </video>
-> <img src="../assets/3-setup_drag_and_drop.webp" width="100%" style="display: none;" loading="lazy">
+> <img src="../assets/3-setup_drag_and_drop.webp" alt="プロジェクトウィンドウからドラッグした Ringo がシーンに置かれ、続けて騎士のアセット 3 つをまとめてドラッグすると SpriteStudioPlayer / SpriteStudioGraphic (Canvas UI) のメニューが出て一度に置かれ、Play モードで全員が再生される。" width="100%" style="display: none;" loading="lazy">
 
 ### 方法 B: コンポーネントを手動で追加する
 
@@ -144,7 +144,7 @@ uGUI の `Graphic` 由来の **Color** / **Material** / **Raycast Target** / **R
 > <video autoplay loop muted playsinline width="100%">
 >   <source src="../assets/4-inspector_preview.webm" type="video/webm">
 > </video>
-> <img src="../assets/4-inspector_preview.webp" width="100%" style="display: none;" loading="lazy">
+> <img src="../assets/4-inspector_preview.webp" alt="Play モード中に Sprite Studio Player のインスペクタで Animation Name を wait1 から run に切り替え、Speed Scale を 0 から 4 近くまでドラッグし、Animation Name を jump に切り替えると、Game ビューがそのたびに追従する。" width="100%" style="display: none;" loading="lazy">
 
 ## 編集モードでのプレビュー
 
@@ -168,4 +168,4 @@ uGUI の `Graphic` 由来の **Color** / **Material** / **Raycast Target** / **R
 > <video autoplay loop muted playsinline width="100%">
 >   <source src="../assets/6-mask.webm" type="video/webm">
 > </video>
-> <img src="../assets/6-mask.webp" width="100%" style="display: none;" loading="lazy">
+> <img src="../assets/6-mask.webp" alt="Canvas の下に uGUI の Scroll View を作り、SpriteStudioGraphic として置いた Ringo をその Content へ移すと、Play モードでスクロールしたときに Ringo がビューの端でクリップされる。" width="100%" style="display: none;" loading="lazy">

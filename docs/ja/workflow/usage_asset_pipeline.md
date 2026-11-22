@@ -26,7 +26,7 @@ Unity 上で再生・制御可能な専用の最適化バイナリ（**`.ssab`**
 > <video autoplay loop muted playsinline width="100%">
 >   <source src="../assets/1-sspj_import.webm" type="video/webm">
 > </video>
-> <img src="../assets/1-sspj_import.webp" width="100%" style="display: none;" loading="lazy">
+> <img src="../assets/1-sspj_import.webp" alt="ファイルマネージャーから SS Importer ウィンドウへドラッグした .sspj が Assets/ssab_generated/ 以下のアセットにコンバートされ、その 1 つを Hierarchy へドロップしてメニューで SpriteStudioPlayer を選ぶとキャラクターが置かれ、Play モードで再生される。" width="100%" style="display: none;" loading="lazy">
 
 > [!TIP]
 > フォルダごとドロップすると、その中の `.sspj` を再帰的に `.ssab` へ一括変換します。詳しくは [各種コンバート機能と CI/CD](./import.md) を参照してください。
@@ -73,7 +73,7 @@ SpriteStudio 側でアニメーションを修正して保存したら、Unity �
 > <video autoplay loop muted playsinline width="100%">
 >   <source src="../assets/2-fast_iteration_inspector.webm" type="video/webm">
 > </video>
-> <img src="../assets/2-fast_iteration_inspector.webp" width="100%" style="display: none;" loading="lazy">
+> <img src="../assets/2-fast_iteration_inspector.webp" alt="Ringo のアセットのインスペクタで Open SSPJ を押すと SpriteStudio で開き、頭のりんごを大きくして保存し、Unity に戻って Reconvert を押すと再インポートされ、Play モードでりんごが大きくなっている。" width="100%" style="display: none;" loading="lazy">
 
 ---
 
