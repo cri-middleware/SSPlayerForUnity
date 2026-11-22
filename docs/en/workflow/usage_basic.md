@@ -47,7 +47,7 @@ Once selected, a GameObject is created, and **the asset you just dropped is auto
 > <video autoplay loop muted playsinline width="100%">
 >   <source src="../assets/3-setup_drag_and_drop.webm" type="video/webm">
 > </video>
-> <img src="../assets/3-setup_drag_and_drop.webp" width="100%" style="display: none;" loading="lazy">
+> <img src="../assets/3-setup_drag_and_drop.webp" alt="Ringo dragged from the Project window is placed in the scene; three knight assets dragged together bring up the SpriteStudioPlayer / SpriteStudioGraphic (Canvas UI) menu and are placed at once, and all of them play in Play mode." width="100%" style="display: none;" loading="lazy">
 
 ### Method B: Add the component manually
 
@@ -144,7 +144,7 @@ The **Color** / **Material** / **Raycast Target** / **Raycast Padding** / **Mask
 > <video autoplay loop muted playsinline width="100%">
 >   <source src="../assets/4-inspector_preview.webm" type="video/webm">
 > </video>
-> <img src="../assets/4-inspector_preview.webp" width="100%" style="display: none;" loading="lazy">
+> <img src="../assets/4-inspector_preview.webp" alt="In Play mode, Animation Name in the Sprite Studio Player Inspector is switched from wait1 to run, Speed Scale is dragged from 0 up to about 4, and Animation Name is switched to jump, with the Game view following each change." width="100%" style="display: none;" loading="lazy">
 
 ## Preview in edit mode
 
@@ -168,4 +168,4 @@ For details, see [Performance Tuning and Advanced Settings](./tips.md#masking-an
 > <video autoplay loop muted playsinline width="100%">
 >   <source src="../assets/6-mask.webm" type="video/webm">
 > </video>
-> <img src="../assets/6-mask.webp" width="100%" style="display: none;" loading="lazy">
+> <img src="../assets/6-mask.webp" alt="A uGUI Scroll View is created under the Canvas and Ringo, placed as a SpriteStudioGraphic, is moved into its Content; in Play mode, scrolling the view clips Ringo at its edge." width="100%" style="display: none;" loading="lazy">

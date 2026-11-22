@@ -28,7 +28,7 @@ Drag and drop the generated asset onto the Hierarchy window or Scene view to pla
 > <video autoplay loop muted playsinline width="100%">
 >   <source src="../assets/1-sspj_import.webm" type="video/webm">
 > </video>
-> <img src="../assets/1-sspj_import.webp" width="100%" style="display: none;" loading="lazy">
+> <img src="../assets/1-sspj_import.webp" alt="A .sspj dragged from the file manager onto the SS Importer window is converted into assets under Assets/ssab_generated/; one of them dropped onto the Hierarchy, with SpriteStudioPlayer chosen from the menu, places the character, which plays in Play mode." width="100%" style="display: none;" loading="lazy">
 
 > [!TIP]
 > If you drop a whole folder, the `.sspj` files inside it are recursively batch-converted to `.ssab`. See [Conversion Features and CI/CD](./import.md) for details.
@@ -76,7 +76,7 @@ With just the following operation, your changes are reflected instantly in the g
 > <video autoplay loop muted playsinline width="100%">
 >   <source src="../assets/2-fast_iteration_inspector.webm" type="video/webm">
 > </video>
-> <img src="../assets/2-fast_iteration_inspector.webp" width="100%" style="display: none;" loading="lazy">
+> <img src="../assets/2-fast_iteration_inspector.webp" alt="Open SSPJ in the Inspector of Ringo's asset opens it in SpriteStudio, where the apple on its head is enlarged and saved; back in Unity, Reconvert reimports it and Play mode shows the bigger apple." width="100%" style="display: none;" loading="lazy">
 
 ---
 
