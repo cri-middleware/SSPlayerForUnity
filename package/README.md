@@ -1,6 +1,6 @@
 # SpriteStudio Player for Unity
 
-Plays animations made with [SpriteStudio](https://www.webtech.co.jp/spritestudio/) (`.ssab`) in Unity 6.3 LTS and later, in URP and BRP: `SpriteStudioPlayer` in the world, `SpriteStudioGraphic` on a uGUI Canvas. You start without writing a script: drop a `.sspj` onto the importer, place the asset it makes, and press Play.
+Plays animations made with [SpriteStudio](https://www.webtech.co.jp/eng/spritestudio/) (`.ssab`) in Unity 6.3 LTS and later, in URP and BRP: `SpriteStudioPlayer` in the world, `SpriteStudioGraphic` on a uGUI Canvas. You start without writing a script: drop a `.sspj` onto the importer, place the asset it makes, and press Play.
 
 ## Install
 
@@ -14,7 +14,7 @@ Projects have to be authored in **SpriteStudio 7.6 or later**.
 2. Drag the `.ssab` from there into the Hierarchy, and pick **SpriteStudioPlayer** (world space) or **SpriteStudioGraphic (Canvas UI)**.
 3. Press Play. **Animation Name** starts on the asset's first animation; pick another from its list if you like.
 
-No `.sspj` of your own yet? SpriteStudio's [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is: the page is in Japanese, the downloads are not.
+No `.sspj` of your own yet? SpriteStudio's [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is: the page is in Japanese, the downloads are not. To make your own, you use SpriteStudio itself — see [its site](https://www.webtech.co.jp/eng/spritestudio/).
 
 **Read next:** [Installation Guide](https://cri-middleware.github.io/SSPlayerForUnity/setup/install/) · [Asset Import](https://cri-middleware.github.io/SSPlayerForUnity/workflow/usage_asset_pipeline/) · [Basic Usage](https://cri-middleware.github.io/SSPlayerForUnity/workflow/usage_basic/) · [Limitations & Scope](https://cri-middleware.github.io/SSPlayerForUnity/limitations/)
 

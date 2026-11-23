@@ -47,7 +47,7 @@ Part Tracking (making a `Transform` follow a part) is a `SpriteStudioPlayer` (wo
 ## Editor & Import
 
 > [!WARNING]
-> - **`Open SSPJ` needs SpriteStudio on the machine.** The button launches the editor through the OS file association, so [SpriteStudio](https://www.webtech.co.jp/spritestudio/) must be installed on the PC you are working on. The `.ssab` ↔ `.sspj` binding itself travels with the project as a relative path in `ProjectSettings/SpriteStudioSourceMap.json` — see [Asset Import and Editor Integration](./workflow/usage_asset_pipeline.md).
+> - **`Open SSPJ` needs SpriteStudio on the machine.** The button launches the editor through the OS file association, so [SpriteStudio](https://www.webtech.co.jp/eng/spritestudio/) must be installed on the PC you are working on. The `.ssab` ↔ `.sspj` binding itself travels with the project as a relative path in `ProjectSettings/SpriteStudioSourceMap.json` — see [Asset Import and Editor Integration](./workflow/usage_asset_pipeline.md).
 
 > [!NOTE]
 > - **The Mesh Renderer's Materials belong to the player.** It sets the list itself, one material per draw batch, whenever what it draws changes, so a material dropped into the list is replaced. To change how the animation draws, edit the shared `.mat` next to the atlas texture, or give the player a **Shader Catalog** for per-part shaders — see [Performance Tuning and Advanced Settings](./workflow/tips.md).
