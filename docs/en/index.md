@@ -38,44 +38,6 @@ This documentation is organized by purpose, as follows.
 - **A seamless SpriteStudio ⇄ Unity round trip.** Drop a `.sspj` onto the **SS Importer** window and it becomes a ready-to-use asset ([Asset Import and Editor Integration](./workflow/usage_asset_pipeline.md)). To tweak it, click **Open SSPJ** in the Inspector, save in SpriteStudio, then click **Reconvert** — no manual export step. The animation lives in its own asset rather than the scene, so teammates don't collide over scene merges in Git.
 - **Zero-parse loading, SIMD and Burst playback.** `.ssab` is a FlatBuffers binary read in place, so loading involves no parsing. Each frame, a SIMD-optimised Rust core and Burst jobs build the meshes zero-copy, with no per-frame GC allocations — light enough for mobile and for scenes with many characters. Turn on **Sub-Frame Interpolation** in the Inspector and motion follows high-refresh-rate displays.
 
-## Overview
-
-The flow of playing back an animation using this plugin is shown below.
-
-```mermaid
-graph LR
-    SS[" .sspj / Images<br>(Source Assets) "]
-
-    subgraph Convert ["Conversion Process"]
-        IMP[[" SS Importer window<br>(Built into Unity Editor) "]]
-        CLI[[" ssconverter-cli<br>(CLI Tool) "]]
-    end
-
-    subgraph Asset ["Import Artifacts (Assets/)"]
-        BIN[" .ssab / .ssqb "]
-        SO[[ SpriteStudioAnimeAsset ]]
-    end
-
-    subgraph Runtime ["Your Scene"]
-        NODE[[ SpriteStudioPlayer /<br>SpriteStudioGraphic ]]
-    end
-
-    SS -- "Drag & Drop" --> IMP
-    SS -- "CI/CD or Manual" --> CLI
-    IMP -. "Auto Convert" .-> BIN
-    CLI -. "Generate" .-> BIN
-
-    BIN -. "Imported" .-> SO
-    SO -- "Set" --> NODE
-    NODE --> RENDER{{" Screen "}}
-
-    classDef generated stroke-dasharray: 5 5;
-    class BIN,SO generated;
-```
-
-- **Editor**: The SS Importer window converts a `.sspj` to `.ssab` / `.ssqb` and generates a `SpriteStudioAnimeAsset` that bundles textures, materials, animation names, external references, and more. `ssconverter-cli` produces the same files in CI.
-- **Runtime**: `SpriteStudioPlayer` draws the asset in the scene, and `SpriteStudioGraphic` on a uGUI Canvas.
-
 ## License
 
 This project is released under the BSD-3-Clause license. For details, see the [License](./license.md).

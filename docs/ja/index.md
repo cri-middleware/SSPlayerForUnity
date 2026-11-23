@@ -34,44 +34,6 @@
 - **SpriteStudio と Unity をシームレスに往復。** `.sspj` を **SS Importer** ウィンドウにドロップすれば、すぐ使えるアセットになります（[アセットのインポートとエディタ連携](./workflow/usage_asset_pipeline.md)）。直したくなったらインスペクタの **Open SSPJ** で SpriteStudio を開いて保存し、**Reconvert** を押すだけ。書き出しの手作業は要りません。アニメーションはシーンの外のアセットに入るので、チーム開発でシーンの Git コンフリクトが起きにくくなります。
 - **パース不要の読み込みと SIMD・Burst で、軽く滑らかに。** `.ssab` は FlatBuffers のバイナリをそのまま読むので、読み込み時のパースがありません。毎フレーム、SIMD で最適化した Rust コアと Burst ジョブがゼロコピーでメッシュを組み立て、GC アロケーションも発生しません。モバイルや大量のキャラクターでも滑らかに動きます。インスペクタの **Sub-Frame Interpolation** をオンにすれば、高リフレッシュレートのディスプレイにも追従します。
 
-## 概要 (Overview)
-
-本プラグインを利用してアニメーションを再生する際の流れを以下に示します。
-
-```mermaid
-graph LR
-    SS[" .sspj / 画像<br>(ソースアセット) "]
-
-    subgraph Convert ["変換プロセス"]
-        IMP[[" SS Importer ウィンドウ<br>(Unity エディタ内蔵) "]]
-        CLI[[" ssconverter-cli<br>(CLI ツール) "]]
-    end
-
-    subgraph Asset ["インポート成果物 (Assets/)"]
-        BIN[" .ssab / .ssqb "]
-        SO[[ SpriteStudioAnimeAsset ]]
-    end
-
-    subgraph Runtime ["シーン"]
-        NODE[[ SpriteStudioPlayer /<br>SpriteStudioGraphic ]]
-    end
-
-    SS -- "ドラッグ＆ドロップ" --> IMP
-    SS -- "CI/CD や手動" --> CLI
-    IMP -. "自動変換" .-> BIN
-    CLI -. "生成" .-> BIN
-
-    BIN -. "インポート" .-> SO
-    SO -- "セット" --> NODE
-    NODE --> RENDER{{" 画面 "}}
-
-    classDef generated stroke-dasharray: 5 5;
-    class BIN,SO generated;
-```
-
-- **エディタ**: SS Importer ウィンドウが `.sspj` を `.ssab` / `.ssqb` へ変換し、テクスチャ・マテリアル・アニメーション名・外部参照などを束ねた `SpriteStudioAnimeAsset` を生成します。CI では `ssconverter-cli` で同じものを作れます。
-- **ランタイム**: `SpriteStudioPlayer` はシーンに、`SpriteStudioGraphic` は uGUI の Canvas に描画します。
-
 ## ライセンス (License)
 
 本プロジェクトは BSD-3-Clause ライセンスのもとで公開されています。詳細は [ライセンス](./license.md) をご参照ください。

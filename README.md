@@ -24,11 +24,6 @@ For detailed instructions, see the documents in the `docs/` folder — structure
 - [**For AI assistants**](https://cri-middleware.github.io/SSPlayerForUnity/llms.txt) — these docs as Markdown: `llms.txt` indexes the pages and `llms-full.txt` holds all of them in one file; the installed package carries the same pages in its `Documentation~/` folder
 - [**SpriteStudio Docs (portal)**](https://cri-middleware.github.io/SpriteStudio-Docs/) — the SDK and every official player in one place, with a [plugin](https://cri-middleware.github.io/SpriteStudio-Docs/ai/) that tells your coding assistant about SpriteStudio
 
-### Quick Links
-- [Installation](./docs/en/setup/install.md)
-- [Basic Usage](./docs/en/workflow/usage_basic.md)
-- [Limitations & Scope](./docs/en/limitations.md)
-
 ## 🚀 Quick Start
 
 **Using it in your game?** Read on — install the package, drag a `.sspj` onto the SS Importer, place a component.
@@ -38,7 +33,11 @@ Everything after that (scripting, events, per-part overrides, Timeline) is the s
 
 This player supports Unity 6.3 LTS and later, and works in both URP and BRP. Projects have to be authored in **SpriteStudio 7.6 or later**.
 
-1. **Install**: In **Project Settings > Package Manager**, add `https://registry.npmjs.org` as a scoped registry for `jp.co.cri-mw`, then install `jp.co.cri-mw.spritestudio.ssplayer-unity` with Package Manager's **Install package by name...** — the [Installation Guide](./docs/en/setup/install.md) has the steps. Or download the package tarball from GitHub Releases (stable link, always the latest release) — [`jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz) — and choose **Install package from tarball...**. *(Package Manager's "Install package from git URL..." / git URL does not work for this package, since the native binaries ship only in the released package.)*
+1. **Install** the same package from either place (the [Installation Guide](./docs/en/setup/install.md) has the steps):
+   - **From npm**: In **Edit > Project Settings > Package Manager**, add `https://registry.npmjs.org` as a scoped registry for `jp.co.cri-mw`. Then, in **Window > Package Manager**, choose **＋ > Install package by name...** and enter `jp.co.cri-mw.spritestudio.ssplayer-unity` with a version from [its versions on npm](https://www.npmjs.com/package/jp.co.cri-mw.spritestudio.ssplayer-unity?activeTab=versions).
+   - **From a tarball**: Download [`jp.co.cri-mw.spritestudio.ssplayer-unity.tgz`](https://github.com/cri-middleware/SSPlayerForUnity/releases/latest/download/jp.co.cri-mw.spritestudio.ssplayer-unity.tgz) (a stable link to the latest release), then, in **Window > Package Manager**, choose **＋ > Install package from tarball...** and pick the file.
+
+   *(Package Manager's "Install package from git URL..." does not work for this package, since the native binaries ship only in the released package.)*
 2. **Import**: Open **Window > SpriteStudio > Importer** from the Unity menu, and drag your `.sspj` onto the window from Explorer or Finder — the box in the middle lights up while you drag. It is converted into the window's **Output Folder**, `Assets/ssab_generated/<sspj name>/` by default (the window converts on Windows and macOS Editors; on a Linux Editor, use `ssconverter-cli` instead — see [Conversion Features and CI/CD](./docs/en/workflow/import.md)):
 
    ```
