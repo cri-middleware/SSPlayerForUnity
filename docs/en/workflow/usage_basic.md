@@ -83,7 +83,7 @@ public class Sample : MonoBehaviour
 
     void Start()
     {
-        _player.SetAnimation("walk"); // Specify the animation (load the data)
+        _player.SetAnimation("walk"); // Select the animation to play
         _player.Play();               // Start playback
     }
 }

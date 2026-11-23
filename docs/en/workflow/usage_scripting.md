@@ -17,13 +17,13 @@ using SpriteStudio.Runtime;
 ```csharp
 [SerializeField] private SpriteStudioPlayer _player;
 
-// Specify an animation and load its data (does not start playback yet)
+// Select an animation and set it up (does not start playback yet)
 _player.SetAnimation("walk");
 // Start playback
 _player.Play();
 ```
 
-`SetAnimation()` loads the animation's data and **waits on the first frame** (it does not start playback). Calling `Play()` afterward starts playback from that point. Selecting the animation that is already set up does nothing at all — the playhead, the playback state, the section and the loop count stay as they are — so a state machine can call `SetAnimation(state.clip)` every frame. To restart it, call `Play()`.
+`SetAnimation()` sets the animation up and **waits on its first frame** (it does not start playback). Calling `Play()` afterward starts playback from that point. Selecting the animation that is already set up does nothing at all — the playhead, the playback state, the section and the loop count stay as they are — so a state machine can call `SetAnimation(state.clip)` every frame. To restart it, call `Play()`.
 
 Your playback settings hold across the switch: `SpeedScale`, `FrameSkipEnabled`, a frame-rate override and `PlaybackDirection` / `PlaybackStyle` all describe the playback rather than the clip, so the runtime keeps them, and the component puts `LoopCount` back because that one is per-transition. What does reset is the playhead — it waits on the first frame — and the playback section, whose frame numbers mean nothing against a different animation.
 
@@ -31,7 +31,7 @@ Your playback settings hold across the switch: `SpeedScale`, `FrameSkipEnabled`,
 
 | Member | Kind | Description |
 |---|---|---|
-| `SetAnimation(string animName)` | Method | Specify an animation and load its data (does not start playback). Returns `true` on success |
+| `SetAnimation(string animName)` | Method | Select an animation and set it up (does not start playback). Returns `true` on success |
 | `Play()` | Method | Start playing the set-up animation from the start of its section (the end of it when `PlaybackDirection` is `Backward`) |
 | `Play(float startFrame)` | Method | Start playing the set-up animation from the specified frame |
 | `Pause()` | Method | Hold playback on the current frame. Idempotent, and ignored while nothing is playing |
