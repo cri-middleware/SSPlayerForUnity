@@ -10,7 +10,7 @@ This page describes the shortest path from importing a `.sspj` to playing back a
 2. Set the **Output Folder** (the default is `Assets/ssab_generated`).
 3. Drag and drop the `.sspj` file you created in SpriteStudio onto the window's drop area.
 
-When conversion completes, a `SpriteStudioAnimeAsset` (a ScriptableObject that embeds the `.ssab`) is generated in the output folder.
+When conversion completes, the output folder holds `<sspj name>/`. The `.ssab` in it with the SpriteStudio icon (for example `Ringo.ssab`) is the `SpriteStudioAnimeAsset`, a ScriptableObject that embeds the `.ssab`: that file is what you place next.
 
 > [!TIP]
 > If you do not have a `.sspj` yet and just want to try this out, the [official SpriteStudio sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is (that page is only available in Japanese; the downloads themselves are language-neutral). [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character sample, and [Particle](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) is a good one if you want effects. Drop the downloaded `.sspj` in exactly as described above.

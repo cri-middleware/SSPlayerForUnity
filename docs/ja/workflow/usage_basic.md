@@ -10,7 +10,7 @@
 2. **Output Folder**（出力先）を設定します（既定は `Assets/ssab_generated`）。
 3. SpriteStudio で作成した `.sspj` ファイルを、ウィンドウのドロップ領域へドラッグ＆ドロップします。
 
-変換が完了すると、出力先に `SpriteStudioAnimeAsset`（`.ssab` を内包した ScriptableObject）が生成されます。
+変換が完了すると、出力先に `<sspj の名前>/` ができます。その中の SpriteStudio のアイコンが付いた `.ssab`（例: `Ringo.ssab`）が `SpriteStudioAnimeAsset`（`.ssab` を内包した ScriptableObject）で、次に配置するのはこのファイルです。
 
 > [!TIP]
 > 手元に `.sspj` がまだ無い状態で試したい場合は、[SpriteStudio 公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)がそのまま使えます。キャラクターなら [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo)、エフェクトを含むものなら [パーティクル](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) が手頃です。ダウンロードした `.sspj` を、上と同じ手順でドロップしてください。

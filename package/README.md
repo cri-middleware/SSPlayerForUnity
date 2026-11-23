@@ -4,7 +4,7 @@ Plays animations made with [SpriteStudio](https://www.webtech.co.jp/spritestudio
 
 ## Install
 
-In **Project Settings > Package Manager**, add `https://registry.npmjs.org` as a scoped registry for `jp.co.cri-mw`, then install `jp.co.cri-mw.spritestudio.ssplayer-unity` with Package Manager's **Install package by name...**. The [Installation Guide](https://cri-middleware.github.io/SSPlayerForUnity/setup/install/) has the steps, and the tarball from GitHub Releases as the other route. *(Package Manager's "Install package from git URL..." does not work for this package, since the native binaries ship only in the released package.)*
+In **Edit > Project Settings > Package Manager**, add `https://registry.npmjs.org` as a scoped registry for `jp.co.cri-mw`, then install `jp.co.cri-mw.spritestudio.ssplayer-unity` with Package Manager's **Install package by name...**. The [Installation Guide](https://cri-middleware.github.io/SSPlayerForUnity/setup/install/) has the steps, and the tarball from GitHub Releases as the other route. *(Package Manager's "Install package from git URL..." does not work for this package, since the native binaries ship only in the released package.)*
 
 ## First frame
 
