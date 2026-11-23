@@ -4,7 +4,7 @@
 
 **Professional 2D animations for your Unity games. A plugin that balances intuitive usability with extreme performance.**
 
-A high-performance plugin for playing back animations (`.ssab`) created with **[SpriteStudio](https://www.webtech.co.jp/spritestudio/)** inside [Unity](https://unity.com/). By combining Unity's powerful features with the expressive capabilities of a dedicated animation tool, it easily integrates raster-based 2D animations into your Unity projects.
+A high-performance plugin for playing back animations (`.ssab`) created with **[SpriteStudio](https://www.webtech.co.jp/eng/spritestudio/)** inside [Unity](https://unity.com/). By combining Unity's powerful features with the expressive capabilities of a dedicated animation tool, it easily integrates raster-based 2D animations into your Unity projects.
 
 ## ✨ Why use SpriteStudio with Unity?
 
@@ -58,7 +58,7 @@ This player supports Unity 6.3 LTS and later, and works in both URP and BRP. Pro
 
 3. **Place**: Drag the `SpriteStudioAnimeAsset` (`Ringo.ssab` above) from the Project window into the Hierarchy (or Scene view), and pick **SpriteStudioPlayer** (world space) or **SpriteStudioGraphic (Canvas UI)**. **Animation Name** starts on the asset's first animation; pick another from its list if you like, and press Play.
 
-No `.sspj` of your own yet? SpriteStudio's [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is — the page is in Japanese, the downloads are not. [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character to start with, and [Particle](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) a good one for effects.
+No `.sspj` of your own yet? SpriteStudio's [official sample data](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/) works as-is — the page is in Japanese, the downloads are not. [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character to start with, and [Particle](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) a good one for effects. To make your own, you use SpriteStudio itself — see [its site](https://www.webtech.co.jp/eng/spritestudio/).
 
 **Read next:** [Installation Guide](./docs/en/setup/install.md) · [Asset Import](./docs/en/workflow/usage_asset_pipeline.md) · [Basic Usage](./docs/en/workflow/usage_basic.md) · [Limitations & Scope](./docs/en/limitations.md)
 

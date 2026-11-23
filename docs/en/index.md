@@ -1,6 +1,6 @@
 # 🎮 SpriteStudio Player for Unity — Documentation
 
-A plugin for playing back animations created with [SpriteStudio](https://www.webtech.co.jp/spritestudio/) on [Unity](https://unity.com/).
+A plugin for playing back animations created with [SpriteStudio](https://www.webtech.co.jp/eng/spritestudio/) on [Unity](https://unity.com/).
 Drop a `.sspj` onto the **SS Importer** window (**Window > SpriteStudio > Importer**), drag the asset it makes into the Hierarchy, and press Play — no code to reach the first frame.
 
 !!! tip "No SpriteStudio data of your own yet?"
@@ -8,6 +8,7 @@ Drop a `.sspj` onto the **SS Importer** window (**Window > SpriteStudio > Import
     Japanese only, but the downloads themselves are language-neutral.
     [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo) is a good character sample, and
     [Particle](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) is a good one if you want effects.
+    To make your own, you use SpriteStudio itself — see [its site](https://www.webtech.co.jp/eng/spritestudio/).
 
 ## Contents
 

@@ -56,7 +56,7 @@
 
 3. **配置**: `SpriteStudioAnimeAsset`（上の `Ringo.ssab`）を Project ウィンドウから Hierarchy（または Scene ビュー）へドラッグ＆ドロップし、**SpriteStudioPlayer**（ワールド空間）または **SpriteStudioGraphic (Canvas UI)** を選びます。**Animation Name** にはアセットの最初のアニメーションが入っています。別のものにするならリストから選び、再生します。
 
-SpriteStudio のデータが手元に無くても始められます。[公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)がそのまま使えます。キャラクターなら [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo)、エフェクトを含むものなら [パーティクル](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) が手頃です。
+SpriteStudio のデータが手元に無くても始められます。[公式のサンプルデータ](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/)がそのまま使えます。キャラクターなら [Ringo](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#ringo)、エフェクトを含むものなら [パーティクル](https://www.webtech.co.jp/help/ja/spritestudio7/download/sample/#Perticle_sample) が手頃です。自分のアニメーションを作るには SpriteStudio 本体を使います（[製品サイト](https://www.webtech.co.jp/spritestudio/)）。
 
 **次に読む:** [インストールガイド](./docs/ja/setup/install.md) · [アセットのインポート](./docs/ja/workflow/usage_asset_pipeline.md) · [基本的な使い方](./docs/ja/workflow/usage_basic.md) · [制約と適用範囲](./docs/ja/limitations.md)
 

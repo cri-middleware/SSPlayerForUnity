@@ -109,7 +109,7 @@ When a `.ssab` is imported, a **shared material (`.mat`)** corresponding to the 
 > [!WARNING]
 > **SpriteStudio must be installed**
 >
-> Pressing the `Open SSPJ` button launches SpriteStudio via the OS file association. Therefore, [SpriteStudio](https://www.webtech.co.jp/spritestudio/) must be installed on the PC you are operating.
+> Pressing the `Open SSPJ` button launches SpriteStudio via the OS file association. Therefore, [SpriteStudio](https://www.webtech.co.jp/eng/spritestudio/) must be installed on the PC you are operating.
 
 > [!TIP]
 > **File path sharing and smart relinking in team development**
