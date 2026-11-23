@@ -83,7 +83,7 @@ public class Sample : MonoBehaviour
 
     void Start()
     {
-        _player.SetAnimation("walk"); // アニメーションを指定（データをロード）
+        _player.SetAnimation("walk"); // 再生するアニメーションを選ぶ
         _player.Play();               // 再生開始
     }
 }

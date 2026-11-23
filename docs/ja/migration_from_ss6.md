@@ -32,7 +32,7 @@ SS6Player の「トラック（`indexTrack`）」を中心とした API から�
 ### 3-1. アニメーションの指定は「インデックス」から「名前」へ
 
 - **SS6Player**: `IndexGetAnimation("walk")` でインデックスを取得し、`AnimationPlay(indexTrack, indexAnimation, ...)` に**インデックス**を渡していました。
-- **本バージョン**: `SetAnimation("walk")` で**名前**を直接指定してロードし、`Play()` で再生します。
+- **本バージョン**: `SetAnimation("walk")` で**名前**を直接指定し、`Play()` で再生します。
 
 ```csharp
 using SpriteStudio.Runtime;
