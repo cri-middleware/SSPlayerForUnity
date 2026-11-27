@@ -53,13 +53,13 @@ If you find a bug, please open a GitHub Issue and include:
 
 ### Setup
 ```bash
-./scripts/download-sdk.sh          # fetch prebuilt native libraries
+./scripts/download-sdk.sh    # installs libssruntime / libssconverter and their FFI bindings from the SDK release (no Rust)
 ```
 The FlatBuffers C# runtime under `package/Runtime/FlatBuffers/` is committed; `scripts/download-flatbuffers.sh` re-vendors it, and is run only to change its version. How to use your checkout in a project of your own is in [docs/en/development/build.md](./docs/en/development/build.md), and how the package is put together in [docs/en/development/architecture.md](./docs/en/development/architecture.md).
 
 ### Build from source (optional)
 ```bash
-./scripts/build-runtime.sh   # builds the native libraries and regenerates the FFI bindings
+./scripts/build-runtime.sh   # builds the same libraries and bindings from the submodule instead
 ```
 
 ### Tests
@@ -151,13 +151,13 @@ SSPlayerForUnity への貢献にご関心をお寄せいただきありがとう
 
 ### セットアップ
 ```bash
-./scripts/download-sdk.sh          # ビルド済みネイティブライブラリの取得
+./scripts/download-sdk.sh    # libssruntime / libssconverter と FFI バインディングを SDK のリリースから入れる（Rust 不要）
 ```
 `package/Runtime/FlatBuffers/` の FlatBuffers の C# ランタイムはコミット済みです。`scripts/download-flatbuffers.sh` はそれを取り込み直すもので、版を変えるときだけ実行します。チェックアウトを自分のプロジェクトで使う方法は [docs/ja/development/build.md](./docs/ja/development/build.md) に、パッケージの構成は [docs/ja/development/architecture.md](./docs/ja/development/architecture.md) にあります。
 
 ### ソースからのビルド（任意）
 ```bash
-./scripts/build-runtime.sh   # ネイティブライブラリのビルドと FFI バインディングの再生成
+./scripts/build-runtime.sh   # 同じライブラリとバインディングを、代わりにサブモジュールからビルドする
 ```
 
 ### テスト
