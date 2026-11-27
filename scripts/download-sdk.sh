@@ -4,8 +4,9 @@ HELP_APP="$(basename "$0")"
 usage () {
     cat <<USAGE
 Usage: ${HELP_APP} [--help]
-  Install the SpriteStudio-SDK release pinned by scripts/SDK_VERSION.txt into the
-  package's Plugins and Bindings. Skips the download when that version is in place.
+  Install libssruntime, libssconverter and their C# bindings from the SpriteStudio-SDK
+  release pinned by scripts/SDK_VERSION.txt into the package's Plugins and Bindings.
+  Skips the download when that version is in place.
 USAGE
 }
 

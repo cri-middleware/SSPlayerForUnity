@@ -5,8 +5,9 @@ $ProgressPreference = "SilentlyContinue"
 $HelpApp = Split-Path -Leaf $PSCommandPath
 function Show-Usage {
     Write-Host "Usage: ${HelpApp} [--help]"
-    Write-Host "  Install the SpriteStudio-SDK release pinned by scripts/SDK_VERSION.txt into the"
-    Write-Host "  package's Plugins and Bindings. Skips the download when that version is in place."
+    Write-Host "  Install libssruntime, libssconverter and their C# bindings from the SpriteStudio-SDK"
+    Write-Host "  release pinned by scripts/SDK_VERSION.txt into the package's Plugins and Bindings."
+    Write-Host "  Skips the download when that version is in place."
 }
 
 foreach ($arg in $args) {

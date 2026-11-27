@@ -48,7 +48,7 @@ plugins:
         制約と適用範囲:
           - limitations.md: "対応していない機能と、一部だけ対応している機能。テキストと 9 スライスのパーツ、`.ssqb` のシーケンス再生、Canvas パス（アトラスは 1 枚、ブレンドは MIX と ADD のみ、SpriteStudio のマスクなし）、マスクの深さ、メッシュパーツへの追従、Timeline、モーションブレンド、逆再生とシーク、WebGL の SIMD 要件。"
         Player・SDK 開発者向けガイド:
-          - development/build.md: "ネイティブライブラリのソースからのビルド（`build-runtime` の platform・arch・build オプション）、FlatBuffers アクセサの再生成、変更したパッケージをプロジェクトで使う方法（`download-sdk`、`file:` 依存）、`run-tests.sh` による実際のホストでの確認。"
+          - development/build.md: "ネイティブライブラリの配置（リリース済みのものを入れる `download-sdk`、ソースからビルドする `build-runtime` とその platform・arch・build オプション）、FlatBuffers アクセサの再生成、変更したパッケージをプロジェクトで使う方法（`file:` 依存）、`run-tests.sh` による実際のホストでの確認。"
           - development/architecture.md: "2 つのコンポーネントから FFI を介した `libssruntime` までの層、エディタ側の構成、この作りになっている理由（2 つのコンポーネントで 1 つのコア、全プレイヤーを 2 段で動かすこと、Canvas の再構築を通らないこと、ネイティブのハンドルの持ち主、エディタを止めない変換、チェックアウトがどのランタイムで動くかを示す 2 つの記録）。"
         ライセンス:
           - license.md: "BSD 3-Clause License の参考訳。ソース形式・バイナリ形式での再頒布と使用の条件、免責条項。"

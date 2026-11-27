@@ -50,7 +50,7 @@ plugins:
         Limitations & Scope:
           - limitations.md: "What is not supported, or supported in part: Text and 9-slice parts, `.ssqb` sequence playback, the Canvas path (one atlas, MIX and ADD blends only, no SpriteStudio masks), mask depth, following mesh parts, Timeline, motion blending, reverse and seeking, and the SIMD requirement for WebGL."
         For Player & SDK Developers:
-          - development/build.md: "Building the native libraries from source (`build-runtime` and its platform, arch and build options), regenerating the FlatBuffers accessors, using a changed package in a project (`download-sdk`, a `file:` dependency), and checking a change against the real host with `run-tests.sh`."
+          - development/build.md: "Putting the native libraries in place (the released ones with `download-sdk`, or built from source with `build-runtime` and its platform, arch and build options), regenerating the FlatBuffers accessors, using a changed package in a project (a `file:` dependency), and checking a change against the real host with `run-tests.sh`."
           - development/architecture.md: "The layers from the two components down to `libssruntime` over FFI, the editor side, and why it is built this way: one core under two components, two passes a frame, bypassing the Canvas rebuild, who owns native handles, conversion that never blocks the Editor, and the two pins that name the runtime a checkout runs."
         License:
           - license.md: "The player's license text: the conditions for redistribution and use in source and binary form, and the warranty disclaimer."

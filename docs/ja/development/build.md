@@ -2,11 +2,36 @@
 
 [← ドキュメント目次へ戻る](../index.md)
 
-通常の利用ではビルド済みのネイティブライブラリがパッケージに含まれているため、本ページの作業は不要です。**プラグイン自体を開発する場合**や、**特定プラットフォーム向けにネイティブライブラリを再ビルドする場合**にのみ必要です。C# だけを変えるならこのページの作業は要りません。[変更したプレイヤーを使う](#変更したプレイヤーを使う)を参照してください。プレイヤーの構成とその理由は[プレイヤーの構成](architecture.md)にあります。
+通常の利用ではビルド済みのネイティブライブラリがパッケージに含まれているため、本ページは要りません。repo のチェックアウトから**プラグイン自体を開発する場合**のページです。プレイヤーの構成とその理由は[プレイヤーの構成](architecture.md)にあります。
 
-ビルドでは、Rust 製の SDK (`libssruntime` / `libssconverter`) をコンパイルし、Unity パッケージ側の `Plugins` フォルダへ配置します。同時に `csbindgen` が生成した C# FFI バインディングもコピーされます。
+ネイティブライブラリ `libssruntime` / `libssconverter` と、`csbindgen` がそれらに向けて生成した C# FFI バインディングは、パッケージの次の場所に入ります。
 
-## 事前準備
+- `package/Runtime/Plugins/<Platform>/<Arch>/` — `libssruntime`（実行時に使用）。macOS・iOS・WebGL には `<Arch>` の階層がありません
+- `package/Editor/Plugins/<Platform>/[<Arch>/]` — `libssconverter`（エディタの変換に使用）。デスクトップのプラットフォームだけです
+- `package/Runtime/Bindings/SSRuntimeMethods.g.cs` — 生成された FFI バインディング
+- `package/Editor/Bindings/SSConverterMethods.g.cs` — 同上（変換用）
+
+[`download-sdk`](#リリースのネイティブライブラリを入れる) はリリース済みのものを入れるもので、Rust は要りません。[`build-runtime`](#ネイティブライブラリをソースからビルドする) は代わりに SDK のサブモジュールからコンパイルするもので、ネイティブのコアを変えるときに使います。
+
+## リリースのネイティブライブラリを入れる
+
+`download-sdk` は、`scripts/SDK_VERSION.txt` で固定した SpriteStudio-SDK のリリースから、全プラットフォームのライブラリ、そのバインディング、ライセンスファイルを入れます。Rust もサブモジュールも要らず、その版がすでに入っていればダウンロードを省きます。
+
+```sh
+# macOS / Linux
+./scripts/download-sdk.sh
+
+# Windows (PowerShell)
+.\scripts\download-sdk.ps1
+```
+
+C# だけを変えるなら、ほかに要るものはありません。[変更したプレイヤーを使う](#変更したプレイヤーを使う)を参照してください。
+
+## ネイティブライブラリをソースからビルドする
+
+`build-runtime` は、指定したプラットフォーム（既定はホスト）向けに `libssruntime` / `libssconverter` を SDK のサブモジュールからコンパイルし、`download-sdk` がそのプラットフォームに置いたものを置き換えます。
+
+### 事前準備
 
 ビルドには **Rust ツールチェイン (`cargo`)** が必要です。未導入の場合は [rustup](https://rustup.rs/) からインストールしてください。
 
@@ -14,7 +39,7 @@
 
 クロスコンパイル（別プラットフォーム向けビルド）を行う場合は、対象プラットフォームのツールチェインが別途必要です。SDK のリリーススクリプトが挙げる Rust のターゲット（各スクリプトの冒頭に `rustup target add` が書いてあります）に加えて、macOS と iOS には Xcode、Android には Android NDK と `cargo-ndk`、web には `rust-src` 付きの nightly ツールチェイン、Windows には MSVC のビルドツールが要ります。
 
-## 手順
+### 手順
 
 1. サブモジュールを含めてリポジトリを取得し、`SpriteStudio-SDK` を用意します。
 
@@ -36,16 +61,11 @@
    .\scripts\build-runtime.ps1
    ```
 
-3. `libssruntime` と `libssconverter` がコンパイルされ、次の場所へ自動配置されます。
-
-   - `package/Runtime/Plugins/<Platform>/<Arch>/` — `libssruntime`（実行時に使用）。macOS・iOS・WebGL には `<Arch>` の階層がありません
-   - `package/Editor/Plugins/<Platform>/[<Arch>/]` — `libssconverter`（エディタの変換に使用）。macOS・Windows・Linux 向けだけがビルドされます
-   - `package/Runtime/Bindings/SSRuntimeMethods.g.cs` — 生成された FFI バインディング
-   - `package/Editor/Bindings/SSConverterMethods.g.cs` — 同上（変換用）
+3. ライブラリとバインディングは、このページの冒頭に挙げた場所に入ります。
 
    Rust の依存のライセンスファイル（`THIRD-PARTY-LICENSES.ssruntime.md` / `.ssconverter.md`）がライブラリの横に置かれるのは、SDK の `generate-licenses` スクリプトがそれらを `SpriteStudio-SDK/target/licenses/` に書き出した後だけです。`download-sdk` は、リリース済みのライブラリと一緒にこれらを置きます。
 
-## ビルドオプション
+### ビルドオプション
 
 引数を指定すると、対象プラットフォーム・アーキテクチャ・ビルドモードを切り替えられます（指定しない場合はホスト環境向けの debug ビルド）。
 
@@ -104,10 +124,10 @@ SDK 側で `.fbs` スキーマが変更された際は、`package/Runtime/Format
 **C# だけを変えるなら**、Rust は要りません。
 
 1. repo を clone します。
-2. `scripts/download-sdk.sh`（Windows は `.ps1`）を実行します。`scripts/SDK_VERSION.txt` の SDK リリースのネイティブライブラリとそのバインディングが `package/` に入ります。
+2. `scripts/download-sdk.sh`（Windows は `.ps1`）で[リリースのネイティブライブラリを入れます](#リリースのネイティブライブラリを入れる)。
 3. 自分のプロジェクトを `package/` に向けます。Package Manager の **＋** → **Install package from disk...** で `package/package.json` を選ぶか、`examples/UnityTestProject` のように `Packages/manifest.json` に `file:` の依存を書きます（`"jp.co.cri-mw.spritestudio.ssplayer-unity": "file:../../../package"`）。
 
-これでプロジェクトはチェックアウトをそのまま使うので、C# の変更は次のコンパイルで反映されます。**ネイティブのコアを変えるなら**このページ冒頭の手順です。`build-runtime` が `download-sdk` の置いたものを置き換えます。読み込むにはエディタの再起動が要ります。
+これでプロジェクトはチェックアウトをそのまま使うので、C# の変更は次のコンパイルで反映されます。**ネイティブのコアを変えるなら**[ネイティブライブラリをソースからビルドする](#ネイティブライブラリをソースからビルドする)の手順です。ビルドしたものを読み込むにはエディタの再起動が要ります。
 
 ## 実際のホストで確かめる
 
